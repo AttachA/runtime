@@ -82,7 +82,7 @@ namespace ABI_IMPL {
 
 	template <class T>
 	T Vcast(void*& val, ValueMeta meta) {
-		switch (meta.decoded.vtype)
+		switch (meta.vtype)
 		{
 		case VType::noting:
 			return T();
@@ -171,9 +171,9 @@ namespace exception_abi {
 				throw EnviropmentRuinException();
 			}
 			ValueMeta meta = 0;
-			meta.decoded.vtype = VType::except_value;
-			meta.decoded.allow_edit = true;
-			meta.decoded.use_gc = false;
+			meta.vtype = VType::except_value;
+			meta.allow_edit = true;
+			meta.use_gc = false;
 
 			try {
 				res->value = new std::exception_ptr(std::current_exception());

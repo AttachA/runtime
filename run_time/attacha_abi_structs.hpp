@@ -127,11 +127,11 @@ union ValueMeta {
 		VType vtype;
 		uint8_t use_gc : 1;
 		uint8_t allow_edit : 1;
-	} decoded;
+	};
 
 	ValueMeta() = default;
 	ValueMeta(const ValueMeta& copy) = default;
-	ValueMeta(VType ty, bool gc, bool editable) { decoded.vtype = ty; decoded.use_gc = gc; decoded.allow_edit = editable; }
+	ValueMeta(VType ty, bool gc, bool editable) { vtype = ty; use_gc = gc; allow_edit = editable; }
 };
 struct ArrItem {
 	void* val;
@@ -161,12 +161,13 @@ struct FuncRes {
 };
 
 
+
 struct ClassValue {
 	std::unordered_map<std::string, ArrItem> private_vals;
 	std::unordered_map<std::string, ArrItem>  public_vals;
 
-	std::unordered_map<std::string, void*> private_fun;
-	std::unordered_map<std::string, void*> private_fun;
+	std::unordered_map<std::string, class FuncEnviropment*> private_fun;
+	std::unordered_map<std::string, class FuncEnviropment*> public_fun;
 };
 struct StructValue {
 	std::unordered_map<std::string, ArrItem> private_vals;
@@ -174,11 +175,17 @@ struct StructValue {
 };
 
 
-struct CompressedClassValue {
-	void* class_ptr = nullptr;
-	std::unordered_map<std::string, ArrItem> private_vals;
-	std::unordered_map<std::string, ArrItem>  public_vals;
+using ProxyClassGetter = ArrItem(*)(void*);
+using ProxyClassSeter = void(*)(void*, ArrItem&);
+using ProxyClassDestructor = void(*)(void*);
 
-	std::unordered_map<std::string, void*> private_fun;
-	std::unordered_map<std::string, void*> private_fun;
+struct ProxyClassDeclare {
+	std::unordered_map<std::string, ProxyClassGetter> value_geter;
+	std::unordered_map<std::string, ProxyClassSeter> value_seter;
+	std::unordered_map<std::string, class FuncEnviropment*> public_fun;
+	ProxyClassDestructor destructor;
+};
+struct ProxyClassValueLgrItem {
+	ProxyClassDeclare* declare_ty = nullptr;
+	void* class_ptr = nullptr;
 };

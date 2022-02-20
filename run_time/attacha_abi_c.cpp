@@ -64,14 +64,14 @@ bool needAlloc(VType type) {
 bool calc_safe_deph_arr(void* ptr) {
 	list_array<ArrItem>& items = *(list_array<ArrItem>*)ptr;
 	for (ArrItem& it : items)
-		if (it.meta.decoded.use_gc)
+		if (it.meta.use_gc)
 			if (!((lgr*)it.val)->deph_safe())
 				return false;
 	return true;
 }
 
 VType valueType(void** value) {
-	return (*(ValueMeta*)value).decoded.vtype;
+	return (*(ValueMeta*)value).vtype;
 }
 
 
@@ -81,9 +81,9 @@ void universalFree(void** value, ValueMeta meta) {
 		return;
 	if (!*value)
 		return;
-	if (meta.decoded.use_gc)
+	if (meta.use_gc)
 		goto gc_destruct;
-	switch (meta.decoded.vtype) {
+	switch (meta.vtype) {
 	case VType::uarr:
 		delete (list_array<ArrItem>*)*value;
 		return;
@@ -114,15 +114,15 @@ void universalRemove(void** value) {
 	ValueMeta& meta = *reinterpret_cast<ValueMeta*>(value + 1);
 	if (!meta.encoded)
 		return;
-	if (needAlloc(meta.decoded.vtype))
+	if (needAlloc(meta.vtype))
 		universalFree(value, meta);
 	meta.encoded = 0;
 }
 void universalAlloc(void** value, ValueMeta meta) {
 	if (*value)
 		universalRemove(value);
-	if (needAlloc(meta.decoded.vtype)) {
-		switch (meta.decoded.vtype)
+	if (needAlloc(meta.vtype)) {
+		switch (meta.vtype)
 		{
 		case VType::uarr:
 			Allocate<list_array<ArrItem>>(value);
@@ -132,10 +132,10 @@ void universalAlloc(void** value, ValueMeta meta) {
 			break;
 		}
 	}
-	if (meta.decoded.use_gc) {
+	if (meta.use_gc) {
 		void(*destructor)(void*) = nullptr;
 		bool(*deph)(void*) = nullptr;
-		switch (meta.decoded.vtype)
+		switch (meta.vtype)
 		{
 		case VType::uarr:
 			destructor = defaultDestructor<list_array<ArrItem>>;
@@ -202,8 +202,8 @@ FuncRes* buildRes(void** value) {
 
 
 void getAsyncResult(void*& value, ValueMeta& meta) {
-	if (meta.decoded.vtype == VType::async_res) {
-		auto res = getAsyncFuncRes(meta.decoded.use_gc ? ((lgr*)value)->getPtr() : value);
+	if (meta.vtype == VType::async_res) {
+		auto res = getAsyncFuncRes(meta.use_gc ? ((lgr*)value)->getPtr() : value);
 		void* moveValue = res->value;
 		void* new_meta = (void*)res->meta;
 		res->value = nullptr;
@@ -213,14 +213,14 @@ void getAsyncResult(void*& value, ValueMeta& meta) {
 	}
 }
 void* copyValue(void*& val, ValueMeta& meta) {
-	while (meta.decoded.vtype == VType::async_res)
+	while (meta.vtype == VType::async_res)
 		getAsyncResult(val, meta);
 
 	void* actual_val = val;
-	if (meta.decoded.use_gc)
+	if (meta.use_gc)
 		actual_val = ((lgr*)val)->getPtr();
-	if (needAlloc(meta.decoded.vtype)) {
-		switch (meta.decoded.vtype)
+	if (needAlloc(meta.vtype)) {
+		switch (meta.vtype)
 		{
 		case VType::uarr:
 			return new list_array<ArrItem>(*(list_array<ArrItem>*)val);
@@ -255,49 +255,49 @@ void** preSetValue(void** value, ValueMeta set_meta, bool match_gc_dif) {
 	void** res = getValueLink(value);
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
 	if (match_gc_dif) {
-		if (meta.decoded.allow_edit && meta.decoded.vtype == set_meta.decoded.vtype && meta.decoded.use_gc == set_meta.decoded.use_gc)
+		if (meta.allow_edit && meta.vtype == set_meta.vtype && meta.use_gc == set_meta.use_gc)
 			return res;
 	}
 	else
-		if (meta.decoded.allow_edit && meta.decoded.vtype == set_meta.decoded.vtype)
+		if (meta.allow_edit && meta.vtype == set_meta.vtype)
 			return res;
 	universalRemove(value);
 	universalAlloc(value, set_meta);
 	return getValueLink(value);
 }
 void*& getValue(void*& value, ValueMeta& meta) {
-	if (meta.decoded.vtype == VType::async_res)
+	if (meta.vtype == VType::async_res)
 		getAsyncResult(value, meta);
-	return meta.decoded.use_gc ? (**(lgr*)value) : value;
+	return meta.use_gc ? (**(lgr*)value) : value;
 }
 void*& getValue(void** value) {
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
-	if (meta.decoded.vtype == VType::async_res)
+	if (meta.vtype == VType::async_res)
 		getAsyncResult(*value, meta);
-	return meta.decoded.use_gc ? (**(lgr*)value) : *value;
+	return meta.use_gc ? (**(lgr*)value) : *value;
 }
 void* getSpecificValue(void** value, VType typ) {
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
-	if (meta.decoded.vtype == VType::async_res)
+	if (meta.vtype == VType::async_res)
 		getAsyncResult(*value, meta);
-	if (meta.decoded.vtype != typ)
+	if (meta.vtype != typ)
 		throw InvalidType("Requested specifed type but recuived another");
-	return meta.decoded.use_gc ? ((lgr*)value)->getPtr() : *value;
+	return meta.use_gc ? ((lgr*)value)->getPtr() : *value;
 }
 void** getSpecificValueLink(void** value, VType typ) {
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
-	if (meta.decoded.vtype == VType::async_res)
+	if (meta.vtype == VType::async_res)
 		getAsyncResult(*value, meta);
-	if (meta.decoded.vtype != typ)
+	if (meta.vtype != typ)
 		throw InvalidType("Requested specifed type but recuived another");
-	return meta.decoded.use_gc ? (&**(lgr*)value) : value;
+	return meta.use_gc ? (&**(lgr*)value) : value;
 }
 
 void** getValueLink(void** value) {
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
-	if (meta.decoded.vtype == VType::async_res)
+	if (meta.vtype == VType::async_res)
 		getAsyncResult(*value, meta);
-	return meta.decoded.use_gc ? (&**(lgr*)value) : value;
+	return meta.use_gc ? (&**(lgr*)value) : value;
 }
 
 bool is_integer(VType typ) {
@@ -345,8 +345,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 		if (temp1 && temp2)
 			return { false, uint64_t(val1) < uint64_t(val2) };
 		else if (temp1)
-			switch (cmp2)
-			{
+			switch (cmp2) {
 			case VType::i8:
 				return { false, uint64_t(val1) < int8_t(val2) };
 			case VType::i16:
@@ -361,8 +360,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				return { false, uint64_t(val1) < *(double*)&val2 };
 			}
 		else if (temp2)
-			switch (cmp1)
-			{
+			switch (cmp1) {
 			case VType::i8:
 				return { false, int8_t(val1) < uint64_t(val2) };
 			case VType::i16:
@@ -377,11 +375,9 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				return { false, *(double*)&val1 < uint64_t(val2) };
 			}
 		else
-			switch (cmp1)
-			{
+			switch (cmp1) {
 			case VType::i8:
-				switch (cmp1)
-				{
+				switch (cmp1) {
 				case VType::i8:
 					return { false, int8_t(val1) < int8_t(val2) };
 				case VType::i16:
@@ -397,8 +393,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				}
 				break;
 			case VType::i16:
-				switch (cmp1)
-				{
+				switch (cmp1) {
 				case VType::i8:
 					return { false, int16_t(val1) < int8_t(val2) };
 				case VType::i16:
@@ -414,8 +409,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				}
 				break;
 			case VType::i32:
-				switch (cmp1)
-				{
+				switch (cmp1) {
 				case VType::i8:
 					return { false, int32_t(val1) < int8_t(val2) };
 				case VType::i16:
@@ -431,8 +425,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				}
 				break;
 			case VType::i64:
-				switch (cmp1)
-				{
+				switch (cmp1) {
 				case VType::i8:
 					return { false, int64_t(val1) < int8_t(val2) };
 				case VType::i16:
@@ -448,8 +441,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				}
 				break;
 			case VType::flo:
-				switch (cmp1)
-				{
+				switch (cmp1) {
 				case VType::i8:
 					return { false, *(float*)&val1 < int8_t(val2) };
 				case VType::i16:
@@ -465,8 +457,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				}
 				break;
 			case VType::doub:
-				switch (cmp1)
-				{
+				switch (cmp1) {
 				case VType::i8:
 					return { false, *(double*)&val1 < int8_t(val2) };
 				case VType::i16:
@@ -508,7 +499,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 					auto& first = *tmp;
 					void* val1 = getValue(first.val, first.meta);
 					void* val2 = getValue(it.val, it.meta);
-					auto res = compareValue(first.meta.decoded.vtype, it.meta.decoded.vtype, first.val, it.val);
+					auto res = compareValue(first.meta.vtype, it.meta.vtype, first.val, it.val);
 					if (!res.first)
 						return res;
 					++tmp;
@@ -528,7 +519,7 @@ RFLAGS compare(RFLAGS old, void** value_1, void** value_2) {
 	ValueMeta cmp2 = *(ValueMeta*)(value_2 + 1);
 
 	old.parity = old.auxiliary_carry = old.sign_f = old.overflow = 0;
-	auto res = compareValue(cmp1.decoded.vtype, cmp2.decoded.vtype, val1, val2);
+	auto res = compareValue(cmp1.vtype, cmp2.vtype, val1, val2);
 	old.zero = res.first;
 	old.carry = res.second;
 	return old;
@@ -570,7 +561,7 @@ ArrItem& ArrItem::operator=(ArrItem&& move) noexcept {
 }
 ArrItem::~ArrItem() {
 	if (val)
-		if (needAlloc(meta.decoded.vtype))
+		if (needAlloc(meta.vtype))
 			universalFree(&val, meta);
 }
 
@@ -585,10 +576,9 @@ FuncRes::~FuncRes() {
 
 namespace ABI_IMPL {
 	std::string Scast(void*& val, ValueMeta meta) {
-		switch (meta.decoded.vtype)
-		{
+		switch (meta.vtype) {
 		case VType::noting:
-			return "";
+			return "null";
 		case VType::i8:
 			return std::to_string(reinterpret_cast<int8_t&>(val));
 		case VType::i16:
@@ -618,8 +608,18 @@ namespace ABI_IMPL {
 		case VType::doub:
 			return std::to_string(reinterpret_cast<double&>(val));
 			break;
-		case VType::uarr:
-			throw InvalidCast("Fail cast uarr");
+		case VType::uarr: {
+			std::string res("[");
+			bool before = false;
+			for (auto& it : *reinterpret_cast<list_array<ArrItem>*>(val)) {
+				if (before)
+					res += ',';
+				res += Scast(it.val, it.meta);
+				before = true;
+			}
+			res += ']';
+			return res;
+		}
 		case VType::string:
 			return reinterpret_cast<std::string&>(val);
 			break;
@@ -641,18 +641,16 @@ void DynSum(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.decoded.vtype == VType::async_res)
+	while (val0_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.decoded.vtype == VType::async_res)
+	while (val1_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val1, val1_meta);
 
-	if (!val0_meta.decoded.allow_edit)
+	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.decoded.vtype)
-	{
-	case VType::noting:
-	{
+	switch (val0_meta.vtype) {
+	case VType::noting: {
 		actual_val0 = copyValue(actual_val1, val1_meta);
 		val0_meta = val1_meta;
 		break;
@@ -705,18 +703,16 @@ void DynMinus(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.decoded.vtype == VType::async_res)
+	while (val0_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.decoded.vtype == VType::async_res)
+	while (val1_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val1, val1_meta);
 
-	if (!val0_meta.decoded.allow_edit)
+	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.decoded.vtype)
-	{
-	case VType::noting:
-	{
+	switch (val0_meta.vtype) {
+	case VType::noting: {
 		actual_val0 = copyValue(actual_val1, val1_meta);
 		val0_meta = val1_meta;
 		break;
@@ -769,18 +765,16 @@ void DynMul(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.decoded.vtype == VType::async_res)
+	while (val0_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.decoded.vtype == VType::async_res)
+	while (val1_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val1, val1_meta);
 
-	if (!val0_meta.decoded.allow_edit)
+	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.decoded.vtype)
-	{
-	case VType::noting:
-	{
+	switch (val0_meta.vtype) {
+	case VType::noting: {
 		actual_val0 = copyValue(actual_val1, val1_meta);
 		val0_meta = val1_meta;
 		break;
@@ -816,7 +810,7 @@ void DynMul(void** val0, void** val1) {
 		reinterpret_cast<double&>(actual_val0) *= ABI_IMPL::Vcast<double>(actual_val1, val1_meta);
 		break;
 	case VType::uarr:
-		if (val1_meta.decoded.vtype == VType::uarr)
+		if (val1_meta.vtype == VType::uarr)
 			reinterpret_cast<list_array<ArrItem>&>(actual_val0).insert(reinterpret_cast<list_array<ArrItem>&>(actual_val0).size() - 1, reinterpret_cast<list_array<ArrItem>&>(actual_val1));
 		else
 			reinterpret_cast<list_array<ArrItem>&>(actual_val0).push_back(ArrItem(copyValue(actual_val1,val1_meta), val1_meta));
@@ -835,18 +829,16 @@ void DynDiv(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.decoded.vtype == VType::async_res)
+	while (val0_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.decoded.vtype == VType::async_res)
+	while (val1_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val1, val1_meta);
 
-	if (!val0_meta.decoded.allow_edit)
+	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.decoded.vtype)
-	{
-	case VType::noting:
-	{
+	switch (val0_meta.vtype) {
+	case VType::noting: {
 		actual_val0 = copyValue(actual_val1, val1_meta);
 		val0_meta = val1_meta;
 		break;
@@ -882,7 +874,7 @@ void DynDiv(void** val0, void** val1) {
 		reinterpret_cast<double&>(actual_val0) /= ABI_IMPL::Vcast<double>(actual_val1, val1_meta);
 		break;
 	case VType::uarr:
-		if (val1_meta.decoded.vtype == VType::uarr)
+		if (val1_meta.vtype == VType::uarr)
 			reinterpret_cast<list_array<ArrItem>&>(actual_val0).insert(0, reinterpret_cast<list_array<ArrItem>&>(actual_val1));
 		else
 			reinterpret_cast<list_array<ArrItem>&>(actual_val0).push_front(ArrItem(copyValue(actual_val1,val1_meta), val1_meta));
@@ -903,18 +895,16 @@ void DynBitXor(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.decoded.vtype == VType::async_res)
+	while (val0_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.decoded.vtype == VType::async_res)
+	while (val1_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val1, val1_meta);
 
-	if (!val0_meta.decoded.allow_edit)
+	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.decoded.vtype)
-	{
-	case VType::noting:
-	{
+	switch (val0_meta.vtype) {
+	case VType::noting: {
 		actual_val0 = copyValue(actual_val1, val1_meta);
 		val0_meta = val1_meta;
 		break;
@@ -955,18 +945,16 @@ void DynBitOr(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.decoded.vtype == VType::async_res)
+	while (val0_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.decoded.vtype == VType::async_res)
+	while (val1_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val1, val1_meta);
 
-	if (!val0_meta.decoded.allow_edit)
+	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.decoded.vtype)
-	{
-	case VType::noting:
-	{
+	switch (val0_meta.vtype) {
+	case VType::noting: {
 		actual_val0 = copyValue(actual_val1, val1_meta);
 		val0_meta = val1_meta;
 		break;
@@ -1007,18 +995,16 @@ void DynBitAnd(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.decoded.vtype == VType::async_res)
+	while (val0_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.decoded.vtype == VType::async_res)
+	while (val1_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val1, val1_meta);
 
-	if (!val0_meta.decoded.allow_edit)
+	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.decoded.vtype)
-	{
-	case VType::noting:
-	{
+	switch (val0_meta.vtype) {
+	case VType::noting: {
 		actual_val0 = copyValue(actual_val1, val1_meta);
 		val0_meta = val1_meta;
 		break;
@@ -1057,18 +1043,15 @@ void DynBitAnd(void** val0, void** val1) {
 void DynBitNot(void** val0) {
 	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
 	void*& actual_val0 = *val0;
-	while (val0_meta.decoded.vtype == VType::async_res)
+	while (val0_meta.vtype == VType::async_res)
 		getAsyncResult(actual_val0, val0_meta);
 
-	if (!val0_meta.decoded.allow_edit)
+	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.decoded.vtype)
-	{
+	switch (val0_meta.vtype) {
 	case VType::noting:
-	{
 		break;
-	}
 	case VType::i8:
 		reinterpret_cast<int8_t&>(actual_val0) = ~reinterpret_cast<int8_t&>(actual_val0);
 		break;
@@ -1104,39 +1087,39 @@ void DynBitNot(void** val0) {
 
 void* AsArg(void** val) {
 	ValueMeta& meta = *((ValueMeta*)val + 1);
-	if (meta.decoded.vtype == VType::uarr)
+	if (meta.vtype == VType::uarr)
 		return *val;
 	else {
 		auto tmp = new list_array<ArrItem>(1);
 		tmp->operator[](0) = ArrItem(*val, meta);
 		universalRemove(val);
 		*val = tmp;
-		meta.decoded.allow_edit = true;
-		meta.decoded.use_gc = false;
-		meta.decoded.vtype = VType::uarr;
+		meta.allow_edit = true;
+		meta.use_gc = false;
+		meta.vtype = VType::uarr;
 		return tmp;
 	}
 }
 
 void AsArr(void** val) {
 	ValueMeta& meta = *((ValueMeta*)val + 1);
-	if (meta.decoded.vtype == VType::uarr)
+	if (meta.vtype == VType::uarr)
 		return;
 	else {
 		auto tmp = new list_array<ArrItem>(1);
 		tmp->operator[](0) = ArrItem(*val, meta);
 		universalRemove(val);
 		*val = tmp;
-		meta.decoded.allow_edit = true;
-		meta.decoded.use_gc = false;
-		meta.decoded.vtype = VType::uarr;
+		meta.allow_edit = true;
+		meta.use_gc = false;
+		meta.vtype = VType::uarr;
 	}
 }
 
 
 namespace exception_abi {
 	bool is_except(void** val) {
-		return ((ValueMeta*)(val + 1))->decoded.vtype == VType::async_res;
+		return ((ValueMeta*)(val + 1))->vtype == VType::async_res;
 	}
 	void ignore_except(void** val) {
 		if (!is_except(val))
@@ -1196,7 +1179,7 @@ size_t getSize(void** value) {
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
 	int64_t sig;
 	size_t actual;
-	switch (meta.decoded.vtype) {
+	switch (meta.vtype) {
 	case VType::i8:
 		actual = sig = (int8_t)res;
 		break;

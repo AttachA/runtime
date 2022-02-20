@@ -194,7 +194,7 @@ void IndexArrayMove(void** value, list_array<ArrItem>* arr, uint64_t pos) {
 void setSize(void** value, size_t res) {
 	void*& set = getValue(*value, *(ValueMeta*)(value + 1));
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
-	switch (meta.decoded.vtype) {
+	switch (meta.vtype) {
 	case VType::i8:
 		if (((int8_t&)set = res) != res)
 			throw NumericUndererflowException();
@@ -260,12 +260,20 @@ void popEnd(list_array<ArrItem>* dest, void** insert) {
 	dest->pop_back();
 }
 
-void throwDirEx(const std::string* ex_typ, const std::string* ex_desc) {
-	throw AException(*ex_typ, *ex_desc);
+void throwDirEx(void** typ, void** desc) {
+	throw AException(
+		*(const std::string*)getSpecificValue(typ, VType::string),
+		*(const std::string*)getSpecificValue(desc, VType::string)
+	);
 }
-
-void throwEx(FuncEnviropment* env, size_t ex_typ, size_t ex_desc) { 
-	throw AException(env->getString(ex_typ), env->getString(ex_desc));
+void throwStatEx(void** typ, void** desc) {
+	throw AException(
+		*(const std::string*)getValue(typ),
+		*(const std::string*)getValue(desc)
+	);
+}
+void throwEx(const char* typ, const char* desc) {
+	throw AException(typ, desc);
 }
 
 
@@ -322,9 +330,9 @@ void FuncEnviropment::Compile() {
 				uint16_t value_index = readData<uint16_t>(data, data_len, i);
 				VType needSet = (VType)readData<uint8_t>(data, data_len, i);
 				ValueMeta meta;
-				meta.decoded.vtype = needSet;
-				meta.decoded.use_gc = cmd.is_gc_mode;
-				meta.decoded.allow_edit = true;
+				meta.vtype = needSet;
+				meta.use_gc = cmd.is_gc_mode;
+				meta.allow_edit = true;
 				{
 					if (needAlloc(needSet)) {
 						BuildCall v(a);
@@ -380,6 +388,24 @@ void FuncEnviropment::Compile() {
 			case Opcode::arg_set:
 				a.leaEnviro(arg_ptr, readData<uint16_t>(data, data_len, i));
 				break;
+			case Opcode::throw_ex: {
+				bool in_memory = readData<bool>(data, data_len, i);
+				if (in_memory) {
+					a.mov(argr0, readData<uint16_t>(data, data_len, i));
+					a.mov(argr1, readData<uint16_t>(data, data_len, i));
+					a.call(throwStatEx);
+				}
+				else {
+					auto ex_typ = string_index_seter++;
+					strings[ex_typ] = readString(data, data_len, i);
+					auto ex_desc = string_index_seter++;
+					strings[ex_desc] = readString(data, data_len, i);
+					a.mov(argr0, strings[ex_typ].c_str());
+					a.mov(argr1, strings[ex_desc].c_str());
+					a.call(throwEx);
+				}
+				break;
+			}
 			case Opcode::arr_op: {
 				uint16_t arr = readData<uint16_t>(data, data_len, i);
 				switch (readData<uint8_t>(data, data_len, i)) {
@@ -572,8 +598,7 @@ void FuncEnviropment::Compile() {
 		};
 
 		auto dynamic_fablric = [&](Command cmd) {
-			switch (cmd.code)
-			{
+			switch (cmd.code) {
 			case Opcode::noting:
 				a.noting();
 				break;
@@ -583,9 +608,9 @@ void FuncEnviropment::Compile() {
 				{
 					BuildCall v(a);
 					ValueMeta meta;
-					meta.decoded.vtype = set_type;
-					meta.decoded.use_gc = cmd.is_gc_mode;
-					meta.decoded.allow_edit = true;
+					meta.vtype = set_type;
+					meta.use_gc = cmd.is_gc_mode;
+					meta.allow_edit = true;
 					v.leaEnviro(value_index);
 					v.addArg(meta.encoded);
 					v.addArg(readData<uint8_t>(data, data_len, i));
@@ -745,17 +770,8 @@ void FuncEnviropment::Compile() {
 			case Opcode::throw_ex: {
 				bool in_memory = readData<bool>(data, data_len, i);
 				if (in_memory) {
-					uint16_t typ_pos = readData<uint16_t>(data, data_len, i);
-					uint16_t desc_pos = readData<uint16_t>(data, data_len, i);
-					a.leaEnviro(argr0,typ_pos);
-					a.mov(argr1, VType::string);
-					a.call(getSpecificValue);
-					a.push(resr);
-					a.leaEnviro(argr0, desc_pos);
-					a.mov(argr1, VType::string);
-					a.call(getSpecificValue);
-					a.pop(argr0);
-					a.mov(argr1, resr);
+					a.mov(argr0, readData<uint16_t>(data, data_len, i));
+					a.mov(argr1, readData<uint16_t>(data, data_len, i));
 					a.call(throwDirEx);
 				}
 				else {
@@ -763,9 +779,8 @@ void FuncEnviropment::Compile() {
 					strings[ex_typ] = readString(data, data_len, i);
 					auto ex_desc = string_index_seter++;
 					strings[ex_desc] = readString(data, data_len, i);
-					a.mov(argr0, this);
-					a.mov(argr1, ex_typ);
-					a.mov(argr2, ex_desc);
+					a.mov(argr0, strings[ex_typ].c_str());
+					a.mov(argr1, strings[ex_desc].c_str());
 					a.call(throwEx);
 				}
 				break;
@@ -1025,7 +1040,7 @@ void FuncEnviropment::Compile() {
 	auto& tmp = bprolog.finalize();
 
 	strings.push_back("AttachA symbol: " + name);
-	curr_func = (EnviropmentF)tmp.init(frame, a.code(), jrt, strings.back().data());
+	curr_func = (Enviropment)tmp.init(frame, a.code(), jrt, strings.back().data());
 }
 
 struct EnviroHold {
@@ -1088,9 +1103,9 @@ FuncRes* FuncEnviropment::FuncWraper(list_array<ArrItem>* args, bool run_async) 
 			throw EnviropmentRuinException("Fail call function cause no memory for result");
 		}
 		ValueMeta meta;
-		meta.decoded.vtype = VType::async_res;
-		meta.decoded.allow_edit = true;
-		meta.decoded.use_gc = false;
+		meta.vtype = VType::async_res;
+		meta.allow_edit = true;
+		meta.use_gc = false;
 		res->meta = meta.encoded;
 		try {
 			//throw NotImplementedException();
@@ -1134,7 +1149,7 @@ FuncRes* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ArrItem>* argum
 			case DynamicCall::FunctionTemplate::ValueT::ValueType::signed_integer:
 			case DynamicCall::FunctionTemplate::ValueT::ValueType::floating:
 				if (to_add.ptype == DynamicCall::FunctionTemplate::ValueT::PlaceType::as_value) {
-					switch (meta.decoded.vtype) {
+					switch (meta.vtype) {
 					case VType::i8:
 						call.AddValueArgument((int8_t)arg);
 						break;
@@ -1170,7 +1185,7 @@ FuncRes* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ArrItem>* argum
 					}
 				}
 				else {
-					switch (meta.decoded.vtype) {
+					switch (meta.vtype) {
 					case VType::i8:
 						call.AddValueArgument((int8_t*)&arg);
 						break;
@@ -1211,7 +1226,7 @@ FuncRes* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ArrItem>* argum
 				break;
 
 			case DynamicCall::FunctionTemplate::ValueT::ValueType::pointer:
-				switch (meta.decoded.vtype) {
+				switch (meta.vtype) {
 				case VType::string:
 					if (to_add.vsize == 1) {
 						if (to_add.is_modifable)
