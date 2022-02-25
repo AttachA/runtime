@@ -1,5 +1,6 @@
 #include "cxxException.hpp"
 #include <windows.h>
+#include <string>
 namespace except_abi {
 	namespace {
 		struct ExThrowInfo {
@@ -64,4 +65,11 @@ namespace except_abi {
 
 void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex) {
 	except_abi::getCxxExInfoFromException(res, ex);
+}
+void getCxxExInfoFromNative(CXXExInfo& res, void* ex_ptr) {
+	res = except_abi::exceptCXXDetails((LPEXCEPTION_POINTERS)ex_ptr);
+}
+bool hasClassInEx(CXXExInfo& cxx, const char* class_nam) {
+	std::string str = std::string("class ") + class_nam;
+	return cxx.ty_arr.contains_one([&str](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == str; });
 }

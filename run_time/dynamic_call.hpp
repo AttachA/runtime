@@ -97,7 +97,7 @@ namespace DynamicCall {
 						delete a.ptr;
 					a.ptr = nullptr;
 				}
-			arguments.resize(0);
+			arguments.clear();
 		}
 
 		list_array<ArgumentItem>& GetArguments() {

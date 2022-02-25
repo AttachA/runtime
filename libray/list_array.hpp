@@ -689,13 +689,22 @@ private:
 				throw std::bad_alloc();
 
 			int64_t dif = _size - siz;
-			if (dif > 0)
-				for (size_t i = 0; i < siz && i < _size; i++)
-					narr[i] = arr_contain[i + dif];
+			if (dif > 0) {
+				if constexpr (std::is_move_assignable<T>::value)
+					for (size_t i = 0; i < siz && i < _size; i++)
+						narr[i] = std::move(arr_contain[i + dif]);
+				else
+					for (size_t i = 0; i < siz && i < _size; i++)
+						narr[i] = arr_contain[i + dif];
+			}
 			else {
 				dif *= -1;
-				for (size_t i = 0; i < siz && i < _size; i++)
-					narr[dif + i] = arr_contain[i];
+				if constexpr (std::is_move_assignable<T>::value)
+					for (size_t i = 0; i < siz && i < _size; i++)
+						narr[dif + i] = std::move(arr_contain[i]);
+				else
+					for (size_t i = 0; i < siz && i < _size; i++)
+						narr[dif + i] = arr_contain[i];
 			}
 			delete[] arr_contain;
 			arr_contain = narr;
@@ -1288,6 +1297,10 @@ public:
 	conexpr size_t size() const {
 		return _size;
 	}
+	conexpr bool empty() const {
+		return !_size;
+	}
+
 	template<bool do_shrink = false>
 	conexpr void resize(size_t new_size) {
 		static_assert(std::is_default_constructible<T>::value, "This type not default constructable");
@@ -1321,7 +1334,8 @@ public:
 			std::swap(start_pos, end_pos);
 		if (end_pos > _size)
 			throw std::out_of_range("end_pos value out of size limit");
-		_size -= arr.remove_items(reserved_begin + start_pos, reserved_begin + end_pos);
+		if (start_pos != end_pos)
+			_size -= arr.remove_items(reserved_begin + start_pos, reserved_begin + end_pos);
 	}
 
 	conexpr void reserve_push_front(size_t reserve_size) {
@@ -1375,11 +1389,43 @@ public:
 	}
 
 	conexpr void pop_back() {
-		remove(_size - 1);
+		if (_size) {
+			++reserved_end;
+			--_size;
+		}
+		else
+			throw std::out_of_range("This list_array is empty");
 	}
 	conexpr void pop_front() {
-		remove(0);
+		if (_size) {
+			++reserved_begin;
+			--_size;
+		}
+		else
+			throw std::out_of_range("This list_array is empty");
 	}
+
+	conexpr T take_back() {
+		if (_size) {
+			T tmp(std::move(operator[](_size - 1)));
+			++reserved_end;
+			--_size;
+			return tmp;
+		}
+		else
+			throw std::out_of_range("This list_array is empty");
+	}
+	conexpr T take_front() {
+		if (_size) {
+			T tmp(std::move(operator[](0)));
+			++reserved_begin;
+			--_size;
+			return tmp;
+		}
+		else
+			throw std::out_of_range("This list_array is empty");
+	}
+	
 
 	conexpr T& back() {
 		return operator[](_size - 1);
@@ -2051,6 +2097,12 @@ public:
 		remove(split_pos, _size);
 		return res;
 	}
+	conexpr list_array<T> take() {
+		list_array<T> res(0);
+		res.swap(*this);
+		return res;
+	}
+
 	conexpr T take(size_t take_pos) {
 		if (_size <= take_pos)
 			throw std::out_of_range("Fail take item due small array");
@@ -2081,11 +2133,11 @@ public:
 			return res;
 		}
 	}
-	template<class _Fn>
+	template<class _Fn, std::enable_if<std::is_function<_Fn>::value>>
 	conexpr list_array<T> take(_Fn select_fn) {
 		return take(select_fn, 0, _size);
 	}
-	template<class _Fn>
+	template<class _Fn, std::enable_if<std::is_function<_Fn>::value>>
 	conexpr list_array<T> take(_Fn select_fn, size_t start_pos, size_t end_pos) {
 		size_t i = 0;
 		size_t taken_items = 0;

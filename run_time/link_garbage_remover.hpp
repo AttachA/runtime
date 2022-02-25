@@ -12,19 +12,17 @@ class lgr {
 	bool in_safe_deph;
 
 	void exit() {
-		if (total && in_safe_deph) {
-			if (*total > 1) (*total)--;
-			else {
-				if (ptr)
-					if (destructor) destructor(ptr);
-				ptr = nullptr;
-				delete total;
-				total = nullptr;
-			}
+		if (*total > 1) (*total)--;
+		else {
+			if (ptr)
+				if (destructor) destructor(ptr);
+			ptr = nullptr;
+			delete total;
+			total = nullptr;
 		}
 	}
 	void join(std::atomic_size_t* p_total_links) {
-		if (total) exit();
+		if (total && in_safe_deph) exit();
 		total = p_total_links;
 		if (p_total_links && (in_safe_deph = calcDeph()))
 			(*p_total_links)++;
@@ -46,9 +44,10 @@ public:
 		*this = std::move(mov);
 	}
 	~lgr() {
-		exit();
+		if (total && in_safe_deph) 
+			exit();
 	}
-	lgr& operator=(lgr& copy) {
+	lgr& operator=(const lgr& copy) {
 		if (this == &copy)return *this;
 		join(copy.total);
 		ptr = copy.ptr;
@@ -57,7 +56,8 @@ public:
 		return *this;
 	}
 	lgr& operator=(lgr&& mov) noexcept {
-		exit();
+		if (total && in_safe_deph) 
+			exit();
 		ptr = mov.ptr;
 		total = mov.total;
 		in_safe_deph = mov.in_safe_deph;
@@ -65,7 +65,6 @@ public:
 		destructor = mov.destructor;
 		mov.ptr = nullptr;
 		mov.total = nullptr;
-		join(total);
 		return *this;
 	}
 	void*& operator*() {
@@ -85,7 +84,81 @@ public:
 	bool deph_safe() const {
 		if (__lgr_safe_deph.contains(ptr))
 			return false;
-		__lgr_safe_deph.emplace(ptr);
-		return calc_deph ? calc_deph(ptr) : true;
+		if (calc_deph) {
+			__lgr_safe_deph.emplace(ptr);
+			return calc_deph(ptr);
+		}
+		else
+			return true;
+	}
+	bool operator==(const lgr& cmp) const {
+		return ptr == cmp.ptr;
+	}
+	bool operator!=(const lgr& cmp) const {
+		return ptr != cmp.ptr;
+	}
+	operator bool() const {
+		return ptr;
+	}
+	operator size_t() const {
+		return (size_t)ptr;
+	}
+	operator ptrdiff_t() const {
+		return (ptrdiff_t)ptr;
+	}
+};
+
+template<class T, bool as_array = false>
+class typed_lgr {
+	lgr actual_lgr;
+	static void destruct(void* v) {
+		if constexpr (as_array)
+			delete[] (T*)v;
+		else 
+			delete (T*)v;
+	}
+public:
+	typed_lgr() {}
+	typed_lgr(T* capture) : actual_lgr(capture,nullptr, destruct) {}
+	typed_lgr(typed_lgr&& mov) noexcept {
+		*this = std::move(mov);
+	}
+	typed_lgr& operator=(const typed_lgr& copy) {
+		actual_lgr = copy.actual_lgr;
+		return *this;
+	}
+	typed_lgr& operator=(typed_lgr&& mov) noexcept {
+		actual_lgr = std::move(mov.actual_lgr);
+		return *this;
+	}
+	T& operator*() {
+		return *(T*)actual_lgr.getPtr();
+	}
+	T* operator->() {
+		return (T*)actual_lgr.getPtr();
+	}
+	T* getPtr() {
+		return (T*)actual_lgr.getPtr();
+	}
+	bool calcDeph() {
+		return actual_lgr.calcDeph();
+	}
+	bool deph_safe() const {
+		return actual_lgr.deph_safe();
+	}
+	bool operator==(const typed_lgr& cmp) const {
+		return actual_lgr != cmp.actual_lgr;
+	}
+	bool operator!=(const typed_lgr& cmp) const {
+		return actual_lgr != cmp.actual_lgr;
+	}
+	operator bool() const {
+		return actual_lgr;
+	}
+	operator size_t() const {
+		return actual_lgr;
+	}
+	operator ptrdiff_t() const {
+		return actual_lgr;
 	}
 };

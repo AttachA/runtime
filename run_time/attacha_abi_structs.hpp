@@ -146,6 +146,7 @@ struct ArrItem {
 		move.val = nullptr;
 	}
 	ArrItem(void* vall, ValueMeta meta);
+	ArrItem(void* vall, ValueMeta meta, bool no_copy);
 	ArrItem(const ArrItem&);
 	ArrItem& operator=(const ArrItem& copy);
 	ArrItem& operator=(ArrItem&& copy) noexcept;
@@ -159,6 +160,8 @@ struct FuncRes {
 	size_t meta;
 	~FuncRes();
 };
+
+typedef FuncRes* (*Enviropment)(void** enviro, list_array<ArrItem>* args);
 
 
 

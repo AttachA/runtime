@@ -28,9 +28,8 @@ public:
 };
 
 
-ValueEnvironment enviropments;
-thread_local ValueEnvironment thread_local_enviropments;
-typedef FuncRes* (*Enviropment)(void** envi, list_array<ArrItem>* arr);
+extern ValueEnvironment enviropments;
+extern thread_local ValueEnvironment thread_local_enviropments;
 class FuncEnviropment {
 public:
 	enum class FuncType : uint32_t {

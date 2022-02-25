@@ -541,6 +541,10 @@ ArrItem::ArrItem(void* vall, ValueMeta vmeta) {
 	val = copyValue(vall, vmeta);
 	meta = vmeta;
 }
+ArrItem::ArrItem(void* vall, ValueMeta vmeta, bool) {
+	val = vall;
+	meta = vmeta;
+}
 ArrItem::ArrItem(const ArrItem& copy) {
 	ArrItem& tmp = (ArrItem&)copy;
 	val = copyValue(tmp.val, tmp.meta);

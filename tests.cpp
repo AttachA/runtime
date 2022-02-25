@@ -8,6 +8,7 @@
 
 #include "run_time/attacha_abi_structs.hpp"
 #include "run_time/run_time_compiler.hpp"
+#include "run_time/tasks.hpp"
 #include <stdio.h>
 #include <typeinfo>
 #include <windows.h>
@@ -379,6 +380,29 @@ void bArrPushEnd(std::vector<uint8_t>& b, uint16_t vp, uint16_t v) {
 //	return EXIT_SUCCESS;
 //}
 
+
+TaskMutex tsk_mtx;
+void gvfdasf() {
+	tsk_mtx.lock();
+		std::cout << "Hello, " << std::flush;
+	tsk_mtx.unlock();
+}
+
+void sdagfsgsfdg() {
+	tsk_mtx.lock();
+		std::cout << "World" << std::flush;
+	tsk_mtx.unlock();
+}
+void fvbzxcbxcv() {
+	tsk_mtx.lock();
+		std::cout << "!\n" << std::flush;
+	tsk_mtx.unlock();
+}
+
+
+
+
+
 #include "libray/console.hpp"
 typedef void (*functs)(...);
 int main() {
@@ -408,7 +432,8 @@ int main() {
 	bArgSet(programm, 1);
 	bCall(programm, "console setTextColor");
 	bArgSet(programm, 0);
-	bAsyncCallReturn(programm, "console printLine");
+	bCallReturn(programm, "console printLine");
+	Task::createExecutor(3);
 
 	FuncEnviropment::AddNative(TestCall, "test");
 	FuncEnviropment::AddNative(ThrowCall, "throwcall");
@@ -416,6 +441,16 @@ int main() {
 	FuncEnviropment::Load(programm, "start");
 
 
+	FuncEnviropment::AddNative(gvfdasf, "1");
+	FuncEnviropment::AddNative(sdagfsgsfdg, "2");
+	FuncEnviropment::AddNative(fvbzxcbxcv, "3");
+
+	Task::start(new Task(FuncEnviropment::enviropment("1"), nullptr, true));
+	Task::start(new Task(FuncEnviropment::enviropment("2"), nullptr, true));
+	Task::start(new Task(FuncEnviropment::enviropment("3"), nullptr, true));
+
+
+	Task::awaitEndTasks();
 	try {
 		callFunction("start", false);
 	}
@@ -427,7 +462,7 @@ int main() {
 	}
 
 
-	std::cout << "Hello!\n";
+	//std::cout << "Hello!\n";
 	size_t e = 0;
 	{
 		std::vector<uint8_t> programm;
@@ -436,13 +471,10 @@ int main() {
 		bCallReturn(programm, "Yay");
 		FuncEnviropment::Load(programm, "Yay");
 	}
-	auto* env = FuncEnviropment::enviropment("Yay");
+	FuncEnviropment* env = FuncEnviropment::enviropment("start");
 	for (size_t i = 0; i < 10000; i++) {
 		try {
-			//console::setTextColor(2, 128, 2);
-			//console::print("The test text\n");
-			env->FuncWraper(nullptr, false);
-			//SOVER();
+			Task::start(new Task(env, nullptr, true));
 		}
 		catch (const std::exception&) {
 		}
@@ -451,6 +483,7 @@ int main() {
 		}
 		//restore_stack_fault();
 	}
+	Task::awaitEndTasks();
 
 	//bool need_restore = false;
 	//try {

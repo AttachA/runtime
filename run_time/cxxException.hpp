@@ -2,6 +2,7 @@
 #include "../libray/list_array.hpp"
 #include <typeinfo>
 #include <exception>
+
 struct CXXExInfo {
 	struct Tys {
 		const std::type_info* ty_info;
@@ -12,3 +13,5 @@ struct CXXExInfo {
 	const void* ex_ptr = nullptr;
 };
 void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex);
+void getCxxExInfoFromNative(CXXExInfo& res, void*);
+bool hasClassInEx(CXXExInfo& cxx, const char* class_nam);

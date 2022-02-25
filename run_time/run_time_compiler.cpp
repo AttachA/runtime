@@ -11,6 +11,9 @@
 asmjit::JitRuntime jrt;
 std::unordered_map<std::string, FuncEnviropment> FuncEnviropment::enviropments;
 
+ValueEnvironment enviropments;
+thread_local ValueEnvironment thread_local_enviropments;
+
 
 
 #include <future>
@@ -1259,11 +1262,10 @@ FuncRes* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ArrItem>* argum
 		res = call.Call();
 		--current_runners;
 	}
-	catch (const StackOverflowException& ex) {
+	catch (...) {
 		--current_runners;
 		throw;
 	}
-	--current_runners;
 	if (nat_templ.result.is_void())
 		return nullptr;
 	if(nat_templ.result.ptype == DynamicCall::FunctionTemplate::ValueT::PlaceType::as_ptr)
