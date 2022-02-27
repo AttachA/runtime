@@ -384,18 +384,29 @@ void bArrPushEnd(std::vector<uint8_t>& b, uint16_t vp, uint16_t v) {
 TaskMutex tsk_mtx;
 void gvfdasf() {
 	tsk_mtx.lock();
+	for (size_t i = 0; i < 100; i++) {
 		std::cout << "Hello, " << std::flush;
+	}
 	tsk_mtx.unlock();
 }
 
 void sdagfsgsfdg() {
 	tsk_mtx.lock();
+	for (size_t i = 0; i < 100; i++) {
 		std::cout << "World" << std::flush;
+	}
 	tsk_mtx.unlock();
 }
 void fvbzxcbxcv() {
 	tsk_mtx.lock();
+	for (size_t i = 0; i < 100; i++) {
 		std::cout << "!\n" << std::flush;
+	}
+	tsk_mtx.unlock();
+}
+void a3tgr4at() {
+	tsk_mtx.lock();
+	Task::sleep(4000);
 	tsk_mtx.unlock();
 }
 
@@ -406,7 +417,7 @@ void fvbzxcbxcv() {
 #include "libray/console.hpp"
 typedef void (*functs)(...);
 int main() {
-	std::thread(ignoredAsyncGC).detach();
+	//std::thread(ignoredAsyncGC).detach();
 
 	initStandardFunctions();
 	console::setBgColor(123, 21, 2);
@@ -444,11 +455,12 @@ int main() {
 	FuncEnviropment::AddNative(gvfdasf, "1");
 	FuncEnviropment::AddNative(sdagfsgsfdg, "2");
 	FuncEnviropment::AddNative(fvbzxcbxcv, "3");
+	FuncEnviropment::AddNative(a3tgr4at, "4");
 
-	Task::start(new Task(FuncEnviropment::enviropment("1"), nullptr, true));
-	Task::start(new Task(FuncEnviropment::enviropment("2"), nullptr, true));
-	Task::start(new Task(FuncEnviropment::enviropment("3"), nullptr, true));
-
+	Task::start(new Task(FuncEnviropment::enviropment("1"), nullptr));
+	Task::start(new Task(FuncEnviropment::enviropment("2"), nullptr));
+	//Task::start(new Task(FuncEnviropment::enviropment("4"), nullptr));
+	Task::start(new Task(FuncEnviropment::enviropment("3"), nullptr));
 
 	Task::awaitEndTasks();
 	try {
@@ -474,7 +486,8 @@ int main() {
 	FuncEnviropment* env = FuncEnviropment::enviropment("start");
 	for (size_t i = 0; i < 10000; i++) {
 		try {
-			Task::start(new Task(env, nullptr, true));
+			//env->FuncWraper(nullptr, false);
+			Task::start(new Task(env, nullptr));
 		}
 		catch (const std::exception&) {
 		}

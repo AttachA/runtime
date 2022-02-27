@@ -54,6 +54,7 @@ FuncRes* buildRes(void** value);
 
 void getAsyncResult(void*& value, ValueMeta& meta);
 void* copyValue(void*& val, ValueMeta& meta);
+void* cloneValue(void*& val, ValueMeta& meta);
 void** copyEnviropement(void** env, uint16_t env_it_count);
 
 

@@ -40,6 +40,9 @@ public:
 		total = new std::atomic_size_t{ 1 };
 		in_safe_deph = calcDeph();
 	}
+	lgr(const lgr& mov) {
+		*this = mov;
+	}
 	lgr(lgr&& mov) noexcept {
 		*this = std::move(mov);
 	}
@@ -111,6 +114,7 @@ public:
 template<class T, bool as_array = false>
 class typed_lgr {
 	lgr actual_lgr;
+	T* debug;
 	static void destruct(void* v) {
 		if constexpr (as_array)
 			delete[] (T*)v;
@@ -119,16 +123,21 @@ class typed_lgr {
 	}
 public:
 	typed_lgr() {}
-	typed_lgr(T* capture) : actual_lgr(capture,nullptr, destruct) {}
+	typed_lgr(T* capture) : actual_lgr(capture, nullptr, destruct) { debug = capture; }
+	typed_lgr(const typed_lgr& mov) noexcept {
+		*this = mov;
+	}	
 	typed_lgr(typed_lgr&& mov) noexcept {
 		*this = std::move(mov);
 	}
 	typed_lgr& operator=(const typed_lgr& copy) {
 		actual_lgr = copy.actual_lgr;
+		debug = getPtr();
 		return *this;
 	}
 	typed_lgr& operator=(typed_lgr&& mov) noexcept {
 		actual_lgr = std::move(mov.actual_lgr);
+		debug = getPtr();
 		return *this;
 	}
 	T& operator*() {

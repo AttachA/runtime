@@ -1472,6 +1472,46 @@ public:
 		_size++;
 	}
 
+	conexpr void ordered_insert(const T& item) {
+		size_t i = 0;
+		for (auto& it : *this) {
+			if (it > item)
+				break;
+			i++;
+		}
+		insert(i, item);
+	}
+	conexpr void ordered_insert(T&& item) {
+		size_t i = 0;
+		for (auto& it : *this) {
+			if (it > item)
+				break;
+			i++;
+		}
+		insert(i, std::move(item));
+	}
+
+	template<class _Fn>
+	conexpr void ordered_insert(const T& item, _Fn order_checker) {
+		size_t i = 0;
+		for (auto& it : *this) {
+			if (order_checker(it,item))
+				break;
+			i++;
+		}
+		insert(i, item);
+	}
+	template<class _Fn>
+	conexpr void ordered_insert(T&& item, _Fn order_checker) {
+		size_t i = 0;
+		for (auto& it : *this) {
+			if (order_checker(it, item))
+				break;
+			i++;
+		}
+		insert(i, std::move(item));
+	}
+
 	conexpr void push_front(T* array, size_t arr_size) {
 		insert(0, array, arr_size);
 	}
@@ -2169,8 +2209,8 @@ public:
 					return res;
 				},
 				start_pos,
-					end_pos
-					);
+				end_pos
+			);
 			return res;
 		}
 		else {
@@ -2200,8 +2240,8 @@ public:
 					return res;
 				},
 				start_pos,
-					end_pos
-					);
+				end_pos
+			);
 			return res;
 		}
 	}
@@ -2251,8 +2291,8 @@ public:
 				return false;
 			},
 			start_pos + 1,
-				end_pos
-				);
+			end_pos
+		);
 		return res;
 	}
 
@@ -2273,14 +2313,14 @@ public:
 		size_t res = 0;
 		remove_if(
 			[&it, &res, &compare_func](T& check_it) {
-				if (compare_func(*it, check_it))
+				if (compare_func(*it,check_it))
 					return (bool)++res;
 				it = &check_it;
 				return false;
 			},
 			start_pos + 1,
-				end_pos
-				);
+			end_pos
+		);
 		return res;
 	}
 
@@ -2335,7 +2375,7 @@ public:
 			i++;
 		}
 		i = 0;
-		size_t result =
+		size_t result = 
 			remove_if(
 				[selector, &i](T& check_it) {
 					bool res = selector[i >> 3] & (1 << (i & 7));
@@ -2343,8 +2383,8 @@ public:
 					return res;
 				},
 				start_pos,
-					end_pos
-					);
+				end_pos
+			);
 		delete[] selector;
 		return result;
 	}
