@@ -167,7 +167,7 @@ namespace DynamicCall {
 				return val;
 			}
 			bool is_void() const {
-				return !(ptype != PlaceType::as_ptr && vtype != ValueType::integer && is_modifable && vsize);
+				return ptype == PlaceType::as_ptr && vtype == ValueType::integer && !is_modifable && !vsize;
 			}
 		};
 		list_array<ValueT> arguments;

@@ -132,6 +132,7 @@ union ValueMeta {
 	ValueMeta() = default;
 	ValueMeta(const ValueMeta& copy) = default;
 	ValueMeta(VType ty, bool gc, bool editable) { vtype = ty; use_gc = gc; allow_edit = editable; }
+	ValueMeta(size_t enc) { encoded = enc; }
 };
 struct ArrItem {
 	void* val;
@@ -156,12 +157,23 @@ struct ArrItem {
 struct FuncRes {
 	FuncRes() { value = nullptr; meta = 0; }
 	FuncRes(ValueMeta met, void* val) { value = val; meta = *reinterpret_cast<size_t*>(&met); }
+	FuncRes(ArrItem& arr_it);
 	void* value;
 	size_t meta;
+	operator ArrItem() {
+		return ArrItem(value, ValueMeta(meta));
+	}
+	ArrItem AsArrMove() {
+		ArrItem tmp(value, ValueMeta(meta), true);
+		value = nullptr;
+		meta = 0;
+		return tmp;
+	}
 	~FuncRes();
 };
 
 typedef FuncRes* (*Enviropment)(void** enviro, list_array<ArrItem>* args);
+typedef FuncRes* (*AttachACXX)(list_array<ArrItem>* arguments);
 
 
 

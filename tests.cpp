@@ -8,7 +8,7 @@
 
 #include "run_time/attacha_abi_structs.hpp"
 #include "run_time/run_time_compiler.hpp"
-#include "run_time/tasks.hpp"
+#include "run_time/Tasks.hpp"
 #include <stdio.h>
 #include <typeinfo>
 #include <windows.h>
@@ -253,163 +253,42 @@ void bArrPushEnd(std::vector<uint8_t>& b, uint16_t vp, uint16_t v) {
 
 
 
-
-
-
-
-
-
-//#include "windows.h"
-//
-//typedef uint8_t UBYTE;
-//typedef uint16_t USHORT;
-//
-//typedef union _UNWIND_CODE {
-//	struct {
-//		UBYTE CodeOffset;
-//		UBYTE UnwindOp : 4;
-//		UBYTE OpInfo : 4;
-//	};
-//	USHORT FrameOffset;
-//} UNWIND_CODE, * PUNWIND_CODE;
-//
-//typedef struct _UNWIND_INFO {
-//	UBYTE Version : 3;
-//	UBYTE Flags : 5;
-//	UBYTE SizeOfProlog;
-//	UBYTE CountOfCodes;
-//	UBYTE FrameRegister : 4;
-//	UBYTE FrameOffset : 4;
-//	UNWIND_CODE UnwindCode[1];
-//	/*	UNWIND_CODE MoreUnwindCode[((CountOfCodes + 1) & ~1) - 1];
-//	 *	OPTIONAL ULONG ExceptionHandler;
-//	 *	OPTIONAL ULONG ExceptionData[]; */
-//} UNWIND_INFO, * PUNWIND_INFO;
-//
-//typedef struct {
-//	uint8_t code[0x1000];
-//	RUNTIME_FUNCTION function_table[1];
-//	UNWIND_INFO unwind_info[1];
-//} DYNSECTION;
-//
-//static EXCEPTION_DISPOSITION handler(PEXCEPTION_RECORD ExceptionRecord, ULONG64 EstablisherFrame, PCONTEXT ContextRecord, PDISPATCHER_CONTEXT DispatcherContext) {
-//	printf("handler!\n");
-//	ContextRecord->Rip += 3;
-//	return ExceptionContinueExecution;
-//}
-//
-//int masin() {
-//	int ret;
-//	RUNTIME_FUNCTION* q;
-//	DYNSECTION* dynsection = (DYNSECTION*)VirtualAlloc(NULL, 0x2000, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
-//
-//	uint8_t* code = dynsection->code;
-//	size_t p = 0;
-//	code[p++] = 0xb8; // mov rax, 42
-//	code[p++] = 0x2a;
-//	code[p++] = 0x00;
-//	code[p++] = 0x00;
-//	code[p++] = 0x00;
-//	code[p++] = 0xc6; // mov byte [rax], 0  -- raises exception!
-//	code[p++] = 0x00;
-//	code[p++] = 0x00;
-//	code[p++] = 0xc3; // ret
-//
-//	size_t trampoline = p;
-//	code[p++] = 0x48; // mov rax, 
-//	code[p++] = 0xb8;
-//	size_t patch_handler_address = p;
-//	code[p++] = 0x00; // address to handler patched here
-//	code[p++] = 0x00;
-//	code[p++] = 0x00;
-//	code[p++] = 0x00;
-//	code[p++] = 0x00;
-//	code[p++] = 0x00;
-//	code[p++] = 0x00;
-//	code[p++] = 0x00;
-//	code[p++] = 0xff; // jmp rax
-//	code[p++] = 0xe0;
-//
-//	DWORD64 dyn_base = 0;
-//	q = RtlLookupFunctionEntry((DWORD64)code, &dyn_base, NULL);
-//	printf("lookup 'code' %p %llx\n", q, dyn_base); // no function table entry
-//
-//	dyn_base = (DWORD64)dynsection;
-//	UNWIND_INFO* unwind_info = dynsection->unwind_info;
-//	unwind_info[0].Version = 1;
-//	unwind_info[0].Flags = UNW_FLAG_EHANDLER;
-//	unwind_info[0].SizeOfProlog = 0;
-//	unwind_info[0].CountOfCodes = 0;
-//	unwind_info[0].FrameRegister = 0;
-//	unwind_info[0].FrameOffset = 0;
-//	*(DWORD*)&unwind_info[0].UnwindCode = trampoline;
-//
-//	RUNTIME_FUNCTION* function_table = dynsection->function_table;
-//	function_table[0].BeginAddress = 0; // set RVA of dynamic code start
-//	function_table[0].EndAddress = trampoline; // RVA of dynamic code end
-//	function_table[0].UnwindInfoAddress = (DWORD64)unwind_info - dyn_base; // RVA of unwind info
-//
-//	*(DWORD64*)&code[patch_handler_address] = (DWORD64)handler; // VA of handler
-//
-//	printf("code VA %016llx\n", (DWORD64)code);
-//	printf("function table VA %016llx\n", (DWORD64)function_table);
-//	printf("unwind info VA %016llx\n", (DWORD64)unwind_info);
-//	printf("handler VA %016llx\n", (DWORD64)handler);
-//	printf("RUNTIME_FUNCTION begin RVA %08x, end RVA %08x, unwind RVA %08x\n",
-//		function_table[0].BeginAddress, function_table[0].EndAddress,
-//		function_table[0].UnwindInfoAddress);
-//	printf("UNWIND_INFO handler RVA %08x\n", *(DWORD*)&unwind_info[0].UnwindCode);
-//
-//	if (!RtlAddFunctionTable(function_table, 1, dyn_base)) {
-//		printf("RtlAddFunctionTable() failed, exit.\n");
-//		exit(EXIT_FAILURE);
-//	}
-//
-//	q = RtlLookupFunctionEntry((DWORD64)code, &dyn_base, NULL);
-//	printf("lookup 'code' %p %llx\n", q, dyn_base); // should return address of function table entry
-//
-//	uint64_t(*call)() = (uint64_t(*)()) code;
-//	uint64_t result = (*call)();
-//	printf("result = %llx\n", result);
-//
-//	if (!RtlDeleteFunctionTable(function_table)) {
-//		printf("RtlDeleteFunctionTable() failed, exit.\n");
-//		exit(EXIT_FAILURE);
-//	}
-//
-//	return EXIT_SUCCESS;
-//}
-
-
-TaskMutex tsk_mtx;
+BTaskMutex tsk_mtx;
 void gvfdasf() {
-	tsk_mtx.lock();
 	for (size_t i = 0; i < 100; i++) {
+		tsk_mtx.lock();
 		std::cout << "Hello, " << std::flush;
+		tsk_mtx.unlock();
 	}
-	tsk_mtx.unlock();
 }
 
 void sdagfsgsfdg() {
-	tsk_mtx.lock();
 	for (size_t i = 0; i < 100; i++) {
+		tsk_mtx.lock();
 		std::cout << "World" << std::flush;
+		tsk_mtx.unlock();
 	}
-	tsk_mtx.unlock();
 }
 void fvbzxcbxcv() {
-	tsk_mtx.lock();
 	for (size_t i = 0; i < 100; i++) {
+		tsk_mtx.lock();
 		std::cout << "!\n" << std::flush;
+		tsk_mtx.unlock();
 	}
-	tsk_mtx.unlock();
 }
 void a3tgr4at() {
 	tsk_mtx.lock();
-	Task::sleep(4000);
+	BTask::sleep(4000);
 	tsk_mtx.unlock();
 }
 
+size_t idsaDAS = 0;
+
+void cout_test() {
+	++idsaDAS;
+	std::cout << idsaDAS << std::endl;
+	BTask::sleep(1000);
+}
 
 
 
@@ -441,10 +320,10 @@ int main() {
 	bArrPushEnd(programm, 1, 2);
 
 	bArgSet(programm, 1);
-	bCall(programm, "console setTextColor");
+	bAsyncCall(programm, "console setTextColor");
 	bArgSet(programm, 0);
-	bCallReturn(programm, "console printLine");
-	Task::createExecutor(3);
+	bAsyncCallReturn(programm, "console printLine");
+	BTask::createExecutor(1);
 
 	FuncEnviropment::AddNative(TestCall, "test");
 	FuncEnviropment::AddNative(ThrowCall, "throwcall");
@@ -456,13 +335,22 @@ int main() {
 	FuncEnviropment::AddNative(sdagfsgsfdg, "2");
 	FuncEnviropment::AddNative(fvbzxcbxcv, "3");
 	FuncEnviropment::AddNative(a3tgr4at, "4");
+	FuncEnviropment::AddNative(cout_test, "cout_test");
 
-	Task::start(new Task(FuncEnviropment::enviropment("1"), nullptr));
-	Task::start(new Task(FuncEnviropment::enviropment("2"), nullptr));
-	//Task::start(new Task(FuncEnviropment::enviropment("4"), nullptr));
-	Task::start(new Task(FuncEnviropment::enviropment("3"), nullptr));
+	{
+		std::vector<uint8_t> programm;
+		bbWrite(programm, (uint16_t)0);
+		bJlistS(programm, 0);
+		bCallReturn(programm, "Yay");
+		FuncEnviropment::Load(programm, "Yay");
+	}
+	typed_lgr<FuncEnviropment> env = FuncEnviropment::enviropment("start");
+	//BTask::start(new BTask(FuncEnviropment::enviropment("4"), nullptr));
+	//BTask::start(new BTask(FuncEnviropment::enviropment("3"), nullptr));
+	//BTask::start(new BTask(FuncEnviropment::enviropment("2"), nullptr));
+	//BTask::start(new BTask(FuncEnviropment::enviropment("1"), nullptr));
 
-	Task::awaitEndTasks();
+	//BTask::awaitEndTasks();
 	try {
 		callFunction("start", false);
 	}
@@ -476,28 +364,26 @@ int main() {
 
 	//std::cout << "Hello!\n";
 	size_t e = 0;
-	{
-		std::vector<uint8_t> programm;
-		bbWrite(programm, (uint16_t)0);
-		bJlistS(programm, 0);
-		bCallReturn(programm, "Yay");
-		FuncEnviropment::Load(programm, "Yay");
-	}
-	FuncEnviropment* env = FuncEnviropment::enviropment("start");
+	BTask::awaitEndTasks();
+	BTask::start(new BTask(env, nullptr));
+	BTask::awaitEndTasks();
 	for (size_t i = 0; i < 10000; i++) {
-		try {
-			//env->FuncWraper(nullptr, false);
-			Task::start(new Task(env, nullptr));
-		}
-		catch (const std::exception&) {
-		}
-		catch (const StackOverflowException&) {
-			e++;
-		}
-		//restore_stack_fault();
+		BTask::start(new BTask(env, nullptr));
 	}
-	Task::awaitEndTasks();
-
+	BTask::awaitEndTasks();
+	std::this_thread::sleep_for(std::chrono::seconds(3));
+	for (size_t i = 0; i < 10000; i++)
+		BTask::start(new BTask(env, nullptr));
+	BTask::awaitEndTasks();
+	std::this_thread::sleep_for(std::chrono::seconds(3));
+	for (size_t i = 0; i < 10000; i++)
+		BTask::start(new BTask(env, nullptr));
+	BTask::awaitEndTasks();
+	std::this_thread::sleep_for(std::chrono::seconds(3));
+	for (size_t i = 0; i < 10000; i++)
+		BTask::start(new BTask(env, nullptr));
+	BTask::awaitEndTasks();
+	BTask::sleep(100000000000);
 	//bool need_restore = false;
 	//try {
 	//	int s = 0;

@@ -1,41 +1,12 @@
 #include "attacha_abi.hpp"
 #include "run_time_compiler.hpp"
+#include "tasks.hpp"
 #include "../libray/list_array.hpp"
-#include <future>
 #include <string>
 #include <sstream>
 
 
 #include <mutex>
-
-std::list<FuncRes*> to_delete_ignored_async_res;
-std::condition_variable to_delete_ignored_async_res_cond;
-
-void ignoredAsyncGC() {
-	std::mutex mut;
-	std::unique_lock local_lock(mut);
-	while (true) {
-		while (to_delete_ignored_async_res.empty())
-			to_delete_ignored_async_res_cond.wait(local_lock);
-		std::list<FuncRes*> tmp;
-		std::swap(to_delete_ignored_async_res, tmp);
-		for (auto it : (tmp))
-			delete it;
-	}
-}
-void ignoredAsync(FuncRes* fres) {
-	to_delete_ignored_async_res.push_back(fres);
-	to_delete_ignored_async_res_cond.notify_one();
-}
-
-
-
-
-
-
-
-
-
 
 
 
@@ -81,6 +52,10 @@ void universalFree(void** value, ValueMeta meta) {
 		return;
 	if (!*value)
 		return;
+	if (meta.vtype == VType::async_res) {
+		delete (typed_lgr<BTask>*)* value;
+		return;
+	}
 	if (meta.use_gc)
 		goto gc_destruct;
 	switch (meta.vtype) {
@@ -89,14 +64,6 @@ void universalFree(void** value, ValueMeta meta) {
 		return;
 	case VType::string:
 		delete (std::string*)*value;
-		return;
-	case VType::async_res: 
-		{
-			auto tmp = (FuncRes*)((std::future<FuncRes*>*)*value)->get();
-			if (tmp)
-				delete tmp; 
-		}
-		delete (std::future<FuncRes*>*)*value;
 		return;
 	case VType::undefined_ptr:
 		return;
@@ -173,7 +140,7 @@ auto gcCall(lgr* gc, list_array<ArrItem>* args, bool async_mode) {
 	return FuncEnviropment::CallFunc(*(std::string*)gc->getPtr(), args, async_mode);
 }
 FuncRes* getAsyncFuncRes(void* val) {
-	return ((std::future<FuncRes*>*)val)->get();
+	return BTask::getResult(*(typed_lgr<BTask>*)val);
 }
 void getFuncRes(void** value, FuncRes* f_res) {
 	universalRemove(value);
@@ -203,7 +170,7 @@ FuncRes* buildRes(void** value) {
 
 void getAsyncResult(void*& value, ValueMeta& meta) {
 	if (meta.vtype == VType::async_res) {
-		auto res = getAsyncFuncRes(meta.use_gc ? ((lgr*)value)->getPtr() : value);
+		auto res = getAsyncFuncRes(value);
 		void* moveValue = res->value;
 		void* new_meta = (void*)res->meta;
 		res->value = nullptr;
@@ -573,7 +540,10 @@ ArrItem::~ArrItem() {
 FuncRes::~FuncRes() {
 	universalFree(&value, *reinterpret_cast<ValueMeta*>(&meta));
 }
-
+FuncRes::FuncRes(ArrItem& arr_it){
+	value = copyValue(arr_it.val, arr_it.meta);
+	meta = arr_it.meta.encoded;
+}
 
 
 

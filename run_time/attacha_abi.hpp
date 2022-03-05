@@ -4,10 +4,6 @@
 #include "attacha_abi_structs.hpp"
 #include "cxxException.hpp"
 
-
-void ignoredAsyncGC();
-void ignoredAsync(FuncRes* fres);
-
 bool needAlloc(VType type);
 
 

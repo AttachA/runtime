@@ -35,15 +35,16 @@ public:
 	enum class FuncType : uint32_t {
 		own,
 		native,
+		native_own_abi,
 		python,
 		csharp,
 		java
 	};
 private:
-	static std::unordered_map<std::string, FuncEnviropment> enviropments;
+	static std::unordered_map<std::string, typed_lgr<FuncEnviropment>> enviropments;
 	std::mutex compile_lock;
 	DynamicCall::FunctionTemplate nat_templ;
-	std::vector<FuncEnviropment> ex_handlers;
+	std::vector<typed_lgr<FuncEnviropment>> used_envs;
 	std::vector<uint8_t> cross_code;
 	list_array<std::string> strings;
 	std::string name;
@@ -69,7 +70,13 @@ private:
 		curr_func = (Enviropment)proc;
 		need_compile = false;
 		can_be_unloaded = cbu;
-	}	
+	}
+	FuncEnviropment(AttachACXX proc, bool cbu) {
+		type = FuncType::native_own_abi;
+		curr_func = (Enviropment)proc;
+		need_compile = false;
+		can_be_unloaded = cbu;
+	}
 	void funcComp() {
 		std::lock_guard lguard(compile_lock);
 		if (need_compile) {
@@ -92,7 +99,7 @@ public:
 	}
 	~FuncEnviropment();
 	FuncEnviropment& operator=(FuncEnviropment&& move) noexcept {
-		ex_handlers = std::move(move.ex_handlers);
+		used_envs = std::move(move.used_envs);
 		cross_code = std::move(move.cross_code);
 		name = std::move(move.name);
 		nat_templ = std::move(move.nat_templ);
@@ -108,7 +115,7 @@ public:
 		move.can_be_unloaded = false;
 		return *this;
 	}
-	FuncRes* FuncWraper(list_array<ArrItem>* arguments,bool run_async);
+	FuncRes* syncWrapper(list_array<ArrItem>* arguments);
 	
 	 
 	void hotPath(const std::vector<uint8_t>& new_cross_code) {
@@ -120,12 +127,16 @@ public:
 		cross_code = new_cross_code;
 		need_compile = true;
 	}
-	static FuncEnviropment* enviropment(const std::string& func_name) {
-		return &enviropments[func_name];
+	static typed_lgr<FuncEnviropment> enviropment(const std::string& func_name) {
+		return enviropments[func_name];
 	}
 	static FuncRes* CallFunc(const std::string& func_name, list_array<ArrItem>* arguments, bool run_async) {
-		if(enviropments.contains(func_name))
-			return enviropments[func_name].FuncWraper(arguments,run_async);
+		if (enviropments.contains(func_name)) {
+			if (run_async)
+				return asyncCall(enviropments[func_name], arguments);
+			else
+				return enviropments[func_name]->syncWrapper(arguments);
+		}
 		throw NotImplementedException();
 	}
 
@@ -164,14 +175,19 @@ public:
 		AddNative((DynamicCall::PROC)function, templ, symbol_name, can_be_unloaded);
 	}
 
-
+	static void AddNative(AttachACXX function, const std::string& symbol_name, bool can_be_unloaded = true) {
+		if (enviropments.contains(symbol_name))
+			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
+		enviropments[symbol_name] = typed_lgr(new FuncEnviropment(function, can_be_unloaded));
+	}
 
 
 	static void AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded = true) {
 		if (enviropments.contains(symbol_name))
 			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
-		enviropments[symbol_name] = FuncEnviropment( proc,templ, can_be_unloaded);
+		enviropments[symbol_name] = typed_lgr(new FuncEnviropment( proc,templ, can_be_unloaded));
 	}
+
 	static bool Exists(const std::string& symbol_name) {
 		return enviropments.contains(symbol_name);
 	}
@@ -183,7 +199,7 @@ public:
 		uint16_t max_vals = func_templ[1];
 		max_vals <<= 8;
 		max_vals |= func_templ[0];
-		enviropments[symbol_name] = { { func_templ.begin() + 2 ,func_templ.end()}, max_vals , can_be_unloaded };
+		enviropments[symbol_name] = typed_lgr(new FuncEnviropment{ { func_templ.begin() + 2, func_templ.end()}, max_vals, can_be_unloaded });
 	}
 	static void Unload(const std::string& symbol_name) {
 		if (enviropments.contains(symbol_name))
@@ -206,6 +222,13 @@ public:
 	}
 	void* get_func_ptr() {
 		return (void*)curr_func;
+	}
+
+
+
+	static FuncRes* asyncCall(typed_lgr<FuncEnviropment> f, list_array<ArrItem>* args);
+	static FuncRes* syncCall(typed_lgr<FuncEnviropment> f, list_array<ArrItem>* args) {
+		return f->syncWrapper(args);
 	}
 };
 

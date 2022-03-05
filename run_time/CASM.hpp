@@ -532,7 +532,10 @@ namespace {
 			uint8_t op : 4;
 			uint8_t info : 4;
 		};
-		uint16_t solid;
+		uint16_t solid = 0;
+		UWCODE() = default;
+		UWCODE(const UWCODE& copy) = default;
+		UWCODE(uint8_t off, uint8_t oper, uint8_t inf) { offset = off; op = oper; info = inf; }
 	};
 	struct UWINFO_head {
 		uint8_t Version : 3 = 1;
@@ -780,11 +783,7 @@ public:
 	}
 	void pushReg(creg reg) {
 		csm.push(reg.fromTypeAndId(asmjit::RegType::kGp64, reg.id()));
-		UWCODE c;
-		c.op = UWC::UWOP_PUSH_NONVOL;
-		c.info = reg.id();
-		c.offset = csm.offset();
-		res.prolog.push_back(c.solid);
+		res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_PUSH_NONVOL, reg.id()).solid);
 		pushes.push_back({ cur_op++,reg });
 		stack_align += 8;
 	}
@@ -794,31 +793,18 @@ public:
 		//align stack
 		size = (size / 8 + ((size % 8) ? 1 : 0)) * 8;
 		csm.sub(stack_ptr, size);
-		if (size <= 128) {
-			UWCODE c;
-			c.op = UWC::UWOP_ALLOC_SMALL;
-			c.info = size / 8 - 1;
-			c.offset = csm.offset();
-			res.prolog.push_back(c.solid);
-		}
+		if (size <= 128) 
+			res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_ALLOC_SMALL, size / 8 - 1).solid);
 		else if (size <= 524280) {
 			//512K - 8
-			UWCODE c;
-			c.op = UWC::UWOP_ALLOC_LARGE;
-			c.info = 0;
-			c.offset = csm.offset();
 			res.prolog.push_back(size / 8);
-			res.prolog.push_back(c.solid);
+			res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_ALLOC_LARGE, 0).solid);
 		}
 		else if(size <= 4294967288) {
 			//4gb - 8
-			UWCODE c;
-			c.op = UWC::UWOP_ALLOC_LARGE;
-			c.info = 1;
-			c.offset = csm.offset();
 			res.prolog.push_back((uint16_t)(size >> 16));
 			res.prolog.push_back((uint16_t)size);
-			res.prolog.push_back(c.solid);
+			res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_ALLOC_LARGE, 1).solid);
 		}
 		else 
 			throw CompileTimeException("Invalid uwind code, too large stack alocation");
@@ -834,11 +820,7 @@ public:
 			throw CompileTimeException("frameoffset too large");
 
 		csm.lea(frame_ptr, stack_ptr, stack_offset);
-		UWCODE c;
-		c.op = UWC::UWOP_SET_FPREG;
-		c.info = 0;
-		c.offset = csm.offset();
-		res.prolog.push_back(c.solid);
+		res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_SET_FPREG, 0).solid);
 		set_frame.push_back({ cur_op++, stack_offset });
 		res.head.FrameOffset = stack_offset / 16;
 		frame_inited = true;
@@ -850,22 +832,14 @@ public:
 					throw CompileTimeException("Overflow, fail convert 64 point to 32 point");
 				if (UINT16_MAX > stack_back_offset || stack_back_offset % 16) {
 					csm.mov(stack_ptr, stack_back_offset, reg.as<creg128>());
-					UWCODE c;
-					c.op = UWC::UWOP_SAVE_XMM128_FAR;
-					c.info = reg.id();
-					c.offset = csm.offset();
 					res.prolog.push_back(stack_back_offset & (UINT32_MAX ^ UINT16_MAX));
 					res.prolog.push_back(stack_back_offset & UINT16_MAX);
-					res.prolog.push_back(c.solid);
+					res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_SAVE_XMM128_FAR, reg.id()).solid);
 				}
 				else {
 					csm.mov(stack_ptr, stack_back_offset, reg.as<creg128>());
-					UWCODE c;
-					c.op = UWC::UWOP_SAVE_XMM128;
-					c.info = reg.id();
-					c.offset = csm.offset();
 					res.prolog.push_back(uint16_t(stack_back_offset / 16));
-					res.prolog.push_back(c.solid);
+					res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_SAVE_XMM128, reg.id()).solid);
 				}
 			}
 			else
@@ -874,21 +848,13 @@ public:
 		else {
 			csm.mov(stack_ptr, stack_back_offset, reg.size(), reg);
 			if (stack_back_offset % 8) {
-				UWCODE c;
-				c.op = UWC::UWOP_SAVE_NONVOL_FAR;
-				c.info = reg.id();
-				c.offset = csm.offset();
 				res.prolog.push_back(stack_back_offset & (UINT32_MAX ^ UINT16_MAX));
 				res.prolog.push_back(stack_back_offset & UINT16_MAX);
-				res.prolog.push_back(c.solid);
+				res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_SAVE_NONVOL_FAR, reg.id()).solid);
 			}
 			else {
-				UWCODE c;
-				c.op = UWC::UWOP_SAVE_NONVOL;
-				c.info = reg.id();
-				c.offset = csm.offset();
 				res.prolog.push_back(uint16_t(stack_back_offset / 8));
-				res.prolog.push_back(c.solid);
+				res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_SAVE_NONVOL, reg.id()).solid);
 			}
 		}
 		save_to_stack.push_back({ cur_op++, {reg,stack_back_offset} });

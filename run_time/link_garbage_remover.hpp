@@ -35,10 +35,20 @@ public:
 		total = nullptr;
 		in_safe_deph = false;
 	}
-	lgr(void* copy, bool(*clc_deph)(void*) = nullptr, void(*destruct)(void*) = nullptr) : calc_deph(clc_deph),destructor(destruct) {
-		ptr = copy;
-		total = new std::atomic_size_t{ 1 };
-		in_safe_deph = calcDeph();
+	lgr(void* copy, bool(*clc_deph)(void*) = nullptr, void(*destruct)(void*) = nullptr, bool as_weak = false) : calc_deph(clc_deph),destructor(destruct) {
+		if (copy) {
+			ptr = copy;
+			total = new std::atomic_size_t{ 1 };
+			if (!as_weak)
+				in_safe_deph = calcDeph();
+			else
+				in_safe_deph = false;
+		}
+		else {
+			ptr = nullptr;
+			total = nullptr;
+			in_safe_deph = false;
+		}
 	}
 	lgr(const lgr& mov) {
 		*this = mov;
@@ -114,7 +124,6 @@ public:
 template<class T, bool as_array = false>
 class typed_lgr {
 	lgr actual_lgr;
-	T* debug;
 	static void destruct(void* v) {
 		if constexpr (as_array)
 			delete[] (T*)v;
@@ -123,21 +132,19 @@ class typed_lgr {
 	}
 public:
 	typed_lgr() {}
-	typed_lgr(T* capture) : actual_lgr(capture, nullptr, destruct) { debug = capture; }
+	typed_lgr(T* capture, bool as_weak = false) : actual_lgr(capture, nullptr, destruct, as_weak) { }
 	typed_lgr(const typed_lgr& mov) noexcept {
 		*this = mov;
-	}	
+	}
 	typed_lgr(typed_lgr&& mov) noexcept {
 		*this = std::move(mov);
 	}
 	typed_lgr& operator=(const typed_lgr& copy) {
 		actual_lgr = copy.actual_lgr;
-		debug = getPtr();
 		return *this;
 	}
 	typed_lgr& operator=(typed_lgr&& mov) noexcept {
 		actual_lgr = std::move(mov.actual_lgr);
-		debug = getPtr();
 		return *this;
 	}
 	T& operator*() {

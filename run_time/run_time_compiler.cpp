@@ -3,27 +3,29 @@
 #include <stdint.h>
 #include "CASM.hpp"
 #include "run_time_compiler.hpp"
+#include "tasks.hpp"
 #include <future>
 #include <Windows.h>
 #include <stddef.h>
 #include <iostream>
 
 asmjit::JitRuntime jrt;
-std::unordered_map<std::string, FuncEnviropment> FuncEnviropment::enviropments;
+std::unordered_map<std::string, typed_lgr<FuncEnviropment>> FuncEnviropment::enviropments;
 
 ValueEnvironment enviropments;
 thread_local ValueEnvironment thread_local_enviropments;
 
-
-
-#include <future>
-template <typename F>
-std::future<FuncRes*>* async(F&& f, list_array<ArrItem>*&& args) {
-	return new std::future<FuncRes*>(std::async(std::launch::async, [f, args]() { return f(args); }));
+FuncRes* FuncEnviropment::asyncCall(typed_lgr<FuncEnviropment> f, list_array<ArrItem>* args) {
+	FuncRes* res = new FuncRes();
+	res->meta = ValueMeta(VType::async_res, true, false).encoded;
+	res->value = new typed_lgr(new BTask(f, new list_array<ArrItem>(*args)));
+	BTask::start(*(typed_lgr<BTask>*)res->value);
+	return res;
 }
 
 void releaseUnused(FuncRes* r) {
-	delete r;
+	if(r)
+		delete r;
 }
 
 
@@ -89,7 +91,7 @@ list_array<std::pair<uint64_t, Label>> prepareJumpList(CASM& a, const std::vecto
 	return {};
 }
 
-template<bool use_result = true>
+template<bool use_result = true,bool do_cleanup = true>
 void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_len, size_t& i, list_array<std::string>& strings) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
@@ -105,7 +107,7 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_l
 	}
 	else {
 		std::string fnn = readString(data, data_len, i);
-		FuncEnviropment* fn = FuncEnviropment::enviropment(fnn);
+		typed_lgr<FuncEnviropment> fn = FuncEnviropment::enviropment(fnn);
 		if (fn->canBeUnloaded()) {
 			strings.push_back(fnn);
 			a.mov(argr0, &strings.back());
@@ -114,25 +116,61 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_l
 			a.call(&FuncEnviropment::CallFunc);
 		}
 		else {
-			if (fn->Type() == FuncEnviropment::FuncType::native && !flags.async_mode) {
-				if (!fn->templateCall().arguments.size() && fn->templateCall().result.is_void()) {
-					a.call(fn->get_func_ptr());
-					if constexpr (use_result) 
-						if (flags.use_result)
-							a.movEnviro(readData<uint16_t>(data, data_len, i), 0);
-					return;
-				}
+			if (flags.async_mode) {
+				strings.push_back(fnn);
+				a.mov(argr0, &strings.back());
+				a.mov(argr1, arg_ptr);
+				a.mov(argr2, flags.async_mode);
+				a.call(&FuncEnviropment::CallFunc);
 			}
-			a.mov(argr0, fn);
-			a.mov(argr1, arg_ptr);
-			a.mov(argr2, flags.async_mode);
-			a.call(&FuncEnviropment::FuncWraper);
-			if constexpr (use_result) {
-				if (flags.use_result) {
-					a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
-					a.mov(argr1, resr);
-					a.call(getFuncRes);
-					return;
+			else {
+				switch (fn->Type()) {
+				case FuncEnviropment::FuncType::own: {
+					a.mov(argr0, fn.getPtr());
+					a.mov(argr1, arg_ptr);
+					a.call(&FuncEnviropment::initAndCall);
+					break;
+				}
+				case FuncEnviropment::FuncType::native: {
+					if (!fn->templateCall().arguments.size() && fn->templateCall().result.is_void()) {
+						a.call(fn->get_func_ptr());
+						if constexpr (use_result)
+							if (flags.use_result) {
+								a.movEnviro(readData<uint16_t>(data, data_len, i), 0);
+								return;
+							}
+						break;
+					}
+					a.mov(argr0, fn.getPtr());
+					a.mov(argr1, arg_ptr);
+					a.call(&FuncEnviropment::NativeProxy_DynamicToStatic);
+					break;
+				}
+				case FuncEnviropment::FuncType::native_own_abi: {
+					a.mov(argr0, arg_ptr);
+					a.call(fn->get_func_ptr());
+					break;
+				}
+				default: {
+					a.mov(argr0, fn.getPtr());
+					a.mov(argr1, arg_ptr);
+					a.call(&FuncEnviropment::syncWrapper);
+					break;
+				}
+				}
+
+
+				if constexpr (use_result) {
+					if (flags.use_result) {
+						a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
+						a.mov(argr1, resr);
+						a.call(getFuncRes);
+						return;
+					}
+				}
+				if constexpr (do_cleanup) {
+					a.mov(argr0, resr);
+					a.call(releaseUnused);
 				}
 			}
 		}
@@ -145,11 +183,10 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_l
 			return;
 		}
 	}
-	a.mov(argr0, resr);
-	if(flags.async_mode)
-		a.call(ignoredAsync);
-	else
+	if constexpr (do_cleanup) {
+		a.mov(argr0, resr);
 		a.call(releaseUnused);
+	}
 }
 
 
@@ -766,7 +803,7 @@ void FuncEnviropment::Compile() {
 				break;
 			}
 			case Opcode::call_and_ret: {
-				compilerFabric_call<false>(a, data, data_len, i, strings);
+				compilerFabric_call<false,false>(a, data, data_len, i, strings);
 				do_jump_to_ret = true;
 				break;
 			}
@@ -1086,58 +1123,16 @@ FuncRes* FuncEnviropment::initAndCall(list_array<ArrItem>* arguments) {
 	return res;
 }
 
-FuncRes* FuncEnviropment::FuncWraper(list_array<ArrItem>* args, bool run_async) {
-	if (need_compile) funcComp();
-	if (!curr_func)
-		throw NotImplementedException();
-	++current_runners;
-	FuncRes* res;
-	if (!run_async) {
-		if (type == FuncType::own)
-			res = initAndCall(args);
-		else
-			res = NativeProxy_DynamicToStatic(args);
-	}
-	else {
-		try {
-			res = new FuncRes();
-		}
-		catch(const std::bad_alloc&) {
-			throw EnviropmentRuinException("Fail call function cause no memory for result");
-		}
-		ValueMeta meta;
-		meta.vtype = VType::async_res;
-		meta.allow_edit = true;
-		meta.use_gc = false;
-		res->meta = meta.encoded;
-		try {
-			//throw NotImplementedException();
-			if(type == FuncType::own)
-				res->value = async([this](list_array<ArrItem>* arguments) {
-					std::unique_ptr<list_array<ArrItem>> deleter;
-					deleter.reset(arguments);
-					return initAndCall(arguments);
-					}, new list_array<ArrItem>(*args)
-				);
-			else 
-				res->value = async([this](list_array<ArrItem>* arguments) {
-					std::unique_ptr<list_array<ArrItem>> deleter;
-					deleter.reset(arguments);
-					return NativeProxy_DynamicToStatic(arguments); }, new list_array<ArrItem>(*args));
-		}
-		catch (const std::bad_alloc&) {
-			res->meta = 0;
-			delete res;
-			throw EnviropmentRuinException("Fail call function cause no memory for result");
-		}
-	}
-	return res;
+FuncRes* FuncEnviropment::syncWrapper(list_array<ArrItem>* args) {
+	if (need_compile)
+		funcComp();
+	current_runners++;
+	return type == FuncType::own ? initAndCall(args) : NativeProxy_DynamicToStatic(args);
 }
 
 #pragma warning(push)
 #pragma warning(disable: 4311)
 #pragma warning(disable: 4302)
-//here optimizations disabled cause mcvc compiler do broken asm
 FuncRes* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ArrItem>* arguments) {
 	DynamicCall::FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
 	if (arguments) {
@@ -1331,16 +1326,8 @@ FuncEnviropment::~FuncEnviropment() {
 }
 
 extern "C" void callFunction(const char* symbol_name, bool run_async) {
-	if (run_async) {
-		std::thread([](std::string symbol) {
-			list_array<ArrItem> empty;
-			delete FuncEnviropment::CallFunc(symbol, &empty, false);
-			}, std::string(symbol_name)).detach();
-	}
-	else {
-		list_array<ArrItem> empty;
-		delete FuncEnviropment::CallFunc(symbol_name, &empty, false);
-	}
+	list_array<ArrItem> empty;
+	delete FuncEnviropment::CallFunc(symbol_name, &empty, run_async);
 }
 
 #include "../libray/console.hpp"
