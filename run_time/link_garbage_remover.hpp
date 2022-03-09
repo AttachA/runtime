@@ -5,48 +5,73 @@
 extern thread_local std::unordered_set<const void*> __lgr_safe_deph;
 
 class lgr {
-	bool(*calc_deph)(void*);
+	bool(*calc_depth)(void*);
 	void(*destructor)(void*);
 	void* ptr;
 	std::atomic_size_t* total;
+	std::atomic_size_t* weak;
 	bool in_safe_deph;
 
 	void exit() {
-		if (*total > 1) (*total)--;
+		if (total == nullptr);
+		else if (!in_safe_deph) {
+			--(*weak);
+			if (!*weak && !*total) {
+				delete total;
+				delete weak;
+			}
+		}
+		else if (*total > 1) {
+			--(*total);
+			return;
+		}
 		else {
 			if (ptr)
 				if (destructor) destructor(ptr);
-			ptr = nullptr;
-			delete total;
-			total = nullptr;
+			if (!*weak) {
+				delete total;
+				delete weak;
+			}
 		}
+		ptr = nullptr;
+		total = nullptr;
+		weak = nullptr;
 	}
-	void join(std::atomic_size_t* p_total_links) {
-		if (total && in_safe_deph) exit();
+	void join(std::atomic_size_t* p_total_links, std::atomic_size_t* tot_weak) {
 		total = p_total_links;
+		weak = tot_weak;
 		if (p_total_links && (in_safe_deph = calcDeph()))
-			(*p_total_links)++;
+			++(*p_total_links);
+		else if (!in_safe_deph && tot_weak)
+			++(*tot_weak);
 	}
 public:
-	lgr(){
-		calc_deph = nullptr;
+	lgr() {
+		calc_depth = nullptr;
 		destructor = nullptr;
 		ptr = nullptr;
 		total = nullptr;
+		weak = nullptr;
 		in_safe_deph = false;
 	}
-	lgr(void* copy, bool(*clc_deph)(void*) = nullptr, void(*destruct)(void*) = nullptr, bool as_weak = false) : calc_deph(clc_deph),destructor(destruct) {
+	lgr(void* copy, bool(*clc_depth)(void*) = nullptr, void(*destruct)(void*) = nullptr, bool as_weak = false) : calc_depth(clc_depth), destructor(destruct) {
 		if (copy) {
 			ptr = copy;
 			total = new std::atomic_size_t{ 1 };
+			weak = new std::atomic_size_t{ 0 };
 			if (!as_weak)
 				in_safe_deph = calcDeph();
 			else
 				in_safe_deph = false;
+			if (!in_safe_deph) {
+				++(*weak);
+				--(*total);
+			}
 		}
 		else {
 			ptr = nullptr;
 			total = nullptr;
+			weak = nullptr;
 			in_safe_deph = false;
 		}
 	}
@@ -57,52 +82,72 @@ public:
 		*this = std::move(mov);
 	}
 	~lgr() {
-		if (total && in_safe_deph) 
+		if (total || in_safe_deph)
 			exit();
 	}
 	lgr& operator=(const lgr& copy) {
 		if (this == &copy)return *this;
-		join(copy.total);
+		if (total && weak) exit();
 		ptr = copy.ptr;
-		calc_deph = copy.calc_deph;
+		calc_depth = copy.calc_depth;
 		destructor = copy.destructor;
+		join(copy.total, copy.weak);
 		return *this;
 	}
 	lgr& operator=(lgr&& mov) noexcept {
-		if (total && in_safe_deph) 
+		if (total && in_safe_deph)
 			exit();
 		ptr = mov.ptr;
 		total = mov.total;
+		weak = mov.weak;
 		in_safe_deph = mov.in_safe_deph;
-		calc_deph = mov.calc_deph;
+		calc_depth = mov.calc_depth;
 		destructor = mov.destructor;
 		mov.ptr = nullptr;
 		mov.total = nullptr;
+		mov.weak = nullptr;
 		return *this;
 	}
 	void*& operator*() {
+		if (total)
+			if (!*total)
+				ptr = nullptr;
 		return ptr;
 	}
 	void** operator->() {
+		if (total)
+			if (!*total)
+				ptr = nullptr;
 		return &ptr;
 	}
 	void* getPtr() {
+		if (total)
+			if (!*total)
+				ptr = nullptr;
 		return ptr;
-	}	
+	}
 	bool calcDeph() {
-		bool res = deph_safe();
+		bool res = depth_safety();
 		__lgr_safe_deph.clear();
 		return res;
 	}
-	bool deph_safe() const {
+	bool depth_safety() const {
 		if (__lgr_safe_deph.contains(ptr))
 			return false;
-		if (calc_deph) {
+		if (calc_depth) {
 			__lgr_safe_deph.emplace(ptr);
-			return calc_deph(ptr);
+			return calc_depth(ptr);
 		}
 		else
 			return true;
+	}
+	bool is_deleted() const {
+		if (in_safe_deph)
+			return total;
+		else if (total)
+			return *total;
+		else 
+			return false;
 	}
 	bool operator==(const lgr& cmp) const {
 		return ptr == cmp.ptr;
@@ -121,18 +166,56 @@ public:
 	}
 };
 
+
+
+template<typename, typename T>
+struct has_depth_safety {
+	static_assert(std::integral_constant<T, false>::value, "Second template parameter needs to be of function type.");
+};
+
+// specialization that does the checking
+template<class C, class Ret, class... Args>
+struct has_depth_safety<C, Ret(Args...)> {
+private:
+	template<typename T>
+	static constexpr auto check(T*) -> typename std::is_same<decltype(std::declval<T>().depth_safety(std::declval<Args>()...)), Ret>::type { return true; }
+
+	template<typename>
+	static constexpr std::false_type check(...) { return false; }
+
+
+public:
+	typedef decltype(check<C>(nullptr)) type;
+	static constexpr bool value = type::value;
+};
+
+
+
+
 template<class T, bool as_array = false>
 class typed_lgr {
 	lgr actual_lgr;
-	static void destruct(void* v) {
-		if constexpr (as_array)
-			delete[] (T*)v;
-		else 
-			delete (T*)v;
+
+	template<typename = std::enable_if_t<has_depth_safety<T, bool()>::value>>
+	static bool depth_calc(void* v) {
+		return ((T*)v)->depth_safety();
 	}
 public:
+	using depth_t = bool(*)(void*);
+	static constexpr depth_t get_depth_calc() {
+		if constexpr (has_depth_safety<T, bool()>::value)
+			return &depth_calc;
+		else
+			return nullptr;
+	}
+	static void destruct(void* v) {
+		if constexpr (as_array)
+			delete[](T*)v;
+		else
+			delete (T*)v;
+	}
 	typed_lgr() {}
-	typed_lgr(T* capture, bool as_weak = false) : actual_lgr(capture, nullptr, destruct, as_weak) { }
+	typed_lgr(T* capture, bool as_weak = false) : actual_lgr(capture, get_depth_calc(), destruct, as_weak) { }
 	typed_lgr(const typed_lgr& mov) noexcept {
 		*this = mov;
 	}
@@ -159,8 +242,11 @@ public:
 	bool calcDeph() {
 		return actual_lgr.calcDeph();
 	}
-	bool deph_safe() const {
-		return actual_lgr.deph_safe();
+	bool depth_safety() const {
+		return actual_lgr.depth_safety();
+	}
+	bool is_deleted() const {
+		return actual_lgr.is_deleted();
 	}
 	bool operator==(const typed_lgr& cmp) const {
 		return actual_lgr != cmp.actual_lgr;

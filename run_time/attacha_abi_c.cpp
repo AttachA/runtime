@@ -33,10 +33,10 @@ bool needAlloc(VType type) {
 
 
 bool calc_safe_deph_arr(void* ptr) {
-	list_array<ArrItem>& items = *(list_array<ArrItem>*)ptr;
-	for (ArrItem& it : items)
+	list_array<ValueItem>& items = *(list_array<ValueItem>*)ptr;
+	for (ValueItem& it : items)
 		if (it.meta.use_gc)
-			if (!((lgr*)it.val)->deph_safe())
+			if (!((lgr*)it.val)->depth_safety())
 				return false;
 	return true;
 }
@@ -60,7 +60,7 @@ void universalFree(void** value, ValueMeta meta) {
 		goto gc_destruct;
 	switch (meta.vtype) {
 	case VType::uarr:
-		delete (list_array<ArrItem>*)*value;
+		delete (list_array<ValueItem>*)*value;
 		return;
 	case VType::string:
 		delete (std::string*)*value;
@@ -92,7 +92,7 @@ void universalAlloc(void** value, ValueMeta meta) {
 		switch (meta.vtype)
 		{
 		case VType::uarr:
-			Allocate<list_array<ArrItem>>(value);
+			Allocate<list_array<ValueItem>>(value);
 			break;
 		case VType::string:
 			Allocate<std::string>(value);
@@ -105,7 +105,7 @@ void universalAlloc(void** value, ValueMeta meta) {
 		switch (meta.vtype)
 		{
 		case VType::uarr:
-			destructor = defaultDestructor<list_array<ArrItem>>;
+			destructor = defaultDestructor<list_array<ValueItem>>;
 			deph = calc_safe_deph_arr;
 			break;
 		case VType::string:
@@ -126,7 +126,7 @@ void removeEnviropement(void** env, uint16_t vals_count) {
 	for (uint32_t i = 0; i < max_vals; i += 2)
 		universalRemove(env + i);
 }
-void removeArgsEnviropement(list_array<ArrItem>* env) {
+void removeArgsEnviropement(list_array<ValueItem>* env) {
 	delete env;
 }
 char* getStrBegin(std::string* str) {
@@ -136,52 +136,52 @@ void throwInvalidType() {
 	throw InvalidType("Requested specifed type but recuived another");
 }
 
-auto gcCall(lgr* gc, list_array<ArrItem>* args, bool async_mode) {
+auto gcCall(lgr* gc, list_array<ValueItem>* args, bool async_mode) {
 	return FuncEnviropment::CallFunc(*(std::string*)gc->getPtr(), args, async_mode);
 }
-FuncRes* getAsyncFuncRes(void* val) {
-	return BTask::getResult(*(typed_lgr<BTask>*)val);
+ValueItem* getAsyncValueItem(void* val) {
+	typed_lgr<BTask>& tmp = *(typed_lgr<BTask>*)val;
+	return BTask::getResult(tmp);
 }
-void getFuncRes(void** value, FuncRes* f_res) {
+void getValueItem(void** value, ValueItem* f_res) {
 	universalRemove(value);
 	if (f_res) {
-		*value = f_res->value;
-		*(value + 1) = (void*)f_res->meta;
-		f_res->value = nullptr;
+		*value = f_res->val;
+		*(value + 1) = (void*)f_res->meta.encoded;
+		f_res->val = nullptr;
 		f_res->meta = 0;
 		delete f_res;
 	}
 }
-FuncRes* buildRes(void** value) {
-	FuncRes* res;
+ValueItem* buildRes(void** value) {
+	ValueItem* res;
 	try {
-		res = new FuncRes();
+		res = new ValueItem();
 	}
 	catch (const std::bad_alloc& ex)
 	{
 		throw EnviropmentRuinException();
 	}
-	res->value = *value;
-	res->meta = (size_t) * (value + 1);
+	res->val = *value;
+	res->meta = (size_t)*(value + 1);
 	*value = *(value + 1) = nullptr;
 	return res;
 }
 
 
 void getAsyncResult(void*& value, ValueMeta& meta) {
-	if (meta.vtype == VType::async_res) {
-		auto res = getAsyncFuncRes(value);
-		void* moveValue = res->value;
-		void* new_meta = (void*)res->meta;
-		res->value = nullptr;
+	while (meta.vtype == VType::async_res) {
+		auto res = getAsyncValueItem(value);
+		void* moveValue = res->val;
+		void* new_meta = (void*)res->meta.encoded;
+		res->val = nullptr;
 		universalFree(&value, meta);
 		value = moveValue;
 		meta.encoded = (size_t)new_meta;
 	}
 }
 void* copyValue(void*& val, ValueMeta& meta) {
-	while (meta.vtype == VType::async_res)
-		getAsyncResult(val, meta);
+	getAsyncResult(val, meta);
 
 	void* actual_val = val;
 	if (meta.use_gc)
@@ -190,13 +190,13 @@ void* copyValue(void*& val, ValueMeta& meta) {
 		switch (meta.vtype)
 		{
 		case VType::uarr:
-			return new list_array<ArrItem>(*(list_array<ArrItem>*)val);
+			return new list_array<ValueItem>(*(list_array<ValueItem>*)val);
 		case VType::string:
 			return new std::string(*(std::string*)val);
 		case VType::async_res: {
-			auto tmp = getAsyncFuncRes(val);
-			meta.encoded = tmp->meta;
-			val = tmp->value;
+			auto tmp = getAsyncValueItem(val);
+			meta = tmp->meta;
+			val = tmp->val;
 			delete tmp;
 			return copyValue(val, meta);
 		}
@@ -235,12 +235,22 @@ void** preSetValue(void** value, ValueMeta set_meta, bool match_gc_dif) {
 void*& getValue(void*& value, ValueMeta& meta) {
 	if (meta.vtype == VType::async_res)
 		getAsyncResult(value, meta);
+	if (meta.use_gc)
+		if (((lgr*)value)->is_deleted()) {
+			universalFree(&value, meta);
+			meta = ValueMeta(0);
+		}
 	return meta.use_gc ? (**(lgr*)value) : value;
 }
 void*& getValue(void** value) {
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
 	if (meta.vtype == VType::async_res)
 		getAsyncResult(*value, meta);
+	if (meta.use_gc)
+		if (((lgr*)value)->is_deleted()) {
+			universalFree(value, meta);
+			meta = ValueMeta(0);
+		}
 	return meta.use_gc ? (**(lgr*)value) : *value;
 }
 void* getSpecificValue(void** value, VType typ) {
@@ -249,6 +259,11 @@ void* getSpecificValue(void** value, VType typ) {
 		getAsyncResult(*value, meta);
 	if (meta.vtype != typ)
 		throw InvalidType("Requested specifed type but recuived another");
+	if (meta.use_gc)
+		if (((lgr*)value)->is_deleted()) {
+			universalFree(value, meta);
+			meta = ValueMeta(0);
+		}
 	return meta.use_gc ? ((lgr*)value)->getPtr() : *value;
 }
 void** getSpecificValueLink(void** value, VType typ) {
@@ -257,14 +272,15 @@ void** getSpecificValueLink(void** value, VType typ) {
 		getAsyncResult(*value, meta);
 	if (meta.vtype != typ)
 		throw InvalidType("Requested specifed type but recuived another");
+	if (meta.use_gc)
+		if (((lgr*)value)->is_deleted()) {
+			universalFree(value, meta);
+			meta = ValueMeta(0);
+		}
 	return meta.use_gc ? (&**(lgr*)value) : value;
 }
-
 void** getValueLink(void** value) {
-	ValueMeta& meta = *(ValueMeta*)(value + 1);
-	if (meta.vtype == VType::async_res)
-		getAsyncResult(*value, meta);
-	return meta.use_gc ? (&**(lgr*)value) : value;
+	return &getValue(value);
 }
 
 bool is_integer(VType typ) {
@@ -456,8 +472,8 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 		else if (!calc_safe_deph_arr(val2))
 			return { false,false };
 		else {
-			auto& arr1 = *(list_array<ArrItem>*)val1;
-			auto& arr2 = *(list_array<ArrItem>*)val2;
+			auto& arr1 = *(list_array<ValueItem>*)val1;
+			auto& arr2 = *(list_array<ValueItem>*)val2;
 			if (arr1.size() < arr2.size())
 				return { false, true };
 			else if (arr1.size() == arr2.size()) {
@@ -504,52 +520,43 @@ void copyEnviropement(void** env, uint16_t env_it_count, void*** res) {
 
 
 
-ArrItem::ArrItem(void* vall, ValueMeta vmeta) {
+ValueItem::ValueItem(void* vall, ValueMeta vmeta) {
 	val = copyValue(vall, vmeta);
 	meta = vmeta;
 }
-ArrItem::ArrItem(void* vall, ValueMeta vmeta, bool) {
+ValueItem::ValueItem(void* vall, ValueMeta vmeta, bool) {
 	val = vall;
 	meta = vmeta;
 }
-ArrItem::ArrItem(const ArrItem& copy) {
-	ArrItem& tmp = (ArrItem&)copy;
+ValueItem::ValueItem(const ValueItem& copy) {
+	ValueItem& tmp = (ValueItem&)copy;
 	val = copyValue(tmp.val, tmp.meta);
 	meta = copy.meta;
 }
 
-ArrItem& ArrItem::operator=(const ArrItem& copy) {
-	ArrItem& tmp = (ArrItem&)copy;
+ValueItem& ValueItem::operator=(const ValueItem& copy) {
+	ValueItem& tmp = (ValueItem&)copy;
 	val = copyValue(tmp.val, tmp.meta);
 	meta = copy.meta;
 	return *this;
 }
-ArrItem& ArrItem::operator=(ArrItem&& move) noexcept {
+ValueItem& ValueItem::operator=(ValueItem&& move) noexcept {
 	val = move.val;
 	meta = move.meta;
 	move.val = nullptr;
 	return *this;
 }
-ArrItem::~ArrItem() {
+ValueItem::~ValueItem() {
 	if (val)
 		if (needAlloc(meta.vtype))
 			universalFree(&val, meta);
 }
 
 
-FuncRes::~FuncRes() {
-	universalFree(&value, *reinterpret_cast<ValueMeta*>(&meta));
-}
-FuncRes::FuncRes(ArrItem& arr_it){
-	value = copyValue(arr_it.val, arr_it.meta);
-	meta = arr_it.meta.encoded;
-}
-
-
 
 
 namespace ABI_IMPL {
-	std::string Scast(void*& val, ValueMeta meta) {
+	std::string Scast(void*& val, ValueMeta& meta) {
 		switch (meta.vtype) {
 		case VType::noting:
 			return "null";
@@ -585,7 +592,7 @@ namespace ABI_IMPL {
 		case VType::uarr: {
 			std::string res("[");
 			bool before = false;
-			for (auto& it : *reinterpret_cast<list_array<ArrItem>*>(val)) {
+			for (auto& it : *reinterpret_cast<list_array<ValueItem>*>(val)) {
 				if (before)
 					res += ',';
 				res += Scast(it.val, it.meta);
@@ -660,7 +667,7 @@ void DynSum(void** val0, void** val1) {
 		reinterpret_cast<double&>(actual_val0) += ABI_IMPL::Vcast<double>(actual_val1, val1_meta);
 		break;
 	case VType::uarr:
-		reinterpret_cast<list_array<ArrItem>&>(actual_val0).push_back(ArrItem(copyValue(actual_val1,val1_meta), val1_meta));
+		reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(ValueItem(copyValue(actual_val1,val1_meta), val1_meta));
 		break;
 	case VType::string:
 		reinterpret_cast<std::string&>(actual_val0) += ABI_IMPL::Scast(actual_val1, val1_meta);
@@ -722,7 +729,7 @@ void DynMinus(void** val0, void** val1) {
 		reinterpret_cast<double&>(actual_val0) -= ABI_IMPL::Vcast<double>(actual_val1, val1_meta);
 		break;
 	case VType::uarr:
-		reinterpret_cast<list_array<ArrItem>&>(actual_val0).push_front(ArrItem(copyValue(actual_val1,val1_meta), val1_meta));
+		reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_front(ValueItem(copyValue(actual_val1,val1_meta), val1_meta));
 		break;
 	case VType::string:
 		reinterpret_cast<std::string&>(actual_val0) = ABI_IMPL::Scast(actual_val1, val1_meta) + reinterpret_cast<std::string&>(actual_val0);
@@ -785,9 +792,9 @@ void DynMul(void** val0, void** val1) {
 		break;
 	case VType::uarr:
 		if (val1_meta.vtype == VType::uarr)
-			reinterpret_cast<list_array<ArrItem>&>(actual_val0).insert(reinterpret_cast<list_array<ArrItem>&>(actual_val0).size() - 1, reinterpret_cast<list_array<ArrItem>&>(actual_val1));
+			reinterpret_cast<list_array<ValueItem>&>(actual_val0).insert(reinterpret_cast<list_array<ValueItem>&>(actual_val0).size() - 1, reinterpret_cast<list_array<ValueItem>&>(actual_val1));
 		else
-			reinterpret_cast<list_array<ArrItem>&>(actual_val0).push_back(ArrItem(copyValue(actual_val1,val1_meta), val1_meta));
+			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(ValueItem(copyValue(actual_val1,val1_meta), val1_meta));
 		break;
 	case VType::string:
 		throw InvalidOperation("for strings multiply operation is not defined");
@@ -849,9 +856,9 @@ void DynDiv(void** val0, void** val1) {
 		break;
 	case VType::uarr:
 		if (val1_meta.vtype == VType::uarr)
-			reinterpret_cast<list_array<ArrItem>&>(actual_val0).insert(0, reinterpret_cast<list_array<ArrItem>&>(actual_val1));
+			reinterpret_cast<list_array<ValueItem>&>(actual_val0).insert(0, reinterpret_cast<list_array<ValueItem>&>(actual_val1));
 		else
-			reinterpret_cast<list_array<ArrItem>&>(actual_val0).push_front(ArrItem(copyValue(actual_val1,val1_meta), val1_meta));
+			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_front(ValueItem(copyValue(actual_val1,val1_meta), val1_meta));
 		break;
 	case VType::string:
 		throw InvalidOperation("for strings divide operation is not defined");
@@ -1064,8 +1071,8 @@ void* AsArg(void** val) {
 	if (meta.vtype == VType::uarr)
 		return *val;
 	else {
-		auto tmp = new list_array<ArrItem>(1);
-		tmp->operator[](0) = ArrItem(*val, meta);
+		auto tmp = new list_array<ValueItem>(1);
+		tmp->operator[](0) = ValueItem(*val, meta);
 		universalRemove(val);
 		*val = tmp;
 		meta.allow_edit = true;
@@ -1080,8 +1087,8 @@ void AsArr(void** val) {
 	if (meta.vtype == VType::uarr)
 		return;
 	else {
-		auto tmp = new list_array<ArrItem>(1);
-		tmp->operator[](0) = ArrItem(*val, meta);
+		auto tmp = new list_array<ValueItem>(1);
+		tmp->operator[](0) = ValueItem(*val, meta);
 		universalRemove(val);
 		*val = tmp;
 		meta.allow_edit = true;

@@ -10,11 +10,11 @@ static inline std::string replace_space(const std::string& str) {
 	return res;
 }
 class AttachARuntimeException {
-	const char* message;
+	std::string message;
 public:
 	AttachARuntimeException() { message = ""; }
 	AttachARuntimeException(const char* msq) : message(msq) {}
-	AttachARuntimeException(const std::string& msq) : message(msq.c_str()) {}
+	AttachARuntimeException(const std::string& msq) : message(msq) {}
 	virtual ~AttachARuntimeException(){}
 	const std::string& what() const {
 		return message;
@@ -142,8 +142,19 @@ public:
 class SegmentationFaultException : public AttachARuntimeException {
 public:
 	SegmentationFaultException() : AttachARuntimeException("Thread try get access to non mapped region") {}
+	SegmentationFaultException(const char* text) : AttachARuntimeException(text) {}
+	SegmentationFaultException(const std::string& text) : AttachARuntimeException(text) {}
 	const char* name() const override {
 		return "SegmentationFaultException";
+	}
+};
+class NullPointerException : public SegmentationFaultException {
+public:
+	NullPointerException() : SegmentationFaultException("Thread try get access to null pointer region") {}
+	NullPointerException(const char* text) : SegmentationFaultException(text) {}
+	NullPointerException(const std::string& text) : SegmentationFaultException(text) {}
+	const char* name() const override {
+		return "NullPointerException";
 	}
 };
 

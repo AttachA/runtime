@@ -289,16 +289,51 @@ void cout_test() {
 	std::cout << idsaDAS << std::endl;
 	BTask::sleep(1000);
 }
+struct test_lgr {
+	bool depth_safety() const {
+		return self.depth_safety();
+	}
+	typed_lgr<test_lgr> self;
+};
+void lgr_loop_test() {
+	typed_lgr tlgr(new test_lgr());
+	tlgr->self = tlgr;
+}
+
 
 
 
 
 #include "libray/console.hpp"
+#include "run_time/AttachA_CXX.hpp"
 typedef void (*functs)(...);
 int main() {
 	//std::thread(ignoredAsyncGC).detach();
 
+	try {
+		int* ttt = (int*)123;
+		*ttt = 123;
+	}
+	catch (const NullPointerException& ex) {
+		std::cout << ex.what() << std::endl;
+	}
+
 	initStandardFunctions();
+	for (size_t i = 0; i < 100; i++) {
+		typed_lgr tlgr(new test_lgr());
+		tlgr->self = tlgr;
+	}
+	lgr_loop_test();
+	//{
+	//	for (size_t i = 0; i < 10000; i++)
+	//		console::setTextColor(123, 21, 2);
+	//}
+	//{
+	//	for (size_t i = 0; i < 10000; i++)
+	//		AttachA::cxxCall("console setTextColor", 123, 21, 2);
+	//}
+	std::cout << "test";
+
 	console::setBgColor(123, 21, 2);
 
 	std::function test([]() {});

@@ -38,19 +38,18 @@ void universalAlloc(void** value, ValueMeta meta);
 
 void initEnviropement(void** res, uint32_t vals_count);
 void removeEnviropement(void** env, uint16_t vals_count);
-void removeArgsEnviropement(list_array<ArrItem>* env);
+void removeArgsEnviropement(list_array<ValueItem>* env);
 char* getStrBegin(std::string* str);
 void throwInvalidType();
 
-auto gcCall(lgr* gc, list_array<ArrItem>* args, bool async_mode);
-FuncRes* getAsyncFuncRes(void* val);
-void getFuncRes(void** value, FuncRes* f_res);
-FuncRes* buildRes(void** value);
+auto gcCall(lgr* gc, list_array<ValueItem>* args, bool async_mode);
+ValueItem* getAsyncValueItem(void* val);
+void getValueItem(void** value, ValueItem* f_res);
+ValueItem* buildRes(void** value);
 
 
 void getAsyncResult(void*& value, ValueMeta& meta);
 void* copyValue(void*& val, ValueMeta& meta);
-void* cloneValue(void*& val, ValueMeta& meta);
 void** copyEnviropement(void** env, uint16_t env_it_count);
 
 
@@ -78,7 +77,9 @@ void copyEnviropement(void** env, uint16_t env_it_count, void*** res);
 namespace ABI_IMPL {
 
 	template <class T>
-	T Vcast(void*& val, ValueMeta meta) {
+	T Vcast(void*& val, ValueMeta& meta) {
+
+		getAsyncResult(val, meta);
 		switch (meta.vtype)
 		{
 		case VType::noting:
@@ -119,7 +120,7 @@ namespace ABI_IMPL {
 		}
 	}
 	
-	std::string Scast(void*& val, ValueMeta meta);
+	std::string Scast(void*& val, ValueMeta& meta);
 }
 
 
@@ -155,14 +156,14 @@ namespace exception_abi {
 
 
 	template<class _FN, class ...Args>
-	FuncRes* catchCall(_FN func, Args... args) {
-		FuncRes* res;
+	ValueItem* catchCall(_FN func, Args... args) {
+		ValueItem* res;
 		try {
 			return func(args...);
 		}
 		catch (...) {
 			try {
-				res = new FuncRes();
+				res = new ValueItem();
 			}
 			catch (const std::bad_alloc& ex) {
 				throw EnviropmentRuinException();
@@ -173,7 +174,7 @@ namespace exception_abi {
 			meta.use_gc = false;
 
 			try {
-				res->value = new std::exception_ptr(std::current_exception());
+				res->val = new std::exception_ptr(std::current_exception());
 			}
 			catch (const std::bad_alloc& ex) {
 				throw EnviropmentRuinException();
@@ -185,14 +186,4 @@ namespace exception_abi {
 	}
 }
 
-
-
-
-
-
-
-
 size_t getSize(void** value);
-
-//TO-DO
-void* callNative(void* func_ptr, void** args, size_t args_c);

@@ -14,7 +14,7 @@
 class ValueEnvironment {
 	std::unordered_map<std::string, ValueEnvironment*> enviropments;
 public:
-	FuncRes value;
+	ValueItem value;
 	ValueEnvironment*& joinEnviropment(const std::string& str) {
 		return enviropments[str];
 	}
@@ -88,8 +88,8 @@ private:
 	}
 
 public:
-	FuncRes* NativeProxy_DynamicToStatic(list_array<ArrItem>*);
-	FuncRes* initAndCall(list_array<ArrItem>*);
+	ValueItem* NativeProxy_DynamicToStatic(list_array<ValueItem>*);
+	ValueItem* initAndCall(list_array<ValueItem>*);
 	FuncEnviropment() { 
 		need_compile = false;
 		type = FuncType::own;
@@ -115,7 +115,7 @@ public:
 		move.can_be_unloaded = false;
 		return *this;
 	}
-	FuncRes* syncWrapper(list_array<ArrItem>* arguments);
+	ValueItem* syncWrapper(list_array<ValueItem>* arguments);
 	
 	 
 	void hotPath(const std::vector<uint8_t>& new_cross_code) {
@@ -130,7 +130,7 @@ public:
 	static typed_lgr<FuncEnviropment> enviropment(const std::string& func_name) {
 		return enviropments[func_name];
 	}
-	static FuncRes* CallFunc(const std::string& func_name, list_array<ArrItem>* arguments, bool run_async) {
+	static ValueItem* CallFunc(const std::string& func_name, list_array<ValueItem>* arguments, bool run_async) {
 		if (enviropments.contains(func_name)) {
 			if (run_async)
 				return asyncCall(enviropments[func_name], arguments);
@@ -226,8 +226,8 @@ public:
 
 
 
-	static FuncRes* asyncCall(typed_lgr<FuncEnviropment> f, list_array<ArrItem>* args);
-	static FuncRes* syncCall(typed_lgr<FuncEnviropment> f, list_array<ArrItem>* args) {
+	static ValueItem* asyncCall(typed_lgr<FuncEnviropment> f, list_array<ValueItem>* args);
+	static ValueItem* syncCall(typed_lgr<FuncEnviropment> f, list_array<ValueItem>* args) {
 		return f->syncWrapper(args);
 	}
 };
@@ -236,6 +236,4 @@ public:
 
 extern "C" void callFunction(const char* symbol_name, bool run_async);
 extern "C" void initStandardFunctions();
-
-
 

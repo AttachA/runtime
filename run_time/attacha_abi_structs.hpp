@@ -134,64 +134,47 @@ union ValueMeta {
 	ValueMeta(VType ty, bool gc, bool editable) { vtype = ty; use_gc = gc; allow_edit = editable; }
 	ValueMeta(size_t enc) { encoded = enc; }
 };
-struct ArrItem {
+
+struct ValueItem {
 	void* val;
 	ValueMeta meta;
-	ArrItem() {
+	ValueItem() {
 		val = nullptr;
 		meta.encoded = 0;
 	}
-	ArrItem(ArrItem&& move) noexcept {
+	ValueItem(ValueItem&& move) noexcept {
 		val = move.val;
 		meta = move.meta;
 		move.val = nullptr;
 	}
-	ArrItem(void* vall, ValueMeta meta);
-	ArrItem(void* vall, ValueMeta meta, bool no_copy);
-	ArrItem(const ArrItem&);
-	ArrItem& operator=(const ArrItem& copy);
-	ArrItem& operator=(ArrItem&& copy) noexcept;
-	~ArrItem();
+	ValueItem(void* vall, ValueMeta meta);
+	ValueItem(void* vall, ValueMeta meta, bool no_copy);
+	ValueItem(const ValueItem&);
+	ValueItem& operator=(const ValueItem& copy);
+	ValueItem& operator=(ValueItem&& copy) noexcept;
+	~ValueItem();
 };
 
-struct FuncRes {
-	FuncRes() { value = nullptr; meta = 0; }
-	FuncRes(ValueMeta met, void* val) { value = val; meta = *reinterpret_cast<size_t*>(&met); }
-	FuncRes(ArrItem& arr_it);
-	void* value;
-	size_t meta;
-	operator ArrItem() {
-		return ArrItem(value, ValueMeta(meta));
-	}
-	ArrItem AsArrMove() {
-		ArrItem tmp(value, ValueMeta(meta), true);
-		value = nullptr;
-		meta = 0;
-		return tmp;
-	}
-	~FuncRes();
-};
-
-typedef FuncRes* (*Enviropment)(void** enviro, list_array<ArrItem>* args);
-typedef FuncRes* (*AttachACXX)(list_array<ArrItem>* arguments);
+typedef ValueItem* (*Enviropment)(void** enviro, list_array<ValueItem>* args);
+typedef ValueItem* (*AttachACXX)(list_array<ValueItem>* arguments);
 
 
 
 struct ClassValue {
-	std::unordered_map<std::string, ArrItem> private_vals;
-	std::unordered_map<std::string, ArrItem>  public_vals;
+	std::unordered_map<std::string, ValueItem> private_vals;
+	std::unordered_map<std::string, ValueItem>  public_vals;
 
 	std::unordered_map<std::string, class FuncEnviropment*> private_fun;
 	std::unordered_map<std::string, class FuncEnviropment*> public_fun;
 };
 struct StructValue {
-	std::unordered_map<std::string, ArrItem> private_vals;
-	std::unordered_map<std::string, ArrItem>  public_vals;
+	std::unordered_map<std::string, ValueItem> private_vals;
+	std::unordered_map<std::string, ValueItem>  public_vals;
 };
 
 
-using ProxyClassGetter = ArrItem(*)(void*);
-using ProxyClassSeter = void(*)(void*, ArrItem&);
+using ProxyClassGetter = ValueItem(*)(void*);
+using ProxyClassSeter = void(*)(void*, ValueItem&);
 using ProxyClassDestructor = void(*)(void*);
 
 struct ProxyClassDeclare {

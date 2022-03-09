@@ -1,11 +1,14 @@
 #pragma once
 #include <mutex>
+#include <fstream>
 #include "link_garbage_remover.hpp"
+#include "AttachA_CXX.hpp"
 #include "../libray/list_array.hpp"
 #include "attacha_abi_structs.hpp"
 #include <boost/fiber/timed_mutex.hpp>
 #include <boost/fiber/condition_variable.hpp>
 #include <boost/fiber/operations.hpp>
+#include <boost/fiber/future.hpp>
 
 
 
@@ -23,13 +26,13 @@ struct Task {
 	struct TaskResult* fres = nullptr;
 	typed_lgr<class FuncEnviropment> ex_handle;//if ex_handle is nullptr then exception will be stored in fres
 	typed_lgr<class FuncEnviropment> func;
-	list_array<ArrItem>* args;
+	list_array<ValueItem>* args;
 	bool time_end_flag = false;
 	bool awaked = false;
 	bool started = false;
 	bool is_yield_mode = false;
 	bool end_of_life = false;
-	Task(typed_lgr<class FuncEnviropment> call_func, list_array<ArrItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler = nullptr);
+	Task(typed_lgr<class FuncEnviropment> call_func, list_array<ValueItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler = nullptr);
 	Task(Task&& mov) noexcept {
 		fres = mov.fres;
 		ex_handle = mov.ex_handle;
@@ -47,11 +50,11 @@ struct Task {
 	static void start(typed_lgr<Task>&& lgr_task) {
 		start(lgr_task);
 	}
-	static FuncRes* getResult(typed_lgr<Task>&& lgr_task) {
+	static ValueItem* getResult(typed_lgr<Task>&& lgr_task) {
 		return getResult(lgr_task);
 	}
 	static void start(typed_lgr<Task>& lgr_task);
-	static FuncRes* getResult(typed_lgr<Task>& lgr_task);
+	static ValueItem* getResult(typed_lgr<Task>& lgr_task);
 
 	static void createExecutor(size_t count = 1);
 	static size_t totalExecutors();
@@ -68,7 +71,7 @@ struct Task {
 			Task::start(lgr_task);
 		return res;
 	}
-	static FuncRes* getCurrentResult(typed_lgr<Task>& lgr_task);
+	static ValueItem* getCurrentResult(typed_lgr<Task>& lgr_task);
 };
 class TaskMutex {
 	std::list<typed_lgr<Task>> resume_task;
@@ -119,33 +122,38 @@ using BTaskMutex = boost::fibers::timed_mutex;
 using BTaskConditionVariable = boost::fibers::condition_variable;
 
 struct BTaskResult {
-	list_array<ArrItem> results;
+	list_array<ValueItem> results;
 	BTaskConditionVariable result_notify;
 	bool end_of_life = false;
-	FuncRes* getResult(size_t res_num) {
+	ValueItem* getResult(size_t res_num) {
 		if (results.size() >= res_num) {
 			boost::fibers::mutex mtx;
 			std::unique_lock ul(mtx);
 			result_notify.wait(ul, [&]() { return !(results.size() >= res_num || end_of_life); });
 
 			if (end_of_life)
-				return new FuncRes();
+				return new ValueItem();
 		}
-		return new FuncRes(results[res_num]);
+		return new ValueItem(results[res_num]);
+	}
+	void awaitEnd() {
+		boost::fibers::mutex mtx;
+		std::unique_lock ul(mtx);
+		while (end_of_life)
+			result_notify.wait(ul);
 	}
 	~BTaskResult() {
 		size_t i = 0;
 		while (!end_of_life)
 			getResult(i++);
 	}
-
 };
 class BTask {
 	BTaskResult* fres = nullptr;
 	typed_lgr<class FuncEnviropment> func;
-	list_array<ArrItem>* args;
+	list_array<ValueItem>* args;
 public:
-	BTask(typed_lgr<class FuncEnviropment> call_func, list_array<ArrItem>* arguments) : func(call_func), args(arguments) {}
+	BTask(typed_lgr<class FuncEnviropment> call_func, list_array<ValueItem>* arguments) : func(call_func), args(arguments) {}
 	BTask(BTask&& mov) noexcept {
 		func = mov.func;
 
@@ -173,38 +181,99 @@ public:
 	}
 	static void awaitEndTasks();
 	static void threadEnviroConfig();
-	static void result(FuncRes* f_res);
+	static void result(ValueItem* f_res);
 
-	static FuncRes* getResult(typed_lgr<BTask> lgr_task, size_t yield_res = 0) {
+	static ValueItem* getResult(typed_lgr<BTask> lgr_task, size_t yield_res = 0) {
 		if (!lgr_task->fres)
 			start(lgr_task);
 		return lgr_task->fres->getResult(yield_res);
 	}
 };
-
 class FileQuery {
-	struct rq {
-		typed_lgr<Task> tsk;
-		size_t len;
-		size_t id;
-	};
-	struct wq {
-		typed_lgr<Task> tsk;
-		const char* arr;
-		size_t len;
-		size_t id;
-	};
-	list_array<rq> read_query;
-	list_array<wq> write_query;
-	union {
-		int i;
-		long long l;
-		unsigned int ui;
-		unsigned long long ul;
-	} descriptor;
-	size_t id_l = 0;
+	boost::fibers::mutex no_race;
+	std::fstream stream;
 public:
-	FileQuery(const char* path);
-	
+	FileQuery(const char* path) : stream(path, std::ios_base::in | std::ios_base::out | std::ios_base::binary) {}
+	~FileQuery() {
+		std::lock_guard guard(no_race);
+		stream.close();
+	}
+	boost::fibers::future<char*> read(size_t len, size_t pos) {
+		return boost::fibers::async([this, len, pos]() {
+			std::lock_guard guard(no_race);
+			char* res = new char[len];
+			stream.flush();
+			stream.seekg(pos);
+			stream.read(res, len);
+			return res;
+		});
+	}
+	boost::fibers::future<char*> read(size_t len) {
+		return boost::fibers::async([this, len]() {
+			std::lock_guard guard(no_race);
+			char* res = new char[len];
+			stream.read(res, len);
+			return res;
+			});
+	}
+	void write(char* arr,size_t len, size_t pos) {
+		boost::fibers::async([this, arr, len, pos]() {
+			std::lock_guard guard(no_race);
+			stream.flush();
+			stream.seekp(pos);
+			stream.write(arr, len);
+		});
+	}
+	void write(char* arr, size_t len) {
+		boost::fibers::async([this, arr, len]() {
+			std::lock_guard guard(no_race);
+			stream.write(arr, len);
+		});
+	}
+	void append(char* arr,size_t len) {
+		boost::fibers::async([this, arr, len]() {
+			std::lock_guard guard(no_race);
+			char* res = new char[len];
+			stream.flush();
+			stream.seekp(0, std::ios_base::end);
+			stream.write(arr, len);
+		});
+	}
+};
 
+template<class T = int>
+class ValueChangeEvent {
+	T value;
+public:
+	size_t seter_check = 0;
+	size_t geter_check = 0;
+	typed_lgr<FuncEnviropment> set_notify;
+	typed_lgr<FuncEnviropment> get_notify;
+
+	ValueChangeEvent(T&& set) {
+		value = std::move(set);
+	}
+	ValueChangeEvent(const T& set) {
+		value = set;
+	}
+
+	ValueChangeEvent& operator=(T&& set) {
+		value = std::move(set);
+		seter_check++;
+		set_notify.notify_all();
+	}
+	ValueChangeEvent& operator=(const T& set) {
+		value = set;
+		seter_check++;
+		set_notify.notify_all();
+	}
+
+	operator T&() {
+		list_array<AttachA::Value> tt{ AttachA::Value(new ValueItem()) };
+		AttachA::convValue(tt);
+		AttachA::cxxCall(set_notify, std::string("ssss"));
+		geter_check++;
+		get_notify.notify_all();
+		return value;
+	}
 };

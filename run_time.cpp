@@ -14,7 +14,7 @@ size_t page_size = sysconf(_SC_PAGESIZE);
 
 #include "run_time.hpp"
 #include <sstream>
-
+#include "libray/string_help.hpp"
 
 
 unsigned long fault_reserved_stack_size = 524288;
@@ -38,7 +38,12 @@ LONG NTAPI win_exception_handler(LPEXCEPTION_POINTERS e) {
 			e->ExceptionRecord->ExceptionInformation[0] == 0 //thread attempted to read the inaccessible data
 			||
 			e->ExceptionRecord->ExceptionInformation[0] == 1 //thread attempted to write to an inaccessible address
-			) throw SegmentationFaultException();
+		) {
+			if (e->ExceptionRecord->ExceptionInformation[1] < UINT16_MAX)
+				throw NullPointerException("Thread attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in null pointer region. 0x" + string_help::n2hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+			else 
+				throw SegmentationFaultException("Thread attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in non mapped region. 0x" + string_help::n2hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+		}
 		else 
 			return EXCEPTION_CONTINUE_SEARCH;//8 - thread attempted to execute to an inaccessible address
 	case EXCEPTION_INT_DIVIDE_BY_ZERO:
@@ -80,7 +85,6 @@ void show_err(CXXExInfo& cxx) {
 	}
 	std::exit(-1);
 }
-
 void show_err(LPEXCEPTION_POINTERS e) {
 	std::stringstream ss;
 	ss << "Caught to unhandled seh exception.\n";

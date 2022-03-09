@@ -15,15 +15,15 @@ std::unordered_map<std::string, typed_lgr<FuncEnviropment>> FuncEnviropment::env
 ValueEnvironment enviropments;
 thread_local ValueEnvironment thread_local_enviropments;
 
-FuncRes* FuncEnviropment::asyncCall(typed_lgr<FuncEnviropment> f, list_array<ArrItem>* args) {
-	FuncRes* res = new FuncRes();
+ValueItem* FuncEnviropment::asyncCall(typed_lgr<FuncEnviropment> f, list_array<ValueItem>* args) {
+	ValueItem* res = new ValueItem();
 	res->meta = ValueMeta(VType::async_res, true, false).encoded;
-	res->value = new typed_lgr(new BTask(f, new list_array<ArrItem>(*args)));
-	BTask::start(*(typed_lgr<BTask>*)res->value);
+	res->val = new typed_lgr(new BTask(f, new list_array<ValueItem>(*args)));
+	BTask::start(*(typed_lgr<BTask>*)res->val);
 	return res;
 }
 
-void releaseUnused(FuncRes* r) {
+void releaseUnused(ValueItem* r) {
 	if(r)
 		delete r;
 }
@@ -164,7 +164,7 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_l
 					if (flags.use_result) {
 						a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
 						a.mov(argr1, resr);
-						a.call(getFuncRes);
+						a.call(getValueItem);
 						return;
 					}
 				}
@@ -179,7 +179,7 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_l
 		if (flags.use_result) {
 			a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
 			a.mov(argr1, resr);
-			a.call(getFuncRes);
+			a.call(getValueItem);
 			return;
 		}
 	}
@@ -192,39 +192,39 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_l
 
 
 template<char typ>
-void IndexArrayCopy(void** value,list_array<ArrItem>* arr, uint64_t pos) {
+void IndexArrayCopy(void** value,list_array<ValueItem>* arr, uint64_t pos) {
 	universalRemove(value);
 	if constexpr (typ == 2) {
-		ArrItem temp = ((list_array<ArrItem>*)arr)->atDefault(pos);
+		ValueItem temp = ((list_array<ValueItem>*)arr)->atDefault(pos);
 		*value = copyValue(temp.val, temp.meta);
 		*((size_t*)value) = temp.meta.encoded;
 	}
 	else {
-		ArrItem* res;
+		ValueItem* res;
 		if constexpr (typ == 1)
-			res = &((list_array<ArrItem>*)arr)->at(pos);
+			res = &((list_array<ValueItem>*)arr)->at(pos);
 		else
-			res = &((list_array<ArrItem>*)arr)->operator[](pos);
+			res = &((list_array<ValueItem>*)arr)->operator[](pos);
 		*value = copyValue(res->val, res->meta);
 		*((size_t*)value) = res->meta.encoded;
 	}
 }
 template<char typ>
-void IndexArrayMove(void** value, list_array<ArrItem>* arr, uint64_t pos) {
+void IndexArrayMove(void** value, list_array<ValueItem>* arr, uint64_t pos) {
 	universalRemove(value);	
 	if constexpr (typ == 2) {
-		ArrItem temp = ((list_array<ArrItem>*)arr)->atDefault(pos);
+		ValueItem temp = ((list_array<ValueItem>*)arr)->atDefault(pos);
 		*value = temp.val;
 		*((size_t*)(value + 1)) = temp.meta.encoded;
 		temp.val = nullptr;
 		temp.meta.encoded = 0;
 	}
 	else {
-		ArrItem* res;
+		ValueItem* res;
 		if constexpr (typ == 1)
-			res = &((list_array<ArrItem>*)arr)->at(pos);
+			res = &((list_array<ValueItem>*)arr)->at(pos);
 		else
-			res = &((list_array<ArrItem>*)arr)->operator[](pos);
+			res = &((list_array<ValueItem>*)arr)->operator[](pos);
 		*value = res->val;
 		*((size_t*)(value + 1)) = res->meta.encoded;
 		res->val = nullptr;
@@ -280,7 +280,7 @@ void setSize(void** value, size_t res) {
 }
 
 template<bool static_mode = false>
-void popStart(list_array<ArrItem>* dest, void** insert) {
+void popStart(list_array<ValueItem>* dest, void** insert) {
 	if constexpr (!static_mode)
 		universalRemove(insert);
 	auto& it = dest->front();
@@ -290,7 +290,7 @@ void popStart(list_array<ArrItem>* dest, void** insert) {
 	dest->pop_front();
 }
 template<bool static_mode = false>
-void popEnd(list_array<ArrItem>* dest, void** insert) {
+void popEnd(list_array<ValueItem>* dest, void** insert) {
 	if constexpr (!static_mode)
 		universalRemove(insert);
 	auto& it = dest->back();
@@ -536,20 +536,20 @@ void FuncEnviropment::Compile() {
 				case 12://resize
 					a.movEnviro(argr0, arr);
 					a.mov(argr1, readData<uint64_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t))&list_array<ArrItem>::resize);
+					a.call((void(list_array<ValueItem>::*)(size_t))&list_array<ValueItem>::resize);
 					break;
 				case 13://resize with default val
 					a.movEnviro(argr0, arr);
 					a.mov(argr1, readData<uint64_t>(data, data_len, i));
 					a.leaEnviro(argr2, readData<uint16_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t, const ArrItem&))&list_array<ArrItem>::resize);
+					a.call((void(list_array<ValueItem>::*)(size_t, const ValueItem&))&list_array<ValueItem>::resize);
 					break;
 				case 14://resize by val
 					a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
 					a.call(getSize);
 					a.leaEnviro(argr0, arr);
 					a.mov(argr1, resr);
-					a.call((void(list_array<ArrItem>::*)(size_t))&list_array<ArrItem>::resize);
+					a.call((void(list_array<ValueItem>::*)(size_t))&list_array<ValueItem>::resize);
 					break;
 				case 15://resize by val with default val
 					a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
@@ -557,11 +557,11 @@ void FuncEnviropment::Compile() {
 					a.movEnviro(argr0, arr);
 					a.mov(argr1, resr);
 					a.leaEnviro(argr2, readData<uint16_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t, const ArrItem&))&list_array<ArrItem>::resize);
+					a.call((void(list_array<ValueItem>::*)(size_t, const ValueItem&))&list_array<ValueItem>::resize);
 					break;
 				case  16://get size
 					a.movEnviro(argr0, arr);
-					a.call(&list_array<ArrItem>::size);
+					a.call(&list_array<ValueItem>::size);
 					a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
 					a.mov(argr1, resr);
 					a.call(setSize);
@@ -572,18 +572,18 @@ void FuncEnviropment::Compile() {
 					a.leaEnviro(argr2, readData<uint16_t>(data, data_len, i));
 					a.mov(argr3, readData<uint64_t>(data, data_len, i));
 					a.push(readData<uint64_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t, const list_array<ArrItem>&,size_t,size_t)) &list_array<ArrItem>::insert);
+					a.call((void(list_array<ValueItem>::*)(size_t, const list_array<ValueItem>&,size_t,size_t)) &list_array<ValueItem>::insert);
 					a.pop();
 					break;
 				case 18://push end
 					a.movEnviro(argr0, arr);
 					a.leaEnviro(argr1, readData<uint16_t>(data, data_len, i));
-					a.call((void (list_array<ArrItem>::*)(const ArrItem& copyer))&list_array<ArrItem>::push_back);
+					a.call((void (list_array<ValueItem>::*)(const ValueItem& copyer))&list_array<ValueItem>::push_back);
 					break;
 				case 19://push start
 					a.movEnviro(argr0, arr);
 					a.leaEnviro(argr1, readData<uint16_t>(data, data_len, i));
-					a.call((void (list_array<ArrItem>::*)(const ArrItem & copyer))&list_array<ArrItem>::push_front);
+					a.call((void (list_array<ValueItem>::*)(const ValueItem & copyer))&list_array<ValueItem>::push_front);
 					break;
 				case 20://pop end
 					a.leaEnviro(argr0, arr);
@@ -598,36 +598,36 @@ void FuncEnviropment::Compile() {
 				case 22://reserve push end
 					a.movEnviro(argr0, arr);
 					a.movEnviro(argr1, readData<uint64_t>(data, data_len, i));
-					a.call(&list_array<ArrItem>::reserve_push_back);
+					a.call(&list_array<ValueItem>::reserve_push_back);
 					break;
 				case 23://reserve push start
 					a.movEnviro(argr0, arr);
 					a.movEnviro(argr1, readData<uint64_t>(data, data_len, i));
-					a.call(&list_array<ArrItem>::reserve_push_front);
+					a.call(&list_array<ValueItem>::reserve_push_front);
 					break;
 				case 24://remove item
 					a.movEnviro(argr0, arr);
 					a.movEnviro(argr1, readData<uint64_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t pos))&list_array<ArrItem>::remove);
+					a.call((void(list_array<ValueItem>::*)(size_t pos))&list_array<ValueItem>::remove);
 					break;
 				case 25://remove range
 					a.movEnviro(argr0, arr);
 					a.movEnviro(argr1, readData<uint64_t>(data, data_len, i));
 					a.movEnviro(argr2, readData<uint64_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t,size_t)) & list_array<ArrItem>::remove);
+					a.call((void(list_array<ValueItem>::*)(size_t,size_t)) & list_array<ValueItem>::remove);
 					break;
 				case 26://optimize (commit)
 					a.movEnviro(argr0, arr);
-					a.call(&list_array<ArrItem>::commit);
+					a.call(&list_array<ValueItem>::commit);
 					break;
 				case 27://optimize (decommit)
 					a.movEnviro(argr0, arr);
 					a.mov(argr1, readData<uint64_t>(data, data_len, i));
-					a.call(&list_array<ArrItem>::decommit);
+					a.call(&list_array<ValueItem>::decommit);
 					break;
 				case 28://remove reserved
 					a.movEnviro(argr0, arr);
-					a.call(&list_array<ArrItem>::shrink_to_fit);
+					a.call(&list_array<ValueItem>::shrink_to_fit);
 					break;
 				default:
 					throw CompileTimeException("Invalid array operation");
@@ -946,20 +946,20 @@ void FuncEnviropment::Compile() {
 				case 12://resize
 					a.movEnviro(argr0, arr);
 					a.mov(argr1, readData<uint64_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t)) & list_array<ArrItem>::resize);
+					a.call((void(list_array<ValueItem>::*)(size_t)) & list_array<ValueItem>::resize);
 					break;
 				case 13://resize with default val
 					a.movEnviro(argr0, arr);
 					a.mov(argr1, readData<uint64_t>(data, data_len, i));
 					a.leaEnviro(argr2, readData<uint16_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t, const ArrItem&)) & list_array<ArrItem>::resize);
+					a.call((void(list_array<ValueItem>::*)(size_t, const ValueItem&)) & list_array<ValueItem>::resize);
 					break;
 				case 14://resize by val
 					a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
 					a.call(getSize);
 					a.leaEnviro(argr0, arr);
 					a.mov(argr1, resr);
-					a.call((void(list_array<ArrItem>::*)(size_t)) & list_array<ArrItem>::resize);
+					a.call((void(list_array<ValueItem>::*)(size_t)) & list_array<ValueItem>::resize);
 					break;
 				case 15://resize by val with default val
 					a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
@@ -967,11 +967,11 @@ void FuncEnviropment::Compile() {
 					a.movEnviro(argr0, arr);
 					a.mov(argr1, resr);
 					a.leaEnviro(argr2, readData<uint16_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t, const ArrItem&)) & list_array<ArrItem>::resize);
+					a.call((void(list_array<ValueItem>::*)(size_t, const ValueItem&)) & list_array<ValueItem>::resize);
 					break;
 				case  16://get size
 					a.movEnviro(argr0, arr);
-					a.call(&list_array<ArrItem>::size);
+					a.call(&list_array<ValueItem>::size);
 					a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
 					a.mov(argr1, resr);
 					a.call(setSize);
@@ -986,19 +986,19 @@ void FuncEnviropment::Compile() {
 					a.leaEnviro(argr2, arr1);
 					a.mov(argr3, readData<uint64_t>(data, data_len, i));
 					a.push(readData<uint64_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t, const list_array<ArrItem>&, size_t, size_t)) & list_array<ArrItem>::insert);
+					a.call((void(list_array<ValueItem>::*)(size_t, const list_array<ValueItem>&, size_t, size_t)) & list_array<ValueItem>::insert);
 					a.pop();
 					break;
 				}
 				case 18://push end
 					a.movEnviro(argr0, arr);
 					a.leaEnviro(argr1, readData<uint16_t>(data, data_len, i));
-					a.call((void (list_array<ArrItem>::*)(const ArrItem & copyer)) & list_array<ArrItem>::push_back);
+					a.call((void (list_array<ValueItem>::*)(const ValueItem & copyer)) & list_array<ValueItem>::push_back);
 					break;
 				case 19://push start
 					a.movEnviro(argr0, arr);
 					a.leaEnviro(argr1, readData<uint16_t>(data, data_len, i));
-					a.call((void (list_array<ArrItem>::*)(const ArrItem & copyer)) & list_array<ArrItem>::push_front);
+					a.call((void (list_array<ValueItem>::*)(const ValueItem & copyer)) & list_array<ValueItem>::push_front);
 					break;
 				case 20://pop end
 					a.leaEnviro(argr0, arr);
@@ -1013,36 +1013,36 @@ void FuncEnviropment::Compile() {
 				case 22://reserve push end
 					a.leaEnviro(argr0, arr);
 					a.movEnviro(argr1, readData<uint64_t>(data, data_len, i));
-					a.call(&list_array<ArrItem>::reserve_push_back);
+					a.call(&list_array<ValueItem>::reserve_push_back);
 					break;
 				case 23://reserve push start
 					a.leaEnviro(argr0, arr);
 					a.movEnviro(argr1, readData<uint64_t>(data, data_len, i));
-					a.call(&list_array<ArrItem>::reserve_push_front);
+					a.call(&list_array<ValueItem>::reserve_push_front);
 					break;
 				case 24://remove item
 					a.movEnviro(argr0, arr);
 					a.movEnviro(argr1, readData<uint64_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t pos)) & list_array<ArrItem>::remove);
+					a.call((void(list_array<ValueItem>::*)(size_t pos)) & list_array<ValueItem>::remove);
 					break;
 				case 25://remove range
 					a.movEnviro(argr0, arr);
 					a.movEnviro(argr1, readData<uint64_t>(data, data_len, i));
 					a.movEnviro(argr2, readData<uint64_t>(data, data_len, i));
-					a.call((void(list_array<ArrItem>::*)(size_t, size_t)) & list_array<ArrItem>::remove);
+					a.call((void(list_array<ValueItem>::*)(size_t, size_t)) & list_array<ValueItem>::remove);
 					break;
 				case 26://optimize (commit)
 					a.movEnviro(argr0, arr);
-					a.call(&list_array<ArrItem>::commit);
+					a.call(&list_array<ValueItem>::commit);
 					break;
 				case 27://optimize (decommit)
 					a.movEnviro(argr0, arr);
 					a.mov(argr1, readData<uint64_t>(data, data_len, i));
-					a.call(&list_array<ArrItem>::decommit);
+					a.call(&list_array<ValueItem>::decommit);
 					break;
 				case 28://remove reserved
 					a.movEnviro(argr0, arr);
-					a.call(&list_array<ArrItem>::shrink_to_fit);
+					a.call(&list_array<ValueItem>::shrink_to_fit);
 					break;
 				default:
 					throw CompileTimeException("Invalid array operation");
@@ -1101,8 +1101,8 @@ struct EnviroHold {
 	}
 };
 
-FuncRes* FuncEnviropment::initAndCall(list_array<ArrItem>* arguments) {
-	FuncRes* res = nullptr;
+ValueItem* FuncEnviropment::initAndCall(list_array<ValueItem>* arguments) {
+	ValueItem* res = nullptr;
 	EnviroHold env(max_values);
 	try {
 		res = curr_func(env.envir,arguments);
@@ -1123,7 +1123,7 @@ FuncRes* FuncEnviropment::initAndCall(list_array<ArrItem>* arguments) {
 	return res;
 }
 
-FuncRes* FuncEnviropment::syncWrapper(list_array<ArrItem>* args) {
+ValueItem* FuncEnviropment::syncWrapper(list_array<ValueItem>* args) {
 	if (need_compile)
 		funcComp();
 	current_runners++;
@@ -1133,7 +1133,7 @@ FuncRes* FuncEnviropment::syncWrapper(list_array<ArrItem>* args) {
 #pragma warning(push)
 #pragma warning(disable: 4311)
 #pragma warning(disable: 4302)
-FuncRes* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ArrItem>* arguments) {
+ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ValueItem>* arguments) {
 	DynamicCall::FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
 	if (arguments) {
 		for (auto& it : *arguments) {
@@ -1264,49 +1264,49 @@ FuncRes* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ArrItem>* argum
 	if (nat_templ.result.is_void())
 		return nullptr;
 	if(nat_templ.result.ptype == DynamicCall::FunctionTemplate::ValueT::PlaceType::as_ptr)
-		return new FuncRes(ValueMeta(VType::undefined_ptr, false, true), res);
+		return new ValueItem(res, ValueMeta(VType::undefined_ptr, false, true));
 	switch (nat_templ.result.vtype) {
 	case DynamicCall::FunctionTemplate::ValueT::ValueType::integer:
 		switch (nat_templ.result.vsize) {
 		case 1:
-			return new FuncRes(ValueMeta(VType::ui8, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::ui8, false, true));
 		case 2:
-			return new FuncRes(ValueMeta(VType::ui16, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::ui16, false, true));
 		case 4:
-			return new FuncRes(ValueMeta(VType::ui32, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::ui32, false, true));
 		case 8:
-			return new FuncRes(ValueMeta(VType::ui64, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::ui64, false, true));
 		default:
 			throw InvalidCast("Invalid type for convert");
 		}
 	case DynamicCall::FunctionTemplate::ValueT::ValueType::signed_integer:
 		switch (nat_templ.result.vsize) {
 		case 1:
-			return new FuncRes(ValueMeta(VType::i8, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::i8, false, true));
 		case 2:
-			return new FuncRes(ValueMeta(VType::i16, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::i16, false, true));
 		case 4:
-			return new FuncRes(ValueMeta(VType::i32, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::i32, false, true));
 		case 8:
-			return new FuncRes(ValueMeta(VType::i64, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::i64, false, true));
 		default:
 			throw InvalidCast("Invalid type for convert");
 		}
 	case DynamicCall::FunctionTemplate::ValueT::ValueType::floating:		
 		switch (nat_templ.result.vsize) {
 		case 1:
-			return new FuncRes(ValueMeta(VType::ui8, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::ui8, false, true));
 		case 2:
-			return new FuncRes(ValueMeta(VType::ui16, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::ui16, false, true));
 		case 4:
-			return new FuncRes(ValueMeta(VType::flo, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::flo, false, true));
 		case 8:
-			return new FuncRes(ValueMeta(VType::doub, false, true), res);
+			return new ValueItem(res, ValueMeta(VType::doub, false, true));
 		default:
 			throw InvalidCast("Invalid type for convert");
 		}
 	case DynamicCall::FunctionTemplate::ValueT::ValueType::pointer:
-		return new FuncRes(ValueMeta(VType::undefined_ptr, false, true), res);
+		return new ValueItem(res, ValueMeta(VType::undefined_ptr, false, true));
 	case DynamicCall::FunctionTemplate::ValueT::ValueType::_class:
 	default:
 		throw NotImplementedException();
@@ -1326,7 +1326,7 @@ FuncEnviropment::~FuncEnviropment() {
 }
 
 extern "C" void callFunction(const char* symbol_name, bool run_async) {
-	list_array<ArrItem> empty;
+	list_array<ValueItem> empty;
 	delete FuncEnviropment::CallFunc(symbol_name, &empty, run_async);
 }
 

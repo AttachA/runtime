@@ -5,7 +5,7 @@
 #include <boost/fiber/all.hpp>
 #include <boost/fiber/detail/thread_barrier.hpp>
 
-#include "run_time_compiler.hpp"
+#include "AttachA_CXX.hpp"
 #include "tasks.hpp"
 #include <iostream>
 
@@ -14,9 +14,9 @@ struct TaskResult {
 	ctx::continuation tmp_current_context;
 	std::list<typed_lgr<Task>> end_of_life_await;//for tasks
 	std::condition_variable result_notify;//for non task env
-	FuncRes* fres = nullptr;
+	ValueItem* fres = nullptr;
 };
-Task::Task(typed_lgr<class FuncEnviropment> call_func, list_array<ArrItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler) {
+Task::Task(typed_lgr<class FuncEnviropment> call_func, list_array<ValueItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler) {
 	ex_handle = exception_handler;
 	func = call_func;
 	args = arguments;
@@ -152,7 +152,7 @@ void taskExecutor(bool end_in_task_out = false) {
 			if (loc.curr_task->ex_handle) {
 				if (loc.curr_task->args)
 					delete loc.curr_task->args;
-				loc.curr_task->args = new list_array<ArrItem>{ArrItem(new std::exception_ptr(loc.ex_ptr), ValueMeta(VType::except_value, false, false), false)};
+				loc.curr_task->args = new list_array<ValueItem>{ValueItem(new std::exception_ptr(loc.ex_ptr), ValueMeta(VType::except_value, false, false), false)};
 				loc.ex_ptr = nullptr;
 				*loc.tmp_current_context = ctx::callcc(context_ex_handle);
 
@@ -163,7 +163,7 @@ void taskExecutor(bool end_in_task_out = false) {
 					goto task_end;
 				}
 			}
-			loc.curr_task->fres->fres = new FuncRes(ValueMeta(VType::except_value, false, false), new std::exception_ptr(loc.ex_ptr));
+			loc.curr_task->fres->fres = new ValueItem(new std::exception_ptr(loc.ex_ptr), ValueMeta(VType::except_value, false, false));
 			loc.ex_ptr = nullptr;
 			loc.curr_task->fres->result_notify.notify_all();
 		}
@@ -347,7 +347,7 @@ void Task::start(typed_lgr<Task>& lgr_task) {
 	glob.tasks_notifier.notify_one();
 	lgr_task->started = true;
 }
-FuncRes* Task::getResult(typed_lgr<Task>& lgr_task) {
+ValueItem* Task::getResult(typed_lgr<Task>& lgr_task) {
 	if (loc.is_task_thread) {
 		if (!lgr_task->started || lgr_task->is_yield_mode) {
 			lgr_task->fres->end_of_life_await.push_back(loc.curr_task);
@@ -368,7 +368,7 @@ FuncRes* Task::getResult(typed_lgr<Task>& lgr_task) {
 		return lgr_task->fres->fres;
 	}
 }
-FuncRes* Task::getCurrentResult(typed_lgr<Task>& lgr_task) {
+ValueItem* Task::getCurrentResult(typed_lgr<Task>& lgr_task) {
 	if (loc.is_task_thread) {
 		if (!lgr_task->started) {
 			lgr_task->fres->end_of_life_await.push_back(loc.curr_task);
@@ -633,13 +633,15 @@ bool TaskSemaphore::is_locked() {
 
 
 
-static boost::fibers::condition_variable_any sleep_task{};
-static std::condition_variable awake_task{};
+boost::fibers::condition_variable_any sleep_task{};
+std::condition_variable awake_task{};
+
 std::atomic_size_t inited_count = 0;
 std::condition_variable ini_end;
 
 std::atomic_size_t tasks_count = 0;
-static boost::fibers::condition_variable_any task_end{};
+boost::fibers::condition_variable_any task_end{};
+
 void aathread() {
 	boost::fibers::use_scheduling_algorithm<boost::fibers::algo::shared_work>();
 	++inited_count;
@@ -655,17 +657,17 @@ void aathread() {
 	}
 }
 
-static boost::fibers::fiber_specific_ptr<typed_lgr<BTask>> curr_task;
+boost::fibers::fiber_specific_ptr<typed_lgr<BTask>> curr_task;
 
 void BTask::createExecutor(uint32_t c) {
 	boost::fibers::use_scheduling_algorithm<boost::fibers::algo::shared_work>(c);
-	for (size_t i = 0; i < c; i++) {
+	for (size_t i = inited_count; i < c; i++) {
 		std::thread(aathread).detach();
 		std::lock_guard guard(glob.task_thread_safety);
 	}
 	std::mutex sync{};
 	std::unique_lock lk(sync);
-	while (inited_count == c)
+	while (inited_count >= c)
 		ini_end.wait(lk);
 }
 void BTask::start(typed_lgr<BTask> lgr_task) {
@@ -677,13 +679,13 @@ void BTask::start(typed_lgr<BTask> lgr_task) {
 	boost::fibers::fiber([](typed_lgr<BTask> lgr_task) {
 
 		curr_task.reset(new typed_lgr<BTask>(lgr_task));
-		FuncRes* tmp = lgr_task->func->syncWrapper(lgr_task->args);
+		ValueItem* tmp = lgr_task->func->syncWrapper(lgr_task->args);
 		delete curr_task.release();
 
 		--tasks_count;
 		lgr_task->fres->end_of_life = true;
 		if (tmp) {
-			lgr_task->fres->results.push_back(tmp->AsArrMove());
+			lgr_task->fres->results.push_back(std::move(*tmp));
 			delete tmp;
 		}
 		
@@ -695,7 +697,7 @@ void BTask::start(typed_lgr<BTask> lgr_task) {
 	//start_notify.wait(lk);
 	awake_task.notify_one();
 }
-void BTask::result(FuncRes* f_res) {
+void BTask::result(ValueItem* f_res) {
 	if (curr_task.get()) {
 		curr_task->getPtr()->fres->results.push_back(*f_res);
 		curr_task->getPtr()->fres->result_notify.notify_all();
