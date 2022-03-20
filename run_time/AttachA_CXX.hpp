@@ -4,39 +4,6 @@
 namespace AttachA {
 	class Value {
 		ValueItem fres;
-		int8_t asI8() {
-			return ABI_IMPL::Vcast<int8_t>(fres.val, fres.meta);
-		}
-		uint8_t asUI8() {
-			return ABI_IMPL::Vcast<uint8_t>(fres.val, fres.meta);
-		}
-		int16_t asI16() {
-			return ABI_IMPL::Vcast<int16_t>(fres.val,fres.meta);
-		}
-		uint16_t asUI16() {
-			return ABI_IMPL::Vcast<uint16_t>(fres.val,fres.meta);
-		}
-		int32_t asI32() {
-			return ABI_IMPL::Vcast<int32_t>(fres.val,fres.meta);
-		}
-		uint32_t asUI32() {
-			return ABI_IMPL::Vcast<uint32_t>(fres.val,fres.meta);
-		}
-		int64_t asI64() {
-			return ABI_IMPL::Vcast<int64_t>(fres.val,fres.meta);
-		}
-		uint64_t asUI64() {
-			return ABI_IMPL::Vcast<uint64_t>(fres.val,fres.meta);
-		}
-		std::string asStr() {
-			return ABI_IMPL::Scast(fres.val,fres.meta);
-		}
-		list_array<Value> asUarr() {
-			if (fres.meta.vtype == VType::uarr)
-				return ((list_array<ValueItem>*)fres.val)->convert<Value>([](ValueItem& arIt) { return ValueItem(arIt); });
-			else
-				return { ValueItem(fres) };
-		}
 	public:
 		Value() { }
 		Value(ValueItem* val) : fres(std::move(*val)) { delete val; }
@@ -54,30 +21,88 @@ namespace AttachA {
 		Value& operator=(const Value& copy) {
 			fres = copy.fres;
 		}
-		
 
-		template<class T = int8_t>
+		Value& operator +=(const Value& op) {
+			DynSum(&fres.val, (void**)&op.fres.val);
+			return *this;
+		}
+		Value& operator -=(const Value& op) {
+			DynMinus(&fres.val, (void**)&op.fres.val);
+			return *this;
+		}
+		Value& operator *=(const Value& op) {
+			DynMul(&fres.val, (void**)&op.fres.val);
+			return *this;
+		}
+		Value& operator /=(const Value& op) {
+			DynDiv(&fres.val, (void**)&op.fres.val);
+			return *this;
+		}
+		Value& operator ^=(const Value& op) {
+			DynBitXor(&fres.val, (void**)&op.fres.val);
+			return *this;
+		}
+		Value& operator &=(const Value& op) {
+			DynBitAnd(&fres.val, (void**)&op.fres.val);
+			return *this;
+		}
+		Value& operator |=(const Value& op) {
+			DynBitOr(&fres.val, (void**)&op.fres.val);
+			return *this;
+		}
+		Value& operator !() {
+			DynBitNot(&fres.val);
+			return *this;
+		}
+
+		Value operator +(const Value& op) const {
+			return Value(*this) += op;
+		}
+		Value operator -(const Value& op) const  {
+			return Value(*this) -= op;
+		}
+		Value operator *(const Value& op) const  {
+			return Value(*this) *= op;
+		}
+		Value operator /(const Value& op) const  {
+			return Value(*this) /= op;
+		}
+		Value operator ^(const Value& op) const  {
+			return Value(*this) ^= op;
+		}
+		Value operator &(const Value& op) const  {
+			return Value(*this) &= op;
+		}
+		Value operator |(const Value& op) const  {
+			return Value(*this) |= op;
+		}
+
+		template<class T = list_array<Value>>
 		T as() {
 			if constexpr (std::is_same_v<T, int8_t>)
-				return asI8();
+				return ABI_IMPL::Vcast<int8_t>(fres.val, fres.meta);
 			else if constexpr (std::is_same_v<T, uint8_t>)
-				return asUI8();
+				return ABI_IMPL::Vcast<uint8_t>(fres.val, fres.meta);
 			else if constexpr (std::is_same_v<T, int16_t>)
-				return asI16();
+				return ABI_IMPL::Vcast<int16_t>(fres.val, fres.meta);
 			else if constexpr (std::is_same_v<T, uint16_t>)
-				return asUI16();
+				return ABI_IMPL::Vcast<uint16_t>(fres.val, fres.meta);
 			else if constexpr (std::is_same_v<T, int32_t>)
-				return asI32();
-			else if constexpr (std::is_same_v<T, int32_t>)
-				return asUI32();
+				return ABI_IMPL::Vcast<int32_t>(fres.val, fres.meta);
+			else if constexpr (std::is_same_v<T, uint32_t>)
+				return ABI_IMPL::Vcast<uint32_t>(fres.val, fres.meta);
 			else if constexpr (std::is_same_v<T, int64_t>)
-				return asI64();
-			else if constexpr (std::is_same_v<T, int64_t>)
-				return asUI64();
+				return ABI_IMPL::Vcast<int64_t>(fres.val, fres.meta);
+			else if constexpr (std::is_same_v<T, uint64_t>)
+				return ABI_IMPL::Vcast<uint64_t>(fres.val, fres.meta);
 			else if constexpr (std::is_same_v<T, std::string>)
-				return asStr();
-			else if constexpr (std::is_same_v<T, list_array<Value>>)
-				return asUarr();
+				return ABI_IMPL::Scast(fres.val, fres.meta);
+			else if constexpr (std::is_same_v<T, list_array<Value>>) {
+				if (fres.meta.vtype == VType::uarr)
+					return ((list_array<ValueItem>*)fres.val)->convert<Value>([](const ValueItem& arIt) { return arIt; });
+				else
+					return { fres };
+			}
 			else if constexpr (std::is_same_v<T, ValueItem>)
 				return fres;
 			else {
@@ -145,11 +170,13 @@ namespace AttachA {
 	Value cxxCall(typed_lgr<FuncEnviropment> func, Types... types) {
 		struct deleter {
 			list_array<ValueItem>* temp;
+			deleter(list_array<ValueItem>* tmp) {
+				temp = temp;
+			}
 			~deleter() {
 				delete temp;
 			}
-		} val;
-		val.temp = new list_array<ValueItem>{ convValue(types)... };
+		} val(new list_array<ValueItem>{ convValue(types)... });
 		return func->syncWrapper(val.temp);
 	}
 	inline Value cxxCall(typed_lgr<FuncEnviropment> func) {

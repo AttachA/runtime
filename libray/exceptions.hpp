@@ -1,7 +1,6 @@
 #pragma once
 #include <string>
 #include "list_array.hpp"
-using except_follow = list_array<std::string>;
 static inline std::string replace_space(const std::string& str) {
 	std::string res;
 	res.reserve(str.size());

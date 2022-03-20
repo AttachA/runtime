@@ -8,25 +8,82 @@
 #include "AttachA_CXX.hpp"
 #include "tasks.hpp"
 #include <iostream>
+#include <stack>
+#include <deque>
 
 namespace ctx = boost::context;
-struct TaskResult {
-	ctx::continuation tmp_current_context;
-	std::list<typed_lgr<Task>> end_of_life_await;//for tasks
-	std::condition_variable result_notify;//for non task env
-	ValueItem* fres = nullptr;
-};
+std::atomic_size_t alocs = 0;
+std::atomic_size_t clears = 0;
+
+TaskResult::~TaskResult() {
+	if(context)
+		reinterpret_cast<ctx::continuation&>(context).~continuation();
+	size_t i = 0;
+	while (!end_of_life)
+		getResult(i++);
+}
+
+
+ValueItem* TaskResult::getResult(size_t res_num) {
+	if (results.size() >= res_num) {
+		while (results.size() >= res_num || end_of_life)
+			result_notify.wait();
+
+		if (end_of_life)
+			return new ValueItem();
+	}
+	return new ValueItem(results[res_num]);
+}
+void TaskResult::awaitEnd() {
+	while (!end_of_life)
+		result_notify.wait();
+}
+void TaskResult::yieldResult(ValueItem* res, bool release) {
+	if (res)
+		results.push_back(std::move(*res));
+	else
+		results.push_back(ValueItem());
+	result_notify.notify_all();
+	if (release)
+		delete res;
+}
+void TaskResult::yieldResult(ValueItem&& res) {
+	results.push_back(std::move(res));
+	result_notify.notify_all();
+}
+void TaskResult::finalResult(ValueItem* res) {
+	if (res)
+		results.push_back(std::move(*res));
+	else
+		results.push_back(ValueItem());
+	end_of_life = true;
+	result_notify.notify_all();
+	delete res;
+}
+void TaskResult::finalResult(ValueItem&& res) {
+	results.push_back(std::move(res));
+	end_of_life = true;
+	result_notify.notify_all();
+}
+TaskResult::TaskResult() {}
+TaskResult::TaskResult(TaskResult&& move) noexcept {
+	results = std::move(move.results);
+	end_of_life = move.end_of_life;
+	move.end_of_life = true;
+}
+
+
+
 Task::Task(typed_lgr<class FuncEnviropment> call_func, list_array<ValueItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler) {
 	ex_handle = exception_handler;
 	func = call_func;
 	args = arguments;
-	fres = new TaskResult();
+	alocs++;
 }
 Task::~Task() {
-	if (fres)
-		delete fres;
 	if (args)
 		delete args;
+	clears++;
 }
 
 using timing = std::pair<std::chrono::high_resolution_clock::time_point, typed_lgr<Task>>;
@@ -34,8 +91,8 @@ struct {
 	TaskConditionVariable no_tasks_notifier;
 	TaskConditionVariable no_tasks_execute_notifier;
 
-	std::list<typed_lgr<Task>> tasks;
-	std::list<timing> timed_tasks;
+	std::stack<typed_lgr<Task>> tasks;
+	std::deque<timing> timed_tasks;
 
 	std::recursive_mutex task_thread_safety;
 	std::recursive_mutex task_timer_safety;
@@ -60,9 +117,46 @@ struct {
 
 
 
+#pragma optimize("",off)
+void swapCtxRelock(std::mutex& mut) {
+	loc.context_in_swap = true;
+	loc.curr_task->relock_mut = &mut;
+	loc.curr_task->relock_rec_mut = nullptr;
+	loc.curr_task->relock_timed_mut = nullptr;
+	*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+	loc.curr_task->relock_mut = nullptr;
+	loc.context_in_swap = false;
+}
+void swapCtxRelock(std::timed_mutex& mut) {
+	loc.context_in_swap = true;
+	loc.curr_task->relock_mut = nullptr;
+	loc.curr_task->relock_rec_mut = nullptr;
+	loc.curr_task->relock_timed_mut = &mut;
+	*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+	loc.curr_task->relock_timed_mut = nullptr;
+	loc.context_in_swap = false;
+}
+void swapCtxRelock(std::recursive_mutex& mut) {
+	loc.context_in_swap = true;
+	loc.curr_task->relock_mut = nullptr;
+	loc.curr_task->relock_timed_mut = nullptr;
+	loc.curr_task->relock_rec_mut = &mut;
+	*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+	loc.curr_task->relock_rec_mut = nullptr;
+	loc.context_in_swap = false;
+}
+void swapCtxRelock(std::recursive_mutex& mut,std::timed_mutex& tmut) {
+	loc.context_in_swap = true;
+	loc.curr_task->relock_mut = nullptr;
+	loc.curr_task->relock_rec_mut = &mut;
+	loc.curr_task->relock_timed_mut = &tmut;
+	*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+	loc.curr_task->relock_rec_mut = nullptr;
+	loc.curr_task->relock_timed_mut = nullptr;
+	loc.context_in_swap = false;
+}
 
-
-void inline swapCtx() {
+void swapCtx() {
 	loc.context_in_swap = true;
 	*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
 	loc.context_in_swap = false;
@@ -71,7 +165,7 @@ void inline swapCtx() {
 ctx::continuation context_exec(ctx::continuation&& sink) {
 	*loc.tmp_current_context = std::move(sink);
 	try {
-		loc.curr_task->fres->fres = loc.curr_task->func->syncWrapper(loc.curr_task->args);
+		loc.curr_task->fres.finalResult(loc.curr_task->func->syncWrapper(loc.curr_task->args));
 		loc.context_in_swap = false;
 	}
 	catch (const ctx::detail::forced_unwind& uw) {
@@ -86,7 +180,7 @@ ctx::continuation context_exec(ctx::continuation&& sink) {
 ctx::continuation context_ex_handle(ctx::continuation&& sink) {
 	*loc.tmp_current_context = std::move(sink);
 	try {
-		loc.curr_task->fres->fres = loc.curr_task->ex_handle->syncWrapper(loc.curr_task->args);
+		loc.curr_task->fres.finalResult(loc.curr_task->ex_handle->syncWrapper(loc.curr_task->args));
 		loc.context_in_swap = false;
 	}
 	catch (const ctx::detail::forced_unwind&) {
@@ -95,9 +189,31 @@ ctx::continuation context_ex_handle(ctx::continuation&& sink) {
 	catch (...) {
 		loc.ex_ptr = std::current_exception();
 	}
-	return std::move(sink);
+	return std::move(*loc.tmp_current_context);
 }
 
+
+void taskNotifyIfEmpty() {
+	std::lock_guard guard(glob.task_thread_safety);
+	--glob.in_exec;
+	if (!glob.in_exec && glob.tasks.empty() && glob.timed_tasks.empty())
+		glob.no_tasks_execute_notifier.notify_all();
+}
+bool loadTask() {
+	std::lock_guard guard(glob.task_thread_safety);
+	++glob.in_exec;
+	if (glob.tasks.empty())
+		return true;
+	loc.curr_task = glob.tasks.top();
+	glob.tasks.pop();
+
+
+	loc.tmp_current_context = &reinterpret_cast<ctx::continuation&>(loc.curr_task->fres.context);
+
+	if (glob.tasks.empty())
+		glob.no_tasks_notifier.notify_all();
+	return false;
+}
 void taskExecutor(bool end_in_task_out = false) {
 	loc.is_task_thread = true;
 	std::mutex waiter;
@@ -108,45 +224,40 @@ void taskExecutor(bool end_in_task_out = false) {
 		++glob.executors;
 	}
 	while (true) {
-		{
-			{
-				std::lock_guard guard(glob.task_thread_safety);
-				--glob.in_exec;
-				if (!glob.in_exec && glob.tasks.empty() && glob.timed_tasks.empty())
-					glob.no_tasks_execute_notifier.notify_all();
-			}
-			while (glob.tasks.empty()) {
-				if (end_in_task_out) {
-					--glob.executors;
-					return;
-				}
-				glob.tasks_notifier.wait(waiter_lock);
-			}
-			std::lock_guard guard(glob.task_thread_safety);
-			++glob.in_exec;
-			if (glob.tasks.empty())
-				continue;
-
-			loc.curr_task = glob.tasks.front();
-			glob.tasks.pop_front();
-			if (loc.curr_task->end_of_life)
-				continue;
-			loc.tmp_current_context = &loc.curr_task->fres->tmp_current_context;
-			if (glob.tasks.empty())
-				glob.no_tasks_notifier.notify_all();
-			//if func is nullptr then this task signal to shutdown executor
-			if (!loc.curr_task->func) {
+		loc.context_in_swap = false;
+		loc.tmp_current_context = nullptr;
+		taskNotifyIfEmpty();
+		while (glob.tasks.empty()) {
+			if (end_in_task_out) {
 				--glob.executors;
-				--glob.in_exec;
-				break;
+				return;
 			}
+			glob.tasks_notifier.wait(waiter_lock);
 		}
+		if (loadTask())
+			continue;
 
-
-		if (*loc.tmp_current_context)
+		//if func is nullptr then this task signal to shutdown executor
+		if (!loc.curr_task->func) {
+			--glob.executors;
+			--glob.in_exec;
+			break;
+		}
+		if (loc.curr_task->end_of_life)
+			goto end_task;
+		
+		if (*loc.tmp_current_context) {
+			if (loc.curr_task->relock_mut)
+				loc.curr_task->relock_mut->lock();
+			if (loc.curr_task->relock_rec_mut)
+				loc.curr_task->relock_rec_mut->lock();
+			if (loc.curr_task->relock_timed_mut)
+				loc.curr_task->relock_timed_mut->lock();
 			*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+		}
 		else 
 			*loc.tmp_current_context = ctx::callcc(context_exec);
+
 
 		if (loc.ex_ptr) {
 			if (loc.curr_task->ex_handle) {
@@ -156,33 +267,27 @@ void taskExecutor(bool end_in_task_out = false) {
 				loc.ex_ptr = nullptr;
 				*loc.tmp_current_context = ctx::callcc(context_ex_handle);
 
-				if (!loc.ex_ptr) {
-					if (loc.context_in_swap)
-						continue;
-					loc.curr_task->fres->result_notify.notify_all();
-					goto task_end;
-				}
+				if (!loc.ex_ptr)
+					goto end_task;
 			}
-			loc.curr_task->fres->fres = new ValueItem(new std::exception_ptr(loc.ex_ptr), ValueMeta(VType::except_value, false, false));
+			loc.curr_task->fres.finalResult(ValueItem(new std::exception_ptr(loc.ex_ptr), ValueMeta(VType::except_value, false, false)));
 			loc.ex_ptr = nullptr;
-			loc.curr_task->fres->result_notify.notify_all();
 		}
-		else {
-			if (loc.context_in_swap)
-				continue;
-			loc.curr_task->fres->result_notify.notify_all();
+
+	end_task:
+		if (loc.curr_task) {
+			if (loc.curr_task->relock_mut)
+				loc.curr_task->relock_mut->unlock();
+			if (loc.curr_task->relock_rec_mut)
+				loc.curr_task->relock_rec_mut->unlock();
+			if (loc.curr_task->relock_timed_mut)
+				loc.curr_task->relock_timed_mut->unlock();
 		}
-	task_end:
-		{
-			std::lock_guard guard(glob.task_thread_safety);
-			std::list<typed_lgr<Task>> swp;
-			swp.swap(loc.curr_task->fres->end_of_life_await);
-			glob.tasks.insert(glob.tasks.end(), swp.begin(), swp.end());
-			if (glob.tasks.size())
-				glob.tasks_notifier.notify_all();
-		}
+		loc.curr_task = nullptr;
 	}
 }
+
+#pragma optimize("",on)
 void taskTimer() {
 	std::mutex mtx;
 	std::unique_lock ulm(mtx);
@@ -197,7 +302,7 @@ void taskTimer() {
 					}
 					else {
 						glob.timed_tasks.front().second->time_end_flag = true;
-						glob.tasks.push_back(std::move(glob.timed_tasks.front().second));
+						glob.tasks.push(std::move(glob.timed_tasks.front().second));
 						glob.timed_tasks.pop_front();
 						glob.tasks_notifier.notify_one();
 					}
@@ -227,7 +332,6 @@ void makeTimeWait(timing&& t) {
 		startTimeController();
 	loc.curr_task->awaked = false;
 	loc.curr_task->time_end_flag = false;
-	std::lock_guard guard(glob.task_thread_safety);
 	size_t i = 0;
 	auto it = glob.timed_tasks.begin();
 	auto end = glob.timed_tasks.end();
@@ -243,21 +347,19 @@ void makeTimeWait(timing&& t) {
 		glob.timed_tasks.push_back(std::move(t));
 	glob.time_notifier.notify_one();
 }
+
+#pragma optimize("",off)
 void TaskMutex::lock() {
 	if (loc.is_task_thread) {
 		loc.curr_task->awaked = false;
 		loc.curr_task->time_end_flag = false;
 
-		no_race.lock();
+		std::lock_guard lg(no_race);
 		while (current_task) {
 			resume_task.push_back(loc.curr_task);
-			no_race.unlock();
-			swapCtx();
-			no_race.lock();
+			swapCtxRelock(no_race);
 		}
 		current_task = loc.curr_task.getPtr();
-		no_race.unlock();
-		return;
 	}
 	else
 		no_race.lock();
@@ -288,10 +390,10 @@ bool TaskMutex::try_lock_until(std::chrono::high_resolution_clock::time_point ti
 		if (!no_race.try_lock_until(time_point))
 			return false;
 		if (current_task) {
+			std::lock_guard guard(glob.task_thread_safety);
 			makeTimeWait(timing(time_point, loc.curr_task));
 			resume_task.push_back(loc.curr_task);
-			no_race.unlock();
-			swapCtx();
+			swapCtxRelock(glob.task_thread_safety,no_race);
 			if (!loc.curr_task->awaked)
 				return false;
 			goto re_try;
@@ -310,19 +412,17 @@ void TaskMutex::unlock() {
 		if (current_task != loc.curr_task.getPtr())
 			throw InvalidOperation("Tried unlock non owned mutex");
 		current_task = nullptr;
-		std::lock_guard lg1(glob.task_thread_safety);
 		while (resume_task.size()) {
-			auto& it = resume_task.front();
-			std::lock_guard lg2(it->no_race);
+			typed_lgr<Task> it = resume_task.front();
+			resume_task.pop_front();
+			std::lock_guard lg1(it->no_race);
 			if (!it->time_end_flag) {
 				it->awaked = true;
-				glob.tasks.push_back(it);
-				resume_task.pop_front();
+				std::lock_guard lg2(glob.task_thread_safety);
+				glob.tasks.push(it);
 				glob.tasks_notifier.notify_one();
 				return;
 			}
-			else
-				resume_task.pop_front();
 		}
 	}
 	else 
@@ -343,51 +443,9 @@ void Task::start(typed_lgr<Task>& lgr_task) {
 		return;
 
 	std::lock_guard guard(glob.task_thread_safety);
-	glob.tasks.push_back(lgr_task);
+	glob.tasks.push(lgr_task);
 	glob.tasks_notifier.notify_one();
 	lgr_task->started = true;
-}
-ValueItem* Task::getResult(typed_lgr<Task>& lgr_task) {
-	if (loc.is_task_thread) {
-		if (!lgr_task->started || lgr_task->is_yield_mode) {
-			lgr_task->fres->end_of_life_await.push_back(loc.curr_task);
-			start(lgr_task);
-			swapCtx();
-		}
-		return lgr_task->fres->fres;
-	}
-	else {
-		std::mutex mtx;
-		std::unique_lock ulm(mtx);
-		if (!lgr_task->started || lgr_task->is_yield_mode) {
-			lgr_task->fres->fres = nullptr;
-			start(lgr_task);
-			while (!lgr_task->fres->fres)
-				lgr_task->fres->result_notify.wait(ulm);
-		}
-		return lgr_task->fres->fres;
-	}
-}
-ValueItem* Task::getCurrentResult(typed_lgr<Task>& lgr_task) {
-	if (loc.is_task_thread) {
-		if (!lgr_task->started) {
-			lgr_task->fres->end_of_life_await.push_back(loc.curr_task);
-			start(lgr_task);
-			swapCtx();
-		}
-		return lgr_task->fres->fres;
-	}
-	else {
-		std::mutex mtx;
-		std::unique_lock ulm(mtx);
-		if (!lgr_task->started) {
-			lgr_task->fres->fres = nullptr;
-			start(lgr_task);
-			while (!lgr_task->fres->fres)
-				lgr_task->fres->result_notify.wait(ulm);
-		}
-		return lgr_task->fres->fres;
-	}
 }
 
 void Task::createExecutor(size_t count) {
@@ -435,17 +493,31 @@ void Task::sleep(size_t milliseconds) {
 }
 void Task::sleep_until(std::chrono::high_resolution_clock::time_point time_point) {
 	if (loc.is_task_thread) {
+		std::lock_guard guard(glob.task_thread_safety);
 		makeTimeWait(timing(time_point, loc.curr_task));
-		swapCtx();
+		swapCtxRelock(glob.task_thread_safety);
 	}
 	else 
 		std::this_thread::sleep_until(time_point);
 }
 
+void Task::result(ValueItem* f_res) {
+	if (loc.is_task_thread)
+		loc.curr_task->fres.yieldResult(f_res);
+	else
+		throw EnviropmentRuinException("Thread attempt return yield result in non task enviro");
+}
+void Task::yield() {
+	if (loc.is_task_thread)
+		swapCtx();
+	else
+		throw EnviropmentRuinException("Thread attempt return yield task in non task enviro");
+}
 void TaskConditionVariable::wait() {
 	if (loc.is_task_thread) {
+		std::lock_guard guard(glob.task_thread_safety);
 		resume_task.push_back(loc.curr_task);
-		swapCtx();
+		swapCtxRelock(glob.task_thread_safety);
 	}
 	else {
 		std::mutex mtx;
@@ -458,9 +530,10 @@ bool TaskConditionVariable::wait_for(size_t milliseconds) {
 }
 bool TaskConditionVariable::wait_until(std::chrono::high_resolution_clock::time_point time_point) {
 	if (loc.is_task_thread) {
+		std::lock_guard guard(glob.task_thread_safety);
 		makeTimeWait(timing(time_point, loc.curr_task));
 		resume_task.push_back(loc.curr_task);
-		swapCtx();
+		swapCtxRelock(glob.task_thread_safety);
 		if (loc.curr_task->time_end_flag)
 			return false;
 	}
@@ -479,7 +552,7 @@ void TaskConditionVariable::notify_all() {
 		std::lock_guard guard_loc(resume_task.back()->no_race);
 		if (!resume_task.back()->time_end_flag) {
 			resume_task.back()->awaked = true;
-			glob.tasks.push_back(resume_task.front());
+			glob.tasks.push(resume_task.front());
 			resume_task.pop_front();
 		}
 		else
@@ -493,7 +566,7 @@ void TaskConditionVariable::notify_one() {
 		std::lock_guard guard_loc(resume_task.back()->no_race);
 		if (!resume_task.back()->time_end_flag) {
 			resume_task.back()->awaked = true;
-			glob.tasks.push_back(resume_task.front());
+			glob.tasks.push(resume_task.front());
 			resume_task.pop_front();
 		}
 		else
@@ -517,13 +590,13 @@ void TaskSemaphore::lock() {
 re_try:
 	no_race.lock();
 	if (!allow_treeshold) {
+		no_race.unlock();
 		if (loc.is_task_thread) {
+			std::lock_guard guard(glob.task_thread_safety);
 			resume_task.push_back(loc.curr_task);
-			no_race.unlock();
-			swapCtx();
+			swapCtxRelock(glob.task_thread_safety);
 		}
 		else {
-			no_race.unlock();
 			std::mutex mtx;
 			std::unique_lock ulm(mtx);
 			native_notify.wait(ulm);
@@ -557,10 +630,11 @@ re_try:
 		return false;
 	if (!allow_treeshold) {
 		if (loc.is_task_thread) {
+			std::lock_guard guard(glob.task_thread_safety);
 			makeTimeWait(timing(time_point, loc.curr_task));
 			resume_task.push_back(loc.curr_task);
 			no_race.unlock();
-			swapCtx();
+			swapCtxRelock(glob.task_thread_safety);
 			if (!loc.curr_task->awaked)
 				return false;
 		}
@@ -582,8 +656,7 @@ re_try:
 void TaskSemaphore::release() {
 	std::lock_guard lg0(no_race);
 	if (allow_treeshold == max_treeshold)
-		throw InvalidOperation("Tried release fully released semaphore");
-	std::lock_guard lg1(glob.task_thread_safety);
+		return;
 	allow_treeshold++;
 	native_notify.notify_one();
 	while (resume_task.size()) {
@@ -591,7 +664,10 @@ void TaskSemaphore::release() {
 		std::lock_guard lg2(it->no_race);
 		if (!it->time_end_flag) {
 			it->awaked = true;
-			glob.tasks.push_back(resume_task.front());
+			{
+				std::lock_guard lg1(glob.task_thread_safety);
+				glob.tasks.push(resume_task.front());
+			}
 			resume_task.pop_front();
 			glob.tasks_notifier.notify_one();
 			return;
@@ -603,7 +679,7 @@ void TaskSemaphore::release() {
 void TaskSemaphore::release_all() {
 	std::lock_guard lg0(no_race);
 	if (allow_treeshold == max_treeshold)
-		throw InvalidOperation("Tried release fully released semaphore");
+		return;
 	std::lock_guard lg1(glob.task_thread_safety);
 	allow_treeshold = max_treeshold;
 	native_notify.notify_all();
@@ -612,7 +688,10 @@ void TaskSemaphore::release_all() {
 		std::lock_guard lg2(it->no_race);
 		if (!it->time_end_flag) {
 			it->awaked = true;
-			glob.tasks.push_back(resume_task.front());
+			{
+				std::lock_guard lg1(glob.task_thread_safety);
+				glob.tasks.push(resume_task.front());
+			}
 			resume_task.pop_front();
 			glob.tasks_notifier.notify_one();
 		}
@@ -628,6 +707,7 @@ bool TaskSemaphore::is_locked() {
 	return false;
 }
 
+#pragma optimize("",on)
 
 
 

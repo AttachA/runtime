@@ -1,10 +1,22 @@
 #pragma once
 #include <atomic>
 #include <unordered_set>
+#include "../libray/list_array.hpp"
 
 extern thread_local std::unordered_set<const void*> __lgr_safe_deph;
 
 class lgr {
+#if false
+	list_array<std::vector<void*>*>* snap_records = nullptr;
+	std::vector<void*>* current_snap = nullptr;
+#define snap_rec_lgr_arg ,list_array<std::vector<void*>*>* snap_record
+#define can_throw 
+#else
+#define snap_records
+#define current_snap
+#define snap_rec_lgr_arg
+#define can_throw noexcept
+#endif
 	bool(*calc_depth)(void*);
 	void(*destructor)(void*);
 	void* ptr;
@@ -12,160 +24,36 @@ class lgr {
 	std::atomic_size_t* weak;
 	bool in_safe_deph;
 
-	void exit() {
-		if (total == nullptr);
-		else if (!in_safe_deph) {
-			--(*weak);
-			if (!*weak && !*total) {
-				delete total;
-				delete weak;
-			}
-		}
-		else if (*total > 1) {
-			--(*total);
-			return;
-		}
-		else {
-			if (ptr)
-				if (destructor) destructor(ptr);
-			if (!*weak) {
-				delete total;
-				delete weak;
-			}
-		}
-		ptr = nullptr;
-		total = nullptr;
-		weak = nullptr;
-	}
-	void join(std::atomic_size_t* p_total_links, std::atomic_size_t* tot_weak) {
-		total = p_total_links;
-		weak = tot_weak;
-		if (p_total_links && (in_safe_deph = calcDeph()))
-			++(*p_total_links);
-		else if (!in_safe_deph && tot_weak)
-			++(*tot_weak);
-	}
+	void exit();
+	void join(std::atomic_size_t* p_total_links, std::atomic_size_t* tot_weak snap_rec_lgr_arg);
 public:
-	lgr() {
-		calc_depth = nullptr;
-		destructor = nullptr;
-		ptr = nullptr;
-		total = nullptr;
-		weak = nullptr;
-		in_safe_deph = false;
-	}
-	lgr(void* copy, bool(*clc_depth)(void*) = nullptr, void(*destruct)(void*) = nullptr, bool as_weak = false) : calc_depth(clc_depth), destructor(destruct) {
-		if (copy) {
-			ptr = copy;
-			total = new std::atomic_size_t{ 1 };
-			weak = new std::atomic_size_t{ 0 };
-			if (!as_weak)
-				in_safe_deph = calcDeph();
-			else
-				in_safe_deph = false;
-			if (!in_safe_deph) {
-				++(*weak);
-				--(*total);
-			}
-		}
-		else {
-			ptr = nullptr;
-			total = nullptr;
-			weak = nullptr;
-			in_safe_deph = false;
-		}
-	}
-	lgr(const lgr& mov) {
-		*this = mov;
-	}
-	lgr(lgr&& mov) noexcept {
-		*this = std::move(mov);
-	}
-	~lgr() {
-		if (total || in_safe_deph)
-			exit();
-	}
-	lgr& operator=(const lgr& copy) {
-		if (this == &copy)return *this;
-		if (total && weak) exit();
-		ptr = copy.ptr;
-		calc_depth = copy.calc_depth;
-		destructor = copy.destructor;
-		join(copy.total, copy.weak);
-		return *this;
-	}
-	lgr& operator=(lgr&& mov) noexcept {
-		if (total && in_safe_deph)
-			exit();
-		ptr = mov.ptr;
-		total = mov.total;
-		weak = mov.weak;
-		in_safe_deph = mov.in_safe_deph;
-		calc_depth = mov.calc_depth;
-		destructor = mov.destructor;
-		mov.ptr = nullptr;
-		mov.total = nullptr;
-		mov.weak = nullptr;
-		return *this;
-	}
-	void*& operator*() {
-		if (total)
-			if (!*total)
-				ptr = nullptr;
-		return ptr;
-	}
-	void** operator->() {
-		if (total)
-			if (!*total)
-				ptr = nullptr;
-		return &ptr;
-	}
-	void* getPtr() {
-		if (total)
-			if (!*total)
-				ptr = nullptr;
-		return ptr;
-	}
-	bool calcDeph() {
-		bool res = depth_safety();
-		__lgr_safe_deph.clear();
-		return res;
-	}
-	bool depth_safety() const {
-		if (__lgr_safe_deph.contains(ptr))
-			return false;
-		if (calc_depth) {
-			__lgr_safe_deph.emplace(ptr);
-			return calc_depth(ptr);
-		}
-		else
-			return true;
-	}
-	bool is_deleted() const {
-		if (in_safe_deph)
-			return total;
-		else if (total)
-			return *total;
-		else 
-			return false;
-	}
-	bool operator==(const lgr& cmp) const {
-		return ptr == cmp.ptr;
-	}
-	bool operator!=(const lgr& cmp) const {
-		return ptr != cmp.ptr;
-	}
-	operator bool() const {
-		return ptr;
-	}
-	operator size_t() const {
-		return (size_t)ptr;
-	}
-	operator ptrdiff_t() const {
-		return (ptrdiff_t)ptr;
-	}
+	lgr();
+	lgr(nullptr_t) : lgr(){};
+	lgr(void* copy, bool(*clc_depth)(void*) = nullptr, void(*destruct)(void*) = nullptr, bool as_weak = false);
+	lgr(const lgr& copy);
+	lgr(lgr&& mov) can_throw;
+	~lgr();
+	lgr& operator=(nullptr_t);
+	lgr& operator=(const lgr& copy);
+	lgr& operator=(lgr&& mov) can_throw;
+	void*& operator*();
+	void** operator->();
+	void* getPtr();
+	bool calcDeph();
+	bool depth_safety() const;
+	bool is_deleted() const;
+	bool operator==(const lgr& cmp) const;
+	bool operator!=(const lgr& cmp) const;
+	operator bool() const;
+	operator size_t() const;
+	operator ptrdiff_t() const;
 };
-
+#if !_DEBUG
+#undef snap_records
+#undef current_snap
+#undef snap_rec_lgr_arg
+#undef can_throw
+#endif
 
 
 template<typename, typename T>
@@ -215,12 +103,18 @@ public:
 			delete (T*)v;
 	}
 	typed_lgr() {}
+	typed_lgr(nullptr_t) {};
 	typed_lgr(T* capture, bool as_weak = false) : actual_lgr(capture, get_depth_calc(), destruct, as_weak) { }
 	typed_lgr(const typed_lgr& mov) noexcept {
 		*this = mov;
 	}
 	typed_lgr(typed_lgr&& mov) noexcept {
 		*this = std::move(mov);
+	}
+
+	typed_lgr& operator=(nullptr_t) {
+		actual_lgr = nullptr;
+		return *this;
 	}
 	typed_lgr& operator=(const typed_lgr& copy) {
 		actual_lgr = copy.actual_lgr;

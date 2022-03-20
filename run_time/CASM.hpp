@@ -276,6 +276,55 @@ public:
 	}
 
 
+	void shift_left(creg64 c0, creg64 c1) {
+		a.shl(c0, c1);
+	}
+	void shift_left(creg32 c0, creg32 c1) {
+		a.shl(c0, c1);
+	}
+	void shift_left(creg16 c0, creg16 c1) {
+		a.shl(c0, c1);
+	}
+	void shift_left(creg8 c0, creg8 c1) {
+		a.shl(c0, c1);
+	}
+	void shift_right(creg64 c0, creg64 c1) {
+		a.shr(c0, c1);
+	}
+	void shift_right(creg32 c0, creg32 c1) {
+		a.shr(c0, c1);
+	}
+	void shift_right(creg16 c0, creg16 c1) {
+		a.shr(c0, c1);
+	}
+	void shift_right(creg8 c0, creg8 c1) {
+		a.shr(c0, c1);
+	}
+
+	void shift_left(creg64 c0, int8_t c1) {
+		a.shl(c0, c1);
+	}
+	void shift_left(creg32 c0, int8_t c1) {
+		a.shl(c0, c1);
+	}
+	void shift_left(creg16 c0, int8_t c1) {
+		a.shl(c0, c1);
+	}
+	void shift_left(creg8 c0, int8_t c1) {
+		a.shl(c0, c1);
+	}
+	void shift_right(creg64 c0, int8_t c1) {
+		a.shr(c0, c1);
+	}
+	void shift_right(creg32 c0, int8_t c1) {
+		a.shr(c0, c1);
+	}
+	void shift_right(creg16 c0, int8_t c1) {
+		a.shr(c0, c1);
+	}
+	void shift_right(creg8 c0, int8_t c1) {
+		a.shr(c0, c1);
+	}
 
 	void test(creg64 c0, creg64 c1) {
 		a.test(c0, c1);
@@ -561,6 +610,7 @@ struct FrameResult {
 	//return uwind_info_ptr
 	void* init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name="AttachA unnamed_symbol", const char* file_path ="");
 	static bool deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime);
+	static std::vector<void*>* JitCaptureStackChainTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
 	static std::vector<StackTraceItem> JitCaptureStackTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
 };
 

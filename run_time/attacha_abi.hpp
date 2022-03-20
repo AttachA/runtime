@@ -28,8 +28,6 @@ void Allocate(void** a) {
 }
 
 
-VType valueType(void** value);
-
 
 
 void universalFree(void** value, ValueMeta meta);
@@ -101,14 +99,25 @@ namespace ABI_IMPL {
 		case VType::ui64:
 			return (T)reinterpret_cast<uint64_t&>(val);
 		case VType::flo:
-			return (T)reinterpret_cast<float&>(val);
+			if constexpr(std::is_same_v<void*,T>)
+				return val;
+			else
+				return (T)reinterpret_cast<float&>(val);
 		case VType::doub:
-			return (T)reinterpret_cast<double&>(val);
+			if constexpr (std::is_same_v<void*, T>)
+				return val;
+			else
+				return (T)reinterpret_cast<double&>(val);
 		case VType::uarr:
-			throw InvalidCast("Fail cast uarr");
+			if(((list_array<ValueItem>*)val)->size()!=1)
+				throw InvalidCast("Fail cast uarr");
+			else {
+				auto& tmp = (*(list_array<ValueItem>*)val)[0];
+				return Vcast<T>(tmp.val, tmp.meta);
+			}
 		case VType::string:
 			try {
-				return (T)std::stol(reinterpret_cast<std::string&>(val));
+				return (T)std::stoll(reinterpret_cast<std::string&>(val));
 			}
 			catch (const std::exception& ex) {
 				throw InvalidCast("Fail cast string to long");
@@ -121,6 +130,7 @@ namespace ABI_IMPL {
 	}
 	
 	std::string Scast(void*& val, ValueMeta& meta);
+	ValueItem SBcast(const std::string& str);
 }
 
 
@@ -141,49 +151,43 @@ void DynBitNot(void** val0);
 void* AsArg(void** val);
 void AsArr(void** val);
 
+size_t getSize(void** value);
+
+void asValue(void** val, VType type);
+bool isTrueValue(void** value);
+void setBoolValue(bool,void** value);
 
 namespace exception_abi {
 	bool is_except(void** val);
 	void ignore_except(void** val);
 	void continue_unwind(void** val);
-	void call_except_handler(void** val, bool(*func_symbol)(void** val), bool ignore_fault = true);
 
+	//return true if val is actually exception, can be used for finally blocks
+	bool call_except_handler(void** val, bool(*func_symbol)(void** val), bool ignore_fault = true);
+
+	typedef ptrdiff_t jump_point;
 	struct jump_handle_except {
 		std::string type_name;
-		ptrdiff_t jump_off;
+		jump_point jump_off;
 	};
+	//for static catch block
 	ptrdiff_t switch_jump_handle_except(void** val, jump_handle_except* handlers, size_t handlers_c);
+	//for dynamic catch block
+	ptrdiff_t switch_jump_handle_except(void** val, list_array<jump_handle_except>* handlers);
 
 
 	template<class _FN, class ...Args>
 	ValueItem* catchCall(_FN func, Args... args) {
-		ValueItem* res;
 		try {
 			return func(args...);
 		}
 		catch (...) {
 			try {
-				res = new ValueItem();
+				return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
 			}
 			catch (const std::bad_alloc& ex) {
 				throw EnviropmentRuinException();
 			}
-			ValueMeta meta = 0;
-			meta.vtype = VType::except_value;
-			meta.allow_edit = true;
-			meta.use_gc = false;
-
-			try {
-				res->val = new std::exception_ptr(std::current_exception());
-			}
-			catch (const std::bad_alloc& ex) {
-				throw EnviropmentRuinException();
-			}
-			res->meta = meta.encoded;
 		}
-		restore_stack_fault();
-		return res;
 	}
 }
-
-size_t getSize(void** value);

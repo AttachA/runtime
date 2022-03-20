@@ -340,3 +340,19 @@ std::vector<StackTraceItem> FrameResult::JitCaptureStackTrace(uint32_t framesToS
 		stack_trace.push_back(JitGetStackFrameName(nativeSymbols.get(), frame[i]));
 	return stack_trace;
 }
+
+std::vector<void*>* FrameResult::JitCaptureStackChainTrace(uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
+#ifdef _WIN64
+	std::lock_guard lg(DbgHelp_lock);//in windiws NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+#endif
+	if (max_frames + 1 == 0)
+		throw std::bad_array_new_length();
+	max_frames += 1;
+	std::unique_ptr<void*> frames_buffer; frames_buffer.reset(new void* [max_frames]);
+	void** frame = frames_buffer.get();
+	int numframes = CaptureStackTrace(max_frames, frame);
+	if (framesToSkip >= numframes)
+		return nullptr;
+	else 
+		return new std::vector<void*>( frame + framesToSkip, frame + numframes);
+}

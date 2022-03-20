@@ -2,7 +2,6 @@
 #include <mutex>
 #include <fstream>
 #include "link_garbage_remover.hpp"
-#include "AttachA_CXX.hpp"
 #include "../libray/list_array.hpp"
 #include "attacha_abi_structs.hpp"
 #include <boost/fiber/timed_mutex.hpp>
@@ -20,21 +19,50 @@
 
 
 
+class TaskConditionVariable {
+	std::list<typed_lgr<class Task>> resume_task;
+	std::condition_variable cd;
+public:
+	TaskConditionVariable() {}
+	void wait();
+	bool wait_for(size_t milliseconds);
+	bool wait_until(std::chrono::high_resolution_clock::time_point time_point);
+	void notify_one();
+	void notify_all();
+};
+struct TaskResult {
+	list_array<ValueItem> results;
+	TaskConditionVariable result_notify;
+	void* context = nullptr;
+	bool end_of_life = false;
+	ValueItem* getResult(size_t res_num);
+	void awaitEnd();
+	void yieldResult(ValueItem* res, bool release = true);
+	void yieldResult(ValueItem&& res);
+	void finalResult(ValueItem* res);
+	void finalResult(ValueItem&& res);
+	TaskResult();
+	TaskResult(TaskResult&& move) noexcept;
+	~TaskResult();
+};
 //Task only in typed_lgr
 struct Task {
+	TaskResult fres;
 	std::mutex no_race;
-	struct TaskResult* fres = nullptr;
 	typed_lgr<class FuncEnviropment> ex_handle;//if ex_handle is nullptr then exception will be stored in fres
 	typed_lgr<class FuncEnviropment> func;
 	list_array<ValueItem>* args;
+	std::mutex* relock_mut = nullptr;
+	std::timed_mutex* relock_timed_mut = nullptr;
+	std::recursive_mutex* relock_rec_mut = nullptr;
+
 	bool time_end_flag = false;
 	bool awaked = false;
 	bool started = false;
 	bool is_yield_mode = false;
 	bool end_of_life = false;
 	Task(typed_lgr<class FuncEnviropment> call_func, list_array<ValueItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler = nullptr);
-	Task(Task&& mov) noexcept {
-		fres = mov.fres;
+	Task(Task&& mov) noexcept : fres(std::move(mov.fres)) {
 		ex_handle = mov.ex_handle;
 		func = mov.func;
 		args = mov.args;
@@ -42,7 +70,6 @@ struct Task {
 		awaked = mov.awaked;
 		started = mov.started;
 		is_yield_mode = mov.is_yield_mode;
-		mov.fres = nullptr;
 		mov.args = nullptr;
 	}
 	~Task();
@@ -50,11 +77,7 @@ struct Task {
 	static void start(typed_lgr<Task>&& lgr_task) {
 		start(lgr_task);
 	}
-	static ValueItem* getResult(typed_lgr<Task>&& lgr_task) {
-		return getResult(lgr_task);
-	}
 	static void start(typed_lgr<Task>& lgr_task);
-	static ValueItem* getResult(typed_lgr<Task>& lgr_task);
 
 	static void createExecutor(size_t count = 1);
 	static size_t totalExecutors();
@@ -64,6 +87,9 @@ struct Task {
 	static void awaitEndTasks();
 	static void sleep(size_t milliseconds);
 	static void sleep_until(std::chrono::high_resolution_clock::time_point time_point);
+	static void result(ValueItem* f_res);
+	static void yield();
+
 
 	static bool yieldIterate(typed_lgr<Task>& lgr_task) {
 		bool res = !lgr_task->started || lgr_task->is_yield_mode;
@@ -71,7 +97,13 @@ struct Task {
 			Task::start(lgr_task);
 		return res;
 	}
-	static ValueItem* getCurrentResult(typed_lgr<Task>& lgr_task);
+	static ValueItem* getResult(typed_lgr<Task>& lgr_task, size_t yield_res = 0) {
+		return lgr_task->fres.getResult(yield_res);
+	}
+	static ValueItem* getResult(typed_lgr<Task>&& lgr_task, size_t yield_res = 0) {
+		return lgr_task->fres.getResult(yield_res);
+	}
+
 };
 class TaskMutex {
 	std::list<typed_lgr<Task>> resume_task;
@@ -85,17 +117,6 @@ public:
 	bool try_lock_until(std::chrono::high_resolution_clock::time_point time_point);
 	void unlock();
 	bool is_locked();
-};
-class TaskConditionVariable {
-	std::list<typed_lgr<Task>> resume_task;
-	std::condition_variable cd;
-public:
-	TaskConditionVariable() {}
-	void wait();
-	bool wait_for(size_t milliseconds);
-	bool wait_until(std::chrono::high_resolution_clock::time_point time_point);
-	void notify_one();
-	void notify_all();
 };
 class TaskSemaphore {
 	std::list<typed_lgr<Task>> resume_task;
@@ -119,6 +140,7 @@ public:
 
 
 using BTaskMutex = boost::fibers::timed_mutex;
+using BTaskLMutex = boost::fibers::mutex;
 using BTaskConditionVariable = boost::fibers::condition_variable;
 
 struct BTaskResult {
@@ -127,7 +149,7 @@ struct BTaskResult {
 	bool end_of_life = false;
 	ValueItem* getResult(size_t res_num) {
 		if (results.size() >= res_num) {
-			boost::fibers::mutex mtx;
+			BTaskLMutex mtx;
 			std::unique_lock ul(mtx);
 			result_notify.wait(ul, [&]() { return !(results.size() >= res_num || end_of_life); });
 
@@ -137,7 +159,7 @@ struct BTaskResult {
 		return new ValueItem(results[res_num]);
 	}
 	void awaitEnd() {
-		boost::fibers::mutex mtx;
+		BTaskLMutex mtx;
 		std::unique_lock ul(mtx);
 		while (end_of_life)
 			result_notify.wait(ul);
@@ -190,7 +212,7 @@ public:
 	}
 };
 class FileQuery {
-	boost::fibers::mutex no_race;
+	BTaskLMutex no_race;
 	std::fstream stream;
 public:
 	FileQuery(const char* path) : stream(path, std::ios_base::in | std::ios_base::out | std::ios_base::binary) {}
@@ -241,39 +263,8 @@ public:
 	}
 };
 
-template<class T = int>
-class ValueChangeEvent {
-	T value;
-public:
-	size_t seter_check = 0;
-	size_t geter_check = 0;
-	typed_lgr<FuncEnviropment> set_notify;
-	typed_lgr<FuncEnviropment> get_notify;
 
-	ValueChangeEvent(T&& set) {
-		value = std::move(set);
-	}
-	ValueChangeEvent(const T& set) {
-		value = set;
-	}
 
-	ValueChangeEvent& operator=(T&& set) {
-		value = std::move(set);
-		seter_check++;
-		set_notify.notify_all();
-	}
-	ValueChangeEvent& operator=(const T& set) {
-		value = set;
-		seter_check++;
-		set_notify.notify_all();
-	}
-
-	operator T&() {
-		list_array<AttachA::Value> tt{ AttachA::Value(new ValueItem()) };
-		AttachA::convValue(tt);
-		AttachA::cxxCall(set_notify, std::string("ssss"));
-		geter_check++;
-		get_notify.notify_all();
-		return value;
-	}
-};
+#define CTask Task
+#define CTaskMutex TaskMutex
+#define CTaskConditionVarible TaskConditionVariable

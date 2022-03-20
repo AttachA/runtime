@@ -5,7 +5,6 @@ enum class Opcode : uint8_t {
 	noting,
 	set,
 	remove,
-
 	sum,
 	minus,
 	div,
@@ -19,14 +18,23 @@ enum class Opcode : uint8_t {
 	jump,
 	arg_set,
 	call,
-	ret,
+	call_self,
+	call_local,
 	call_and_ret,
+	call_self_and_ret,
+	call_local_and_ret,
+	ret,
+	ret_noting,
 	copy,
 	move,
 	arr_op,
 	debug_break,
 	force_debug_break,
 	throw_ex,
+	as,
+	is,
+	store_bool,//store bool from value for if statements, set false if type is noting, numeric types is zero and containers is empty, if another then true
+	load_bool//used if need save equaluty result, set numeric type as 1 or 0
 };
 enum class JumpCondition {
 	no_condition,
@@ -39,27 +47,24 @@ enum class JumpCondition {
 };
 struct Command {
 	Command(uint8_t ini) {
-		code = (Opcode)(ini & 0x1F);
-		is_gc_mode = ini & 0x20;
-		static_mode = ini & 0x40;
-		except_catch = ini & 0x80;
+		code = (Opcode)(ini & 0x3F);
+		is_gc_mode = ini & 0x40;
+		static_mode = ini & 0x80;
 	}
-	Command(Opcode op, bool gc_mode = false, bool static_mode = false, bool catch_except = false) {
+	Command(Opcode op, bool gc_mode = false, bool static_mode = false) {
 		code = op;
 		is_gc_mode = gc_mode;
 		static_mode = static_mode;
-		except_catch = catch_except;
 	}
-	Opcode code : 5;
+	Opcode code : 6;
 	uint8_t is_gc_mode : 1;
 	uint8_t static_mode : 1;
-	uint8_t except_catch : 1;
 
 	uint8_t toCmd() {
 		uint8_t res = (uint8_t)code;
 		res |= is_gc_mode << 5;
-		res |= static_mode << 6;
-		res |= except_catch << 7;
+		res |= is_gc_mode << 6;
+		res |= static_mode << 7;
 		return res;
 	}
 };
@@ -69,7 +74,8 @@ union CallFlags {
 		uint8_t in_memory : 1;
 		uint8_t async_mode : 1;
 		uint8_t use_result : 1;
-		uint8_t unused : 5;
+		uint8_t except_catch : 1;
+		uint8_t unused : 4;
 	};
 	uint8_t encoded = 0;
 };

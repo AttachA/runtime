@@ -250,10 +250,16 @@ void bArrPushEnd(std::vector<uint8_t>& b, uint16_t vp, uint16_t v) {
 	b.push_back(18);//push end
 	bbWrite(b, v);
 }
+void bRet(std::vector<uint8_t>& b, uint16_t v) {
+	b.push_back(Command(Opcode::ret).toCmd());
+	bbWrite(b, v);
+}
+void bRetNoting(std::vector<uint8_t>& b) {
+	b.push_back(Command(Opcode::ret_noting).toCmd());
+}
 
 
-
-BTaskMutex tsk_mtx;
+CTaskMutex tsk_mtx;
 void gvfdasf() {
 	for (size_t i = 0; i < 100; i++) {
 		tsk_mtx.lock();
@@ -278,16 +284,17 @@ void fvbzxcbxcv() {
 }
 void a3tgr4at() {
 	tsk_mtx.lock();
-	BTask::sleep(4000);
+	CTask::sleep(4000);
 	tsk_mtx.unlock();
 }
 
 size_t idsaDAS = 0;
 
 void cout_test() {
+	//std::this_thread::sleep_for(std::chrono::nanoseconds(1));
 	++idsaDAS;
 	std::cout << idsaDAS << std::endl;
-	BTask::sleep(1000);
+	CTask::sleep(1000);
 }
 struct test_lgr {
 	bool depth_safety() const {
@@ -310,20 +317,20 @@ typedef void (*functs)(...);
 int main() {
 	//std::thread(ignoredAsyncGC).detach();
 
-	try {
-		int* ttt = (int*)123;
-		*ttt = 123;
-	}
-	catch (const NullPointerException& ex) {
-		std::cout << ex.what() << std::endl;
-	}
-
+	//try {
+	//	int* ttt = (int*)123;
+	//	*ttt = 123;
+	//}
+	//catch (const NullPointerException& ex) {
+	//	std::cout << ex.what() << std::endl;
+	//}
+	//
 	initStandardFunctions();
-	for (size_t i = 0; i < 100; i++) {
-		typed_lgr tlgr(new test_lgr());
-		tlgr->self = tlgr;
-	}
-	lgr_loop_test();
+	//for (size_t i = 0; i < 100; i++) {
+	//	typed_lgr tlgr(new test_lgr());
+	//	tlgr->self = tlgr;
+	//}
+	//lgr_loop_test();
 	//{
 	//	for (size_t i = 0; i < 10000; i++)
 	//		console::setTextColor(123, 21, 2);
@@ -358,7 +365,7 @@ int main() {
 	bAsyncCall(programm, "console setTextColor");
 	bArgSet(programm, 0);
 	bAsyncCallReturn(programm, "console printLine");
-	BTask::createExecutor(1);
+	CTask::createExecutor(18);
 
 	FuncEnviropment::AddNative(TestCall, "test");
 	FuncEnviropment::AddNative(ThrowCall, "throwcall");
@@ -372,6 +379,7 @@ int main() {
 	FuncEnviropment::AddNative(a3tgr4at, "4");
 	FuncEnviropment::AddNative(cout_test, "cout_test");
 
+
 	{
 		std::vector<uint8_t> programm;
 		bbWrite(programm, (uint16_t)0);
@@ -380,12 +388,12 @@ int main() {
 		FuncEnviropment::Load(programm, "Yay");
 	}
 	typed_lgr<FuncEnviropment> env = FuncEnviropment::enviropment("start");
-	//BTask::start(new BTask(FuncEnviropment::enviropment("4"), nullptr));
-	//BTask::start(new BTask(FuncEnviropment::enviropment("3"), nullptr));
-	//BTask::start(new BTask(FuncEnviropment::enviropment("2"), nullptr));
-	//BTask::start(new BTask(FuncEnviropment::enviropment("1"), nullptr));
+	//CTask::start(new CTask(FuncEnviropment::enviropment("4"), nullptr));
+	CTask::start(new CTask(FuncEnviropment::enviropment("3"), nullptr));
+	CTask::start(new CTask(FuncEnviropment::enviropment("2"), nullptr));
+	CTask::start(new CTask(FuncEnviropment::enviropment("1"), nullptr));
 
-	//BTask::awaitEndTasks();
+	CTask::awaitEndTasks();
 	try {
 		callFunction("start", false);
 	}
@@ -399,26 +407,29 @@ int main() {
 
 	//std::cout << "Hello!\n";
 	size_t e = 0;
-	BTask::awaitEndTasks();
-	BTask::start(new BTask(env, nullptr));
-	BTask::awaitEndTasks();
-	for (size_t i = 0; i < 10000; i++) {
-		BTask::start(new BTask(env, nullptr));
+	CTask::awaitEndTasks();
+	{
+		CTask::start(new CTask(env, nullptr));
+		CTask::awaitEndTasks();
 	}
-	BTask::awaitEndTasks();
+
+	for (size_t i = 0; i < 10000; i++) {
+		CTask::start(new CTask(env, nullptr));
+	}
+	CTask::awaitEndTasks();
 	std::this_thread::sleep_for(std::chrono::seconds(3));
 	for (size_t i = 0; i < 10000; i++)
-		BTask::start(new BTask(env, nullptr));
-	BTask::awaitEndTasks();
+		CTask::start(new CTask(env, nullptr));
+	CTask::awaitEndTasks();
 	std::this_thread::sleep_for(std::chrono::seconds(3));
 	for (size_t i = 0; i < 10000; i++)
-		BTask::start(new BTask(env, nullptr));
-	BTask::awaitEndTasks();
+		CTask::start(new CTask(env, nullptr));
+	CTask::awaitEndTasks();
 	std::this_thread::sleep_for(std::chrono::seconds(3));
 	for (size_t i = 0; i < 10000; i++)
-		BTask::start(new BTask(env, nullptr));
-	BTask::awaitEndTasks();
-	BTask::sleep(100000000000);
+		CTask::start(new CTask(env, nullptr));
+	CTask::awaitEndTasks();
+	CTask::sleep(100000000000);
 	//bool need_restore = false;
 	//try {
 	//	int s = 0;

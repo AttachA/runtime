@@ -17,9 +17,9 @@ thread_local ValueEnvironment thread_local_enviropments;
 
 ValueItem* FuncEnviropment::asyncCall(typed_lgr<FuncEnviropment> f, list_array<ValueItem>* args) {
 	ValueItem* res = new ValueItem();
-	res->meta = ValueMeta(VType::async_res, true, false).encoded;
-	res->val = new typed_lgr(new BTask(f, new list_array<ValueItem>(*args)));
-	BTask::start(*(typed_lgr<BTask>*)res->val);
+	res->meta = ValueMeta(VType::async_res, false, false).encoded;
+	res->val = new typed_lgr(new CTask(f, new list_array<ValueItem>(*args)));
+	CTask::start(*(typed_lgr<CTask>*)res->val);
 	return res;
 }
 
@@ -90,8 +90,15 @@ list_array<std::pair<uint64_t, Label>> prepareJumpList(CASM& a, const std::vecto
 	}
 	return {};
 }
-
-template<bool use_result = true,bool do_cleanup = true>
+ValueItem* AttachACXXCatchCall(AttachACXX fn, list_array<ValueItem>* args) {
+	try {
+		return fn(args);
+	}
+	catch (...) {
+		return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+	}
+}
+template<bool use_result = true, bool do_cleanup = true>
 void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_len, size_t& i, list_array<std::string>& strings) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
@@ -103,32 +110,33 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_l
 		a.mov(argr0, resr);
 		a.mov(argr1, arg_ptr);
 		a.mov(argr2, flags.async_mode);
-		a.call(&FuncEnviropment::CallFunc);
+		if(flags.except_catch)
+			a.call(&FuncEnviropment::CallFunc_catch);
+		else
+			a.call(&FuncEnviropment::CallFunc);
 	}
 	else {
 		std::string fnn = readString(data, data_len, i);
 		typed_lgr<FuncEnviropment> fn = FuncEnviropment::enviropment(fnn);
-		if (fn->canBeUnloaded()) {
+		if (fn->canBeUnloaded() || flags.async_mode) {
 			strings.push_back(fnn);
 			a.mov(argr0, &strings.back());
 			a.mov(argr1, arg_ptr);
 			a.mov(argr2, flags.async_mode);
-			a.call(&FuncEnviropment::CallFunc);
+			if (flags.except_catch)
+				a.call(&FuncEnviropment::CallFunc_catch);
+			else
+				a.call(&FuncEnviropment::CallFunc);
 		}
 		else {
-			if (flags.async_mode) {
-				strings.push_back(fnn);
-				a.mov(argr0, &strings.back());
-				a.mov(argr1, arg_ptr);
-				a.mov(argr2, flags.async_mode);
-				a.call(&FuncEnviropment::CallFunc);
-			}
-			else {
-				switch (fn->Type()) {
+			switch (fn->Type()) {
 				case FuncEnviropment::FuncType::own: {
 					a.mov(argr0, fn.getPtr());
 					a.mov(argr1, arg_ptr);
-					a.call(&FuncEnviropment::initAndCall);
+					if (flags.except_catch)
+						a.call(&FuncEnviropment::initAndCall_catch);
+					else
+						a.call(&FuncEnviropment::initAndCall);
 					break;
 				}
 				case FuncEnviropment::FuncType::native: {
@@ -143,34 +151,32 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_l
 					}
 					a.mov(argr0, fn.getPtr());
 					a.mov(argr1, arg_ptr);
-					a.call(&FuncEnviropment::NativeProxy_DynamicToStatic);
+					if (flags.except_catch)
+						a.call(&FuncEnviropment::native_proxy_catch);
+					else
+						a.call(&FuncEnviropment::NativeProxy_DynamicToStatic);
 					break;
 				}
 				case FuncEnviropment::FuncType::native_own_abi: {
-					a.mov(argr0, arg_ptr);
-					a.call(fn->get_func_ptr());
+					if (flags.except_catch) {
+						a.mov(argr0, fn->get_func_ptr());
+						a.mov(argr1, arg_ptr);
+						a.call(AttachACXXCatchCall);
+					}
+					else {
+						a.mov(argr0, arg_ptr);
+						a.call(fn->get_func_ptr());
+					}
 					break;
 				}
 				default: {
 					a.mov(argr0, fn.getPtr());
 					a.mov(argr1, arg_ptr);
-					a.call(&FuncEnviropment::syncWrapper);
+					if (flags.except_catch)
+						a.call(&FuncEnviropment::syncWrapper_catch);
+					else
+						a.call(&FuncEnviropment::syncWrapper);
 					break;
-				}
-				}
-
-
-				if constexpr (use_result) {
-					if (flags.use_result) {
-						a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
-						a.mov(argr1, resr);
-						a.call(getValueItem);
-						return;
-					}
-				}
-				if constexpr (do_cleanup) {
-					a.mov(argr0, resr);
-					a.call(releaseUnused);
 				}
 			}
 		}
@@ -182,10 +188,128 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data,size_t data_l
 			a.call(getValueItem);
 			return;
 		}
+		else {
+			if constexpr (do_cleanup) {
+				if (!flags.use_result) {
+					a.mov(argr0, resr);
+					a.call(releaseUnused);
+				}
+			}
+		}
 	}
-	if constexpr (do_cleanup) {
-		a.mov(argr0, resr);
-		a.call(releaseUnused);
+	else if constexpr (do_cleanup) {
+		if (!flags.use_result) {
+			a.mov(argr0, resr);
+			a.call(releaseUnused);
+		}
+	}
+}
+template<bool use_result = true, bool do_cleanup = true>
+void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i,FuncEnviropment* env) {
+	CallFlags flags;
+	flags.encoded = readData<uint8_t>(data, data_len, i);
+	if (flags.in_memory) {
+		a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
+		a.call(getSize);
+		a.mov(argr0, env);
+		a.mov(argr1, resr);
+		a.mov(argr2, arg_ptr);
+		a.mov(argr3, flags.async_mode);
+		if (flags.except_catch)
+			a.call(&FuncEnviropment::localWrapper_catch);
+		else
+			a.call(&FuncEnviropment::localWrapper);
+	}
+	else {
+		uint32_t fnn = readData<uint32_t>(data, data_len, i);
+		if (env->localFnSize() >= fnn) {
+			throw CompileTimeException("Not found local function");
+		}
+		if (flags.async_mode) {
+			a.mov(argr0, env);
+			a.mov(argr1, resr);
+			a.mov(argr2, arg_ptr);
+			a.mov(argr3, flags.async_mode);
+			if (flags.except_catch)
+				a.call(&FuncEnviropment::localWrapper_catch);
+			else
+				a.call(&FuncEnviropment::localWrapper);
+		}
+		else {
+			typed_lgr<FuncEnviropment> fn = env->localFn(fnn);
+			switch (fn->Type()) {
+			case FuncEnviropment::FuncType::own: {
+				a.mov(argr0, fn.getPtr());
+				a.mov(argr1, arg_ptr);
+				if(flags.except_catch)
+					a.call(&FuncEnviropment::initAndCall_catch);
+				else
+					a.call(&FuncEnviropment::initAndCall);
+				break;
+			}
+			case FuncEnviropment::FuncType::native: {
+				if (!fn->templateCall().arguments.size() && fn->templateCall().result.is_void()) {
+					a.call(fn->get_func_ptr());
+					if constexpr (use_result)
+						if (flags.use_result) {
+							a.movEnviro(readData<uint16_t>(data, data_len, i), 0);
+							return;
+						}
+					break;
+				}
+				a.mov(argr0, fn.getPtr());
+				a.mov(argr1, arg_ptr);
+				if (flags.except_catch)
+					a.call(&FuncEnviropment::native_proxy_catch);
+				else
+					a.call(&FuncEnviropment::NativeProxy_DynamicToStatic);
+				break;
+			}
+			case FuncEnviropment::FuncType::native_own_abi: {
+				if (flags.except_catch) {
+					a.mov(argr0, fn->get_func_ptr());
+					a.mov(argr1, arg_ptr);
+					a.call(AttachACXXCatchCall);
+				}
+				else {
+					a.mov(argr0, arg_ptr);
+					a.call(fn->get_func_ptr());
+				}
+				break;
+			}
+			default: {
+				a.mov(argr0, fn.getPtr());
+				a.mov(argr1, arg_ptr);
+				if (flags.except_catch)
+					a.call(&FuncEnviropment::syncWrapper_catch);
+				else
+					a.call(&FuncEnviropment::syncWrapper);
+				break;
+			}
+			}
+		}
+	}
+	if constexpr (use_result) {
+		if (flags.use_result) {
+			a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
+			a.mov(argr1, resr);
+			a.call(getValueItem);
+			return;
+		}
+		else {
+			if constexpr (do_cleanup) {
+				if (!flags.use_result) {
+					a.mov(argr0, resr);
+					a.call(releaseUnused);
+				}
+			}
+		}
+	}
+	else if constexpr (do_cleanup) {
+		if (!flags.use_result) {
+			a.mov(argr0, resr);
+			a.call(releaseUnused);
+		}
 	}
 }
 
@@ -796,33 +920,66 @@ void FuncEnviropment::Compile() {
 				compilerFabric_call<true>(a, data, data_len, i, strings);
 				break;
 			}
+			case Opcode::call_self: {
+				CallFlags flags;
+				flags.encoded = readData<uint8_t>(data, data_len, i);
+				if (flags.async_mode)
+					throw CompileTimeException("Fail compile async 'call_self', for asynchonly call self use 'call' command");
+				a.mov(argr0, this);
+				a.mov(argr1, arg_ptr);
+				if (flags.except_catch)
+					a.call(&FuncEnviropment::initAndCall_catch);
+				else
+					a.call(&FuncEnviropment::initAndCall);
+
+				if (flags.use_result) {
+					a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
+					a.mov(argr1, resr);
+					a.call(getValueItem);
+				}
+				else {
+					a.mov(argr0, resr);
+					a.call(releaseUnused);
+				}
+				break;
+			}
+			case Opcode::call_local: {
+				compilerFabric_call_local<true>(a, data, data_len, i, this);
+				break;
+			}
+			case Opcode::call_and_ret: {
+				compilerFabric_call<false, false>(a, data, data_len, i, strings);
+				do_jump_to_ret = true;
+				break;
+			}
+			case Opcode::call_self_and_ret: {
+				CallFlags flags;
+				flags.encoded = readData<uint8_t>(data, data_len, i);
+				if (flags.async_mode)
+					throw CompileTimeException("Fail compile async 'call_self', for asynchonly call self use 'call' command");
+				a.mov(argr0, this);
+				a.mov(argr1, arg_ptr);
+				if (flags.except_catch)
+					a.call(&FuncEnviropment::initAndCall_catch);
+				else
+					a.call(&FuncEnviropment::initAndCall);
+				do_jump_to_ret = true;
+				break;
+			}
+			case Opcode::call_local_and_ret: {
+				compilerFabric_call_local<false, false>(a, data, data_len, i, this);
+				do_jump_to_ret = true;
+				break;
+			}
 			case Opcode::ret: {
 				a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
 				a.call(buildRes);
 				do_jump_to_ret = true;
 				break;
 			}
-			case Opcode::call_and_ret: {
-				compilerFabric_call<false,false>(a, data, data_len, i, strings);
+			case Opcode::ret_noting: {
+				a.xor_(resr, resr);
 				do_jump_to_ret = true;
-				break;
-			}
-			case Opcode::throw_ex: {
-				bool in_memory = readData<bool>(data, data_len, i);
-				if (in_memory) {
-					a.mov(argr0, readData<uint16_t>(data, data_len, i));
-					a.mov(argr1, readData<uint16_t>(data, data_len, i));
-					a.call(throwDirEx);
-				}
-				else {
-					auto ex_typ = string_index_seter++;
-					strings[ex_typ] = readString(data, data_len, i);
-					auto ex_desc = string_index_seter++;
-					strings[ex_desc] = readString(data, data_len, i);
-					a.mov(argr0, strings[ex_typ].c_str());
-					a.mov(argr1, strings[ex_desc].c_str());
-					a.call(throwEx);
-				}
 				break;
 			}
 			case Opcode::copy: {
@@ -1056,6 +1213,54 @@ void FuncEnviropment::Compile() {
 			case Opcode::force_debug_break:
 				a.int3();
 				break;
+			case Opcode::throw_ex: {
+				bool in_memory = readData<bool>(data, data_len, i);
+				if (in_memory) {
+					a.mov(argr0, readData<uint16_t>(data, data_len, i));
+					a.mov(argr1, readData<uint16_t>(data, data_len, i));
+					a.call(throwDirEx);
+				}
+				else {
+					auto ex_typ = string_index_seter++;
+					strings[ex_typ] = readString(data, data_len, i);
+					auto ex_desc = string_index_seter++;
+					strings[ex_desc] = readString(data, data_len, i);
+					a.mov(argr0, strings[ex_typ].c_str());
+					a.mov(argr1, strings[ex_desc].c_str());
+					a.call(throwEx);
+				}
+				break;
+			}
+			case Opcode::as: {
+				a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
+				a.mov(argr1, readData<VType>(data, data_len, i));
+				a.call(asValue);
+				break;
+			}
+			case Opcode::is: {
+				a.movEnviroMeta(argr0, readData<uint16_t>(data, data_len, i));
+				a.mov(argr1, readData<VType>(data, data_len, i));
+				a.cmp(argr0, argr1);
+				break;
+			}
+			case Opcode::store_bool: {
+				a.leaEnviro(argr0, readData<uint16_t>(data, data_len, i));
+				a.call(isTrueValue);
+				a.load_flag8h();
+				a.shift_left(resr_8l, 6);//zero flag
+				a.and_(resr_8h, resr_8l);
+				a.store_flag8h();
+				break;
+			}
+			case Opcode::load_bool: {
+				a.load_flag8h();
+				a.and_(resr_8h, 64);//get only zero flag
+				a.store_flag8h();
+				a.mov(argr0_8l, resr_8h);
+				a.leaEnviro(argr1, readData<uint16_t>(data, data_len, i));
+				a.call(setBoolValue);
+				break;
+			}
 			default:
 				throw CompileTimeException("Invalid opcode");
 			}
@@ -1127,12 +1332,30 @@ ValueItem* FuncEnviropment::syncWrapper(list_array<ValueItem>* args) {
 	if (need_compile)
 		funcComp();
 	current_runners++;
-	return type == FuncType::own ? initAndCall(args) : NativeProxy_DynamicToStatic(args);
+	switch (type)
+	{
+	case FuncEnviropment::FuncType::own:
+		return initAndCall(args);
+	case FuncEnviropment::FuncType::native:
+		return NativeProxy_DynamicToStatic(args);
+	case FuncEnviropment::FuncType::native_own_abi:
+		return ((AttachACXX)curr_func)(args);
+	case FuncEnviropment::FuncType::python:
+	case FuncEnviropment::FuncType::csharp:
+	case FuncEnviropment::FuncType::java:
+	default:
+		throw NotImplementedException();
+	}
+}
+ValueItem* FuncEnviropment::syncWrapper_catch(list_array<ValueItem>* args) {
+	try {
+		return syncWrapper(args);
+	}
+	catch (...) {
+		return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+	}
 }
 
-#pragma warning(push)
-#pragma warning(disable: 4311)
-#pragma warning(disable: 4302)
 ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ValueItem>* arguments) {
 	DynamicCall::FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
 	if (arguments) {
@@ -1257,10 +1480,16 @@ ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ValueItem>* a
 		res = call.Call();
 		--current_runners;
 	}
+	catch (const StackOverflowException&) {
+		--current_runners;
+	}
 	catch (...) {
 		--current_runners;
 		throw;
 	}
+	if (restore_stack_fault())
+		throw StackOverflowException();
+
 	if (nat_templ.result.is_void())
 		return nullptr;
 	if(nat_templ.result.ptype == DynamicCall::FunctionTemplate::ValueT::PlaceType::as_ptr)
@@ -1312,7 +1541,23 @@ ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ValueItem>* a
 		throw NotImplementedException();
 	}
 }
-#pragma warning(pop)
+
+ValueItem* FuncEnviropment::native_proxy_catch(list_array<ValueItem>* args) {
+	try {
+		return NativeProxy_DynamicToStatic(args);
+	}
+	catch (...) {
+		return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+	}
+}
+ValueItem* FuncEnviropment::initAndCall_catch(list_array<ValueItem>* args) {
+	try {
+		return initAndCall(args);
+	}
+	catch (...) {
+		return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+	}
+}
 
 FuncEnviropment::~FuncEnviropment() {
 	std::lock_guard lguard(compile_lock);
@@ -1327,7 +1572,9 @@ FuncEnviropment::~FuncEnviropment() {
 
 extern "C" void callFunction(const char* symbol_name, bool run_async) {
 	list_array<ValueItem> empty;
-	delete FuncEnviropment::CallFunc(symbol_name, &empty, run_async);
+	ValueItem* res = FuncEnviropment::CallFunc(symbol_name, &empty, run_async);
+	if (res)
+		delete res;
 }
 
 #include "../libray/console.hpp"

@@ -41,10 +41,6 @@ bool calc_safe_deph_arr(void* ptr) {
 	return true;
 }
 
-VType valueType(void** value) {
-	return (*(ValueMeta*)value).vtype;
-}
-
 
 
 void universalFree(void** value, ValueMeta meta) {
@@ -52,10 +48,6 @@ void universalFree(void** value, ValueMeta meta) {
 		return;
 	if (!*value)
 		return;
-	if (meta.vtype == VType::async_res) {
-		delete (typed_lgr<BTask>*)* value;
-		return;
-	}
 	if (meta.use_gc)
 		goto gc_destruct;
 	switch (meta.vtype) {
@@ -64,6 +56,9 @@ void universalFree(void** value, ValueMeta meta) {
 		return;
 	case VType::string:
 		delete (std::string*)*value;
+		return;
+	case VType::async_res:
+		delete (typed_lgr<CTask>*)* value;
 		return;
 	case VType::undefined_ptr:
 		return;
@@ -140,8 +135,8 @@ auto gcCall(lgr* gc, list_array<ValueItem>* args, bool async_mode) {
 	return FuncEnviropment::CallFunc(*(std::string*)gc->getPtr(), args, async_mode);
 }
 ValueItem* getAsyncValueItem(void* val) {
-	typed_lgr<BTask>& tmp = *(typed_lgr<BTask>*)val;
-	return BTask::getResult(tmp);
+	typed_lgr<CTask>& tmp = *(typed_lgr<CTask>*)val;
+	return CTask::getResult(tmp);
 }
 void getValueItem(void** value, ValueItem* f_res) {
 	universalRemove(value);
@@ -605,11 +600,111 @@ namespace ABI_IMPL {
 			return reinterpret_cast<std::string&>(val);
 			break;
 		case VType::undefined_ptr:
-			return (std::ostringstream() << val).str();
+			return "0x" + (std::ostringstream() << val).str();
 			break;
 		default:
 			throw InvalidCast("Fail cast undefined type");
 		}
+	}
+	ValueItem SBcast(const std::string& str) {
+		if (str == "null")
+			return ValueItem();
+		else if (str.starts_with("0x"))
+			return ValueItem((void*)std::stoull(str, nullptr, 16),ValueMeta(VType::undefined_ptr,false,true));
+		else if (str.starts_with('[')) {
+			//TO-DO
+			return ValueItem(new std::string(str), ValueMeta(VType::string, false, true));
+		}
+		else {
+			try {
+				try {
+					try {
+						try {
+							try {
+								try {
+									int32_t res = std::stoi(str);
+									return ValueItem(*(void**)&res, ValueMeta(VType::i32, false, true));
+								}
+								catch (...) {
+									uint32_t res = std::stoul(str);
+									return ValueItem(*(void**)&res, ValueMeta(VType::ui32, false, true));
+								}
+							}
+							catch (...) {
+								int64_t res = std::stoll(str);
+								return ValueItem(*(void**)&res, ValueMeta(VType::i64, false, true));
+							}
+						}
+						catch (...) {
+							uint64_t res = std::stoull(str);
+							return ValueItem(*(void**)&res, ValueMeta(VType::ui64, false, true));
+						}
+					}
+					catch (...) {
+						float res = std::stof(str);
+						return ValueItem(*(void**)&res, ValueMeta(VType::flo, false, true));
+					}
+				}
+				catch (...) {
+					double res = std::stod(str);
+					return ValueItem(*(void**)&res, ValueMeta(VType::doub, false, true));
+
+				}
+			}
+			catch (...) {
+				return ValueItem(new std::string(str), ValueMeta(VType::string, false, true));
+			}
+		}
+	}
+	template<class T>
+	void setValue(const T& val, void** set_val) {
+		universalRemove(set_val);
+		if constexpr (std::is_same_v<T, int8_t>) {
+			*reinterpret_cast<int8_t*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i8, false, true);
+		}
+		else if constexpr (std::is_same_v<T, uint8_t>) {
+			*reinterpret_cast<uint8_t*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui8, false, true);
+		}
+		else if constexpr (std::is_same_v<T, int16_t>) {
+			*reinterpret_cast<int16_t*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i16, false, true);
+		}
+		else if constexpr (std::is_same_v<T, uint16_t>) {
+			*reinterpret_cast<uint16_t*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui16, false, true);
+		}
+		else if constexpr (std::is_same_v<T, int32_t>) {
+			*reinterpret_cast<int32_t*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i32, false, true);
+		}
+		else if constexpr (std::is_same_v<T, uint32_t>) {
+			*reinterpret_cast<uint32_t*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui32, false, true);
+		}
+		else if constexpr (std::is_same_v<T, int64_t>) {
+			*reinterpret_cast<int64_t*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i64, false, true);
+		}
+		else if constexpr (std::is_same_v<T, uint64_t>) {
+			*reinterpret_cast<uint64_t*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui64, false, true);
+		}
+		else if constexpr (std::is_same_v<T, std::string>) {
+			*reinterpret_cast<std::string**>(set_val) = new std::string(val);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::string, false, true);
+		}
+		else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
+			*reinterpret_cast<list_array<ValueItem>**>(set_val) = new list_array<ValueItem >(val);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::uarr, false, true);
+		}
+		else if constexpr (std::is_same_v<T, void*>) {
+			*reinterpret_cast<void**>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::undefined_ptr, false, true);
+		}
+		else
+			throw NotImplementedException();
 	}
 }
 
@@ -622,10 +717,8 @@ void DynSum(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val1, val1_meta);
+	if(val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
+	if(val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
 
 	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
@@ -684,10 +777,8 @@ void DynMinus(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val1, val1_meta);
+	if(val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
+	if(val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
 
 	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
@@ -746,10 +837,8 @@ void DynMul(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val1, val1_meta);
+	if(val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
+	if(val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
 
 	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
@@ -810,10 +899,8 @@ void DynDiv(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val1, val1_meta);
+	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
+	if (val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
 
 	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
@@ -876,10 +963,8 @@ void DynBitXor(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val1, val1_meta);
+	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
+	if (val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
 
 	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
@@ -926,10 +1011,8 @@ void DynBitOr(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val1, val1_meta);
+	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
+	if (val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
 
 	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
@@ -976,10 +1059,8 @@ void DynBitAnd(void** val0, void** val1) {
 	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
 	void*& actual_val0 = *val0;
 	void*& actual_val1 = *val1;
-	while (val0_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val0, val0_meta);
-	while (val1_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val1, val1_meta);
+	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
+	if (val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
 
 	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
@@ -1024,8 +1105,7 @@ void DynBitAnd(void** val0, void** val1) {
 void DynBitNot(void** val0) {
 	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
 	void*& actual_val0 = *val0;
-	while (val0_meta.vtype == VType::async_res)
-		getAsyncResult(actual_val0, val0_meta);
+	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
 
 	if (!val0_meta.allow_edit)
 		throw UnmodifabeValue();
@@ -1097,10 +1177,155 @@ void AsArr(void** val) {
 	}
 }
 
+void asValue(void** val, VType type) {
+	ValueMeta& meta = *reinterpret_cast<ValueMeta*>(val + 1);
+	getAsyncResult(*val, meta);
+	switch (type) {
+	case VType::noting:
+		universalRemove(val);
+		break;
+	case VType::i8:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<int8_t>(*val, meta),val);
+		break;
+	case VType::i16:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<int16_t>(*val, meta), val);
+		break;
+	case VType::i32:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<int32_t>(*val, meta), val);
+		break;
+	case VType::i64:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<int64_t>(*val, meta), val);
+		break;
+	case VType::ui8:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<uint8_t>(*val, meta), val);
+		break;
+	case VType::ui16:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<uint16_t>(*val, meta), val);
+		break;
+	case VType::ui32:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<uint32_t>(*val, meta), val);
+		break;
+	case VType::ui64:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<uint64_t>(*val, meta), val);
+		break;
+	case VType::flo:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<float>(*val, meta), val);
+		break;
+	case VType::doub:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<double>(*val, meta), val);
+		break;
+	case VType::uarr:
+		AsArg(val);
+		break;
+	case VType::string:
+		ABI_IMPL::setValue(ABI_IMPL::Scast(*val, meta), val);
+		break;
+	case VType::undefined_ptr:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<void*>(*val, meta), val);
+		break;
+	case VType::except_value:
+		if (reinterpret_cast<ValueMeta*>(val + 1)->vtype != VType::except_value) {
+			try {
+				throw AException("Undefined Exception", ABI_IMPL::Scast(*val, meta),copyValue(*val, meta), meta.encoded);
+			}
+			catch (AException& ex) {
+				universalRemove(val);
+				*val = new std::exception_ptr(std::current_exception());
+				meta = ValueMeta(VType::except_value, false, true);
+			}
+		}
+		break;
+	default:
+		throw NotImplementedException();
+	}
+}
+bool isTrueValue(void** value) {
+	getAsyncResult(*value, *reinterpret_cast<ValueMeta*>(value + 1));
+	switch (reinterpret_cast<ValueMeta*>(value + 1)->vtype) {
+	case VType::noting:
+		return false;
+	case VType::i8:
+	case VType::ui8:
+		return (uint8_t)*value;
+	case VType::i16:
+	case VType::ui16:
+		return (uint16_t)*value;
+	case VType::i32:
+	case VType::ui32:
+		return (uint32_t)*value;
+	case VType::ui64:
+	case VType::i64:
+		return (uint64_t)*value;
+		break;
+	case VType::flo:
+		return *(float*)value;
+	case VType::doub:
+		return *(double*)value;
+	case VType::uarr:
+		return ((list_array<ValueItem>*)value)->size();
+	case VType::string:
+		return ((std::string*)value)->size();
+	case VType::undefined_ptr:
+		return *value;
+	case VType::except_value:
+		std::rethrow_exception(*(std::exception_ptr*)value);
+	default:
+		break;
+	}
+}
+void setBoolValue(bool boolean,void** value) {
+	if (!boolean) {
+		universalRemove(value);
+		return;
+	}
+	ValueMeta& meta = *reinterpret_cast<ValueMeta*>(value + 1);
+
+	if (meta.use_gc) {
+		switch (meta.vtype) {
+		case VType::undefined_ptr:
+		case VType::i8:
+		case VType::i16:
+		case VType::i32:
+		case VType::i64:
+		case VType::ui8:
+		case VType::ui16:
+		case VType::ui32:
+		case VType::ui64:
+		case VType::flo:
+		case VType::doub:
+			getValue(value) = (void*)1;
+			return;
+		default:
+			universalRemove(value);
+		}
+	}
+	switch (meta.vtype) {
+	case VType::noting:
+		meta = ValueMeta(VType::i8, false, true);
+		__fallthrough;
+	case VType::undefined_ptr:
+	case VType::i8:
+	case VType::i16:
+	case VType::i32:
+	case VType::i64:
+	case VType::ui8:
+	case VType::ui16:
+	case VType::ui32:
+	case VType::ui64:
+	case VType::flo:
+	case VType::doub:
+		*value = (void*)1;
+		break;
+	default:
+		universalRemove(value);
+		meta = ValueMeta(VType::i8, false, true);
+		*value = (void*)1;
+	}
+}
 
 namespace exception_abi {
 	bool is_except(void** val) {
-		return ((ValueMeta*)(val + 1))->vtype == VType::async_res;
+		return ((ValueMeta*)(val + 1))->vtype == VType::except_value;
 	}
 	void ignore_except(void** val) {
 		if (!is_except(val))
@@ -1111,20 +1336,23 @@ namespace exception_abi {
 	void continue_unwind(void** val) {
 		std::rethrow_exception(*((std::exception_ptr*)getSpecificValueLink(val, VType::except_value)));
 	}
-	void call_except_handler(void** val, bool(*func_symbol)(void** val), bool ignore_fault) {
+	bool call_except_handler(void** val, bool(*func_symbol)(void** val), bool ignore_fault) {
 		try {
-			getSpecificValueLink(val, VType::except_value);
-			if (func_symbol(val)) {
+			if (func_symbol(getSpecificValueLink(val, VType::except_value))) {
 				universalFree(val, *(ValueMeta*)(val + 1));
 				(*val) = (*(val + 1)) = nullptr;
 			}
+			return true;
 		}
 		catch (...) {
 			if (!ignore_fault)
 				throw;
 		}
+		return false;
 	}
-	ptrdiff_t switch_jump_handle_except(void** val, jump_handle_except* handlers, size_t handlers_c) {
+
+	//for static catch block
+	jump_point switch_jump_handle_except(void** val, jump_handle_except* handlers, size_t handlers_c) {
 		if (!handlers_c)
 			continue_unwind(val);
 
@@ -1143,11 +1371,37 @@ namespace exception_abi {
 			CXXExInfo info;
 			getCxxExInfoFromException(info, ex);
 			for (size_t i = 1; i < handlers_c; i++)
-				if (size_t pos = info.ty_arr.find_it([handlers, i](const CXXExInfo::Tys& ty) {return ty.ty_info->name() == handlers[i].type_name; }))
+				if (info.ty_arr.contains_one([handlers, i](const CXXExInfo::Tys& ty) {return ty.ty_info->name() == handlers[i].type_name; }))
 					return handlers[i].jump_off;
-
 		}
 		return handlers[0].jump_off;
+	}
+	//for dynamic catch block
+	jump_point switch_jump_handle_except(void** val, list_array<jump_handle_except>* handlers) {
+		if(!handlers)
+			continue_unwind(val);
+		if (!handlers->size())
+			continue_unwind(val);
+
+		auto& ex = *((std::exception_ptr*)getSpecificValueLink(val, VType::except_value));
+		if (handlers->size() != 1) {
+			try {
+				std::rethrow_exception(ex);
+			}
+			catch (const AttachARuntimeException& ex) {
+				std::string str = ex.name();
+				size_t jmp = handlers->find_it([&str](const jump_handle_except& it) { return it.type_name == str; }, 1);
+				if (jmp != list_array<jump_handle_except>::npos)
+					return handlers->operator[](jmp).jump_off;
+			}
+			catch (...) {}
+			CXXExInfo info;
+			getCxxExInfoFromException(info, ex);
+			for (auto& it : handlers->range(1, handlers->size())) 
+				if (info.ty_arr.contains_one([&it](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == it.type_name; }))
+					return it.jump_off;
+		}
+		return handlers->operator[](0).jump_off;
 	}
 }
 

@@ -868,15 +868,15 @@ private:
 			return size - new_size;
 		}
 		template<class _Fn>
-		conexpr size_t _remove_if(arr_block<T>* block, _Fn func, size_t start, size_t end) {
+		conexpr size_t _remove_if(iterator<T>& block, _Fn func, size_t start, size_t end) {
 			// value >> 3  ==  value / 8
-			size_t size = block->_size;
+			size_t size = block.block->_size;
 			size_t rem_filt_siz =
 				size > end ?
 				(size >> 3) + (size & 7 ? 1 : 0) :
 				(end >> 3) + (end & 7 ? 1 : 0);
 			uint8_t* remove_filter = new uint8_t[rem_filt_siz]{ 0 };
-			T* arr_inter = block->arr_contain;
+			T* arr_inter = block.block->arr_contain;
 			size_t new_size = size;
 
 			for (size_t i = start; i < end; i++) {
@@ -887,11 +887,14 @@ private:
 			}
 			if (size != new_size) {
 				if (new_size == 0 && size == end) {
-					if (arr == block)
-						arr = block->next_;
-					if (arr_end == block)
-						arr_end = block->_prev;
-					block->good_bye_world();
+					arr_block<T>* next_block = block.block->next_;
+					if (arr == block.block)
+						arr = block.block->next_;
+					if (arr_end == block.block)
+						arr_end = block.block->_prev;
+					block.block->good_bye_world();
+					block.block = next_block;
+					block.pos = 0;
 				}
 				else {
 					T* new_arr = new T[new_size];
@@ -899,9 +902,9 @@ private:
 					for (size_t i = 0; j < new_size && i < end; i++)
 						if (!(remove_filter[i >> 3] & (1 << (i & 7))))
 							new_arr[j++] = arr_inter[i];
-					delete[] block->arr_contain;
-					block->arr_contain = new_arr;
-					block->_size = new_size;
+					delete[] block.block->arr_contain;
+					block.block->arr_contain = new_arr;
+					block.block->_size = new_size;
 				}
 			}
 			delete[] remove_filter;
@@ -1205,22 +1208,17 @@ private:
 			iterator<T> _end = get_iterator(end);
 			size_t removed = 0;
 			if (interate.block == _end.block) {
-				removed = _remove_if(interate.block, func, interate.pos, _end.pos);
+				removed = _remove_if(interate, func, interate.pos, _end.pos);
 				_size -= removed;
 				return removed;
 			}
 
-			removed += _remove_if(interate.block, func, interate.pos, interate.block->_size);
+			removed += _remove_if(interate, func, interate.pos, interate.block->_size);
 			for (;;) {
 				if (!interate._nextBlock())
 					break;
-				removed += _remove_if(interate.block, func, 0, interate.block->_size);
+				removed += _remove_if(interate, func, 0, interate.block->_size);
 			}
-
-			if (_end.block)
-				removed += _remove_if(_end.block, func, 0, _end.pos);
-			else if (interate.block)
-				removed += _remove_if(interate.block, func, 0, interate.block->_size);
 
 			_size -= removed;
 			return removed;
@@ -1293,6 +1291,15 @@ public:
 	}
 	conexpr size_t alocated() const {
 		return arr._size * sizeof(T);
+	}
+	conexpr size_t reserved() const {
+		return reserved_begin + reserved_end;
+	}
+	conexpr size_t reserved_back() const {
+		return reserved_begin;
+	}
+	conexpr size_t reserved_front() const {
+		return reserved_end;
 	}
 	conexpr size_t size() const {
 		return _size;
@@ -1392,6 +1399,10 @@ public:
 		if (_size) {
 			++reserved_end;
 			--_size;
+			if (arr.arr_end->_size <= reserved_end) {
+				arr.resize_front(reserved_begin + _size);
+				reserved_end = 0;
+			}
 		}
 		else
 			throw std::out_of_range("This list_array is empty");
@@ -1400,6 +1411,10 @@ public:
 		if (_size) {
 			++reserved_begin;
 			--_size;
+			if (arr.arr->_size <= reserved_begin) {
+				arr.resize_begin(_size + reserved_end);
+				reserved_begin = 0;
+			}
 		}
 		else
 			throw std::out_of_range("This list_array is empty");
@@ -1408,8 +1423,7 @@ public:
 	conexpr T take_back() {
 		if (_size) {
 			T tmp(std::move(operator[](_size - 1)));
-			++reserved_end;
-			--_size;
+			pop_back();
 			return tmp;
 		}
 		else
@@ -1418,8 +1432,7 @@ public:
 	conexpr T take_front() {
 		if (_size) {
 			T tmp(std::move(operator[](0)));
-			++reserved_begin;
-			--_size;
+			pop_front();
 			return tmp;
 		}
 		else

@@ -10,6 +10,7 @@
 #include "../libray/list_array.hpp"
 #include "attacha_abi.hpp"
 #include "dynamic_call.hpp"
+#include "tasks.hpp"
 
 class ValueEnvironment {
 	std::unordered_map<std::string, ValueEnvironment*> enviropments;
@@ -42,15 +43,16 @@ public:
 	};
 private:
 	static std::unordered_map<std::string, typed_lgr<FuncEnviropment>> enviropments;
-	std::mutex compile_lock;
+	TaskMutex compile_lock;
 	DynamicCall::FunctionTemplate nat_templ;
 	std::vector<typed_lgr<FuncEnviropment>> used_envs;
+	std::vector<typed_lgr<FuncEnviropment>> local_funcs;
 	std::vector<uint8_t> cross_code;
 	list_array<std::string> strings;
 	std::string name;
-	std::atomic_uint64_t current_runners = 0;
 	Enviropment curr_func = nullptr;
 	uint8_t* frame = nullptr;
+	std::atomic_size_t current_runners = 0;
 	uint32_t max_values : 16;
 	FuncType type : 3;
 	uint32_t need_compile : 1 = true;
@@ -81,7 +83,7 @@ private:
 		std::lock_guard lguard(compile_lock);
 		if (need_compile) {
 			while (current_runners)
-				std::this_thread::sleep_for(std::chrono::milliseconds(5));
+				Task::sleep(5);
 			Compile();
 			need_compile = false;
 		}
@@ -90,6 +92,9 @@ private:
 public:
 	ValueItem* NativeProxy_DynamicToStatic(list_array<ValueItem>*);
 	ValueItem* initAndCall(list_array<ValueItem>*);
+
+	ValueItem* native_proxy_catch(list_array<ValueItem>*);
+	ValueItem* initAndCall_catch(list_array<ValueItem>*);
 	FuncEnviropment() { 
 		need_compile = false;
 		type = FuncType::own;
@@ -115,17 +120,46 @@ public:
 		move.can_be_unloaded = false;
 		return *this;
 	}
-	ValueItem* syncWrapper(list_array<ValueItem>* arguments);
 	
-	 
-	void hotPath(const std::vector<uint8_t>& new_cross_code) {
-		if (type != FuncType::own)
-			throw HotPathException("Path fail cause this symbol is not own");
-		if(!can_be_unloaded)
-			throw HotPathException("Path fail cause this symbol is cannon't be unloaded for path");
-		std::lock_guard lguard(compile_lock);
-		cross_code = new_cross_code;
-		need_compile = true;
+	typed_lgr<FuncEnviropment> localFn(size_t indx) {
+		return local_funcs[indx];
+	}
+	size_t localFnSize() {
+		return local_funcs.size();
+	}
+	ValueItem* localWrapper(size_t indx, list_array<ValueItem>* arguments, bool run_async) {
+		if (local_funcs.size() <= indx)
+			throw NotImplementedException();
+		if (run_async)
+			return asyncCall(local_funcs[indx], arguments);
+		else
+			return local_funcs[indx]->syncWrapper(arguments);
+	}
+	ValueItem* localWrapper_catch(size_t indx, list_array<ValueItem>* arguments, bool run_async) {
+		try {
+			return localWrapper(indx, arguments, run_async);
+		}
+		catch (...) {
+			return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+		}
+	}
+
+	ValueItem* syncWrapper(list_array<ValueItem>* arguments);
+	ValueItem* syncWrapper_catch(list_array<ValueItem>* arguments);
+
+	static void fastHotPath(const std::string& func_name,const std::vector<uint8_t>& new_cross_code) {
+		if (!enviropments.contains(func_name)) 
+			Load(new_cross_code, func_name, true);
+		else {
+			auto& tmp = enviropments[func_name];
+			if(!tmp->can_be_unloaded)
+				throw HotPathException("Path fail cause this symbol is cannon't be unloaded for path");
+
+			uint16_t max_vals = new_cross_code[1];
+			max_vals <<= 8;
+			max_vals |= new_cross_code[0];
+			tmp = typed_lgr(new FuncEnviropment{ { new_cross_code.begin() + 2, new_cross_code.end()}, max_vals, true });
+		}
 	}
 	static typed_lgr<FuncEnviropment> enviropment(const std::string& func_name) {
 		return enviropments[func_name];
@@ -138,6 +172,14 @@ public:
 				return enviropments[func_name]->syncWrapper(arguments);
 		}
 		throw NotImplementedException();
+	}
+	static ValueItem* CallFunc_catch(const std::string& func_name, list_array<ValueItem>* arguments, bool run_async) {
+		try {
+			return CallFunc(func_name, arguments,run_async);
+		}
+		catch (...) {
+			return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+		}
 	}
 
 #include<tuple>
@@ -193,18 +235,36 @@ public:
 	}
 	static void Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded = true) {
 		if (enviropments.contains(symbol_name))
-			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
+			throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
 		if(func_templ.size() < 2)
-			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them emplty");
+			throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them emplty");
 		uint16_t max_vals = func_templ[1];
 		max_vals <<= 8;
 		max_vals |= func_templ[0];
 		enviropments[symbol_name] = typed_lgr(new FuncEnviropment{ { func_templ.begin() + 2, func_templ.end()}, max_vals, can_be_unloaded });
 	}
 	static void Unload(const std::string& symbol_name) {
-		if (enviropments.contains(symbol_name))
-			throw SymbolException("Fail release symbol: \"" + symbol_name + "\" cause them not exists");
-		enviropments.erase(symbol_name);
+		auto beg = enviropments.begin();
+		auto end = enviropments.begin();
+		while (beg != end) {
+			if (beg->first == symbol_name) {
+				if (beg->second->can_be_unloaded) {
+					enviropments.erase(beg);
+					return;
+				}
+				else
+					throw SymbolException("Fail unload symbol: \"" + symbol_name + "\" cause them cannont be unloaded");
+			}
+		}
+		throw SymbolException("Fail unload symbol: \"" + symbol_name + "\" cause them not exists");
+	}
+
+
+
+
+	static ValueItem* asyncCall(typed_lgr<FuncEnviropment> f, list_array<ValueItem>* args);
+	static ValueItem* syncCall(typed_lgr<FuncEnviropment> f, list_array<ValueItem>* args) {
+		return f->syncWrapper(args);
 	}
 
 	const char* getString(size_t ind) {
@@ -222,13 +282,6 @@ public:
 	}
 	void* get_func_ptr() {
 		return (void*)curr_func;
-	}
-
-
-
-	static ValueItem* asyncCall(typed_lgr<FuncEnviropment> f, list_array<ValueItem>* args);
-	static ValueItem* syncCall(typed_lgr<FuncEnviropment> f, list_array<ValueItem>* args) {
-		return f->syncWrapper(args);
 	}
 };
 
