@@ -6,4 +6,20 @@ namespace mem_tool {
 		val0 = val1;
 		val1 = swaper;
 	}
+	template<class T>
+	struct ArrDeleter {
+		T* del;
+		ArrDeleter(T* ptr) { del = ptr; };
+		~ArrDeleter() {
+			delete[] del;
+		}
+	};
+	template<class T>
+	struct ValDeleter {
+		T* del;
+		ValDeleter(T* ptr) { del = ptr; };
+		~ValDeleter() {
+			delete del;
+		}
+	};
 }

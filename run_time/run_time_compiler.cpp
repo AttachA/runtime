@@ -1340,6 +1340,8 @@ ValueItem* FuncEnviropment::syncWrapper(list_array<ValueItem>* args) {
 		return NativeProxy_DynamicToStatic(args);
 	case FuncEnviropment::FuncType::native_own_abi:
 		return ((AttachACXX)curr_func)(args);
+	case FuncEnviropment::FuncType::lambda_native_own_abi:
+		return (*(AttachALambda*)curr_func)(args);
 	case FuncEnviropment::FuncType::python:
 	case FuncEnviropment::FuncType::csharp:
 	case FuncEnviropment::FuncType::java:
@@ -1568,6 +1570,8 @@ FuncEnviropment::~FuncEnviropment() {
 			if (curr_func)
 				FrameResult::deinit(frame, curr_func, jrt);
 	}
+	if (type == FuncType::lambda_native_own_abi)
+		delete (AttachALambda*)curr_func;
 }
 
 extern "C" void callFunction(const char* symbol_name, bool run_async) {

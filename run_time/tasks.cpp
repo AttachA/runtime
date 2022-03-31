@@ -1,26 +1,43 @@
 #include <list>
-//#include <boost/context/protected_fixedsize_stack.hpp>
+#include <boost/context/protected_fixedsize_stack.hpp>
 
 #include <boost/context/continuation.hpp>
+
 #include <boost/fiber/all.hpp>
 #include <boost/fiber/detail/thread_barrier.hpp>
 
 #include "AttachA_CXX.hpp"
 #include "tasks.hpp"
+#include "../libray/exceptions.hpp"
+#include "../libray/mem_tool.hpp"
+#include "../libray/string_help.hpp"
 #include <iostream>
 #include <stack>
+#include <queue>
 #include <deque>
 
 namespace ctx = boost::context;
 std::atomic_size_t alocs = 0;
 std::atomic_size_t clears = 0;
-
+class TaskCancellation : AttachARuntimeException {
+public:
+	bool in_landing = false;
+	TaskCancellation() : AttachARuntimeException("This task received cancellation token") {}
+	~TaskCancellation() noexcept(false) {
+		if (!in_landing)
+			throw TaskCancellation();
+	}
+};
+void forceCancelCancellation(TaskCancellation& cancel_token) {
+	cancel_token.in_landing = true;
+}
 TaskResult::~TaskResult() {
-	if(context)
+	if (context) {
 		reinterpret_cast<ctx::continuation&>(context).~continuation();
-	size_t i = 0;
-	while (!end_of_life)
-		getResult(i++);
+		size_t i = 0;
+		while (!end_of_life)
+			getResult(i++);
+	}
 }
 
 
@@ -91,7 +108,7 @@ struct {
 	TaskConditionVariable no_tasks_notifier;
 	TaskConditionVariable no_tasks_execute_notifier;
 
-	std::stack<typed_lgr<Task>> tasks;
+	std::queue<typed_lgr<Task>> tasks;
 	std::deque<timing> timed_tasks;
 
 	std::recursive_mutex task_thread_safety;
@@ -105,6 +122,8 @@ struct {
 	bool time_control_enabled = false;
 
 	bool in_time_swap = false;
+	std::atomic_size_t tasks_in_swap = 0;
+
 } glob;
 
 struct {
@@ -115,58 +134,59 @@ struct {
 	bool context_in_swap = false;
 } thread_local loc;
 
-
+void checkCancelation() {
+	if (loc.curr_task->make_cancel)
+		throw TaskCancellation();
+}
 
 #pragma optimize("",off)
-void swapCtxRelock(std::mutex& mut) {
-	loc.context_in_swap = true;
-	loc.curr_task->relock_mut = &mut;
-	loc.curr_task->relock_rec_mut = nullptr;
-	loc.curr_task->relock_timed_mut = nullptr;
-	*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
-	loc.curr_task->relock_mut = nullptr;
-	loc.context_in_swap = false;
-}
-void swapCtxRelock(std::timed_mutex& mut) {
-	loc.context_in_swap = true;
-	loc.curr_task->relock_mut = nullptr;
-	loc.curr_task->relock_rec_mut = nullptr;
-	loc.curr_task->relock_timed_mut = &mut;
-	*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
-	loc.curr_task->relock_timed_mut = nullptr;
-	loc.context_in_swap = false;
-}
-void swapCtxRelock(std::recursive_mutex& mut) {
-	loc.context_in_swap = true;
-	loc.curr_task->relock_mut = nullptr;
-	loc.curr_task->relock_timed_mut = nullptr;
-	loc.curr_task->relock_rec_mut = &mut;
-	*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
-	loc.curr_task->relock_rec_mut = nullptr;
-	loc.context_in_swap = false;
-}
-void swapCtxRelock(std::recursive_mutex& mut,std::timed_mutex& tmut) {
-	loc.context_in_swap = true;
-	loc.curr_task->relock_mut = nullptr;
-	loc.curr_task->relock_rec_mut = &mut;
-	loc.curr_task->relock_timed_mut = &tmut;
-	*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
-	loc.curr_task->relock_rec_mut = nullptr;
-	loc.curr_task->relock_timed_mut = nullptr;
-	loc.context_in_swap = false;
-}
-
 void swapCtx() {
 	loc.context_in_swap = true;
+	++glob.tasks_in_swap;
 	*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+	--glob.tasks_in_swap;
 	loc.context_in_swap = false;
+	checkCancelation();
 }
+void swapCtxRelock(std::mutex& mut) {
+	loc.curr_task->relock_mut = &mut;
+	swapCtx();
+	loc.curr_task->relock_mut = nullptr;
+}
+void swapCtxRelock(std::mutex& mut, std::timed_mutex& tmut) {
+	loc.curr_task->relock_mut = &mut;
+	loc.curr_task->relock_timed_mut = &tmut;
+	swapCtx();
+	loc.curr_task->relock_mut = nullptr;
+	loc.curr_task->relock_timed_mut = nullptr;
+}
+void swapCtxRelock(std::timed_mutex& mut) {
+	loc.curr_task->relock_timed_mut = &mut;
+	swapCtx();
+	loc.curr_task->relock_timed_mut = nullptr;
+}
+void swapCtxRelock(std::recursive_mutex& mut) {
+	loc.curr_task->relock_rec_mut = &mut;
+	swapCtx();
+	loc.curr_task->relock_rec_mut = nullptr;
+}
+void swapCtxRelock(std::recursive_mutex& mut, std::timed_mutex& tmut) {
+	loc.curr_task->relock_rec_mut = &mut;
+	loc.curr_task->relock_timed_mut = &tmut;
+	swapCtx();
+	loc.curr_task->relock_rec_mut = nullptr;
+	loc.curr_task->relock_timed_mut = nullptr;
+}
+
 
 ctx::continuation context_exec(ctx::continuation&& sink) {
 	*loc.tmp_current_context = std::move(sink);
 	try {
 		loc.curr_task->fres.finalResult(loc.curr_task->func->syncWrapper(loc.curr_task->args));
 		loc.context_in_swap = false;
+	}
+	catch (TaskCancellation& cancel) {
+		cancel.in_landing = true;
 	}
 	catch (const ctx::detail::forced_unwind& uw) {
 		throw;
@@ -182,6 +202,9 @@ ctx::continuation context_ex_handle(ctx::continuation&& sink) {
 	try {
 		loc.curr_task->fres.finalResult(loc.curr_task->ex_handle->syncWrapper(loc.curr_task->args));
 		loc.context_in_swap = false;
+	}
+	catch (TaskCancellation& cancel) {
+		cancel.in_landing = true;
 	}
 	catch (const ctx::detail::forced_unwind&) {
 		throw;
@@ -200,18 +223,18 @@ void taskNotifyIfEmpty() {
 		glob.no_tasks_execute_notifier.notify_all();
 }
 bool loadTask() {
-	std::lock_guard guard(glob.task_thread_safety);
-	++glob.in_exec;
-	if (glob.tasks.empty())
-		return true;
-	loc.curr_task = glob.tasks.top();
-	glob.tasks.pop();
-
-
+	{
+		std::lock_guard guard(glob.task_thread_safety);
+		++glob.in_exec;
+		size_t len = glob.tasks.size();
+		if (!len)
+			return true;
+		loc.curr_task = glob.tasks.front();
+		glob.tasks.pop();
+		if (len == 1)
+			glob.no_tasks_notifier.notify_all();
+	}
 	loc.tmp_current_context = &reinterpret_cast<ctx::continuation&>(loc.curr_task->fres.context);
-
-	if (glob.tasks.empty())
-		glob.no_tasks_notifier.notify_all();
 	return false;
 }
 void taskExecutor(bool end_in_task_out = false) {
@@ -238,14 +261,12 @@ void taskExecutor(bool end_in_task_out = false) {
 			continue;
 
 		//if func is nullptr then this task signal to shutdown executor
-		if (!loc.curr_task->func) {
-			--glob.executors;
-			--glob.in_exec;
+		if (!loc.curr_task->func)
 			break;
-		}
+
 		if (loc.curr_task->end_of_life)
 			goto end_task;
-		
+
 		if (*loc.tmp_current_context) {
 			if (loc.curr_task->relock_mut)
 				loc.curr_task->relock_mut->lock();
@@ -255,15 +276,13 @@ void taskExecutor(bool end_in_task_out = false) {
 				loc.curr_task->relock_timed_mut->lock();
 			*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
 		}
-		else 
-			*loc.tmp_current_context = ctx::callcc(context_exec);
-
-
+		else
+			*loc.tmp_current_context = ctx::callcc(std::allocator_arg, ctx::protected_fixedsize_stack(128 * 1024), context_exec);
 		if (loc.ex_ptr) {
 			if (loc.curr_task->ex_handle) {
 				if (loc.curr_task->args)
 					delete loc.curr_task->args;
-				loc.curr_task->args = new list_array<ValueItem>{ValueItem(new std::exception_ptr(loc.ex_ptr), ValueMeta(VType::except_value, false, false), false)};
+				loc.curr_task->args = new list_array<ValueItem>{ ValueItem(new std::exception_ptr(loc.ex_ptr), ValueMeta(VType::except_value, false, false), false) };
 				loc.ex_ptr = nullptr;
 				*loc.tmp_current_context = ctx::callcc(context_ex_handle);
 
@@ -285,6 +304,11 @@ void taskExecutor(bool end_in_task_out = false) {
 		}
 		loc.curr_task = nullptr;
 	}
+	{
+		std::lock_guard guard(glob.task_thread_safety);
+		--glob.executors;
+	}
+	taskNotifyIfEmpty();
 }
 
 #pragma optimize("",on)
@@ -294,7 +318,7 @@ void taskTimer() {
 	while (true) {
 		{
 			if (glob.timed_tasks.size()) {
-				std::lock_guard guard(glob.task_thread_safety);
+				std::lock_guard guard(glob.task_timer_safety);
 				while (glob.timed_tasks.front().first <= std::chrono::high_resolution_clock::now()) {
 					std::lock_guard task_guard(glob.timed_tasks.front().second->no_race);
 					if (glob.timed_tasks.front().second->awaked) {
@@ -302,13 +326,16 @@ void taskTimer() {
 					}
 					else {
 						glob.timed_tasks.front().second->time_end_flag = true;
-						glob.tasks.push(std::move(glob.timed_tasks.front().second));
+						{
+							std::lock_guard guard(glob.task_thread_safety);
+							glob.tasks.push(std::move(glob.timed_tasks.front().second));
+						}
 						glob.timed_tasks.pop_front();
 						glob.tasks_notifier.notify_one();
 					}
 					if (glob.timed_tasks.empty())
 						break;
-				
+
 				}
 			}
 		}
@@ -327,28 +354,41 @@ void startTimeController() {
 	std::thread(taskTimer).detach();
 	glob.time_control_enabled = true;
 }
-void makeTimeWait(timing&& t) {
+void makeTimeWait(std::chrono::high_resolution_clock::time_point t) {
 	if (!glob.time_control_enabled)
 		startTimeController();
 	loc.curr_task->awaked = false;
 	loc.curr_task->time_end_flag = false;
 	size_t i = 0;
-	auto it = glob.timed_tasks.begin();
-	auto end = glob.timed_tasks.end();
-	while (it != end) {
-		if (it->first > t.first) {
-			glob.timed_tasks.insert(it, std::move(t));
-			i = -1;
-			break;
+	{
+		std::lock_guard guard(glob.task_timer_safety);
+		auto it = glob.timed_tasks.begin();
+		auto end = glob.timed_tasks.end();
+		while (it != end) {
+			if (it->first > t) {
+				glob.timed_tasks.insert(it, timing(t,loc.curr_task));
+				i = -1;
+				break;
+			}
+			++it;
 		}
-		++it;
+		if (i != -1)
+			glob.timed_tasks.push_back(timing(t, loc.curr_task));
 	}
-	if (i != -1)
-		glob.timed_tasks.push_back(std::move(t));
 	glob.time_notifier.notify_one();
 }
 
 #pragma optimize("",off)
+TaskMutex::~TaskMutex() {
+	std::lock_guard lg(no_race);
+	while (!resume_task.empty()) {
+		auto& tsk = resume_task.back();
+		tsk->make_cancel = true;
+		current_task = nullptr;
+		tsk->fres.awaitEnd();
+		resume_task.pop_back();
+	}
+}
 void TaskMutex::lock() {
 	if (loc.is_task_thread) {
 		loc.curr_task->awaked = false;
@@ -390,12 +430,14 @@ bool TaskMutex::try_lock_until(std::chrono::high_resolution_clock::time_point ti
 		if (!no_race.try_lock_until(time_point))
 			return false;
 		if (current_task) {
-			std::lock_guard guard(glob.task_thread_safety);
-			makeTimeWait(timing(time_point, loc.curr_task));
+			std::lock_guard guard(loc.curr_task->no_race);
+			makeTimeWait(time_point);
 			resume_task.push_back(loc.curr_task);
-			swapCtxRelock(glob.task_thread_safety,no_race);
-			if (!loc.curr_task->awaked)
+			swapCtxRelock(loc.curr_task->no_race, no_race);
+			if (!loc.curr_task->awaked) {
+				no_race.unlock();
 				return false;
+			}
 			goto re_try;
 		}
 		if (!current_task)
@@ -425,7 +467,7 @@ void TaskMutex::unlock() {
 			}
 		}
 	}
-	else 
+	else
 		no_race.unlock();
 }
 
@@ -449,17 +491,14 @@ void Task::start(typed_lgr<Task>& lgr_task) {
 }
 
 void Task::createExecutor(size_t count) {
-	for (size_t i = 0; i < count; i++) {
+	for (size_t i = 0; i < count; i++)
 		std::thread(taskExecutor, false).detach();
-		std::lock_guard guard(glob.task_thread_safety);
-		++glob.executors;
-	}
 }
 size_t Task::totalExecutors() {
 	std::lock_guard guard(glob.task_thread_safety);
 	return glob.executors;
 }
-void Task::reduceExceutor(size_t count) {
+void Task::reduceExecutor(size_t count) {
 	for (size_t i = 0; i < count; i++)
 		start(new Task(nullptr, nullptr));
 }
@@ -484,8 +523,8 @@ void Task::awaitNoTasks(bool be_executor) {
 		while (glob.tasks.size() || glob.timed_tasks.size())
 			glob.no_tasks_notifier.wait();
 }
-void Task::awaitEndTasks(){
-	while (glob.tasks.size() || glob.timed_tasks.size() || glob.in_exec)
+void Task::awaitEndTasks() {
+	while (glob.tasks.size() || glob.timed_tasks.size() || glob.in_exec || glob.tasks_in_swap)
 		glob.no_tasks_execute_notifier.wait();
 }
 void Task::sleep(size_t milliseconds) {
@@ -493,13 +532,14 @@ void Task::sleep(size_t milliseconds) {
 }
 void Task::sleep_until(std::chrono::high_resolution_clock::time_point time_point) {
 	if (loc.is_task_thread) {
-		std::lock_guard guard(glob.task_thread_safety);
-		makeTimeWait(timing(time_point, loc.curr_task));
-		swapCtxRelock(glob.task_thread_safety);
+		std::lock_guard guard(loc.curr_task->no_race);
+		makeTimeWait(time_point);
+		swapCtxRelock(loc.curr_task->no_race);
 	}
-	else 
+	else
 		std::this_thread::sleep_until(time_point);
 }
+
 
 void Task::result(ValueItem* f_res) {
 	if (loc.is_task_thread)
@@ -530,10 +570,13 @@ bool TaskConditionVariable::wait_for(size_t milliseconds) {
 }
 bool TaskConditionVariable::wait_until(std::chrono::high_resolution_clock::time_point time_point) {
 	if (loc.is_task_thread) {
-		std::lock_guard guard(glob.task_thread_safety);
-		makeTimeWait(timing(time_point, loc.curr_task));
-		resume_task.push_back(loc.curr_task);
-		swapCtxRelock(glob.task_thread_safety);
+		std::lock_guard guard(loc.curr_task->no_race);
+		makeTimeWait(time_point);
+		{
+			std::lock_guard guard(no_race);
+			resume_task.push_back(loc.curr_task);
+		}
+		swapCtxRelock(loc.curr_task->no_race);
 		if (loc.curr_task->time_end_flag)
 			return false;
 	}
@@ -577,6 +620,42 @@ void TaskConditionVariable::notify_one() {
 		cd.notify_one();
 }
 
+TaskAwaiter::TaskAwaiter() {}
+void TaskAwaiter::wait() {
+	no_race.lock();
+	if (allow_wait) {
+		no_race.unlock();
+		cd.wait();
+	}
+	else
+		no_race.unlock();
+}
+bool TaskAwaiter::wait_for(size_t milliseconds) {
+	no_race.lock();
+	if (allow_wait) {
+		no_race.unlock();
+		return cd.wait_for(milliseconds);
+	}
+	else
+		no_race.unlock();
+	return false;
+}
+bool TaskAwaiter::wait_until(std::chrono::high_resolution_clock::time_point time_point) {
+	no_race.lock();
+	if (allow_wait) {
+		no_race.unlock();
+		return cd.wait_until(time_point);
+	}
+	else
+		no_race.unlock();
+	return false;
+}
+void TaskAwaiter::endLife() {
+	no_race.lock();
+	allow_wait = false;
+	no_race.unlock();
+	cd.notify_all();
+}
 
 void TaskSemaphore::setMaxTreeshold(size_t val) {
 	std::lock_guard guard(no_race);
@@ -631,7 +710,7 @@ re_try:
 	if (!allow_treeshold) {
 		if (loc.is_task_thread) {
 			std::lock_guard guard(glob.task_thread_safety);
-			makeTimeWait(timing(time_point, loc.curr_task));
+			makeTimeWait(time_point);
 			resume_task.push_back(loc.curr_task);
 			no_race.unlock();
 			swapCtxRelock(glob.task_thread_safety);
@@ -651,7 +730,7 @@ re_try:
 		--allow_treeshold;
 	no_race.unlock();
 	return true;
-	
+
 }
 void TaskSemaphore::release() {
 	std::lock_guard lg0(no_race);
@@ -706,12 +785,486 @@ bool TaskSemaphore::is_locked() {
 	}
 	return false;
 }
-
 #pragma optimize("",on)
 
 
 
 
+typed_lgr<Task> FileQuery::read(uint32_t len, size_t pos) {
+	static typed_lgr<FuncEnviropment> read_enviro = new FuncEnviropment(
+		(AttachALambda*)new AttachALambdaWrap(
+			[this, len, pos](list_array<ValueItem>* arguments) {
+				std::lock_guard guard(no_race);
+				char* res = new char[len];
+				if (pos != size_t(-1)) {
+					stream.flush();
+					stream.seekg(pos);
+				}
+				stream.read(res, len);
+				if (stream.eof()) {
+					delete[] res;
+					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
+				}
+				else if (stream.fail()) {
+					delete[] res;
+					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
+				}
+				else if (stream.bad()) {
+					delete[] res;
+					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
+				}
+				else
+					return new ValueItem(res, ValueMeta(VType::raw_arr_ui8, false, true, len));
+			}
+		),
+		false
+	);
+	typed_lgr<Task> aa(new Task(read_enviro,nullptr));
+	Task::start(aa);
+	return aa;
+}
+typed_lgr<Task> FileQuery::write(char* arr, uint32_t len, size_t pos) {
+	typed_lgr<FuncEnviropment> write_enviro = new FuncEnviropment(
+		(AttachALambda*)new AttachALambdaWrap(
+			[this, len, pos, arr](list_array<ValueItem>* arguments) {
+				mem_tool::ArrDeleter deleter(arr);
+				std::lock_guard guard(no_race);
+				if (pos != size_t(-1)) {
+					stream.flush();
+					stream.seekp(pos);
+				}
+				stream.write(arr, len);
+				if (stream.eof())
+					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
+				else if (stream.fail())
+					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
+				
+				else if (stream.bad())
+					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
+				else
+					return (ValueItem*)nullptr;
+			}
+		),
+		false
+	);
+	typed_lgr<Task> aa(new Task(write_enviro, nullptr));
+	Task::start(aa);
+	return aa;
+}
+typed_lgr<Task> FileQuery::append(char* arr, uint32_t len) {
+	typed_lgr<FuncEnviropment> append_enviro = new FuncEnviropment(
+		(AttachALambda*)new AttachALambdaWrap(
+			[this, len, arr](list_array<ValueItem>* arguments) {
+				mem_tool::ArrDeleter deleter(arr);
+				std::lock_guard guard(no_race);
+				stream.flush();
+				stream.seekp(0, std::ios_base::end);
+				stream.write(arr, len);
+				if (stream.eof())
+					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
+				else if (stream.fail())
+					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
+
+				else if (stream.bad())
+					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
+				else
+					return (ValueItem*)nullptr;
+			}
+		),
+		false
+	);
+	typed_lgr<Task> aa(new Task(append_enviro, nullptr));
+	Task::start(aa);
+	return aa;
+}
+
+typed_lgr<Task> FileQuery::read_long(uint64_t len, size_t pos) {
+	typed_lgr<FuncEnviropment> read_enviro = new FuncEnviropment(
+		(AttachALambda*)new AttachALambdaWrap(
+			[this, len, pos](list_array<ValueItem>* arguments) {
+				std::lock_guard guard(no_race);
+				list_array<char> res(len);
+				if (pos != size_t(-1)) {
+					stream.flush();
+					stream.seekg(pos);
+				}
+				stream.read(res.data(), len);
+				if (stream.eof())
+					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
+				else if (stream.fail())
+					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
+				
+				else if (stream.bad()) 
+					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
+				else
+					return new ValueItem(
+						new list_array<ValueItem>(
+							res.convert<ValueItem>([](char it) { return ValueItem((void*)it, ValueMeta(VType::ui8, false, true)); })
+						), 
+						ValueMeta(VType::raw_arr_ui8, false, true, len)
+					);
+			}
+		),
+		false
+	);
+	typed_lgr<Task> aa(new Task(read_enviro, nullptr));
+	Task::start(aa);
+	return aa;
+}
+typed_lgr<Task> FileQuery::write_long(list_array<uint8_t>* arr, size_t pos) {
+	typed_lgr<FuncEnviropment> write_enviro = new FuncEnviropment(
+		(AttachALambda*)new AttachALambdaWrap(
+			[this, arr, pos](list_array<ValueItem>* arguments) {
+				mem_tool::ValDeleter deleter(arr);
+				std::lock_guard guard(no_race);
+				if (pos != size_t(-1)) {
+					stream.flush();
+					stream.seekp(pos);
+				}
+				stream.write((char*)arr->data(), arr->size());
+				if (stream.eof())
+					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
+				else if (stream.fail())
+					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
+
+				else if (stream.bad())
+					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
+				else
+					return (ValueItem*)nullptr;
+			}
+		),
+		false
+	);
+	typed_lgr<Task> aa(new Task(write_enviro, nullptr));
+	Task::start(aa);
+	return aa;
+}
+typed_lgr<Task> FileQuery::append_long(list_array<uint8_t>* arr) {
+	typed_lgr<FuncEnviropment> append_enviro = new FuncEnviropment(
+		(AttachALambda*)new AttachALambdaWrap(
+			[this, arr](list_array<ValueItem>* arguments) {
+				mem_tool::ValDeleter deleter(arr);
+				std::lock_guard guard(no_race);
+				stream.flush();
+				stream.seekp(0, std::ios_base::end);
+				stream.write((char*)arr->data(), arr->size());
+				if (stream.eof())
+					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
+				else if (stream.fail())
+					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
+
+				else if (stream.bad())
+					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
+				else
+					return (ValueItem*)nullptr;
+			}
+		),
+		false
+				);
+	typed_lgr<Task> aa(new Task(append_enviro, nullptr));
+	Task::start(aa);
+	return aa;
+}
+#ifdef _WIN64
+#include <Windows.h>
+
+
+static std::string _format_msq(DWORD err) {
+	std::string res;
+	const char* lpMsgBuf = nullptr;
+	FormatMessageA(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER |
+		FORMAT_MESSAGE_FROM_SYSTEM |
+		FORMAT_MESSAGE_IGNORE_INSERTS,
+		NULL,
+		err,
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(LPSTR)&lpMsgBuf,
+		0, NULL);
+	res = lpMsgBuf;
+	LocalFree((LPVOID)lpMsgBuf);
+	return res;
+}
+
+typedef typed_lgr<class Overlap> lpOverlap;
+struct Overlap : OVERLAPPED {
+	TaskAwaiter completion_notify;
+	lgr fileHandle;
+	uint32_t err_code = 0;
+	bool completed = false;
+public:
+	uint32_t transfered_len = 0;
+	char* read_result = nullptr;
+	Overlap(lgr& file, size_t off) {
+		std::memset(static_cast<OVERLAPPED*>(this), 0, sizeof(OVERLAPPED));
+		Pointer = reinterpret_cast<void*>(off);
+		fileHandle = file;
+	}
+	~Overlap() {
+		if(read_result)
+			delete[] read_result;
+	}
+	size_t get_offset() const { return size_t(Pointer); }
+	static void callback(DWORD errorCode, DWORD numberOfBytesTransferred, Overlap* overlapped) {
+		overlapped->transfered_len = numberOfBytesTransferred;
+		overlapped->err_code = errorCode;
+		overlapped->completed = true;
+		overlapped->completion_notify.endLife();
+	}
+	uint32_t get_err_code() {
+		if (!completed)
+			wait();
+		return err_code;
+	}
+	char* get() {
+		if (!completed)
+			wait();
+		return read_result;
+	}
+	void wait() {
+		while (!completed)
+			completion_notify.wait();
+	}
+};
+
+class F_IO_A_N_Controll {
+	list_array<std::thread> threads;
+	HANDLE completion_port;
+public:
+	F_IO_A_N_Controll() {
+		completion_port = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
+	}
+	~F_IO_A_N_Controll() {
+		disable();
+		CloseHandle(completion_port);
+	}
+	void enable(uint16_t count) {
+		if (threads.empty()) {
+			threads.reserve_push_back(count);
+			while (count--) {
+				threads.push_back(std::thread(&F_IO_A_N_Controll::dispatch, this));
+				threads.back().detach();
+			}
+		}
+	}
+	void disable() {
+		size_t len = threads.size();
+		while (len--)
+			PostQueuedCompletionStatus(completion_port, 0, 0, 0);
+		threads.clear();
+	}
+	void attach(HANDLE file_handle) {
+		if (!CreateIoCompletionPort(file_handle, completion_port, reinterpret_cast<ULONG_PTR>(file_handle), 0))
+			throw std::exception("Failed to attach handle to I/O completion port");
+	}
+	size_t dispatched_count = 0;
+	void dispatch() {
+		while (true) {
+			DWORD bytesTransferred = 0;
+			ULONG_PTR completionKey = 0;
+			LPOVERLAPPED ioCb = nullptr;
+			SetLastError(0);
+			bool ok = GetQueuedCompletionStatus(completion_port, &bytesTransferred, &completionKey, &ioCb, INFINITE);
+
+			if (!ok) 
+				throw AException("system fault async", "GetQueuedCompletionStatus: " + _format_msq(GetLastError()));
+
+			if (completionKey == 0)
+				return;
+			
+
+			if (!ioCb)
+				throw AException("system fault async", "GetQueuedCompletionStatus overlapped is nullptr");
+			
+			Overlap* res = reinterpret_cast<Overlap*>(ioCb);
+			Overlap::callback(GetLastError(), bytesTransferred, res);
+			dispatched_count++;
+		}
+	}
+	bool started() {
+		return threads.size();
+	}
+};
+
+
+
+
+F_IO_A_N_Controll global_control;
+
+
+
+typed_lgr<Task> read(lgr& file, uint32_t tlen, size_t pos, AsyncFile::ReadMode rm) {
+	typed_lgr<FuncEnviropment> read_enviro = new FuncEnviropment(
+		(AttachALambda*)new AttachALambdaWrap(
+			[file, tlen, pos, rm](list_array<ValueItem>* arguments) {
+				lgr pfile = file;
+				uint32_t len = tlen;
+				LARGE_INTEGER lgi;
+				if (!GetFileSizeEx(pfile.getPtr(), &lgi))
+					return new ValueItem(new AException("system fault async", "GetFileSizeEx failed with error " + _format_msq(GetLastError()) + " for handle " + string_help::n2hexstr(file.getPtr())), ValueMeta(VType::except_value, false, true), true);
+				
+				if (rm == AsyncFile::ReadMode::full) {
+					size_t checkp = len + pos;
+					if(
+						checkp < len ||
+						pos < len ||
+						(
+							checkp == size_t(INT64_MIN) &&
+							lgi.QuadPart != INT64_MIN
+						) ||
+						(
+							checkp != size_t(INT64_MIN) &&
+							lgi.QuadPart < checkp
+						)
+					)
+						return new ValueItem(new AException("system fault async", "ReadMode::full, position and length is too large for handle " + string_help::n2hexstr(file.getPtr())), ValueMeta(VType::except_value, false, true), true);
+				}
+				else {
+					size_t checkp = len + pos;
+					if (
+						checkp < len ||
+						pos < len ||
+						(
+							checkp == size_t(INT64_MIN) &&
+							lgi.QuadPart != INT64_MIN
+						) ||
+						(
+							checkp != size_t(INT64_MIN) &&
+							lgi.QuadPart < checkp
+						)
+					)
+						len = pos - lgi.QuadPart;
+				}
+
+				if(!len)
+					return new ValueItem(nullptr, ValueMeta(VType::raw_arr_ui8, false, true, 0), true);
+
+				DWORD error;
+				lpOverlap overlap(new Overlap(pfile,pos));
+				overlap->read_result = new char[len];
+				DWORD numberOfBytesRead = 0;
+				const auto result = ::ReadFile(pfile.getPtr(), overlap->read_result, len, &numberOfBytesRead, overlap.getPtr());
+				if (result)
+					goto end;
+
+				error = GetLastError();
+				switch (error) {
+				case ERROR_SUCCESS:
+				case ERROR_IO_PENDING:
+					break;
+				default:
+					return new ValueItem(new AException("system fault async", "ReadFile failed with error " + _format_msq(error) + " for handle " + string_help::n2hexstr(file.getPtr())), ValueMeta(VType::except_value, false, true), true);
+				}
+				overlap->wait();
+			end:
+				char* res = overlap->read_result;
+				overlap->read_result = nullptr;
+				if (pfile.totalLinks() != 1)
+					goto end;
+				return new ValueItem(res, ValueMeta(VType::raw_arr_ui8, false, true, overlap->transfered_len), true);
+			}
+		),
+		false
+	);
+	if (!global_control.started())
+		global_control.enable(1);
+	typed_lgr<Task> aa(new Task(read_enviro, nullptr));
+	Task::start(aa);
+	return aa;
+}
+typed_lgr<Task> write(lgr file, char* arr, uint32_t len, size_t pos) {
+	typed_lgr<FuncEnviropment> read_enviro = new FuncEnviropment(
+		(AttachALambda*)new AttachALambdaWrap(
+			[file, arr, len, pos](list_array<ValueItem>* arguments) {
+				lgr pfile = file;
+				lpOverlap overlap(new Overlap(pfile, pos));
+				overlap->read_result = arr;
+				DWORD numberOfBytesWriten = 0;
+				DWORD error;
+				WriteFile(*pfile, overlap->read_result, len, &numberOfBytesWriten, overlap.getPtr());
+				error = GetLastError();
+				switch (error) {
+				case ERROR_SUCCESS:
+				case ERROR_IO_PENDING:
+					break;
+				default:
+					return new ValueItem(new AException("system fault async", "WriteFile failed with error " + _format_msq(error) + " for handle " + string_help::n2hexstr(file.getPtr())), ValueMeta(VType::except_value, false, true), true);
+				}
+				overlap->wait();
+				return new ValueItem((void*)overlap->transfered_len, ValueMeta(VType::ui32, false, true));
+			}
+		),
+		false
+	);
+	if (!global_control.started())
+		global_control.enable(1);
+
+	typed_lgr<Task> aa(new Task(read_enviro, nullptr));
+	Task::start(aa);
+	return aa;
+}
+
+
+
+
+
+void handleCleanUp(HANDLE hndl) {
+	CloseHandle(hndl);
+}
+AsyncFile::AsyncFile(const char* path, OpenMode open_mode) {
+	void* desc =
+		CreateFileA(path,
+		GENERIC_WRITE | GENERIC_READ,
+		FILE_SHARE_READ | FILE_SHARE_WRITE,
+		nullptr, (int)open_mode,
+		FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
+		nullptr);
+	if (descriptor == INVALID_HANDLE_VALUE) {
+		const auto error = GetLastError();
+		switch (error) {
+		case ERROR_ACCESS_DENIED:
+			throw std::exception("Insufficient permissions for file opening");
+		case ERROR_ALREADY_EXISTS:
+		case ERROR_FILE_EXISTS:
+			throw std::exception("File already exists");
+		case ERROR_FILE_NOT_FOUND:
+			throw std::exception("File not found");
+		default:
+			throw std::exception("Failed to open file");
+		}
+	}
+	global_control.attach(desc);
+	descriptor = lgr(desc,nullptr, handleCleanUp);
+}
+AsyncFile::~AsyncFile() {}
+
+size_t AsyncFile::length() {
+	LARGE_INTEGER lgi;
+	if (!GetFileSizeEx(descriptor.getPtr(), &lgi))
+		throw AException("system fault async", "GetFileSizeEx failed with error " + _format_msq(GetLastError()) + " for handle " + string_help::n2hexstr(descriptor.getPtr())), ValueMeta(VType::except_value, false, true);
+}
+typed_lgr<Task> AsyncFile::read(uint32_t len, size_t pos, ReadMode rm) {
+	return ::read(descriptor, len, pos, rm);
+}
+typed_lgr<Task> AsyncFile::read(uint32_t len, ReadMode rm) {
+	std::lock_guard guard(no_race);
+	r_pos += len;
+	return ::read(descriptor, len, r_pos - len, rm);
+}
+typed_lgr<Task> AsyncFile::write(char* arr, uint32_t len, size_t pos) {
+	return ::write(descriptor, arr, len, pos);
+}
+typed_lgr<Task> AsyncFile::write(char* arr, uint32_t len) {
+	return ::write(descriptor, arr, len, w_pos);
+}
+typed_lgr<Task> AsyncFile::append(char* arr, uint32_t len) {
+	return ::write(descriptor, arr, len, -1);
+}
+
+#elif false
+
+
+#endif
 
 boost::fibers::condition_variable_any sleep_task{};
 std::condition_variable awake_task{};
@@ -721,7 +1274,8 @@ std::condition_variable ini_end;
 
 std::atomic_size_t tasks_count = 0;
 boost::fibers::condition_variable_any task_end{};
-
+std::mutex disabler;
+thread_local size_t to_disable_executors = 0;
 void aathread() {
 	boost::fibers::use_scheduling_algorithm<boost::fibers::algo::shared_work>();
 	++inited_count;
@@ -730,10 +1284,16 @@ void aathread() {
 	std::unique_lock lk(mtx_count);
 	size_t no_tasks_count = 0;
 
-	boost::fibers::scheduler* cur_sched = boost::fibers::context::active()->get_scheduler();
 	while (true) {
-		awake_task.wait(lk, []() { return (bool)tasks_count; });
-		sleep_task.wait(lk, []() { return !tasks_count; });
+		if (to_disable_executors) {
+			std::lock_guard guard(disabler);
+			if (to_disable_executors) {
+				--to_disable_executors;
+				return;
+			}
+		}
+		awake_task.wait(lk, []() { return (bool)tasks_count || to_disable_executors; });
+		sleep_task.wait(lk, []() { return !tasks_count || to_disable_executors; });
 	}
 }
 
@@ -750,6 +1310,16 @@ void BTask::createExecutor(uint32_t c) {
 	while (inited_count >= c)
 		ini_end.wait(lk);
 }
+void BTask::reduceExecutor(uint32_t c) {
+	{
+		std::lock_guard guard(disabler);
+		to_disable_executors += c;
+	}
+	for (uint32_t i = 0; i < c; i++) {
+		awake_task.notify_one();
+		sleep_task.notify_one();
+	}
+}
 void BTask::start(typed_lgr<BTask> lgr_task) {
 	boost::fibers::mutex mut;
 	std::unique_lock lk(mut);
@@ -757,7 +1327,6 @@ void BTask::start(typed_lgr<BTask> lgr_task) {
 	//boost::fibers::condition_variable start_notify{};
 	++tasks_count;
 	boost::fibers::fiber([](typed_lgr<BTask> lgr_task) {
-
 		curr_task.reset(new typed_lgr<BTask>(lgr_task));
 		ValueItem* tmp = lgr_task->func->syncWrapper(lgr_task->args);
 		delete curr_task.release();
@@ -768,14 +1337,14 @@ void BTask::start(typed_lgr<BTask> lgr_task) {
 			lgr_task->fres->results.push_back(std::move(*tmp));
 			delete tmp;
 		}
-		
+
 		lgr_task->fres->result_notify.notify_all();
 		if (!tasks_count)
 			task_end.notify_all();
 		sleep_task.notify_one();
-	}, lgr_task).detach();
-	//start_notify.wait(lk);
-	awake_task.notify_one();
+		}, lgr_task).detach();
+		//start_notify.wait(lk);
+		awake_task.notify_one();
 }
 void BTask::result(ValueItem* f_res) {
 	if (curr_task.get()) {
@@ -788,7 +1357,7 @@ void BTask::result(ValueItem* f_res) {
 void BTask::awaitEndTasks() {
 	std::mutex mut;
 	std::unique_lock lk(mut);
-	while(tasks_count)
+	while (tasks_count)
 		task_end.wait(lk);
 }
 

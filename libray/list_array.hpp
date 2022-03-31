@@ -2575,6 +2575,12 @@ public:
 		begin()._fast_load(tmp, _size);
 		return tmp;
 	}
+	//editing with size change is not allowed when used raw pointer 
+	conexpr T* data() {
+		if (blocks_more(1))
+			commit();
+		return arr.arr->arr_contain;
+	}
 };
 #undef req
 #undef conexpr

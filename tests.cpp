@@ -296,6 +296,11 @@ void cout_test() {
 	std::cout << idsaDAS << std::endl;
 	CTask::sleep(1000);
 }
+void sleep_test() {
+	auto started = std::chrono::high_resolution_clock::now();
+	CTask::sleep(1000);
+	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started) << std::endl;
+}
 struct test_lgr {
 	bool depth_safety() const {
 		return self.depth_safety();
@@ -315,6 +320,22 @@ void lgr_loop_test() {
 #include "run_time/AttachA_CXX.hpp"
 typedef void (*functs)(...);
 int main() {
+	{
+		AsyncFile testing("hello.txt", AsyncFile::OpenMode::open_always);
+
+		for (size_t i = 0; i < 50000; i++) {
+			std::string test = std::to_string(i) + " item";
+			for (size_t j = 0; j < 5000; j++)
+				test.push_back(' ');
+			test.push_back('\n');
+			char* str = new char[test.size()];
+			memcpy(str, test.c_str(), test.size());
+			testing.append(str, test.size());
+		}
+		CTask::createExecutor(1);
+		CTask::awaitEndTasks();
+	}
+
 	//std::thread(ignoredAsyncGC).detach();
 
 	//try {
@@ -326,6 +347,7 @@ int main() {
 	//}
 	//
 	initStandardFunctions();
+	CTask::sleep(100000000000);
 	//for (size_t i = 0; i < 100; i++) {
 	//	typed_lgr tlgr(new test_lgr());
 	//	tlgr->self = tlgr;
@@ -365,7 +387,7 @@ int main() {
 	bAsyncCall(programm, "console setTextColor");
 	bArgSet(programm, 0);
 	bAsyncCallReturn(programm, "console printLine");
-	CTask::createExecutor(18);
+	CTask::createExecutor(1);
 
 	FuncEnviropment::AddNative(TestCall, "test");
 	FuncEnviropment::AddNative(ThrowCall, "throwcall");
@@ -378,6 +400,7 @@ int main() {
 	FuncEnviropment::AddNative(fvbzxcbxcv, "3");
 	FuncEnviropment::AddNative(a3tgr4at, "4");
 	FuncEnviropment::AddNative(cout_test, "cout_test");
+	FuncEnviropment::AddNative(sleep_test, "sleep_test");
 
 
 	{
@@ -387,7 +410,7 @@ int main() {
 		bCallReturn(programm, "Yay");
 		FuncEnviropment::Load(programm, "Yay");
 	}
-	typed_lgr<FuncEnviropment> env = FuncEnviropment::enviropment("start");
+	typed_lgr<FuncEnviropment> env = FuncEnviropment::enviropment("sleep_test");
 	//CTask::start(new CTask(FuncEnviropment::enviropment("4"), nullptr));
 	CTask::start(new CTask(FuncEnviropment::enviropment("3"), nullptr));
 	CTask::start(new CTask(FuncEnviropment::enviropment("2"), nullptr));
@@ -413,19 +436,19 @@ int main() {
 		CTask::awaitEndTasks();
 	}
 
+	CTask::reduceExecutor(1);
+	CTask::awaitEndTasks();
+
 	for (size_t i = 0; i < 10000; i++) {
+		CTask::start(new CTask(FuncEnviropment::enviropment("start"), nullptr));
+		CTask::start(new CTask(FuncEnviropment::enviropment("1"), nullptr));
 		CTask::start(new CTask(env, nullptr));
 	}
+	CTask::createExecutor(16);
 	CTask::awaitEndTasks();
-	std::this_thread::sleep_for(std::chrono::seconds(3));
 	for (size_t i = 0; i < 10000; i++)
 		CTask::start(new CTask(env, nullptr));
 	CTask::awaitEndTasks();
-	std::this_thread::sleep_for(std::chrono::seconds(3));
-	for (size_t i = 0; i < 10000; i++)
-		CTask::start(new CTask(env, nullptr));
-	CTask::awaitEndTasks();
-	std::this_thread::sleep_for(std::chrono::seconds(3));
 	for (size_t i = 0; i < 10000; i++)
 		CTask::start(new CTask(env, nullptr));
 	CTask::awaitEndTasks();

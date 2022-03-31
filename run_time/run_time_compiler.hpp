@@ -28,7 +28,20 @@ public:
 	}
 };
 
-
+class AttachALambda {
+public:
+	virtual ValueItem* operator()(list_array<ValueItem>* args) = 0;
+};
+class AttachALambdaWrap : AttachALambda {
+	std::function<ValueItem* (list_array<ValueItem>*)> function;
+public:
+	AttachALambdaWrap(std::function<ValueItem* (list_array<ValueItem>*)>&& fnc) {
+		function = std::move(fnc);
+	}
+	ValueItem* operator()(list_array<ValueItem>* args) override {
+		return function(args);
+	}
+};
 extern ValueEnvironment enviropments;
 extern thread_local ValueEnvironment thread_local_enviropments;
 class FuncEnviropment {
@@ -37,6 +50,7 @@ public:
 		own,
 		native,
 		native_own_abi,
+		lambda_native_own_abi,
 		python,
 		csharp,
 		java
@@ -59,26 +73,6 @@ private:
 	uint32_t in_debug : 1 = false;
 	uint32_t can_be_unloaded : 1 = true;
 	void Compile();
-
-	FuncEnviropment(const std::vector<uint8_t>& code, uint16_t values_count,bool cbu) {
-		cross_code = code;
-		max_values = values_count;
-		can_be_unloaded = cbu;
-		type = FuncType::own;
-	}
-	FuncEnviropment(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ,bool cbu) {
-		nat_templ = templ;
-		type = FuncType::native;
-		curr_func = (Enviropment)proc;
-		need_compile = false;
-		can_be_unloaded = cbu;
-	}
-	FuncEnviropment(AttachACXX proc, bool cbu) {
-		type = FuncType::native_own_abi;
-		curr_func = (Enviropment)proc;
-		need_compile = false;
-		can_be_unloaded = cbu;
-	}
 	void funcComp() {
 		std::lock_guard lguard(compile_lock);
 		if (need_compile) {
@@ -90,6 +84,36 @@ private:
 	}
 
 public:
+	void preCompile() {
+		if(need_compile)
+			funcComp();
+	}
+	FuncEnviropment(const std::vector<uint8_t>& code, uint16_t values_count, bool _can_be_unloaded) {
+		cross_code = code;
+		max_values = values_count;
+		can_be_unloaded = _can_be_unloaded;
+		type = FuncType::own;
+	}
+	FuncEnviropment(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, bool _can_be_unloaded) {
+		nat_templ = templ;
+		type = FuncType::native;
+		curr_func = (Enviropment)proc;
+		need_compile = false;
+		can_be_unloaded = _can_be_unloaded;
+	}
+	FuncEnviropment(AttachACXX proc, bool _can_be_unloaded) {
+		type = FuncType::native_own_abi;
+		curr_func = (Enviropment)proc;
+		need_compile = false;
+		can_be_unloaded = _can_be_unloaded;
+	}
+	FuncEnviropment(AttachALambda* proc, bool _can_be_unloaded) {
+		type = FuncType::lambda_native_own_abi;
+		curr_func = (Enviropment)proc;
+		need_compile = false;
+		can_be_unloaded = _can_be_unloaded;
+	}
+
 	ValueItem* NativeProxy_DynamicToStatic(list_array<ValueItem>*);
 	ValueItem* initAndCall(list_array<ValueItem>*);
 
@@ -222,7 +246,6 @@ public:
 			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
 		enviropments[symbol_name] = typed_lgr(new FuncEnviropment(function, can_be_unloaded));
 	}
-
 
 	static void AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded = true) {
 		if (enviropments.contains(symbol_name))

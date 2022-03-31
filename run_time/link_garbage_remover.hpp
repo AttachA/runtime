@@ -17,12 +17,12 @@ class lgr {
 #define snap_rec_lgr_arg
 #define can_throw noexcept
 #endif
-	bool(*calc_depth)(void*);
-	void(*destructor)(void*);
-	void* ptr;
-	std::atomic_size_t* total;
-	std::atomic_size_t* weak;
-	bool in_safe_deph;
+	bool(*calc_depth)(void*) = nullptr;
+	void(*destructor)(void*) = nullptr;
+	void* ptr = nullptr;
+	std::atomic_size_t* total = nullptr;
+	std::atomic_size_t* weak = nullptr;
+	bool in_safe_deph = false;
 
 	void exit();
 	void join(std::atomic_size_t* p_total_links, std::atomic_size_t* tot_weak snap_rec_lgr_arg);
@@ -39,9 +39,16 @@ public:
 	void*& operator*();
 	void** operator->();
 	void* getPtr();
+	const void* getPtr() const;
 	bool calcDeph();
 	bool depth_safety() const;
 	bool is_deleted() const;
+	lgr take() {
+		return lgr(std::move(*this));
+	}
+	size_t totalLinks() const {
+		return total ? total->load() : 0;
+	}
 	bool operator==(const lgr& cmp) const;
 	bool operator!=(const lgr& cmp) const;
 	operator bool() const;
@@ -141,6 +148,15 @@ public:
 	}
 	bool is_deleted() const {
 		return actual_lgr.is_deleted();
+	}
+	typed_lgr take() {
+		return typed_lgr(std::move(*this));
+	}
+	lgr actual() {
+		return actual_lgr;
+	}
+	size_t totalLinks() const {
+		return actual_lgr.totalLinks();
 	}
 	bool operator==(const typed_lgr& cmp) const {
 		return actual_lgr != cmp.actual_lgr;

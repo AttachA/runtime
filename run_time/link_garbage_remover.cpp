@@ -47,6 +47,8 @@ void lgr::exit() {
 	lgr_exit_snapshot(snap_records, current_snap);
 	if (total == nullptr);
 	else if (!in_safe_deph) {
+		if (!weak)
+			return;
 		--(*weak);
 		if (!*weak && !*total) {
 			delete total;
@@ -79,14 +81,7 @@ void lgr::join(std::atomic_size_t* p_total_links, std::atomic_size_t* tot_weak s
 	else if (!in_safe_deph && tot_weak)
 		++(*tot_weak);
 }
-lgr::lgr() {
-	calc_depth = nullptr;
-	destructor = nullptr;
-	ptr = nullptr;
-	total = nullptr;
-	weak = nullptr;
-	in_safe_deph = false;
-}
+lgr::lgr() {}
 lgr::lgr(void* copy, bool(*clc_depth)(void*), void(*destruct)(void*), bool as_weak) : calc_depth(clc_depth), destructor(destruct) {
 	if (copy) {
 		ptr = copy;
@@ -101,12 +96,6 @@ lgr::lgr(void* copy, bool(*clc_depth)(void*), void(*destruct)(void*), bool as_we
 			--(*total);
 		}
 		lgr_join_snapshot_0(snap_records, current_snap);
-	}
-	else {
-		ptr = nullptr;
-		total = nullptr;
-		weak = nullptr;
-		in_safe_deph = false;
 	}
 }
 lgr::lgr(const lgr& copy) {
@@ -183,6 +172,12 @@ void* lgr::getPtr() {
 	if (total)
 		if (!*total)
 			ptr = nullptr;
+	return ptr;
+}
+const void* lgr::getPtr() const {
+	if (total)
+		if (!*total)
+			return nullptr;
 	return ptr;
 }
 bool lgr::calcDeph() {

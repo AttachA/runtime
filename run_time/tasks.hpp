@@ -10,9 +10,9 @@
 #include <boost/fiber/future.hpp>
 
 
-
-
-
+//it do automaticaly self rethrow, but still recomended do rethrow manually and catching by const refrence
+class TaskCancellation;
+void forceCancelCancellation(TaskCancellation& cancel_token);
 
 
 
@@ -22,6 +22,7 @@
 class TaskConditionVariable {
 	std::list<typed_lgr<class Task>> resume_task;
 	std::condition_variable cd;
+	std::mutex no_race;
 public:
 	TaskConditionVariable() {}
 	void wait();
@@ -29,6 +30,17 @@ public:
 	bool wait_until(std::chrono::high_resolution_clock::time_point time_point);
 	void notify_one();
 	void notify_all();
+};
+class TaskAwaiter {
+	TaskConditionVariable cd;
+	std::mutex no_race;
+	bool allow_wait = true;
+public:
+	TaskAwaiter();
+	void wait();
+	bool wait_for(size_t milliseconds);
+	bool wait_until(std::chrono::high_resolution_clock::time_point time_point);
+	void endLife();
 };
 struct TaskResult {
 	list_array<ValueItem> results;
@@ -45,6 +57,7 @@ struct TaskResult {
 	TaskResult(TaskResult&& move) noexcept;
 	~TaskResult();
 };
+
 //Task only in typed_lgr
 struct Task {
 	TaskResult fres;
@@ -55,12 +68,13 @@ struct Task {
 	std::mutex* relock_mut = nullptr;
 	std::timed_mutex* relock_timed_mut = nullptr;
 	std::recursive_mutex* relock_rec_mut = nullptr;
-
 	bool time_end_flag = false;
 	bool awaked = false;
 	bool started = false;
 	bool is_yield_mode = false;
 	bool end_of_life = false;
+	bool make_cancel = false;
+	bool as_attacha_native = false;
 	Task(typed_lgr<class FuncEnviropment> call_func, list_array<ValueItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler = nullptr);
 	Task(Task&& mov) noexcept : fres(std::move(mov.fres)) {
 		ex_handle = mov.ex_handle;
@@ -81,7 +95,7 @@ struct Task {
 
 	static void createExecutor(size_t count = 1);
 	static size_t totalExecutors();
-	static void reduceExceutor(size_t count = 1);
+	static void reduceExecutor(size_t count = 1);
 	static void becomeTaskExecutor();
 	static void awaitNoTasks(bool be_executor = false);
 	static void awaitEndTasks();
@@ -111,6 +125,7 @@ class TaskMutex {
 	Task* current_task = nullptr;
 public:
 	TaskMutex() {}
+	~TaskMutex();
 	void lock();
 	bool try_lock();
 	bool try_lock_for(size_t milliseconds);
@@ -135,8 +150,66 @@ public:
 	void release_all();
 	bool is_locked();
 };
+class FileQuery {
+	TaskMutex no_race;
+	std::fstream stream;
+public:
+	FileQuery(const char* path) : stream(path, std::ios_base::in | std::ios_base::out | std::ios_base::binary) {}
+	~FileQuery() {
+		std::lock_guard guard(no_race);
+		stream.close();
+	}
 
+	//all pointers will not be released, it do automatically
 
+	//all pointers below will not be released, it do automatically
+	typed_lgr<Task> read(uint32_t len, size_t pos = -1);
+	typed_lgr<Task> write(char* arr, uint32_t len, size_t pos = -1);
+	typed_lgr<Task> append(char* arr, uint32_t len);
+
+	typed_lgr<Task> read_long(uint64_t len, size_t pos = -1);
+	typed_lgr<Task> write_long(list_array<uint8_t>*, size_t pos = -1);
+	typed_lgr<Task> append_long(list_array<uint8_t>*);
+};
+class AsyncFile {
+	TaskMutex no_race;
+	lgr descriptor;
+	size_t r_pos;
+	size_t w_pos;
+public:
+	enum class OpenMode {
+		create_new = 1,
+		create_always = 2,
+		open_existing = 3,
+		open_always = 4
+	};
+	enum class ReadMode {
+		full,//if reached EOF, exception will throw
+		no_care//if reached EOF, length argument will be ignored and readed rest bytes
+	};
+	AsyncFile(const char* path, OpenMode open_mode);
+	~AsyncFile();
+	typed_lgr<Task> seek(size_t pos) {
+		std::lock_guard guard(no_race);
+		r_pos = pos;
+		w_pos = pos;
+	}
+	typed_lgr<Task> seekR(size_t pos) {
+		std::lock_guard guard(no_race);
+		r_pos = pos;
+	}
+	typed_lgr<Task> seekW(size_t pos) {
+		std::lock_guard guard(no_race);
+		w_pos = pos;
+	}
+	size_t length();
+	//all pointers below will not be released, it do automatically
+	typed_lgr<Task> read(uint32_t len, size_t pos, ReadMode);
+	typed_lgr<Task> read(uint32_t len, ReadMode);
+	typed_lgr<Task> write(char* arr, uint32_t len, size_t pos);
+	typed_lgr<Task> write(char* arr, uint32_t len);
+	typed_lgr<Task> append(char* arr, uint32_t len);
+};
 
 
 using BTaskMutex = boost::fibers::timed_mutex;
@@ -194,6 +267,7 @@ public:
 
 
 	static void createExecutor(uint32_t count = 1);
+	static void reduceExecutor(uint32_t count = 1);
 	static void start(typed_lgr<BTask> lgr_task);
 	static void sleep(size_t milliseconds) {
 		boost::this_fiber::sleep_for(std::chrono::milliseconds(milliseconds));
@@ -211,12 +285,12 @@ public:
 		return lgr_task->fres->getResult(yield_res);
 	}
 };
-class FileQuery {
+class BFileQuery {
 	BTaskLMutex no_race;
 	std::fstream stream;
 public:
-	FileQuery(const char* path) : stream(path, std::ios_base::in | std::ios_base::out | std::ios_base::binary) {}
-	~FileQuery() {
+	BFileQuery(const char* path) : stream(path, std::ios_base::in | std::ios_base::out | std::ios_base::binary) {}
+	~BFileQuery() {
 		std::lock_guard guard(no_race);
 		stream.close();
 	}
@@ -236,7 +310,7 @@ public:
 			char* res = new char[len];
 			stream.read(res, len);
 			return res;
-			});
+		});
 	}
 	void write(char* arr,size_t len, size_t pos) {
 		boost::fibers::async([this, arr, len, pos]() {

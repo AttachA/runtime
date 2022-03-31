@@ -23,6 +23,10 @@ void defaultDestructor(void* a) {
 	delete (T*)a;
 }
 template<class T>
+void arrayDestructor(void* a) {
+	delete[] (T*)a;
+}
+template<class T>
 void Allocate(void** a) {
 	*a = new T();
 }
@@ -65,6 +69,7 @@ bool integer_unsigned(VType typ);
 //return equal,lower bool result
 std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val2);
 RFLAGS compare(RFLAGS old, void** value_1, void** value_2);
+RFLAGS link_compare(RFLAGS old, void** value_1, void** value_2);
 
 void copyEnviropement(void** env, uint16_t env_it_count, void*** res);
 
@@ -76,12 +81,70 @@ namespace ABI_IMPL {
 
 	template <class T>
 	T Vcast(void*& val, ValueMeta& meta) {
-
 		getAsyncResult(val, meta);
-		switch (meta.vtype)
-		{
+		switch (meta.vtype) {
 		case VType::noting:
 			return T();
+		case VType::raw_arr_i8: {
+			if constexpr (std::is_pointer_v<T>)
+				return (T)val;
+			else
+				return (T)((int8_t*)val)[0];
+		}
+		case VType::raw_arr_i16: {
+			if constexpr (std::is_pointer_v<T>)
+				return (T)val;
+			else
+				return (T)((int16_t*)val)[0];
+		}
+		case VType::raw_arr_i32: {
+			if constexpr (std::is_pointer_v<T>)
+				return (T)val;
+			else
+				return (T)((int32_t*)val)[0];
+		}
+		case VType::raw_arr_i64: {
+			if constexpr (std::is_pointer_v<T>)
+				return (T)val;
+			else
+				return (T)((int64_t*)val)[0];
+		}
+		case VType::raw_arr_ui8: {
+			if constexpr (std::is_pointer_v<T>)
+				return (T)val;
+			else
+				return (T)((uint8_t*)val)[0];
+		}
+		case VType::raw_arr_ui16: {
+			if constexpr (std::is_pointer_v<T>)
+				return (T)val;
+			else
+				return (T)((uint16_t*)val)[0];
+		}
+		case VType::raw_arr_ui32: {
+			if constexpr (std::is_pointer_v<T>)
+				return (T)val;
+			else
+				return (T)((uint32_t*)val)[0];
+		}
+		case VType::raw_arr_ui64: {
+			if constexpr (std::is_pointer_v<T>)
+				return (T)val;
+			else
+				return (T)((uint64_t*)val)[0];
+		}
+		case VType::raw_arr_flo: {
+			if constexpr (std::is_pointer_v<T>)
+				return (T)val;
+			else
+				return (T)((float*)val)[0];
+		}
+		case VType::raw_arr_doub: {
+			if constexpr (std::is_pointer_v<T>)
+				return (T)val;
+			else
+				return (T)((double*)val)[0];
+		}
 		case VType::i8:
 			return (T)reinterpret_cast<int8_t&>(val);
 		case VType::i16:

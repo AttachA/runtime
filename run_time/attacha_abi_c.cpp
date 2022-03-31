@@ -12,6 +12,16 @@
 
 bool needAlloc(VType type) {
 	switch (type) {
+	case VType::raw_arr_i8:
+	case VType::raw_arr_i16:
+	case VType::raw_arr_i32:
+	case VType::raw_arr_i64:
+	case VType::raw_arr_ui8:
+	case VType::raw_arr_ui16:
+	case VType::raw_arr_ui32:
+	case VType::raw_arr_ui64:
+	case VType::raw_arr_flo:
+	case VType::raw_arr_doub:
 	case VType::uarr:
 	case VType::string:
 	case VType::async_res:
@@ -51,8 +61,26 @@ void universalFree(void** value, ValueMeta meta) {
 	if (meta.use_gc)
 		goto gc_destruct;
 	switch (meta.vtype) {
+	case VType::raw_arr_i8:
+	case VType::raw_arr_ui8:
+		delete[](uint8_t*)* value;
+		return;
+	case VType::raw_arr_i16:
+	case VType::raw_arr_ui16:
+		delete[](uint16_t*)* value;
+		return;
+	case VType::raw_arr_i32:
+	case VType::raw_arr_ui32:
+	case VType::raw_arr_flo:
+		delete[](uint32_t*)* value;
+		return;
+	case VType::raw_arr_i64:
+	case VType::raw_arr_ui64:
+	case VType::raw_arr_doub:
+		delete[](uint64_t*)* value;
+		return;
 	case VType::uarr:
-		delete (list_array<ValueItem>*)*value;
+		delete (list_array<ValueItem>*)* value;
 		return;
 	case VType::string:
 		delete (std::string*)*value;
@@ -84,21 +112,55 @@ void universalAlloc(void** value, ValueMeta meta) {
 	if (*value)
 		universalRemove(value);
 	if (needAlloc(meta.vtype)) {
-		switch (meta.vtype)
-		{
+		switch (meta.vtype) {
+		case VType::raw_arr_i8:
+		case VType::raw_arr_ui8:
+			*value = new uint8_t[meta.val_len];
+			break;
+		case VType::raw_arr_i16:
+		case VType::raw_arr_ui16:
+			*value = new uint16_t[meta.val_len];
+			break;
+		case VType::raw_arr_i32:
+		case VType::raw_arr_ui32:
+		case VType::raw_arr_flo:
+			*value = new uint32_t[meta.val_len];
+			break;
+		case VType::raw_arr_ui64:
+		case VType::raw_arr_i64:
+		case VType::raw_arr_doub:
+			*value = new uint64_t[meta.val_len];
+			break;
 		case VType::uarr:
-			Allocate<list_array<ValueItem>>(value);
+			*value = new list_array<ValueItem>();
 			break;
 		case VType::string:
-			Allocate<std::string>(value);
+			*value = new std::string();
 			break;
 		}
 	}
 	if (meta.use_gc) {
 		void(*destructor)(void*) = nullptr;
 		bool(*deph)(void*) = nullptr;
-		switch (meta.vtype)
-		{
+		switch (meta.vtype) {
+		case VType::raw_arr_i8:
+		case VType::raw_arr_ui8:
+			destructor = arrayDestructor<uint8_t>;
+			break;
+		case VType::raw_arr_i16:
+		case VType::raw_arr_ui16:
+			destructor = arrayDestructor<uint16_t>;
+			break;
+		case VType::raw_arr_i32:
+		case VType::raw_arr_ui32:
+		case VType::raw_arr_flo:
+			destructor = arrayDestructor<uint32_t>;
+			break;
+		case VType::raw_arr_ui64:
+		case VType::raw_arr_i64:
+		case VType::raw_arr_doub:
+			destructor = arrayDestructor<uint64_t>;
+			break;
 		case VType::uarr:
 			destructor = defaultDestructor<list_array<ValueItem>>;
 			deph = calc_safe_deph_arr;
@@ -182,19 +244,39 @@ void* copyValue(void*& val, ValueMeta& meta) {
 	if (meta.use_gc)
 		actual_val = ((lgr*)val)->getPtr();
 	if (needAlloc(meta.vtype)) {
-		switch (meta.vtype)
-		{
-		case VType::uarr:
-			return new list_array<ValueItem>(*(list_array<ValueItem>*)val);
-		case VType::string:
-			return new std::string(*(std::string*)val);
-		case VType::async_res: {
-			auto tmp = getAsyncValueItem(val);
-			meta = tmp->meta;
-			val = tmp->val;
-			delete tmp;
-			return copyValue(val, meta);
+		switch (meta.vtype) {
+		case VType::raw_arr_i8:
+		case VType::raw_arr_ui8: {
+			uint8_t* cop = new uint8_t[meta.val_len];
+			memcpy(cop, actual_val, meta.val_len);
+			return cop;
 		}
+		case VType::raw_arr_i16:
+		case VType::raw_arr_ui16: {
+			uint16_t* cop = new uint16_t[meta.val_len];
+			memcpy(cop, actual_val, size_t(meta.val_len) * 2);
+			return cop;
+		}
+		case VType::raw_arr_i32:
+		case VType::raw_arr_ui32:
+		case VType::raw_arr_flo: {
+			uint32_t* cop = new uint32_t[meta.val_len];
+			memcpy(cop, actual_val, size_t(meta.val_len) * 4);
+			return cop;
+		}
+		case VType::raw_arr_i64:
+		case VType::raw_arr_ui64:
+		case VType::raw_arr_doub: {
+			uint64_t* cop = new uint64_t[meta.val_len];
+			memcpy(cop, actual_val, size_t(meta.val_len) * 8);
+			return cop;
+		}
+		case VType::uarr:
+			return new list_array<ValueItem>(*(list_array<ValueItem>*)actual_val);
+		case VType::string:
+			return new std::string(*(std::string*)actual_val);
+		case VType::async_res:
+			return new typed_lgr<Task>(*(typed_lgr<Task>*)actual_val);
 		default:
 			throw NotImplementedException();
 		}
@@ -460,9 +542,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 			return { false, *(std::string*)val1 < *(std::string*)val2 };
 	}
 	else if (cmp1 == VType::uarr && cmp2 == VType::uarr) {
-		if (cmp1 == cmp2)
-			return { true,false };
-		else if (!calc_safe_deph_arr(val1))
+		if (!calc_safe_deph_arr(val1))
 			return { false,false };
 		else if (!calc_safe_deph_arr(val2))
 			return { false,false };
@@ -500,6 +580,24 @@ RFLAGS compare(RFLAGS old, void** value_1, void** value_2) {
 	auto res = compareValue(cmp1.vtype, cmp2.vtype, val1, val2);
 	old.zero = res.first;
 	old.carry = res.second;
+	return old;
+}
+RFLAGS link_compare(RFLAGS old, void** value_1, void** value_2) {
+	void* val1 = getValue(value_1);
+	void* val2 = getValue(value_2);
+	ValueMeta cmp1 = *(ValueMeta*)(value_1 + 1);
+	ValueMeta cmp2 = *(ValueMeta*)(value_2 + 1);
+
+	old.parity = old.auxiliary_carry = old.sign_f = old.overflow = 0;
+	auto res = compareValue(cmp1.vtype, cmp2.vtype, val1, val2);
+	if (*value_1 == *value_2) { 
+		old.zero = true;
+		old.carry = false;
+	}
+	else {
+		old.zero = false;
+		old.carry = uint64_t(val1) < uint64_t(val2);
+	}
 	return old;
 }
 
@@ -555,6 +653,86 @@ namespace ABI_IMPL {
 		switch (meta.vtype) {
 		case VType::noting:
 			return "null";
+		case VType::raw_arr_i8: {
+			std::string res = "*[";
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				res += std::to_string(reinterpret_cast<int8_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			if (!meta.val_len)
+				res += ']';
+			return res;
+		}
+		case VType::raw_arr_i16: {
+			std::string res = "*[";
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				res += std::to_string(reinterpret_cast<int16_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			if (!meta.val_len)
+				res += ']';
+			return res;
+		}
+		case VType::raw_arr_i32: {
+			std::string res = "*[";
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				res += std::to_string(reinterpret_cast<int32_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			if (!meta.val_len)
+				res += ']';
+			return res;
+		}
+		case VType::raw_arr_i64: {
+			std::string res = "*[";
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				res += std::to_string(reinterpret_cast<int64_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			if (!meta.val_len)
+				res += ']';
+			return res;
+		}
+		case VType::raw_arr_ui8: {
+			std::string res = "*[";
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				res += std::to_string(reinterpret_cast<uint8_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			if (!meta.val_len)
+				res += ']';
+			return res;
+		}
+		case VType::raw_arr_ui16: {
+			std::string res = "*[";
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				res += std::to_string(reinterpret_cast<uint16_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			if (!meta.val_len)
+				res += ']';
+			return res;
+		}
+		case VType::raw_arr_ui32: {
+			std::string res = "*[";
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				res += std::to_string(reinterpret_cast<uint32_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			if (!meta.val_len)
+				res += ']';
+			return res;
+		}
+		case VType::raw_arr_ui64: {
+			std::string res = "*[";
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				res += std::to_string(reinterpret_cast<uint64_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			if (!meta.val_len)
+				res += ']';
+			return res;
+		}
+		case VType::raw_arr_flo: {
+			std::string res = "*[";
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				res += std::to_string(reinterpret_cast<float*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			if (!meta.val_len)
+				res += ']';
+			return res;
+		}
+		case VType::raw_arr_doub: {
+			std::string res = "*[";
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				res += std::to_string(reinterpret_cast<double*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			if (!meta.val_len)
+				res += ']';
+			return res;
+		}
 		case VType::i8:
 			return std::to_string(reinterpret_cast<int8_t&>(val));
 		case VType::i16:
@@ -614,6 +792,9 @@ namespace ABI_IMPL {
 		else if (str.starts_with('[')) {
 			//TO-DO
 			return ValueItem(new std::string(str), ValueMeta(VType::string, false, true));
+		}else if(str.starts_with("*[")) {
+			//TO-DO
+			return ValueItem(new std::string(str), ValueMeta(VType::string, false, true));
 		}
 		else {
 			try {
@@ -659,7 +840,39 @@ namespace ABI_IMPL {
 	template<class T>
 	void setValue(const T& val, void** set_val) {
 		universalRemove(set_val);
-		if constexpr (std::is_same_v<T, int8_t>) {
+		if constexpr (std::is_same_v<T, int8_t*>) {
+			*reinterpret_cast<int8_t**>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i8, false, true);
+		}
+		else if constexpr (std::is_same_v<T, uint8_t*>) {
+			*reinterpret_cast<uint8_t**>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui8, false, true);
+		}
+		else if constexpr (std::is_same_v<T, int16_t*>) {
+			*reinterpret_cast<int16_t**>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i16, false, true);
+		}
+		else if constexpr (std::is_same_v<T, uint16_t*>) {
+			*reinterpret_cast<uint16_t**>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui16, false, true);
+		}
+		else if constexpr (std::is_same_v<T, int32_t*>) {
+			*reinterpret_cast<int32_t**>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i32, false, true);
+		}
+		else if constexpr (std::is_same_v<T, uint32_t*>) {
+			*reinterpret_cast<uint32_t**>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui32, false, true);
+		}
+		else if constexpr (std::is_same_v<T, int64_t**>) {
+			*reinterpret_cast<int64_t**>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i64, false, true);
+		}
+		else if constexpr (std::is_same_v<T, uint64_t*>) {
+			*reinterpret_cast<uint64_t**>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui64, false, true);
+		}
+		else if constexpr (std::is_same_v<T, int8_t>) {
 			*reinterpret_cast<int8_t*>(set_val) = val;
 			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i8, false, true);
 		}

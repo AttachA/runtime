@@ -111,6 +111,16 @@ enum class VType : uint8_t {
 	ui64,
 	flo,
 	doub,
+	raw_arr_i8,
+	raw_arr_i16,
+	raw_arr_i32,
+	raw_arr_i64,
+	raw_arr_ui8,
+	raw_arr_ui16,
+	raw_arr_ui32,
+	raw_arr_ui64,
+	raw_arr_flo,
+	raw_arr_doub,
 	uarr,
 	string,
 	async_res,
@@ -133,11 +143,12 @@ union ValueMeta {
 		VType vtype;
 		uint8_t use_gc : 1;
 		uint8_t allow_edit : 1;
+		uint32_t val_len;
 	};
 
 	ValueMeta() = default;
 	ValueMeta(const ValueMeta& copy) = default;
-	ValueMeta(VType ty, bool gc, bool editable) { vtype = ty; use_gc = gc; allow_edit = editable; }
+	ValueMeta(VType ty, bool gc, bool editable, uint32_t length = 0) { vtype = ty; use_gc = gc; allow_edit = editable; val_len = length; }
 	ValueMeta(size_t enc) { encoded = enc; }
 };
 

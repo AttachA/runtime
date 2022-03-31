@@ -14,7 +14,7 @@ public:
 	AttachARuntimeException() { message = ""; }
 	AttachARuntimeException(const char* msq) : message(msq) {}
 	AttachARuntimeException(const std::string& msq) : message(msq) {}
-	virtual ~AttachARuntimeException(){}
+	virtual ~AttachARuntimeException() noexcept(false) {}
 	const std::string& what() const {
 		return message;
 	}
