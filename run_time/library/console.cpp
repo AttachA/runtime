@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2022
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #include "console.hpp"
 #include <cstdio>
 #include <string>
@@ -7,84 +13,95 @@ namespace console {
 #include <Windows.h>
 	//enable ANSI escape codes in console
 	const bool is_loaded = SetConsoleMode(GetConsoleWindow(), ENABLE_VIRTUAL_TERMINAL_INPUT);
+	HANDLE hout = GetStdHandle(-11);
 #else
 	constexpr bool is_loaded = true;
 #endif
 	//use ANSI escape codes
 	extern "C" {
 		void printLine(const char* chars) {
+
+#ifdef _WIN64
+			size_t str_len = strlen(chars);
+			char* str = (char*)alloca(str_len + 2);
+			memcpy(str, chars, str_len);
+			str[str_len] = '\n';
+			str[str_len+1] = 0;
+			WriteConsoleA(hout, str, str_len+2, nullptr, nullptr);
+#elif
 			puts(chars);
+#endif
 		}
 		void print(const char* chars) {
+#ifdef _WIN64
+			WriteConsoleA(hout, chars, strlen(chars), nullptr, nullptr);
+#elif
 			fputs(chars, stdout);
+#endif
 		}
 		void resetModifiers() {
-			fputs("\033[0m", stdout);
+			print("\033[0m");
 		}
 		void boldText() {
-			fputs("\033[1m", stdout);
+			print("\033[1m");
 		}
 		void italicText() {
-			fputs("\033[3m", stdout);
+			print("\033[3m");
 		}
 		void underlineText() {
-			fputs("\033[4m", stdout);
+			print("\033[4m");
 		}
 		void slowBlink() {
-			fputs("\033[5m", stdout);
+			print("\033[5m");
 		}
 		void rapidBlink() {
-			fputs("\033[6m", stdout);
+			print("\033[6m");
 		}
 		void invertColors() {
-			fputs("\033[7m", stdout);
+			print("\033[7m");
 		}
 		void notBoldText() {
-			fputs("\033[22m", stdout);
+			print("\033[22m");
 		}
 		void notUnderlinedText() {
-			fputs("\033[24m", stdout);
+			print("\033[24m");
 		}
 		void notBlinkText() {
-			fputs("\033[25m", stdout);
+			print("\033[25m");
 		}
 
 		void resetTextColor() {
-			fputs("\033[39m", stdout);
+			print("\033[39m");
 		}
 		void resetBgColor() {
-			fputs("\033[49m", stdout);
+			print("\033[49m");
 		}
 		void setTextColor(uint8_t r, uint8_t g, uint8_t b) {
 			printf("\033[38;2;%d;%d;%dm", r, g, b);
-			//fputs(("\033[38;2;" + std::to_string(r) + ';' + std::to_string(g) + ';' + std::to_string(b) + 'm').c_str(), stdout);
 		}
 		void setBgColor(uint8_t r, uint8_t g, uint8_t b) {
 			printf("\033[48;2;%d;%d;%dm", r, g, b);
-			//fputs(("\033[48;2;" + std::to_string(r) + ';' + std::to_string(g) + ';' + std::to_string(b) + 'm').c_str(), stdout);
 		}
 		void setPos(uint16_t row, uint16_t col) {
 			printf("\033[%d;%dH", row + 1, col+1);
-			//std::string tmp = "\033[" + std::to_string(row + 1) +';' + std::to_string(col + 1) +'H';
-			//fputs(tmp.c_str(), stdout);
 		}
 		void saveCurPos() {
-			fputs("\033[s", stdout);
+			print("\033[s");
 		}
 		void loadCurPos() {
-			fputs("\033[u", stdout);
+			print("\033[u");
 		}
 		void setLine(uint32_t y) {
 			if (y == 0)
-				fputs("\033[999999D", stdout);
+				print("\033[999999D");
 			else
 				printf("\033[999999D\033[%dC",y);
 		}
 		void showCursor(uint32_t y) {
-			fputs("\033[?25h", stdout);
+			print("\033[?25h");
 		}
 		void hideCursor(uint32_t y) {
-			fputs("\033[?25l", stdout);
+			print("\033[?25l");
 		}
 	}
 }

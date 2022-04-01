@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2022
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #include <list>
 #include <boost/context/protected_fixedsize_stack.hpp>
 
@@ -8,9 +14,9 @@
 
 #include "AttachA_CXX.hpp"
 #include "tasks.hpp"
-#include "../libray/exceptions.hpp"
-#include "../libray/mem_tool.hpp"
-#include "../libray/string_help.hpp"
+#include "library/exceptions.hpp"
+#include "../library/mem_tool.hpp"
+#include "../library/string_help.hpp"
 #include <iostream>
 #include <stack>
 #include <queue>

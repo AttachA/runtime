@@ -1,9 +1,7 @@
+/// this file external, used as manual for linux DWARF, not licensed
 #pragma once
 #include <vector>
 #include <memory>
-#include "CASM.hpp"
-#include "../libray/list_array.hpp"
-#include "../libray/exceptions.hpp"
 using namespace asmjit;
 #ifdef _WIN32
 #include <Windows.h>

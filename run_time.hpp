@@ -1,8 +1,14 @@
+// Copyright Danyil Melnytskyi 2022
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #pragma once
-#include "libray/exceptions.hpp"
-#include "libray/list_array.hpp"
-#include "libray/events.hpp"
-#include "libray/string_convert.hpp"
+#include "run_time/library/exceptions.hpp"
+#include "library/list_array.hpp"
+#include "library/events.hpp"
+#include "library/string_convert.hpp"
 #include "run_time/cxxException.hpp"
 #include <thread>
 typedef void* (*CALL_FUNC)(...);

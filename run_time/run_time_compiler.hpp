@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2022
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #pragma once
 #include <unordered_map>
 #include <chrono>
@@ -6,8 +12,8 @@
 #include <string>
 #include <atomic>
 #include <mutex>
-#include "../libray/exceptions.hpp"
-#include "../libray/list_array.hpp"
+#include "library/exceptions.hpp"
+#include "../library/list_array.hpp"
 #include "attacha_abi.hpp"
 #include "dynamic_call.hpp"
 #include "tasks.hpp"

@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2022
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #pragma once
 #include <bit>
 #include <stdint.h>
@@ -1291,42 +1297,86 @@ void FuncEnviropment::Compile() {
 struct EnviroHold {
 	void** envir;
 	uint16_t _vals;
-	EnviroHold(uint16_t vals) :_vals(vals) {
-		if (vals) {
-			envir = new void* [size_t(vals) << 1];
+	EnviroHold(void** env, uint16_t vals) :envir(env), _vals(vals) {
+		if (vals)
 			memset(envir, 0, sizeof(void*) * (size_t(vals) << 1));
-		}
-		else
-			envir = nullptr;
 	}
 	~EnviroHold() {
-		removeEnviropement(envir, _vals);
-		if (envir)
-			delete[] envir;
+		if(_vals)
+			removeEnviropement(envir, _vals);
 	}
 };
-
+//stack alloc
 ValueItem* FuncEnviropment::initAndCall(list_array<ValueItem>* arguments) {
 	ValueItem* res = nullptr;
-	EnviroHold env(max_values);
+	EnviroHold env(
+		(
+			max_values ?
+			(void**)alloca(sizeof(void*) * (size_t(max_values) << 1)) :
+			nullptr
+		)
+		, max_values
+	);
 	try {
-		res = curr_func(env.envir,arguments);
+		res = curr_func(env.envir, arguments);
 	}
-	catch(const StackOverflowException&){
+	catch (const StackOverflowException&) {
 		if (!need_restore_stack_fault()) {
 			--current_runners;
 			throw;
 		}
 	}
-	catch(...) {
+	catch (...) {
 		--current_runners;
 		throw;
 	}
 	--current_runners;
-	if (restore_stack_fault()) 
+	if (restore_stack_fault())
 		throw StackOverflowException();
 	return res;
 }
+//heap alloc
+//struct EnviroHold {
+//	void** envir;
+//	uint16_t _vals;
+//	EnviroHold(uint16_t vals) :_vals(vals) {
+//		if (vals) {
+//			envir = new void* [uint32_t(vals) << 1];
+//			memset(envir, 0, sizeof(void*) * (size_t(vals) << 1));
+//		}
+//		else {
+//			envir = nullptr;
+//		}
+//	}
+//	~EnviroHold() {
+//		if (_vals) {
+//			removeEnviropement(envir, _vals);
+//			delete[] envir;
+//		}
+//	}
+//};
+//
+//ValueItem* FuncEnviropment::initAndCall(list_array<ValueItem>* arguments) {
+//	ValueItem* res = nullptr;
+//	EnviroHold env(max_values);
+//	try {
+//		res = curr_func(env.envir,arguments);
+//	}
+//	catch(const StackOverflowException&){
+//		if (!need_restore_stack_fault()) {
+//			--current_runners;
+//			throw;
+//		}
+//	}
+//	catch(...) {
+//		--current_runners;
+//		throw;
+//	}
+//	--current_runners;
+//	if (restore_stack_fault()) 
+//		throw StackOverflowException();
+//	return res;
+//}
 
 ValueItem* FuncEnviropment::syncWrapper(list_array<ValueItem>* args) {
 	if (need_compile)
@@ -1358,20 +1408,187 @@ ValueItem* FuncEnviropment::syncWrapper_catch(list_array<ValueItem>* args) {
 	}
 }
 
+
+void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, ValueMeta meta,void*& arg) {
+	if (!meta.allow_edit && meta.vtype == VType::string) {
+		switch (meta.vtype) {
+		case VType::noting:
+			call.AddValueArgument((void*)0);
+			break;
+		case VType::i8:
+			call.AddValueArgument((int8_t)arg);
+			break;
+		case VType::i16:
+			call.AddValueArgument((int16_t)arg);
+			break;
+		case VType::i32:
+			call.AddValueArgument((int32_t)arg);
+			break;
+		case VType::i64:
+			call.AddValueArgument((int64_t)arg);
+			break;
+		case VType::ui8:
+			call.AddValueArgument((uint8_t)arg);
+			break;
+		case VType::ui16:
+			call.AddValueArgument((int16_t)arg);
+			break;
+		case VType::ui32:
+			call.AddValueArgument((uint32_t)arg);
+			break;
+		case VType::ui64:
+			call.AddValueArgument((uint64_t)arg);
+			break;
+		case VType::flo:
+			call.AddValueArgument(*(float*)&arg);
+			break;
+		case VType::doub:
+			call.AddValueArgument(*(double*)&arg);
+			break;
+		case VType::raw_arr_i8:
+			call.AddArray((int8_t*)arg,meta.val_len);
+			break;
+		case VType::raw_arr_i16:
+			call.AddArray((int16_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_i32:
+			call.AddArray((int32_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_i64:
+			call.AddArray((int64_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_ui8:
+			call.AddArray((uint8_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_ui16:
+			call.AddArray((int16_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_ui32:
+			call.AddArray((uint32_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_ui64:
+			call.AddArray((uint64_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_flo:
+			call.AddArray((float*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_doub:
+			call.AddArray((double*)arg, meta.val_len);
+			break;
+		case VType::uarr:
+			call.AddPtrArgument((const list_array<ValueItem>*)arg);
+			break;
+		case VType::string:
+			call.AddArray(((std::string*)arg)->data(), ((std::string*)arg)->size());
+			break;
+		case VType::undefined_ptr:
+			call.AddPtrArgument(arg);
+			break;
+		default:
+			throw NotImplementedException();
+		}
+	}
+	else {
+		switch (meta.vtype) {
+		case VType::noting:
+			call.AddValueArgument((void*)0);
+			break;
+		case VType::i8:
+			call.AddValueArgument((int8_t)arg);
+			break;
+		case VType::i16:
+			call.AddValueArgument((int16_t)arg);
+			break;
+		case VType::i32:
+			call.AddValueArgument((int32_t)arg);
+			break;
+		case VType::i64:
+			call.AddValueArgument((int64_t)arg);
+			break;
+		case VType::ui8:
+			call.AddValueArgument((uint8_t)arg);
+			break;
+		case VType::ui16:
+			call.AddValueArgument((int16_t)arg);
+			break;
+		case VType::ui32:
+			call.AddValueArgument((uint32_t)arg);
+			break;
+		case VType::ui64:
+			call.AddValueArgument((uint64_t)arg);
+			break;
+		case VType::flo:
+			call.AddValueArgument(*(float*)&arg);
+			break;
+		case VType::doub:
+			call.AddValueArgument(*(double*)&arg);
+			break;
+		case VType::raw_arr_i8:
+			call.AddPtrArgument((int8_t*)arg);
+			break;
+		case VType::raw_arr_i16:
+			call.AddPtrArgument((int16_t*)arg);
+			break;
+		case VType::raw_arr_i32:
+			call.AddPtrArgument((int32_t*)arg);
+			break;
+		case VType::raw_arr_i64:
+			call.AddPtrArgument((int64_t*)arg);
+			break;
+		case VType::raw_arr_ui8:
+			call.AddPtrArgument((uint8_t*)arg);
+			break;
+		case VType::raw_arr_ui16:
+			call.AddPtrArgument((int16_t*)arg);
+			break;
+		case VType::raw_arr_ui32:
+			call.AddPtrArgument((uint32_t*)arg);
+			break;
+		case VType::raw_arr_ui64:
+			call.AddPtrArgument((uint64_t*)arg);
+			break;
+		case VType::raw_arr_flo:
+			call.AddPtrArgument((float*)arg);
+			break;
+		case VType::raw_arr_doub:
+			call.AddPtrArgument((double*)arg);
+			break;
+		case VType::uarr:
+			call.AddPtrArgument((list_array<ValueItem>*)arg);
+			break;
+		case VType::string:
+			call.AddPtrArgument(((std::string*)arg)->data());
+			break;
+		case VType::undefined_ptr:
+			call.AddPtrArgument(arg);
+			break;
+		default:
+			throw NotImplementedException();
+		}
+	}
+}
 ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ValueItem>* arguments) {
-	DynamicCall::FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
+	using namespace DynamicCall;
+	FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
 	if (arguments) {
-		for (auto& it : *arguments) {
+		for (ValueItem& it : *arguments) {
 			auto to_add = call.ToAddArgument();
-			if (to_add.ptype == DynamicCall::FunctionTemplate::ValueT::PlaceType::as_ptr && to_add.vtype == DynamicCall::FunctionTemplate::ValueT::ValueType::integer && !to_add.vsize)
-				break;
-			ValueMeta meta = it.meta;
+			if (to_add.is_void()) {
+				if (call.is_variadic()) {
+					void*& val = getValue(it.val, it.meta);
+					NativeProxy_DynamicToStatic_addValue(call, it.meta, val);
+					continue;
+				}
+				else
+					break;
+			}
 			void*& arg = getValue(it.val, it.meta);
+			ValueMeta meta = it.meta;
 			switch (to_add.vtype) {
-			case DynamicCall::FunctionTemplate::ValueT::ValueType::integer:
-			case DynamicCall::FunctionTemplate::ValueT::ValueType::signed_integer:
-			case DynamicCall::FunctionTemplate::ValueT::ValueType::floating:
-				if (to_add.ptype == DynamicCall::FunctionTemplate::ValueT::PlaceType::as_value) {
+			case FunctionTemplate::ValueT::ValueType::integer:
+			case FunctionTemplate::ValueT::ValueType::signed_integer:
+			case FunctionTemplate::ValueT::ValueType::floating:
+				if (to_add.ptype == FunctionTemplate::ValueT::PlaceType::as_value) {
 					switch (meta.vtype) {
 					case VType::i8:
 						call.AddValueArgument((int8_t)arg);
@@ -1438,6 +1655,36 @@ ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ValueItem>* a
 						break;
 					case VType::doub:
 						call.AddValueArgument((double*)&arg);
+						break; 
+					case VType::raw_arr_i8:
+						call.AddValueArgument((int8_t*)arg);
+						break;
+					case VType::raw_arr_i16:
+						call.AddValueArgument((int16_t*)arg);
+						break;
+					case VType::raw_arr_i32:
+						call.AddValueArgument((int32_t*)arg);
+						break;
+					case VType::raw_arr_i64:
+						call.AddValueArgument((int64_t*)arg);
+						break;
+					case VType::raw_arr_ui8:
+						call.AddValueArgument((uint8_t*)arg);
+						break;
+					case VType::raw_arr_ui16:
+						call.AddValueArgument((uint16_t*)arg);
+						break;
+					case VType::raw_arr_ui32:
+						call.AddValueArgument((uint32_t*)arg);
+						break;
+					case VType::raw_arr_ui64:
+						call.AddValueArgument((uint64_t*)arg);
+						break;
+					case VType::raw_arr_flo:
+						call.AddValueArgument((float*)arg);
+						break;
+					case VType::raw_arr_doub:
+						call.AddValueArgument((double*)arg);
 						break;
 					case VType::string:
 						call.AddValueArgument(((std::string*)arg)->data());
@@ -1447,9 +1694,38 @@ ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ValueItem>* a
 					}
 				}
 				break;
-
-			case DynamicCall::FunctionTemplate::ValueT::ValueType::pointer:
+			case FunctionTemplate::ValueT::ValueType::pointer:
 				switch (meta.vtype) {
+				case VType::raw_arr_i8:
+					call.AddValueArgument((int8_t*)arg);
+					break;
+				case VType::raw_arr_i16:
+					call.AddValueArgument((int16_t*)arg);
+					break;
+				case VType::raw_arr_i32:
+					call.AddValueArgument((int32_t*)arg);
+					break;
+				case VType::raw_arr_i64:
+					call.AddValueArgument((int64_t*)arg);
+					break;
+				case VType::raw_arr_ui8:
+					call.AddValueArgument((uint8_t*)arg);
+					break;
+				case VType::raw_arr_ui16:
+					call.AddValueArgument((uint16_t*)arg);
+					break;
+				case VType::raw_arr_ui32:
+					call.AddValueArgument((uint32_t*)arg);
+					break;
+				case VType::raw_arr_ui64:
+					call.AddValueArgument((uint64_t*)arg);
+					break;
+				case VType::raw_arr_flo:
+					call.AddValueArgument((float*)arg);
+					break;
+				case VType::raw_arr_doub:
+					call.AddValueArgument((double*)arg);
+					break;
 				case VType::string:
 					if (to_add.vsize == 1) {
 						if (to_add.is_modifable)
@@ -1471,7 +1747,7 @@ ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(list_array<ValueItem>* a
 					throw InvalidType("Required pointer family type but requived another");
 				}
 				break;
-			case DynamicCall::FunctionTemplate::ValueT::ValueType::_class:
+			case FunctionTemplate::ValueT::ValueType::_class:
 			default:
 				break;
 			}
@@ -1581,12 +1857,18 @@ extern "C" void callFunction(const char* symbol_name, bool run_async) {
 		delete res;
 }
 
-#include "../libray/console.hpp"
+#include "library/console.hpp"
 
 extern "C" void initStandardFunctions() {
 #pragma region Console
 	FuncEnviropment::AddNative(console::printLine, "console printLine", false);
 	FuncEnviropment::AddNative(console::print, "console print", false);
+	{
+		DynamicCall::FunctionTemplate templ;
+		templ.is_variadic = true;
+		templ.arguments.push_back(DynamicCall::FunctionTemplate::ValueT::getFromType<const char*>());
+		FuncEnviropment::AddNative((DynamicCall::PROC)printf, templ, "console printf", false);
+	}
 	FuncEnviropment::AddNative(console::resetModifiers, "console resetModifiers", false);
 	FuncEnviropment::AddNative(console::boldText, "console boldText", false);
 	FuncEnviropment::AddNative(console::italicText, "console italicText", false);

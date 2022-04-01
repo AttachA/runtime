@@ -1,4 +1,11 @@
-﻿#include "run_time.hpp"
+﻿// Copyright Danyil Melnytskyi 2022
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
+
+#include "run_time.hpp"
 #include <atomic>
 #include <iostream>
 #include <thread>
@@ -250,6 +257,12 @@ void bArrPushEnd(std::vector<uint8_t>& b, uint16_t vp, uint16_t v) {
 	b.push_back(18);//push end
 	bbWrite(b, v);
 }
+void bArrResize(std::vector<uint8_t>& b, uint16_t vp, uint64_t siz) {
+	b.push_back(Command(Opcode::arr_op).toCmd());
+	bbWrite(b, vp);
+	b.push_back(12);//push end
+	bbWrite(b, siz);
+}
 void bRet(std::vector<uint8_t>& b, uint16_t v) {
 	b.push_back(Command(Opcode::ret).toCmd());
 	bbWrite(b, v);
@@ -313,28 +326,28 @@ void lgr_loop_test() {
 }
 
 
+//
 
 
-
-#include "libray/console.hpp"
+#include "run_time/library/console.hpp"
 #include "run_time/AttachA_CXX.hpp"
 typedef void (*functs)(...);
 int main() {
-	{
-		AsyncFile testing("hello.txt", AsyncFile::OpenMode::open_always);
-
-		for (size_t i = 0; i < 50000; i++) {
-			std::string test = std::to_string(i) + " item";
-			for (size_t j = 0; j < 5000; j++)
-				test.push_back(' ');
-			test.push_back('\n');
-			char* str = new char[test.size()];
-			memcpy(str, test.c_str(), test.size());
-			testing.append(str, test.size());
-		}
-		CTask::createExecutor(1);
-		CTask::awaitEndTasks();
-	}
+	//{
+	//	AsyncFile testing("hello.txt", AsyncFile::OpenMode::open_always);
+	//
+	//	for (size_t i = 0; i < 50000; i++) {
+	//		std::string test = std::to_string(i) + " item";
+	//		for (size_t j = 0; j < 5000; j++)
+	//			test.push_back(' ');
+	//		test.push_back('\n');
+	//		char* str = new char[test.size()];
+	//		memcpy(str, test.c_str(), test.size());
+	//		testing.append(str, test.size());
+	//	}
+	//	CTask::createExecutor(1);
+	//	CTask::awaitEndTasks();
+	//}
 
 	//std::thread(ignoredAsyncGC).detach();
 
@@ -347,7 +360,7 @@ int main() {
 	//}
 	//
 	initStandardFunctions();
-	CTask::sleep(100000000000);
+	//CTask::sleep(100000000000);
 	//for (size_t i = 0; i < 100; i++) {
 	//	typed_lgr tlgr(new test_lgr());
 	//	tlgr->self = tlgr;
@@ -365,15 +378,28 @@ int main() {
 
 	console::setBgColor(123, 21, 2);
 
-	std::function test([]() {});
 	std::vector<uint8_t> programm;
 	bbWrite(programm, (uint16_t)3);
 	bJlistS(programm, 0);
-
-	bSet(programm, 0, "The test text");
+	//bRetNoting(programm);
+	bSet(programm, 0, "The test text, Current color: r%d,g%d,b%d\n");
 	bSetArr(programm, 1);
+	
+	
+	bSet(programm, 2, (uint8_t)12);
+	bArrPushEnd(programm, 1, 2);
+	
+	bSet(programm, 2, (uint8_t)128);
+	bArrPushEnd(programm, 1, 2);
+	
+	bSet(programm, 2, (uint8_t)12);
+	bArrPushEnd(programm, 1, 2);
+	
+	bArgSet(programm, 1);
+	bCall(programm, "console setTextColor");
 
-
+	bArrResize(programm, 1, 0);
+	bArrPushEnd(programm, 1, 0);
 	bSet(programm, 2, (uint8_t)12);
 	bArrPushEnd(programm, 1, 2);
 
@@ -384,9 +410,7 @@ int main() {
 	bArrPushEnd(programm, 1, 2);
 
 	bArgSet(programm, 1);
-	bAsyncCall(programm, "console setTextColor");
-	bArgSet(programm, 0);
-	bAsyncCallReturn(programm, "console printLine");
+	bCallReturn(programm, "console printf");
 	CTask::createExecutor(1);
 
 	FuncEnviropment::AddNative(TestCall, "test");
@@ -403,6 +427,23 @@ int main() {
 	FuncEnviropment::AddNative(sleep_test, "sleep_test");
 
 
+	for (size_t i = 0; i < 100000; i++) {
+		callFunction("start", false);
+	}
+
+	//empty fn with 5vars and no external alloc 1000000cals 5 vals
+	// 65ms  !66ms   stack alloc
+	// 102ms !111ms  heap alloc
+	
+	//empty fn with 5vars and no external alloc 100000cals 3vals
+	// 7ms  !8ms   stack alloc
+	// 12ms !15ms  heap alloc
+
+
+
+	//default start 100000cals 3vals
+	//279ms  ~287ms !321ms  stack alloc
+	//289ms ~ 327ms !348ms  heap alloc
 	{
 		std::vector<uint8_t> programm;
 		bbWrite(programm, (uint16_t)0);

@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2022
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #ifdef _WIN32
 #pragma comment(lib,"Dbghelp.lib")
 #include <Windows.h>
@@ -14,7 +20,7 @@ size_t page_size = sysconf(_SC_PAGESIZE);
 
 #include "run_time.hpp"
 #include <sstream>
-#include "libray/string_help.hpp"
+#include "library/string_help.hpp"
 
 
 unsigned long fault_reserved_stack_size = 524288;

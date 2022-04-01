@@ -1,6 +1,12 @@
+// Copyright Danyil Melnytskyi 2022
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #pragma once
 #include <thread>
-#include "..\libray\list_array.hpp"
+#include "..\library\list_array.hpp"
 #include <functional>
 
 namespace DynamicCall {
@@ -171,7 +177,8 @@ namespace DynamicCall {
 			}
 		};
 		list_array<ValueT> arguments;
-		ValueT result{ ValueT::PlaceType::as_value,ValueT::ValueType::integer,0,0 };
+		ValueT result{ ValueT::PlaceType::as_ptr,ValueT::ValueType::integer,0,0 };
+		bool is_variadic = false;
 	};
 	class FunctionCall {
 		ArgumentsHolder holder;
@@ -202,9 +209,15 @@ namespace DynamicCall {
 
 		template<class T>
 		void AddValueArgument(const T& value) {
-			if (max_arguments <= current_argument)
-				throw std::out_of_range("Out of arguments range");
-			auto& tmp = templ.arguments[current_argument];
+			FunctionTemplate::ValueT tmp;
+			if (max_arguments <= current_argument) {
+				if (templ.is_variadic)
+					tmp = FunctionTemplate::ValueT::getFromType<void>();
+				else
+					throw std::out_of_range("Out of arguments range");
+			}
+			else 
+				tmp = templ.arguments[current_argument];
 			if (tmp.ptype == FunctionTemplate::ValueT::PlaceType::as_value) {
 				if (tmp.vsize == sizeof(T)) {
 					holder.push_value(value);
@@ -212,8 +225,7 @@ namespace DynamicCall {
 					return;
 				}
 				else if (atc) {
-					switch (tmp.vsize)
-					{
+					switch (tmp.vsize) {
 					case 1:
 						holder.push_value((uint8_t)value);
 						current_argument++;
@@ -237,7 +249,7 @@ namespace DynamicCall {
 				}
 			}
 			else {
-				holder.push_value((uint64_t)value);
+				holder.push_value((size_t)value);
 				current_argument++;
 				return;
 			}
@@ -245,8 +257,15 @@ namespace DynamicCall {
 		}
 		template<class T>
 		void AddLinkArgument(T& value) {
-			if (max_arguments <= current_argument)
-				throw std::out_of_range("Out of arguments range");
+			if (max_arguments <= current_argument) {
+				if (templ.is_variadic) {
+					holder.push_ptr(value);
+					current_argument++;
+					return;
+				}
+				else
+					throw std::out_of_range("Out of arguments range");
+			}
 			auto& tmp = templ.arguments[current_argument];
 			if (tmp.ptype == FunctionTemplate::ValueT::PlaceType::as_ptr) {
 				holder.push_link(value);
@@ -257,28 +276,48 @@ namespace DynamicCall {
 		}
 		template<class T>
 		void AddPtrArgument(T* value) {
-			if (max_arguments <= current_argument)
-				throw std::out_of_range("Out of arguments range");
+			if (max_arguments <= current_argument) {
+				if (templ.is_variadic) {
+					holder.push_ptr(value);
+					current_argument++;
+					return;
+				}
+				else
+					throw std::out_of_range("Out of arguments range");
+			}
 			auto& tmp = templ.arguments[current_argument];
-			if (tmp.ptype == FunctionTemplate::ValueT::PlaceType::as_ptr)
+			if (tmp.ptype == FunctionTemplate::ValueT::PlaceType::as_ptr) {
 				holder.push_ptr(value);
+				current_argument++;
+			}
 			else
 				throw std::logic_error("Fail push invalid type argument");
 		}
 		template<class T>
 		void AddArray(const T* arr,size_t arr_len) {
+			if (max_arguments <= current_argument) {
+				if (templ.is_variadic) {
+					holder.push_array(arr, arr_len);
+					current_argument++;
+					return;
+				}
+				else
+					throw std::out_of_range("Out of arguments range");
+			}
 			if (max_arguments <= current_argument)
 				throw std::out_of_range("Out of arguments range");
 			auto& tmp = templ.arguments[current_argument];
-			if (tmp.ptype == FunctionTemplate::ValueT::PlaceType::as_ptr)
+			if (tmp.ptype == FunctionTemplate::ValueT::PlaceType::as_ptr) {
 				holder.push_array(arr, arr_len);
+				current_argument++;
+			}
 			else
 				throw std::logic_error("Fail push invalid type argument");
 		}
 		void* Call() {
-			if (max_arguments <= current_argument)
-				return (void*)Calls::call(func, holder, used_this, this_pointer);
-			throw std::logic_error("Invalid arguments count");
+			if(max_arguments > current_argument || (!templ.is_variadic && max_arguments < current_argument))
+				throw std::logic_error("Invalid arguments count");
+			return (void*)Calls::call(func, holder, used_this, this_pointer);
 		}
 		template<class T>
 		T CallValue() {
@@ -289,16 +328,18 @@ namespace DynamicCall {
 		template<class T>
 		T* CallPtr() {
 			if (templ.result.ptype == FunctionTemplate::ValueT::PlaceType::as_ptr)
-				return (T*)Calls::call(func, templ.result.vsize, holder, used_this, this_pointer);
+				return (T*)Calls::call(func, holder, used_this, this_pointer);
 			throw std::logic_error("Fail invalid result type");
 		}
 
-		FunctionTemplate::ValueT ToAddArgument() {
+		FunctionTemplate::ValueT ToAddArgument() const {
 			if (current_argument >= max_arguments)
 				return { FunctionTemplate::ValueT::PlaceType::as_ptr,FunctionTemplate::ValueT::ValueType::integer,0};
 			return templ.arguments[current_argument];
 		}
-
+		bool is_variadic() const {
+			return templ.is_variadic;
+		}
 	};
 
 	[[noreturn]] void justJump(void* point);
