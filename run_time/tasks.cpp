@@ -9,9 +9,6 @@
 
 #include <boost/context/continuation.hpp>
 
-#include <boost/fiber/all.hpp>
-#include <boost/fiber/detail/thread_barrier.hpp>
-
 #include "AttachA_CXX.hpp"
 #include "tasks.hpp"
 #include "library/exceptions.hpp"
@@ -23,8 +20,9 @@
 #include <deque>
 
 namespace ctx = boost::context;
-std::atomic_size_t alocs = 0;
-std::atomic_size_t clears = 0;
+
+size_t Task::max_running_tasks = 0;
+size_t Task::max_planned_tasks = 0;
 class TaskCancellation : AttachARuntimeException {
 public:
 	bool in_landing = false;
@@ -96,19 +94,6 @@ TaskResult::TaskResult(TaskResult&& move) noexcept {
 }
 
 
-
-Task::Task(typed_lgr<class FuncEnviropment> call_func, list_array<ValueItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler) {
-	ex_handle = exception_handler;
-	func = call_func;
-	args = arguments;
-	alocs++;
-}
-Task::~Task() {
-	if (args)
-		delete args;
-	clears++;
-}
-
 using timing = std::pair<std::chrono::high_resolution_clock::time_point, typed_lgr<Task>>;
 struct {
 	TaskConditionVariable no_tasks_notifier;
@@ -129,8 +114,43 @@ struct {
 
 	bool in_time_swap = false;
 	std::atomic_size_t tasks_in_swap = 0;
+	std::atomic_size_t in_run_tasks= 0;
+	std::atomic_size_t planned_tasks = 0;
 
+	TaskConditionVariable can_started_new_notifier;
+	TaskConditionVariable can_planned_new_notifier;
 } glob;
+
+Task::Task(typed_lgr<class FuncEnviropment> call_func, list_array<ValueItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler, bool used_task_local) {
+	ex_handle = exception_handler;
+	func = call_func;
+	args = arguments;
+	if (Task::max_planned_tasks)
+		while (glob.planned_tasks >= Task::max_planned_tasks)
+			glob.can_planned_new_notifier.wait();
+	++glob.planned_tasks;
+
+	if (used_task_local)
+		task_local = new ValueEnvironment();
+	
+}
+Task::~Task() {
+	if (args)
+		delete args;
+	if (task_local)
+		delete task_local;
+	if (started) {
+		--glob.in_run_tasks;
+		if (Task::max_running_tasks)
+			glob.can_started_new_notifier.notify_one();
+	}
+	else {
+		--glob.planned_tasks;
+		if (Task::max_running_tasks)
+			glob.can_planned_new_notifier.notify_one();
+	}
+}
+
 
 struct {
 	ctx::continuation* tmp_current_context = nullptr;
@@ -221,6 +241,7 @@ ctx::continuation context_ex_handle(ctx::continuation&& sink) {
 	return std::move(*loc.tmp_current_context);
 }
 
+void makeTimeWait(std::chrono::high_resolution_clock::time_point t);
 
 void taskNotifyIfEmpty() {
 	std::lock_guard guard(glob.task_thread_safety);
@@ -261,7 +282,7 @@ void taskExecutor(bool end_in_task_out = false) {
 				--glob.executors;
 				return;
 			}
-			glob.tasks_notifier.wait(waiter_lock);
+			glob.tasks_notifier.wait_for(waiter_lock,std::chrono::milliseconds(1000));
 		}
 		if (loadTask())
 			continue;
@@ -282,8 +303,19 @@ void taskExecutor(bool end_in_task_out = false) {
 				loc.curr_task->relock_timed_mut->lock();
 			*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
 		}
-		else
+		else {
+			if (Task::max_running_tasks) {
+				if (Task::max_running_tasks <= glob.in_run_tasks) {
+					makeTimeWait(std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(100));
+					continue;
+				}
+				++glob.in_run_tasks;
+				--glob.planned_tasks;
+				if (Task::max_planned_tasks)
+					glob.can_planned_new_notifier.notify_one();
+			}
 			*loc.tmp_current_context = ctx::callcc(std::allocator_arg, ctx::protected_fixedsize_stack(128 * 1024), context_exec);
+		}
 		if (loc.ex_ptr) {
 			if (loc.curr_task->ex_handle) {
 				if (loc.curr_task->args)
@@ -371,7 +403,7 @@ void makeTimeWait(std::chrono::high_resolution_clock::time_point t) {
 		auto it = glob.timed_tasks.begin();
 		auto end = glob.timed_tasks.end();
 		while (it != end) {
-			if (it->first > t) {
+			if (it->first >= t) {
 				glob.timed_tasks.insert(it, timing(t,loc.curr_task));
 				i = -1;
 				break;
@@ -432,9 +464,9 @@ bool TaskMutex::try_lock_for(size_t milliseconds) {
 }
 bool TaskMutex::try_lock_until(std::chrono::high_resolution_clock::time_point time_point) {
 	if (loc.is_task_thread) {
-	re_try:
 		if (!no_race.try_lock_until(time_point))
 			return false;
+	re_try:
 		if (current_task) {
 			std::lock_guard guard(loc.curr_task->no_race);
 			makeTimeWait(time_point);
@@ -626,42 +658,7 @@ void TaskConditionVariable::notify_one() {
 		cd.notify_one();
 }
 
-TaskAwaiter::TaskAwaiter() {}
-void TaskAwaiter::wait() {
-	no_race.lock();
-	if (allow_wait) {
-		no_race.unlock();
-		cd.wait();
-	}
-	else
-		no_race.unlock();
-}
-bool TaskAwaiter::wait_for(size_t milliseconds) {
-	no_race.lock();
-	if (allow_wait) {
-		no_race.unlock();
-		return cd.wait_for(milliseconds);
-	}
-	else
-		no_race.unlock();
-	return false;
-}
-bool TaskAwaiter::wait_until(std::chrono::high_resolution_clock::time_point time_point) {
-	no_race.lock();
-	if (allow_wait) {
-		no_race.unlock();
-		return cd.wait_until(time_point);
-	}
-	else
-		no_race.unlock();
-	return false;
-}
-void TaskAwaiter::endLife() {
-	no_race.lock();
-	allow_wait = false;
-	no_race.unlock();
-	cd.notify_all();
-}
+
 
 void TaskSemaphore::setMaxTreeshold(size_t val) {
 	std::lock_guard guard(no_race);
@@ -794,579 +791,215 @@ bool TaskSemaphore::is_locked() {
 #pragma optimize("",on)
 
 
-
-
-typed_lgr<Task> FileQuery::read(uint32_t len, size_t pos) {
-	static typed_lgr<FuncEnviropment> read_enviro = new FuncEnviropment(
-		(AttachALambda*)new AttachALambdaWrap(
-			[this, len, pos](list_array<ValueItem>* arguments) {
-				std::lock_guard guard(no_race);
-				char* res = new char[len];
-				if (pos != size_t(-1)) {
-					stream.flush();
-					stream.seekg(pos);
-				}
-				stream.read(res, len);
-				if (stream.eof()) {
-					delete[] res;
-					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
-				}
-				else if (stream.fail()) {
-					delete[] res;
-					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
-				}
-				else if (stream.bad()) {
-					delete[] res;
-					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
-				}
-				else
-					return new ValueItem(res, ValueMeta(VType::raw_arr_ui8, false, true, len));
-			}
-		),
-		false
-	);
-	typed_lgr<Task> aa(new Task(read_enviro,nullptr));
-	Task::start(aa);
-	return aa;
+ConcurentFile::ConcurentFile(const char* path) {
+	stream.open(path, std::fstream::in | std::fstream::out | std::fstream::binary);
+	if (!stream.is_open()) {
+		stream.open(path, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc);
+		last_op_append = true;
+	}
 }
-typed_lgr<Task> FileQuery::write(char* arr, uint32_t len, size_t pos) {
-	typed_lgr<FuncEnviropment> write_enviro = new FuncEnviropment(
-		(AttachALambda*)new AttachALambdaWrap(
-			[this, len, pos, arr](list_array<ValueItem>* arguments) {
-				mem_tool::ArrDeleter deleter(arr);
-				std::lock_guard guard(no_race);
-				if (pos != size_t(-1)) {
-					stream.flush();
-					stream.seekp(pos);
-				}
-				stream.write(arr, len);
-				if (stream.eof())
-					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
-				else if (stream.fail())
-					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
-				
-				else if (stream.bad())
-					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
-				else
-					return (ValueItem*)nullptr;
-			}
-		),
-		false
-	);
-	typed_lgr<Task> aa(new Task(write_enviro, nullptr));
-	Task::start(aa);
-	return aa;
-}
-typed_lgr<Task> FileQuery::append(char* arr, uint32_t len) {
-	typed_lgr<FuncEnviropment> append_enviro = new FuncEnviropment(
-		(AttachALambda*)new AttachALambdaWrap(
-			[this, len, arr](list_array<ValueItem>* arguments) {
-				mem_tool::ArrDeleter deleter(arr);
-				std::lock_guard guard(no_race);
-				stream.flush();
-				stream.seekp(0, std::ios_base::end);
-				stream.write(arr, len);
-				if (stream.eof())
-					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
-				else if (stream.fail())
-					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
-
-				else if (stream.bad())
-					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
-				else
-					return (ValueItem*)nullptr;
-			}
-		),
-		false
-	);
-	typed_lgr<Task> aa(new Task(append_enviro, nullptr));
-	Task::start(aa);
-	return aa;
-}
-
-typed_lgr<Task> FileQuery::read_long(uint64_t len, size_t pos) {
-	typed_lgr<FuncEnviropment> read_enviro = new FuncEnviropment(
-		(AttachALambda*)new AttachALambdaWrap(
-			[this, len, pos](list_array<ValueItem>* arguments) {
-				std::lock_guard guard(no_race);
-				list_array<char> res(len);
-				if (pos != size_t(-1)) {
-					stream.flush();
-					stream.seekg(pos);
-				}
-				stream.read(res.data(), len);
-				if (stream.eof())
-					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
-				else if (stream.fail())
-					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
-				
-				else if (stream.bad()) 
-					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
-				else
-					return new ValueItem(
-						new list_array<ValueItem>(
-							res.convert<ValueItem>([](char it) { return ValueItem((void*)it, ValueMeta(VType::ui8, false, true)); })
-						), 
-						ValueMeta(VType::raw_arr_ui8, false, true, len)
-					);
-			}
-		),
-		false
-	);
-	typed_lgr<Task> aa(new Task(read_enviro, nullptr));
-	Task::start(aa);
-	return aa;
-}
-typed_lgr<Task> FileQuery::write_long(list_array<uint8_t>* arr, size_t pos) {
-	typed_lgr<FuncEnviropment> write_enviro = new FuncEnviropment(
-		(AttachALambda*)new AttachALambdaWrap(
-			[this, arr, pos](list_array<ValueItem>* arguments) {
-				mem_tool::ValDeleter deleter(arr);
-				std::lock_guard guard(no_race);
-				if (pos != size_t(-1)) {
-					stream.flush();
-					stream.seekp(pos);
-				}
-				stream.write((char*)arr->data(), arr->size());
-				if (stream.eof())
-					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
-				else if (stream.fail())
-					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
-
-				else if (stream.bad())
-					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
-				else
-					return (ValueItem*)nullptr;
-			}
-		),
-		false
-	);
-	typed_lgr<Task> aa(new Task(write_enviro, nullptr));
-	Task::start(aa);
-	return aa;
-}
-typed_lgr<Task> FileQuery::append_long(list_array<uint8_t>* arr) {
-	typed_lgr<FuncEnviropment> append_enviro = new FuncEnviropment(
-		(AttachALambda*)new AttachALambdaWrap(
-			[this, arr](list_array<ValueItem>* arguments) {
-				mem_tool::ValDeleter deleter(arr);
-				std::lock_guard guard(no_race);
-				stream.flush();
-				stream.seekp(0, std::ios_base::end);
-				stream.write((char*)arr->data(), arr->size());
-				if (stream.eof())
-					return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
-				else if (stream.fail())
-					return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
-
-				else if (stream.bad())
-					return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
-				else
-					return (ValueItem*)nullptr;
-			}
-		),
-		false
-				);
-	typed_lgr<Task> aa(new Task(append_enviro, nullptr));
-	Task::start(aa);
-	return aa;
-}
-#ifdef _WIN64
-#include <Windows.h>
-
-
-static std::string _format_msq(DWORD err) {
-	std::string res;
-	const char* lpMsgBuf = nullptr;
-	FormatMessageA(
-		FORMAT_MESSAGE_ALLOCATE_BUFFER |
-		FORMAT_MESSAGE_FROM_SYSTEM |
-		FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL,
-		err,
-		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-		(LPSTR)&lpMsgBuf,
-		0, NULL);
-	res = lpMsgBuf;
-	LocalFree((LPVOID)lpMsgBuf);
-	return res;
-}
-
-typedef typed_lgr<class Overlap> lpOverlap;
-struct Overlap : OVERLAPPED {
-	TaskAwaiter completion_notify;
-	lgr fileHandle;
-	uint32_t err_code = 0;
-	bool completed = false;
-public:
-	uint32_t transfered_len = 0;
-	char* read_result = nullptr;
-	Overlap(lgr& file, size_t off) {
-		std::memset(static_cast<OVERLAPPED*>(this), 0, sizeof(OVERLAPPED));
-		Pointer = reinterpret_cast<void*>(off);
-		fileHandle = file;
-	}
-	~Overlap() {
-		if(read_result)
-			delete[] read_result;
-	}
-	size_t get_offset() const { return size_t(Pointer); }
-	static void callback(DWORD errorCode, DWORD numberOfBytesTransferred, Overlap* overlapped) {
-		overlapped->transfered_len = numberOfBytesTransferred;
-		overlapped->err_code = errorCode;
-		overlapped->completed = true;
-		overlapped->completion_notify.endLife();
-	}
-	uint32_t get_err_code() {
-		if (!completed)
-			wait();
-		return err_code;
-	}
-	char* get() {
-		if (!completed)
-			wait();
-		return read_result;
-	}
-	void wait() {
-		while (!completed)
-			completion_notify.wait();
-	}
-};
-
-class F_IO_A_N_Controll {
-	list_array<std::thread> threads;
-	HANDLE completion_port;
-public:
-	F_IO_A_N_Controll() {
-		completion_port = CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 0);
-	}
-	~F_IO_A_N_Controll() {
-		disable();
-		CloseHandle(completion_port);
-	}
-	void enable(uint16_t count) {
-		if (threads.empty()) {
-			threads.reserve_push_back(count);
-			while (count--) {
-				threads.push_back(std::thread(&F_IO_A_N_Controll::dispatch, this));
-				threads.back().detach();
-			}
-		}
-	}
-	void disable() {
-		size_t len = threads.size();
-		while (len--)
-			PostQueuedCompletionStatus(completion_port, 0, 0, 0);
-		threads.clear();
-	}
-	void attach(HANDLE file_handle) {
-		if (!CreateIoCompletionPort(file_handle, completion_port, reinterpret_cast<ULONG_PTR>(file_handle), 0))
-			throw std::exception("Failed to attach handle to I/O completion port");
-	}
-	size_t dispatched_count = 0;
-	void dispatch() {
-		while (true) {
-			DWORD bytesTransferred = 0;
-			ULONG_PTR completionKey = 0;
-			LPOVERLAPPED ioCb = nullptr;
-			SetLastError(0);
-			bool ok = GetQueuedCompletionStatus(completion_port, &bytesTransferred, &completionKey, &ioCb, INFINITE);
-
-			if (!ok) 
-				throw AException("system fault async", "GetQueuedCompletionStatus: " + _format_msq(GetLastError()));
-
-			if (completionKey == 0)
-				return;
-			
-
-			if (!ioCb)
-				throw AException("system fault async", "GetQueuedCompletionStatus overlapped is nullptr");
-			
-			Overlap* res = reinterpret_cast<Overlap*>(ioCb);
-			Overlap::callback(GetLastError(), bytesTransferred, res);
-			dispatched_count++;
-		}
-	}
-	bool started() {
-		return threads.size();
-	}
-};
-
-
-
-
-F_IO_A_N_Controll global_control;
-
-
-
-typed_lgr<Task> read(lgr& file, uint32_t tlen, size_t pos, AsyncFile::ReadMode rm) {
-	typed_lgr<FuncEnviropment> read_enviro = new FuncEnviropment(
-		(AttachALambda*)new AttachALambdaWrap(
-			[file, tlen, pos, rm](list_array<ValueItem>* arguments) {
-				lgr pfile = file;
-				uint32_t len = tlen;
-				LARGE_INTEGER lgi;
-				if (!GetFileSizeEx(pfile.getPtr(), &lgi))
-					return new ValueItem(new AException("system fault async", "GetFileSizeEx failed with error " + _format_msq(GetLastError()) + " for handle " + string_help::n2hexstr(file.getPtr())), ValueMeta(VType::except_value, false, true), true);
-				
-				if (rm == AsyncFile::ReadMode::full) {
-					size_t checkp = len + pos;
-					if(
-						checkp < len ||
-						pos < len ||
-						(
-							checkp == size_t(INT64_MIN) &&
-							lgi.QuadPart != INT64_MIN
-						) ||
-						(
-							checkp != size_t(INT64_MIN) &&
-							lgi.QuadPart < checkp
-						)
-					)
-						return new ValueItem(new AException("system fault async", "ReadMode::full, position and length is too large for handle " + string_help::n2hexstr(file.getPtr())), ValueMeta(VType::except_value, false, true), true);
-				}
-				else {
-					size_t checkp = len + pos;
-					if (
-						checkp < len ||
-						pos < len ||
-						(
-							checkp == size_t(INT64_MIN) &&
-							lgi.QuadPart != INT64_MIN
-						) ||
-						(
-							checkp != size_t(INT64_MIN) &&
-							lgi.QuadPart < checkp
-						)
-					)
-						len = pos - lgi.QuadPart;
-				}
-
-				if(!len)
-					return new ValueItem(nullptr, ValueMeta(VType::raw_arr_ui8, false, true, 0), true);
-
-				DWORD error;
-				lpOverlap overlap(new Overlap(pfile,pos));
-				overlap->read_result = new char[len];
-				DWORD numberOfBytesRead = 0;
-				const auto result = ::ReadFile(pfile.getPtr(), overlap->read_result, len, &numberOfBytesRead, overlap.getPtr());
-				if (result)
-					goto end;
-
-				error = GetLastError();
-				switch (error) {
-				case ERROR_SUCCESS:
-				case ERROR_IO_PENDING:
-					break;
-				default:
-					return new ValueItem(new AException("system fault async", "ReadFile failed with error " + _format_msq(error) + " for handle " + string_help::n2hexstr(file.getPtr())), ValueMeta(VType::except_value, false, true), true);
-				}
-				overlap->wait();
-			end:
-				char* res = overlap->read_result;
-				overlap->read_result = nullptr;
-				if (pfile.totalLinks() != 1)
-					goto end;
-				return new ValueItem(res, ValueMeta(VType::raw_arr_ui8, false, true, overlap->transfered_len), true);
-			}
-		),
-		false
-	);
-	if (!global_control.started())
-		global_control.enable(1);
-	typed_lgr<Task> aa(new Task(read_enviro, nullptr));
-	Task::start(aa);
-	return aa;
-}
-typed_lgr<Task> write(lgr file, char* arr, uint32_t len, size_t pos) {
-	typed_lgr<FuncEnviropment> read_enviro = new FuncEnviropment(
-		(AttachALambda*)new AttachALambdaWrap(
-			[file, arr, len, pos](list_array<ValueItem>* arguments) {
-				lgr pfile = file;
-				lpOverlap overlap(new Overlap(pfile, pos));
-				overlap->read_result = arr;
-				DWORD numberOfBytesWriten = 0;
-				DWORD error;
-				WriteFile(*pfile, overlap->read_result, len, &numberOfBytesWriten, overlap.getPtr());
-				error = GetLastError();
-				switch (error) {
-				case ERROR_SUCCESS:
-				case ERROR_IO_PENDING:
-					break;
-				default:
-					return new ValueItem(new AException("system fault async", "WriteFile failed with error " + _format_msq(error) + " for handle " + string_help::n2hexstr(file.getPtr())), ValueMeta(VType::except_value, false, true), true);
-				}
-				overlap->wait();
-				return new ValueItem((void*)overlap->transfered_len, ValueMeta(VType::ui32, false, true));
-			}
-		),
-		false
-	);
-	if (!global_control.started())
-		global_control.enable(1);
-
-	typed_lgr<Task> aa(new Task(read_enviro, nullptr));
-	Task::start(aa);
-	return aa;
-}
-
-
-
-
-
-void handleCleanUp(HANDLE hndl) {
-	CloseHandle(hndl);
-}
-AsyncFile::AsyncFile(const char* path, OpenMode open_mode) {
-	void* desc =
-		CreateFileA(path,
-		GENERIC_WRITE | GENERIC_READ,
-		FILE_SHARE_READ | FILE_SHARE_WRITE,
-		nullptr, (int)open_mode,
-		FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
-		nullptr);
-	if (descriptor == INVALID_HANDLE_VALUE) {
-		const auto error = GetLastError();
-		switch (error) {
-		case ERROR_ACCESS_DENIED:
-			throw std::exception("Insufficient permissions for file opening");
-		case ERROR_ALREADY_EXISTS:
-		case ERROR_FILE_EXISTS:
-			throw std::exception("File already exists");
-		case ERROR_FILE_NOT_FOUND:
-			throw std::exception("File not found");
-		default:
-			throw std::exception("Failed to open file");
-		}
-	}
-	global_control.attach(desc);
-	descriptor = lgr(desc,nullptr, handleCleanUp);
-}
-AsyncFile::~AsyncFile() {}
-
-size_t AsyncFile::length() {
-	LARGE_INTEGER lgi;
-	if (!GetFileSizeEx(descriptor.getPtr(), &lgi))
-		throw AException("system fault async", "GetFileSizeEx failed with error " + _format_msq(GetLastError()) + " for handle " + string_help::n2hexstr(descriptor.getPtr())), ValueMeta(VType::except_value, false, true);
-}
-typed_lgr<Task> AsyncFile::read(uint32_t len, size_t pos, ReadMode rm) {
-	return ::read(descriptor, len, pos, rm);
-}
-typed_lgr<Task> AsyncFile::read(uint32_t len, ReadMode rm) {
+ConcurentFile::~ConcurentFile() {
 	std::lock_guard guard(no_race);
-	r_pos += len;
-	return ::read(descriptor, len, r_pos - len, rm);
+	stream.close();
 }
-typed_lgr<Task> AsyncFile::write(char* arr, uint32_t len, size_t pos) {
-	return ::write(descriptor, arr, len, pos);
-}
-typed_lgr<Task> AsyncFile::write(char* arr, uint32_t len) {
-	return ::write(descriptor, arr, len, w_pos);
-}
-typed_lgr<Task> AsyncFile::append(char* arr, uint32_t len) {
-	return ::write(descriptor, arr, len, -1);
-}
-
-#elif false
-
-
-#endif
-
-boost::fibers::condition_variable_any sleep_task{};
-std::condition_variable awake_task{};
-
-std::atomic_size_t inited_count = 0;
-std::condition_variable ini_end;
-
-std::atomic_size_t tasks_count = 0;
-boost::fibers::condition_variable_any task_end{};
-std::mutex disabler;
-thread_local size_t to_disable_executors = 0;
-void aathread() {
-	boost::fibers::use_scheduling_algorithm<boost::fibers::algo::shared_work>();
-	++inited_count;
-	ini_end.notify_one();
-	std::mutex mtx_count{};
-	std::unique_lock lk(mtx_count);
-	size_t no_tasks_count = 0;
-
-	while (true) {
-		if (to_disable_executors) {
-			std::lock_guard guard(disabler);
-			if (to_disable_executors) {
-				--to_disable_executors;
-				return;
-			}
-		}
-		awake_task.wait(lk, []() { return (bool)tasks_count || to_disable_executors; });
-		sleep_task.wait(lk, []() { return !tasks_count || to_disable_executors; });
+ValueItem* concurentReader(list_array<ValueItem>* arguments) {
+	typed_lgr<ConcurentFile> pfile = *(typed_lgr<ConcurentFile>*)(*arguments)[0].val;
+	std::fstream& stream = pfile->stream;
+	delete (typed_lgr<ConcurentFile>*)(*arguments)[0].val;
+	size_t len = (size_t)(*arguments)[1].val;
+	size_t pos = (size_t)(*arguments)[2].val;
+	std::lock_guard guard(pfile->no_race);
+	if (pos != size_t(-1)) {
+		pfile->last_op_append = false;
+		stream.flush();
+		stream.seekg(pos);
+	}
+	if (len >= UINT32_MAX) {
+		list_array<char> res(len);
+		pfile->stream.read(res.data(), len);
+		return new ValueItem((void*)new OutOfRange("Array length is too large for store in raw array type"), ValueMeta(VType::except_value, false, true, len), true);
+	}
+	else {
+		char* res = new char[len];
+		pfile->stream.read(res, len);
+		return new ValueItem(res, ValueMeta(VType::raw_arr_ui8, false, true, len), true);
 	}
 }
-
-boost::fibers::fiber_specific_ptr<typed_lgr<BTask>> curr_task;
-
-void BTask::createExecutor(uint32_t c) {
-	boost::fibers::use_scheduling_algorithm<boost::fibers::algo::shared_work>(c);
-	for (size_t i = inited_count; i < c; i++) {
-		std::thread(aathread).detach();
-		std::lock_guard guard(glob.task_thread_safety);
+typed_lgr<FuncEnviropment> ConcurentReader(new FuncEnviropment(concurentReader, false));
+ValueItem* concurentReaderLong(list_array<ValueItem>* arguments) {
+	typed_lgr<ConcurentFile> pfile = *(typed_lgr<ConcurentFile>*)(*arguments)[0].val;
+	std::fstream& stream = pfile->stream;
+	delete (typed_lgr<ConcurentFile>*)(*arguments)[0].val;
+	size_t len = (size_t)(*arguments)[1].val;
+	size_t pos = (size_t)(*arguments)[2].val;
+	std::lock_guard guard(pfile->no_race);
+	if (pos != size_t(-1)) {
+		pfile->last_op_append = false;
+		stream.flush();
+		stream.seekg(pos);
 	}
-	std::mutex sync{};
-	std::unique_lock lk(sync);
-	while (inited_count >= c)
-		ini_end.wait(lk);
+	list_array<char> res(len);
+	pfile->stream.read(res.data(), len);
+	return new ValueItem(
+		new list_array<ValueItem>(
+			res.convert<ValueItem>([](char it) { return ValueItem((void*)it, ValueMeta(VType::ui8, false, true)); })
+			),
+		ValueMeta(VType::uarr, false, true, len)
+	);
 }
-void BTask::reduceExecutor(uint32_t c) {
-	{
-		std::lock_guard guard(disabler);
-		to_disable_executors += c;
-	}
-	for (uint32_t i = 0; i < c; i++) {
-		awake_task.notify_one();
-		sleep_task.notify_one();
-	}
-}
-void BTask::start(typed_lgr<BTask> lgr_task) {
-	boost::fibers::mutex mut;
-	std::unique_lock lk(mut);
-	lgr_task->fres = new BTaskResult();
-	//boost::fibers::condition_variable start_notify{};
-	++tasks_count;
-	boost::fibers::fiber([](typed_lgr<BTask> lgr_task) {
-		curr_task.reset(new typed_lgr<BTask>(lgr_task));
-		ValueItem* tmp = lgr_task->func->syncWrapper(lgr_task->args);
-		delete curr_task.release();
+typed_lgr<FuncEnviropment> ConcurentReaderLong(new FuncEnviropment(concurentReaderLong, false));
 
-		--tasks_count;
-		lgr_task->fres->end_of_life = true;
-		if (tmp) {
-			lgr_task->fres->results.push_back(std::move(*tmp));
-			delete tmp;
-		}
+ValueItem* concurentWriter(list_array<ValueItem>* arguments) {
+	typed_lgr<ConcurentFile> pfile = *(typed_lgr<ConcurentFile>*)(*arguments)[0].val;
+	char* value = (char*)(*arguments)[1].val;
+	uint32_t len = (uint32_t)(*arguments)[2].val;
+	size_t pos = (size_t)(*arguments)[3].val;
+	bool is_append = (size_t)(*arguments)[4].val;
+	mem_tool::ArrDeleter deleter(value);
+	delete (typed_lgr<ConcurentFile>*)(*arguments)[0].val;
+	std::fstream& stream = pfile->stream;
 
-		lgr_task->fres->result_notify.notify_all();
-		if (!tasks_count)
-			task_end.notify_all();
-		sleep_task.notify_one();
-		}, lgr_task).detach();
-		//start_notify.wait(lk);
-		awake_task.notify_one();
-}
-void BTask::result(ValueItem* f_res) {
-	if (curr_task.get()) {
-		curr_task->getPtr()->fres->results.push_back(*f_res);
-		curr_task->getPtr()->fres->result_notify.notify_all();
+	std::lock_guard guard(pfile->no_race);
+	if (pos != size_t(-1) || (!pfile->last_op_append && is_append)) {
+		pfile->last_op_append = false;
+		stream.flush();
+		if(is_append)
+			stream.seekg(0,std::fstream::end);
+		else
+			stream.seekg(pos);
 	}
+	stream.write(value, len);
+	if (stream.eof())
+		return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
+	else if (stream.fail())
+		return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
+
+	else if (stream.bad())
+		return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
 	else
-		throw EnviropmentRuinException("This function not async call, fail return result");
+		return (ValueItem*)nullptr;
 }
-void BTask::awaitEndTasks() {
-	std::mutex mut;
-	std::unique_lock lk(mut);
-	while (tasks_count)
-		task_end.wait(lk);
+typed_lgr<FuncEnviropment> ConcurentWriter(new FuncEnviropment(concurentWriter, false));
+ValueItem* concurentWriterLong(list_array<ValueItem>* arguments) {
+	typed_lgr<ConcurentFile> pfile = *(typed_lgr<ConcurentFile>*)(*arguments)[0].val;
+	list_array<uint8_t>* value = (list_array<uint8_t>*)(*arguments)[1].val;
+	size_t len = value->size();
+	size_t pos = (size_t)(*arguments)[3].val;
+	bool is_append = (size_t)(*arguments)[4].val;
+	mem_tool::ArrDeleter deleter0(value);
+	mem_tool::ValDeleter deleter1((typed_lgr<ConcurentFile>*)(*arguments)[0].val);
+	std::fstream& stream = pfile->stream;
+
+	std::lock_guard guard(pfile->no_race);
+	if (pos != size_t(-1) || (!pfile->last_op_append && is_append)) {
+		pfile->last_op_append = false;
+		stream.flush();
+		if (is_append)
+			stream.seekg(0, std::fstream::end);
+		else
+			stream.seekg(pos);
+	}
+	
+	stream.write((const char*)value->data(), len);
+	if (stream.eof())
+		return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), ValueMeta(VType::except_value, false, true), true);
+	else if (stream.fail())
+		return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), ValueMeta(VType::except_value, false, true), true);
+
+	else if (stream.bad())
+		return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), ValueMeta(VType::except_value, false, true), true);
+	else
+		return (ValueItem*)nullptr;
+}
+typed_lgr<FuncEnviropment> ConcurentWriterLong(new FuncEnviropment(concurentWriterLong, false));
+typed_lgr<Task> ConcurentFile::read(typed_lgr<ConcurentFile>& file, uint32_t len, size_t pos) {
+	typed_lgr<Task> aa(
+		new Task(
+			ConcurentReader,
+			new list_array<ValueItem>{
+				ValueItem(new typed_lgr<ConcurentFile>(file),ValueMeta(VType::undefined_ptr,false,true), true),
+				ValueItem((void*)len ,ValueMeta(VType::ui64,false,true), true),
+				ValueItem((void*)pos,ValueMeta(VType::ui64,false,true), true)
+			}
+		)
+	);
+	Task::start(aa);
+	return aa;
+}
+typed_lgr<Task> ConcurentFile::write(typed_lgr<ConcurentFile>& file, char* arr, uint32_t len, size_t pos) {
+	typed_lgr<Task> aa(
+		new Task(
+			ConcurentWriter,
+			new list_array<ValueItem>{
+				ValueItem(new typed_lgr<ConcurentFile>(file),ValueMeta(VType::undefined_ptr,false,true), true),
+				ValueItem(arr,ValueMeta(VType::undefined_ptr,false,true), true),
+				ValueItem((void*)len ,ValueMeta(VType::ui32,false,true), true),
+				ValueItem((void*)pos,ValueMeta(VType::ui64,false,true), true),
+				ValueItem((void*)false,ValueMeta(VType::ui8,false,true), true)
+			}
+		)
+	);
+	Task::start(aa);
+	return aa;
+}
+typed_lgr<Task> ConcurentFile::append(typed_lgr<ConcurentFile>& file, char* arr, uint32_t len) {
+	typed_lgr<Task> aa(
+		new Task(
+			ConcurentWriter,
+			new list_array<ValueItem>{
+				ValueItem(new typed_lgr<ConcurentFile>(file),ValueMeta(VType::undefined_ptr,false,true), true),
+				ValueItem(arr,ValueMeta(VType::undefined_ptr,false,true), true),
+				ValueItem((void*)len ,ValueMeta(VType::ui32,false,true), true),
+				ValueItem((void*)-1,ValueMeta(VType::ui64,false,true), true),
+				ValueItem((void*)true,ValueMeta(VType::ui8,false,true), true)
+			}
+		)
+	);
+	Task::start(aa);
+	return aa;
 }
 
-void BTask::threadEnviroConfig() {
-	boost::fibers::use_scheduling_algorithm<boost::fibers::algo::shared_work>();
+typed_lgr<Task> ConcurentFile::read_long(typed_lgr<ConcurentFile>& file, uint64_t len, size_t pos) {
+	typed_lgr<Task> aa(
+		new Task(
+			ConcurentReaderLong,
+			new list_array<ValueItem>{
+				ValueItem(new typed_lgr<ConcurentFile>(file),ValueMeta(VType::undefined_ptr,false,true), true),
+				ValueItem((void*)len ,ValueMeta(VType::ui64,false,true), true),
+				ValueItem((void*)pos,ValueMeta(VType::ui64,false,true), true)
+			}
+		)
+	);
+	Task::start(aa);
+	return aa;
+}
+typed_lgr<Task> ConcurentFile::write_long(typed_lgr<ConcurentFile>& file, list_array<uint8_t>* arr, size_t pos) {
+	typed_lgr<Task> aa(
+		new Task(
+			ConcurentWriter,
+			new list_array<ValueItem>{
+				ValueItem(new typed_lgr<ConcurentFile>(file),ValueMeta(VType::undefined_ptr,false,true), true),
+				ValueItem(arr,ValueMeta(VType::undefined_ptr,false,true), true),
+				ValueItem((void*)pos,ValueMeta(VType::ui64,false,true), true),
+				ValueItem((void*)false,ValueMeta(VType::ui8,false,true), true)
+			}
+		)
+	);
+	Task::start(aa);
+	return aa;
+}
+typed_lgr<Task> ConcurentFile::append_long(typed_lgr<ConcurentFile>& file, list_array<uint8_t>* arr) {
+	typed_lgr<Task> aa(
+		new Task(
+			ConcurentWriterLong,
+			new list_array<ValueItem>{
+				ValueItem(new typed_lgr<ConcurentFile>(file),ValueMeta(VType::undefined_ptr,false,true), true),
+				ValueItem(arr,ValueMeta(VType::undefined_ptr,false,true), true),
+				ValueItem((void*)-1,ValueMeta(VType::ui64,false,true), true),
+				ValueItem((void*)true,ValueMeta(VType::ui8,false,true), true)
+			}
+		)
+	);
+	Task::start(aa);
+	return aa;
 }

@@ -272,7 +272,7 @@ void bRetNoting(std::vector<uint8_t>& b) {
 }
 
 
-CTaskMutex tsk_mtx;
+TaskMutex tsk_mtx;
 void gvfdasf() {
 	for (size_t i = 0; i < 100; i++) {
 		tsk_mtx.lock();
@@ -297,7 +297,7 @@ void fvbzxcbxcv() {
 }
 void a3tgr4at() {
 	tsk_mtx.lock();
-	CTask::sleep(4000);
+	Task::sleep(4000);
 	tsk_mtx.unlock();
 }
 
@@ -307,11 +307,11 @@ void cout_test() {
 	//std::this_thread::sleep_for(std::chrono::nanoseconds(1));
 	++idsaDAS;
 	std::cout << idsaDAS << std::endl;
-	CTask::sleep(1000);
+	Task::sleep(1000);
 }
 void sleep_test() {
 	auto started = std::chrono::high_resolution_clock::now();
-	CTask::sleep(1000);
+	Task::sleep(1000);
 	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started) << std::endl;
 }
 struct test_lgr {
@@ -333,21 +333,22 @@ void lgr_loop_test() {
 #include "run_time/AttachA_CXX.hpp"
 typedef void (*functs)(...);
 int main() {
-	//{
-	//	AsyncFile testing("hello.txt", AsyncFile::OpenMode::open_always);
-	//
-	//	for (size_t i = 0; i < 50000; i++) {
-	//		std::string test = std::to_string(i) + " item";
-	//		for (size_t j = 0; j < 5000; j++)
-	//			test.push_back(' ');
-	//		test.push_back('\n');
-	//		char* str = new char[test.size()];
-	//		memcpy(str, test.c_str(), test.size());
-	//		testing.append(str, test.size());
-	//	}
-	//	CTask::createExecutor(1);
-	//	CTask::awaitEndTasks();
-	//}
+	{
+		Task::max_running_tasks = 1200;
+		Task::max_planned_tasks = 7000;
+		typed_lgr<ConcurentFile> testing = new ConcurentFile("hello.txt");
+		Task::createExecutor(5);
+		for (size_t i = 0; i < 500000; i++) {
+			std::string test = std::to_string(i) + " item";
+			for (size_t j = 0; j < 5000; j++)
+				test.push_back(' ');
+			test.push_back('\n');
+			char* str = new char[test.size()];
+			memcpy(str, test.c_str(), test.size());
+			ConcurentFile::append(testing,str, test.size());
+		}
+		Task::awaitEndTasks();
+	}
 
 	//std::thread(ignoredAsyncGC).detach();
 
@@ -360,7 +361,7 @@ int main() {
 	//}
 	//
 	initStandardFunctions();
-	//CTask::sleep(100000000000);
+	//Task::sleep(100000000000);
 	//for (size_t i = 0; i < 100; i++) {
 	//	typed_lgr tlgr(new test_lgr());
 	//	tlgr->self = tlgr;
@@ -411,7 +412,7 @@ int main() {
 
 	bArgSet(programm, 1);
 	bCallReturn(programm, "console printf");
-	CTask::createExecutor(1);
+	Task::createExecutor(1);
 
 	FuncEnviropment::AddNative(TestCall, "test");
 	FuncEnviropment::AddNative(ThrowCall, "throwcall");
@@ -452,12 +453,12 @@ int main() {
 		FuncEnviropment::Load(programm, "Yay");
 	}
 	typed_lgr<FuncEnviropment> env = FuncEnviropment::enviropment("sleep_test");
-	//CTask::start(new CTask(FuncEnviropment::enviropment("4"), nullptr));
-	CTask::start(new CTask(FuncEnviropment::enviropment("3"), nullptr));
-	CTask::start(new CTask(FuncEnviropment::enviropment("2"), nullptr));
-	CTask::start(new CTask(FuncEnviropment::enviropment("1"), nullptr));
+	//Task::start(new Task(FuncEnviropment::enviropment("4"), nullptr));
+	Task::start(new Task(FuncEnviropment::enviropment("3"), nullptr));
+	Task::start(new Task(FuncEnviropment::enviropment("2"), nullptr));
+	Task::start(new Task(FuncEnviropment::enviropment("1"), nullptr));
 
-	CTask::awaitEndTasks();
+	Task::awaitEndTasks();
 	try {
 		callFunction("start", false);
 	}
@@ -471,29 +472,29 @@ int main() {
 
 	//std::cout << "Hello!\n";
 	size_t e = 0;
-	CTask::awaitEndTasks();
+	Task::awaitEndTasks();
 	{
-		CTask::start(new CTask(env, nullptr));
-		CTask::awaitEndTasks();
+		Task::start(new Task(env, nullptr));
+		Task::awaitEndTasks();
 	}
 
-	CTask::reduceExecutor(1);
-	CTask::awaitEndTasks();
+	Task::reduceExecutor(1);
+	Task::awaitEndTasks();
 
 	for (size_t i = 0; i < 10000; i++) {
-		CTask::start(new CTask(FuncEnviropment::enviropment("start"), nullptr));
-		CTask::start(new CTask(FuncEnviropment::enviropment("1"), nullptr));
-		CTask::start(new CTask(env, nullptr));
+		Task::start(new Task(FuncEnviropment::enviropment("start"), nullptr));
+		Task::start(new Task(FuncEnviropment::enviropment("1"), nullptr));
+		Task::start(new Task(env, nullptr));
 	}
-	CTask::createExecutor(16);
-	CTask::awaitEndTasks();
+	Task::createExecutor(16);
+	Task::awaitEndTasks();
 	for (size_t i = 0; i < 10000; i++)
-		CTask::start(new CTask(env, nullptr));
-	CTask::awaitEndTasks();
+		Task::start(new Task(env, nullptr));
+	Task::awaitEndTasks();
 	for (size_t i = 0; i < 10000; i++)
-		CTask::start(new CTask(env, nullptr));
-	CTask::awaitEndTasks();
-	CTask::sleep(100000000000);
+		Task::start(new Task(env, nullptr));
+	Task::awaitEndTasks();
+	Task::sleep(100000000000);
 	//bool need_restore = false;
 	//try {
 	//	int s = 0;

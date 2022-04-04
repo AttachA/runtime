@@ -24,8 +24,8 @@ thread_local ValueEnvironment thread_local_enviropments;
 ValueItem* FuncEnviropment::asyncCall(typed_lgr<FuncEnviropment> f, list_array<ValueItem>* args) {
 	ValueItem* res = new ValueItem();
 	res->meta = ValueMeta(VType::async_res, false, false).encoded;
-	res->val = new typed_lgr(new CTask(f, new list_array<ValueItem>(*args)));
-	CTask::start(*(typed_lgr<CTask>*)res->val);
+	res->val = new typed_lgr(new Task(f, new list_array<ValueItem>(*args)));
+	Task::start(*(typed_lgr<Task>*)res->val);
 	return res;
 }
 

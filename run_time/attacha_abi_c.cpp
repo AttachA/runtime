@@ -91,7 +91,7 @@ void universalFree(void** value, ValueMeta meta) {
 		delete (std::string*)*value;
 		return;
 	case VType::async_res:
-		delete (typed_lgr<CTask>*)* value;
+		delete (typed_lgr<Task>*)* value;
 		return;
 	case VType::undefined_ptr:
 		return;
@@ -202,8 +202,8 @@ auto gcCall(lgr* gc, list_array<ValueItem>* args, bool async_mode) {
 	return FuncEnviropment::CallFunc(*(std::string*)gc->getPtr(), args, async_mode);
 }
 ValueItem* getAsyncValueItem(void* val) {
-	typed_lgr<CTask>& tmp = *(typed_lgr<CTask>*)val;
-	return CTask::getResult(tmp);
+	typed_lgr<Task>& tmp = *(typed_lgr<Task>*)val;
+	return Task::getResult(tmp);
 }
 void getValueItem(void** value, ValueItem* f_res) {
 	universalRemove(value);

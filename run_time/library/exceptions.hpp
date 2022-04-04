@@ -6,7 +6,7 @@
 
 #pragma once
 #include <string>
-#include "list_array.hpp"
+#include "../../library/list_array.hpp"
 static inline std::string replace_space(const std::string& str) {
 	std::string res;
 	res.reserve(str.size());
@@ -60,6 +60,7 @@ public:
 class OutOfRange : public AttachARuntimeException {
 public:
 	OutOfRange() : AttachARuntimeException("Out of range") {}
+	OutOfRange(const std::string& str) : AttachARuntimeException(str) {}
 	const char* name() const override {
 		return "OutOfRange";
 	}
