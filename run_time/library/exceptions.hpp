@@ -49,6 +49,20 @@ public:
 		return "InvalidOperation";
 	}
 };
+class InvalidLock : public InvalidOperation {
+public:
+	InvalidLock(const std::string& msq) : InvalidOperation(msq) {}
+	const char* name() const override {
+		return "InvalidLock";
+	}
+};
+class InvalidUnlock : public InvalidOperation {
+public:
+	InvalidUnlock(const std::string& msq) : InvalidOperation(msq) {}
+	const char* name() const override {
+		return "InvalidUnlock";
+	}
+};
 
 class NotImplementedException : public AttachARuntimeException {
 public:

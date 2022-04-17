@@ -406,7 +406,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 			return { true,false };
 
 		bool temp1 = (integer_unsigned(cmp1) || cmp1 == VType::undefined_ptr);
-		bool temp2 = (integer_unsigned(cmp2) || cmp1 == VType::undefined_ptr);
+		bool temp2 = (integer_unsigned(cmp2) || cmp2 == VType::undefined_ptr);
 		if (temp1 && temp2)
 			return { false, uint64_t(val1) < uint64_t(val2) };
 		else if (temp1)
@@ -536,7 +536,6 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				case VType::doub:
 					return { false, *(double*)&val1 < *(double*)&(val2) };
 				}
-				break;
 			}
 		return { false, false };
 	}
@@ -834,7 +833,6 @@ namespace ABI_IMPL {
 				catch (...) {
 					double res = std::stod(str);
 					return ValueItem(*(void**)&res, ValueMeta(VType::doub, false, true));
-
 				}
 			}
 			catch (...) {
@@ -908,6 +906,14 @@ namespace ABI_IMPL {
 		else if constexpr (std::is_same_v<T, uint64_t>) {
 			*reinterpret_cast<uint64_t*>(set_val) = val;
 			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui64, false, true);
+		}
+		else if constexpr (std::is_same_v<T, float>) {
+			*reinterpret_cast<float*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::flo, false, true);
+		}
+		else if constexpr (std::is_same_v<T, double>) {
+			*reinterpret_cast<double*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::doub, false, true);
 		}
 		else if constexpr (std::is_same_v<T, std::string>) {
 			*reinterpret_cast<std::string**>(set_val) = new std::string(val);
@@ -1161,7 +1167,7 @@ void DynDiv(void** val0, void** val1) {
 		break;
 	case VType::uarr:
 		if (val1_meta.vtype == VType::uarr)
-			reinterpret_cast<list_array<ValueItem>&>(actual_val0).insert(0, reinterpret_cast<list_array<ValueItem>&>(actual_val1));
+			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_front(reinterpret_cast<list_array<ValueItem>&>(actual_val1));
 		else
 			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_front(ValueItem(copyValue(actual_val1,val1_meta), val1_meta));
 		break;
@@ -1169,6 +1175,68 @@ void DynDiv(void** val0, void** val1) {
 		throw InvalidOperation("for strings divide operation is not defined");
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) /= ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
+		break;
+	default:
+		throw InvalidCast("Fail cast value for div operation, cause value type is undefined");
+	}
+}
+void DynRest(void** val0, void** val1) {
+	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
+	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
+	void*& actual_val0 = *val0;
+	void*& actual_val1 = *val1;
+	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
+	if (val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
+
+	if (!val0_meta.allow_edit)
+		throw UnmodifabeValue();
+
+	switch (val0_meta.vtype) {
+	case VType::noting: {
+		actual_val0 = copyValue(actual_val1, val1_meta);
+		val0_meta = val1_meta;
+		break;
+	}
+	case VType::i8:
+		reinterpret_cast<int8_t&>(actual_val0) %= ABI_IMPL::Vcast<int8_t>(actual_val1, val1_meta);
+		break;
+	case VType::i16:
+		reinterpret_cast<int16_t&>(actual_val0) %= ABI_IMPL::Vcast<int16_t>(actual_val1, val1_meta);
+		break;
+	case VType::i32:
+		reinterpret_cast<int32_t&>(actual_val0) %= ABI_IMPL::Vcast<int32_t>(actual_val1, val1_meta);
+		break;
+	case VType::i64:
+		reinterpret_cast<int64_t&>(actual_val0) %= ABI_IMPL::Vcast<int64_t>(actual_val1, val1_meta);
+		break;
+	case VType::ui8:
+		reinterpret_cast<uint8_t&>(actual_val0) %= ABI_IMPL::Vcast<uint8_t>(actual_val1, val1_meta);
+		break;
+	case VType::ui16:
+		reinterpret_cast<uint16_t&>(actual_val0) %= ABI_IMPL::Vcast<uint16_t>(actual_val1, val1_meta);
+		break;
+	case VType::ui32:
+		reinterpret_cast<uint32_t&>(actual_val0) %= ABI_IMPL::Vcast<uint32_t>(actual_val1, val1_meta);
+		break;
+	case VType::ui64:
+		reinterpret_cast<uint64_t&>(actual_val0) %= ABI_IMPL::Vcast<uint64_t>(actual_val1, val1_meta);
+		break;
+	case VType::flo:
+		reinterpret_cast<float&>(actual_val0) = std::fmod(reinterpret_cast<float&>(actual_val0),ABI_IMPL::Vcast<float>(actual_val1, val1_meta));
+		break;
+	case VType::doub:
+		reinterpret_cast<double&>(actual_val0) = std::fmod(reinterpret_cast<double&>(actual_val0), ABI_IMPL::Vcast<double>(actual_val1, val1_meta));
+		break;
+	case VType::uarr:
+		if (val1_meta.vtype == VType::uarr)
+			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(reinterpret_cast<list_array<ValueItem>&>(actual_val1));
+		else
+			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(ValueItem(copyValue(actual_val1, val1_meta), val1_meta));
+		break;
+	case VType::string:
+		throw InvalidOperation("for strings divide operation is not defined");
+	case VType::undefined_ptr:
+		reinterpret_cast<size_t&>(actual_val0) %= ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
 		break;
 	default:
 		throw InvalidCast("Fail cast value for div operation, cause value type is undefined");
@@ -1444,7 +1512,7 @@ void asValue(void** val, VType type) {
 	case VType::except_value:
 		if (reinterpret_cast<ValueMeta*>(val + 1)->vtype != VType::except_value) {
 			try {
-				throw AException("Undefined Exception", ABI_IMPL::Scast(*val, meta),copyValue(*val, meta), meta.encoded);
+				throw AException("Undefined", ABI_IMPL::Scast(*val, meta),copyValue(*val, meta), meta.encoded);
 			}
 			catch (AException& ex) {
 				universalRemove(val);
@@ -1474,7 +1542,6 @@ bool isTrueValue(void** value) {
 	case VType::ui64:
 	case VType::i64:
 		return (uint64_t)*value;
-		break;
 	case VType::flo:
 		return *(float*)value;
 	case VType::doub:
@@ -1488,7 +1555,7 @@ bool isTrueValue(void** value) {
 	case VType::except_value:
 		std::rethrow_exception(*(std::exception_ptr*)value);
 	default:
-		break;
+		return false;
 	}
 }
 void setBoolValue(bool boolean,void** value) {
@@ -1653,6 +1720,20 @@ size_t getSize(void** value) {
 		return (uint32_t)res;
 	case VType::ui64:
 		return (uint64_t)res;
+	case VType::flo: {
+		float tmp = *(float*)&res;
+		actual = tmp;
+		if (tmp != actual)
+			throw NumericUndererflowException();
+		return actual;
+	}
+	case VType::doub: {
+		double tmp = *(double*)&res;
+		actual = tmp;
+		if (tmp != actual)
+			throw NumericUndererflowException();
+		return actual;
+	}
 	default:
 		throw InvalidType("Need sizable type");
 	}
@@ -1663,6 +1744,96 @@ size_t getSize(void** value) {
 
 
 
+bool ValueItem::operator<(const ValueItem& cmp) const {
+	void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
+	void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
+	return compareValue(meta.vtype, cmp.meta.vtype, val1, val2).second;
+}
+bool ValueItem::operator>(const ValueItem& cmp) const {
+	void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
+	void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
+	return !compareValue(meta.vtype, cmp.meta.vtype, val1, val2).second;
+}
+bool ValueItem::operator==(const ValueItem& cmp) const {
+	void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
+	void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
+	return compareValue(meta.vtype, cmp.meta.vtype, val1, val2).first;
+}
+bool ValueItem::operator!=(const ValueItem& cmp) const {
+	void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
+	void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
+	return !compareValue(meta.vtype, cmp.meta.vtype, val1, val2).first;
+}
+bool ValueItem::operator>=(const ValueItem& cmp) const {
+	void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
+	void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
+	auto tmp = compareValue(meta.vtype, cmp.meta.vtype, val1, val2);
+	return tmp.first || !tmp.second;
+}
+bool ValueItem::operator<=(const ValueItem& cmp) const {
+	void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
+	void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
+	auto tmp = compareValue(meta.vtype, cmp.meta.vtype, val1, val2);
+	return tmp.first || tmp.second;
+}		
+ValueItem& ValueItem::operator +=(const ValueItem& op) {
+	DynSum(&val, (void**)&op.val);
+	return *this;
+}
+ValueItem& ValueItem::operator -=(const ValueItem& op) {
+	DynMinus(&val, (void**)&op.val);
+	return *this;
+}
+ValueItem& ValueItem::operator *=(const ValueItem& op) {
+	DynMul(&val, (void**)&op.val);
+	return *this;
+}
+ValueItem& ValueItem::operator /=(const ValueItem& op) {
+	DynDiv(&val, (void**)&op.val);
+	return *this;
+}
+ValueItem& ValueItem::operator %=(const ValueItem& op) {
+	DynRest(&val, (void**)&op.val);
+	return *this;
+}
+ValueItem& ValueItem::operator ^=(const ValueItem& op) {
+	DynBitXor(&val, (void**)&op.val);
+	return *this;
+}
+ValueItem& ValueItem::operator &=(const ValueItem& op) {
+	DynBitAnd(&val, (void**)&op.val);
+	return *this;
+}
+ValueItem& ValueItem::operator |=(const ValueItem& op) {
+	DynBitOr(&val, (void**)&op.val);
+	return *this;
+}
+ValueItem& ValueItem::operator !() {
+	DynBitNot(&val);
+	return *this;
+}
+
+ValueItem ValueItem::operator +(const ValueItem& op) const {
+	return ValueItem(*this) += op;
+}
+ValueItem ValueItem::operator -(const ValueItem& op) const {
+	return ValueItem(*this) -= op;
+}
+ValueItem ValueItem::operator *(const ValueItem& op) const {
+	return ValueItem(*this) *= op;
+}
+ValueItem ValueItem::operator /(const ValueItem& op) const {
+	return ValueItem(*this) /= op;
+}
+ValueItem ValueItem::operator ^(const ValueItem& op) const {
+	return ValueItem(*this) ^= op;
+}
+ValueItem ValueItem::operator &(const ValueItem& op) const {
+	return ValueItem(*this) &= op;
+}
+ValueItem ValueItem::operator |(const ValueItem& op) const {
+	return ValueItem(*this) |= op;
+}
 
 
 

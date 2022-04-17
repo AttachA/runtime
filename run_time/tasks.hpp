@@ -7,11 +7,13 @@
 #pragma once
 #include <mutex>
 #include <fstream>
-#include <filesystem>
+#include <list>
 #include "link_garbage_remover.hpp"
 #include "../library/list_array.hpp"
 #include "attacha_abi_structs.hpp"
 
+#pragma push_macro("min")
+#undef min
 
 //it do automaticaly self rethrow, but still recomended do rethrow manually and catching by const refrence
 class TaskCancellation;
@@ -38,8 +40,8 @@ public:
 	void notify_all();
 };
 struct TaskResult {
-	list_array<ValueItem> results;
 	TaskConditionVariable result_notify;
+	list_array<ValueItem> results;
 	void* context = nullptr;
 	bool end_of_life = false;
 	ValueItem* getResult(size_t res_num);
@@ -53,7 +55,6 @@ struct TaskResult {
 	~TaskResult();
 };
 
-//Task only in typed_lgr
 struct Task {
 	static size_t max_running_tasks;
 	static size_t max_planned_tasks;
@@ -68,14 +69,14 @@ struct Task {
 	std::timed_mutex* relock_timed_mut = nullptr;
 	std::recursive_mutex* relock_rec_mut = nullptr;
 	class ValueEnvironment* task_local = nullptr;
-	bool time_end_flag = false;
-	bool awaked = false;
-	bool started = false;
-	bool is_yield_mode = false;
-	bool end_of_life = false;
-	bool make_cancel = false;
-	bool as_attacha_native = false;
-	Task(typed_lgr<class FuncEnviropment> call_func, list_array<ValueItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler = nullptr, bool used_task_local = false);
+	std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min();
+	bool time_end_flag : 1 = false;
+	bool awaked : 1 = false;
+	bool started : 1 = false;
+	bool is_yield_mode : 1 = false;
+	bool end_of_life : 1 = false;
+	bool make_cancel : 1 = false;
+	Task(typed_lgr<class FuncEnviropment> call_func, list_array<ValueItem>* arguments, typed_lgr<class FuncEnviropment> exception_handler = nullptr, bool used_task_local = false, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 	Task(Task&& mov) noexcept : fres(std::move(mov.fres)) {
 		ex_handle = mov.ex_handle;
 		func = mov.func;
@@ -119,11 +120,13 @@ struct Task {
 	static ValueItem* getResult(typed_lgr<Task>&& lgr_task, size_t yield_res = 0) {
 		return lgr_task->fres.getResult(yield_res);
 	}
-
+	static void awaitTask(typed_lgr<Task>&& lgr_task) {
+		lgr_task->fres.awaitEnd();
+	}
 };
 class TaskMutex {
-	std::list<typed_lgr<Task>> resume_task;
 	std::timed_mutex no_race;
+	std::list<typed_lgr<Task>> resume_task;
 	Task* current_task = nullptr;
 public:
 	TaskMutex() {}
@@ -170,3 +173,60 @@ struct ConcurentFile {
 	static typed_lgr<Task> write_long(typed_lgr<ConcurentFile>& file, list_array<uint8_t>*, size_t pos = -1);
 	static typed_lgr<Task> append_long(typed_lgr<ConcurentFile>& file, list_array<uint8_t>*);
 };
+class EventSystem {
+	TaskMutex no_race;
+	std::list<typed_lgr<class FuncEnviropment>> heigh_priorihty;
+	std::list<typed_lgr<class FuncEnviropment>> upper_avg_priorihty;
+	std::list<typed_lgr<class FuncEnviropment>> avg_priorihty;
+	std::list<typed_lgr<class FuncEnviropment>> lower_avg_priorihty;
+	std::list<typed_lgr<class FuncEnviropment>> low_priorihty;
+
+	std::list<typed_lgr<class FuncEnviropment>> async_heigh_priorihty;
+	std::list<typed_lgr<class FuncEnviropment>> async_upper_avg_priorihty;
+	std::list<typed_lgr<class FuncEnviropment>> async_avg_priorihty;
+	std::list<typed_lgr<class FuncEnviropment>> async_lower_avg_priorihty;
+	std::list<typed_lgr<class FuncEnviropment>> async_low_priorihty;
+
+	static bool removeOne(std::list<typed_lgr<class FuncEnviropment>>& list, const typed_lgr<class FuncEnviropment>& func);
+	void asyncCall(std::list<typed_lgr<class FuncEnviropment>>& list, list_array<ValueItem>* args);
+	bool awaitCall(std::list<typed_lgr<class FuncEnviropment>>& list, list_array<ValueItem>* args);
+
+	bool syncCall(std::list<typed_lgr<class FuncEnviropment>>& list, list_array<ValueItem>* args);
+public:
+	enum class Priorithy {
+		heigh,
+		upper_avg,
+		avg,
+		lower_avg,
+		low
+	};
+	void operator+=(const typed_lgr<class FuncEnviropment>& func);
+	void join(const typed_lgr<class FuncEnviropment>& func, bool async_mode = false, Priorithy priorithy = Priorithy::avg);
+	bool leave(const typed_lgr<class FuncEnviropment>& func, bool async_mode = false, Priorithy priorithy = Priorithy::avg);
+
+	bool await_notify(list_array<ValueItem>* it);
+	bool notify(list_array<ValueItem>* it);
+	bool sync_notify(list_array<ValueItem>* it);
+};
+
+
+class TaskLimiter {
+	list_array<void*> lock_check;
+	std::list<typed_lgr<Task>> resume_task;
+	std::timed_mutex no_race;
+	std::condition_variable native_notify;
+	size_t allow_treeshold = 0;
+	size_t max_treeshold = 0;
+	bool locked = false;
+	void unchecked_unlock();
+public:
+	TaskLimiter() {}
+	void setMaxTreeshold(size_t val);
+	void lock();
+	bool try_lock();
+	bool try_lock_for(size_t milliseconds);
+	bool try_lock_until(std::chrono::high_resolution_clock::time_point time_point);
+	void unlock();
+	bool is_locked();
+};
+#pragma pop_macro("min")

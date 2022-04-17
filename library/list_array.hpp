@@ -1696,20 +1696,20 @@ public:
 	}
 
 	template<class _Fn>
-	conexpr size_t remove_same(T val, size_t start, size_t end, _Fn comparer = [](T f, T s) { return f == s; }) {
+	conexpr size_t remove_same(const T& val, size_t start, size_t end, _Fn comparer = [](const T& f, const T& s) { return f == s; }) {
 		if (start > end)
 			std::swap(start, end);
 		if (end > _size)
 			throw std::out_of_range("end value out of size limit");
 		if (start > _size)
 			throw std::out_of_range("start value out of size limit");
-		size_t res = arr.remove_if([](T cval) { return comparer(val, cval); }, reserved_begin + start, reserved_begin + end);
+		size_t res = arr.remove_if([](const T& cval) { return comparer(val, cval); }, reserved_begin + start, reserved_begin + end);
 		_size -= res;
 		return res;
 	}
 	template<class _Fn>
-	conexpr size_t remove_same(T val, _Fn comparer) {
-		size_t res = arr.remove_if([](T cval) { return comparer(val, cval); }, reserved_begin, reserved_begin + _size);
+	conexpr size_t remove_same(const T& val, _Fn comparer = [](const T& f, const T& s) { return f == s; }) {
+		size_t res = arr.remove_if([](const T& cval) { return comparer(val, cval); }, reserved_begin, reserved_begin + _size);
 		_size -= res;
 		return res;
 	}

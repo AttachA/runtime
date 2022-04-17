@@ -27,8 +27,8 @@ unsigned long fault_reserved_stack_size = 524288;
 thread_local unsigned long stack_size_tmp = 0;
 thread_local bool need_stack_restore = false;
 
-EventProvider<CXXExInfo&> unhandled_exception;
-EventProvider<> ex_fault;
+EventSystem unhandled_exception;
+EventSystem ex_fault;
 #if _DEBUG
 FaultActionByDefault default_fault_action = FaultActionByDefault::invite_to_debugger;
 #else 
@@ -112,7 +112,10 @@ LONG WINAPI win_fault_handler(LPEXCEPTION_POINTERS e) {
 	if (e->ExceptionRecord->ExceptionCode == 0xe06d7363) {
 		CXXExInfo cxx;
 		getCxxExInfoFromNative(cxx, e);
-		unhandled_exception(cxx);
+		{
+			list_array<ValueItem> vit{ ValueItem(&cxx,ValueMeta(VType::undefined_ptr,false,false))};
+			unhandled_exception.sync_notify(&vit);
+		}
 		switch (default_fault_action) {
 		case FaultActionByDefault::show_error:
 			show_err(cxx);
@@ -152,7 +155,7 @@ LONG WINAPI win_fault_handler(LPEXCEPTION_POINTERS e) {
 		}
 	}
 	else {
-		ex_fault();
+		ex_fault.sync_notify(nullptr);
 		switch (default_fault_action) {
 		case FaultActionByDefault::show_error:
 			show_err(e);

@@ -6,40 +6,109 @@
 
 #pragma once
 #include "AttachA_CXX.hpp"
+#include "tasks.hpp"
 
-template<class T = int>
-class ValueChangeEvent {
-	T value;
+class ValueMonitor {
+	ValueItem value;
 public:
-	size_t seter_check = 0;
-	size_t geter_check = 0;
-	typed_lgr<FuncEnviropment> set_notify;
-	typed_lgr<FuncEnviropment> get_notify;
+	typed_lgr<EventSystem> set_notify;
+	typed_lgr<EventSystem> get_notify;
 
-	ValueChangeEvent(T&& set) {
+	ValueMonitor(ValueItem&& set) {
 		value = std::move(set);
 	}
-	ValueChangeEvent(const T& set) {
+	ValueMonitor(const ValueItem& set) {
+		value = set;
+	}
+	ValueMonitor(ValueMonitor&& set) noexcept(false) {
+		value = std::move(set);
+		set = ValueItem();
+	}
+	ValueMonitor(const ValueMonitor& set) {
 		value = set;
 	}
 
-	ValueChangeEvent& operator=(T&& set) {
+	ValueMonitor& operator=(ValueItem&& set) {
+		list_array<ValueItem> args{ value, set };
 		value = std::move(set);
-		seter_check++;
-		set_notify.notify_all();
+		set_notify->notify(&args);
 	}
-	ValueChangeEvent& operator=(const T& set) {
+	ValueMonitor& operator=(const ValueItem& set) {
+		list_array<ValueItem> args{ value, set };
 		value = set;
-		seter_check++;
-		set_notify.notify_all();
+		set_notify->notify(&args);
 	}
 
-	operator T& () {
+	ValueMonitor& operator=(ValueMonitor&& set) noexcept(false) {
+		list_array<ValueItem> args{ value, set };
+		value = std::move(set);
+		set_notify->notify(&args);
+	}
+	ValueMonitor& operator=(const ValueMonitor& set) {
+		list_array<ValueItem> args{ value, set };
+		value = set;
+		set_notify->notify(&args);
+	}
+
+	operator ValueItem&() {
 		list_array<AttachA::Value> tt{ AttachA::Value(new ValueItem()) };
-		AttachA::convValue(tt);
-		AttachA::cxxCall(set_notify, std::string("ssss"));
-		geter_check++;
-		get_notify.notify_all();
+		list_array<ValueItem> args{ value };
+		get_notify->notify(&args);
+		return value;
+	}
+	operator const ValueItem&() const {
+		list_array<AttachA::Value> tt{ AttachA::Value(new ValueItem()) };
+		list_array<ValueItem> args{ value };
+		const_cast<typed_lgr<EventSystem>&>(get_notify)->notify(&args);
+		return value;
+	}
+};
+
+class ValueChangeEvent {
+	ValueItem value;
+public:
+	typed_lgr<EventSystem> set_notify;
+
+	ValueChangeEvent(ValueItem&& set) noexcept {
+		value = std::move(set);
+	}
+	ValueChangeEvent(const ValueItem& set) {
+		value = set;
+	}
+	ValueChangeEvent(ValueChangeEvent&& set) noexcept(false) {
+		value = std::move(set);
+		set = ValueItem();
+	}
+	ValueChangeEvent(const ValueChangeEvent& set) {
+		value = set;
+	}
+
+	ValueChangeEvent& operator=(ValueItem&& set) {
+		list_array<ValueItem> args{ value, set };
+		value = std::move(set);
+		set_notify->notify(&args);
+	}
+	ValueChangeEvent& operator=(const ValueItem& set) {
+		list_array<ValueItem> args{ value, set };
+		value = set;
+		set_notify->notify(&args);
+	}
+
+	ValueChangeEvent& operator=(ValueChangeEvent&& set) noexcept(false) {
+		list_array<ValueItem> args{ value, set };
+		value = std::move(set);
+		set_notify->notify(&args);
+	}
+	ValueChangeEvent& operator=(const ValueChangeEvent& set) {
+		list_array<ValueItem> args{ value, set };
+		value = set;
+		set_notify->notify(&args);
+	}
+
+	operator ValueItem& () {
+		return value;
+	}
+	operator const ValueItem& () const {
 		return value;
 	}
 };

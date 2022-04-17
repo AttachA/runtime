@@ -334,20 +334,17 @@ void lgr_loop_test() {
 typedef void (*functs)(...);
 int main() {
 	{
-		Task::max_running_tasks = 1200;
-		Task::max_planned_tasks = 7000;
+		Task::max_running_tasks = 3500;
+		Task::max_planned_tasks = 8000;
 		typed_lgr<ConcurentFile> testing = new ConcurentFile("hello.txt");
-		Task::createExecutor(5);
-		for (size_t i = 0; i < 500000; i++) {
-			std::string test = std::to_string(i) + " item";
-			for (size_t j = 0; j < 5000; j++)
-				test.push_back(' ');
-			test.push_back('\n');
-			char* str = new char[test.size()];
-			memcpy(str, test.c_str(), test.size());
-			ConcurentFile::append(testing,str, test.size());
-		}
-		Task::awaitEndTasks();
+		//Task::createExecutor(5);
+		//for (size_t i = 0; i < 500000; i++) {
+		//	std::string test = std::to_string(i) + " item\n";
+		//	char* str = new char[test.size()];
+		//	memcpy(str, test.c_str(), test.size());
+		//	ConcurentFile::append(testing,str, test.size());
+		//}
+		//Task::awaitEndTasks();
 	}
 
 	//std::thread(ignoredAsyncGC).detach();
@@ -428,9 +425,9 @@ int main() {
 	FuncEnviropment::AddNative(sleep_test, "sleep_test");
 
 
-	for (size_t i = 0; i < 100000; i++) {
-		callFunction("start", false);
-	}
+	//for (size_t i = 0; i < 100000; i++) {
+	//	callFunction("start", false);
+	//}
 
 	//empty fn with 5vars and no external alloc 1000000cals 5 vals
 	// 65ms  !66ms   stack alloc
@@ -478,7 +475,7 @@ int main() {
 		Task::awaitEndTasks();
 	}
 
-	Task::reduceExecutor(1);
+	//Task::reduceExecutor(1);
 	Task::awaitEndTasks();
 
 	for (size_t i = 0; i < 10000; i++) {

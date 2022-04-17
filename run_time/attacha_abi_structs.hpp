@@ -134,14 +134,13 @@ enum class VType : uint8_t {
 	undefined_ptr,
 	except_value,//default from except call
 
-
+	// sstructure// ValueItem[] (allocated in stack)
+	// hstructure// ValueItem[] (allocated in heap)
 	// 
-	// class_define
-	//	[arr<VType>, arr<func>]
+	// class {define ptr, [values]}
 	// 
-	// structure {arr<VType>, [values]}
-	// class {definer, [values]}
-	// morph {definer, [vtable, values]}
+	// morph {[funcs], [values]}
+	// proxy {define ptr, {value ptr}}
 	// 
 };
 union ValueMeta {
@@ -177,6 +176,29 @@ struct ValueItem {
 	ValueItem& operator=(const ValueItem& copy);
 	ValueItem& operator=(ValueItem&& copy) noexcept;
 	~ValueItem();
+	bool operator<(const ValueItem& cmp) const;
+	bool operator>(const ValueItem& cmp) const;
+	bool operator==(const ValueItem& cmp) const;
+	bool operator!=(const ValueItem& cmp) const;
+	bool operator>=(const ValueItem& cmp) const;
+	bool operator<=(const ValueItem& cmp) const;
+	ValueItem& operator +=(const ValueItem& op);
+	ValueItem& operator -=(const ValueItem& op);
+	ValueItem& operator *=(const ValueItem& op);
+	ValueItem& operator /=(const ValueItem& op);
+	ValueItem& operator %=(const ValueItem& op);
+	ValueItem& operator ^=(const ValueItem& op);
+	ValueItem& operator &=(const ValueItem& op);
+	ValueItem& operator |=(const ValueItem& op);
+	ValueItem& operator !();
+
+	ValueItem operator +(const ValueItem& op) const;
+	ValueItem operator -(const ValueItem& op) const;
+	ValueItem operator *(const ValueItem& op) const;
+	ValueItem operator /(const ValueItem& op) const;
+	ValueItem operator ^(const ValueItem& op) const;
+	ValueItem operator &(const ValueItem& op) const;
+	ValueItem operator |(const ValueItem& op) const;
 };
 
 typedef ValueItem* (*Enviropment)(void** enviro, list_array<ValueItem>* args);
@@ -184,17 +206,211 @@ typedef ValueItem* (*AttachACXX)(list_array<ValueItem>* arguments);
 
 
 
-struct ClassValue {
-	std::unordered_map<std::string, ValueItem> private_vals;
-	std::unordered_map<std::string, ValueItem>  public_vals;
 
-	std::unordered_map<std::string, class FuncEnviropment*> private_fun;
-	std::unordered_map<std::string, class FuncEnviropment*> public_fun;
+
+
+enum class ClassAccess : uint8_t {
+	pub,//anyone can use
+	priv,//main only
+	prot,//derived or main
+	deriv//derived only
 };
-struct StructValue {
-	std::unordered_map<std::string, ValueItem> private_vals;
-	std::unordered_map<std::string, ValueItem>  public_vals;
+struct ClassFnDefine {
+	typed_lgr <class FuncEnviropment > fn = nullptr;
+	uint8_t deletable : 1 = true;
+	ClassAccess access : 2 = ClassAccess::pub;
 };
+struct ClassValDefine {
+	ValueItem val;
+	ClassAccess access : 2 = ClassAccess::pub;
+};
+struct ClassValue {
+	std::unordered_map<std::string, ClassValDefine> val;
+	std::unordered_map<std::string, ClassFnDefine>* funs;
+	typed_lgr<class FuncEnviropment> callFnPtr(const std::string& str, ClassAccess acces) {
+		if (funs) {
+			if (funs->contains(str)) {
+				auto& tmp = funs->operator[](str);
+				switch (acces) {
+				case ClassAccess::pub:
+					if (tmp.access == ClassAccess::pub)
+						return tmp.fn;
+					break;
+				case ClassAccess::priv:
+					if (tmp.access != ClassAccess::deriv)
+						return tmp.fn;
+					break;
+				case ClassAccess::prot:
+					if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+						return tmp.fn;
+					break;
+				case ClassAccess::deriv:
+					if (tmp.access != ClassAccess::priv)
+						return tmp.fn;
+					break;
+				default:
+					throw NotImplementedException();
+				}
+				throw InvalidFunction("Try access to private function");
+			}
+		}
+		throw NotImplementedException();
+	}
+	auto* getFnMeta(const std::string& str) {
+		if (funs) {
+			if (funs->contains(str))
+				return &funs->operator[](str);
+		}
+		throw NotImplementedException();
+	}
+	ValueItem& getValue(const std::string& str, ClassAccess acces) {
+		if (val.contains(str)) {
+			auto& tmp = val[str];
+			switch (acces) {
+			case ClassAccess::pub:
+				if (tmp.access == ClassAccess::pub)
+					return tmp.val;
+				break;
+			case ClassAccess::priv:
+				if (tmp.access != ClassAccess::deriv)
+					return tmp.val;
+				break;
+			case ClassAccess::prot:
+				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+					return tmp.val;
+				break;
+			case ClassAccess::deriv:
+				if (tmp.access != ClassAccess::priv)
+					return tmp.val;
+				break;
+			default:
+				throw NotImplementedException();
+			}
+			throw InvalidFunction("Try access to non public value");
+		}
+		throw NotImplementedException();
+	}
+	ValueItem copyValue(const std::string& str, ClassAccess acces) {
+		if (val.contains(str)) {
+			auto& tmp = val[str];
+			switch (acces) {
+			case ClassAccess::pub:
+				if (tmp.access == ClassAccess::pub)
+					return tmp.val;
+				break;
+			case ClassAccess::priv:
+				if (tmp.access != ClassAccess::deriv)
+					return tmp.val;
+				break;
+			case ClassAccess::prot:
+				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+					return tmp.val;
+				break;
+			case ClassAccess::deriv:
+				if (tmp.access != ClassAccess::priv)
+					return tmp.val;
+				break;
+			default:
+				throw NotImplementedException();
+			}
+			throw InvalidFunction("Try access to non public value");
+		}
+		return ValueItem();
+	}
+};
+
+struct MorphValue {
+	std::unordered_map<std::string, ClassValDefine> val;
+	std::unordered_map<std::string, ClassFnDefine>* funs;
+	ClassFnDefine funcs_def;
+	typed_lgr<class FuncEnviropment> callFnPtr(const std::string& str, ClassAccess acces) {
+		if (funs->contains(str)) {
+			auto& tmp = funs->operator[](str);
+			switch (acces) {
+			case ClassAccess::pub:
+				if (tmp.access == ClassAccess::pub)
+					return tmp.fn;
+				break;
+			case ClassAccess::priv:
+				if (tmp.access != ClassAccess::deriv)
+					return tmp.fn;
+				break;
+			case ClassAccess::prot:
+				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+					return tmp.fn;
+				break;
+			case ClassAccess::deriv:
+				if (tmp.access != ClassAccess::priv)
+					return tmp.fn;
+				break;
+			default:
+				throw NotImplementedException();
+			}
+			throw InvalidFunction("Try access to private function");
+		}
+		throw NotImplementedException();
+	}
+	auto* getFnMeta(const std::string& str) {
+		if (funs->contains(str))
+			return &funs->operator[](str);
+		throw NotImplementedException();
+	}
+	ValueItem& getValue(const std::string& str, ClassAccess acces) {
+		if (val.contains(str)) {
+			auto& tmp = val[str];
+			switch (acces) {
+			case ClassAccess::pub:
+				if (tmp.access == ClassAccess::pub)
+					return tmp.val;
+				break;
+			case ClassAccess::priv:
+				if (tmp.access != ClassAccess::deriv)
+					return tmp.val;
+				break;
+			case ClassAccess::prot:
+				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+					return tmp.val;
+				break;
+			case ClassAccess::deriv:
+				if (tmp.access != ClassAccess::priv)
+					return tmp.val;
+				break;
+			default:
+				throw NotImplementedException();
+			}
+			throw InvalidFunction("Try access to non public value");
+		}
+		throw NotImplementedException();
+	}
+	ValueItem copyValue(const std::string& str, ClassAccess acces) {
+		if (val.contains(str)) {
+			auto& tmp = val[str];
+			switch (acces) {
+			case ClassAccess::pub:
+				if (tmp.access == ClassAccess::pub)
+					return tmp.val;
+				break;
+			case ClassAccess::priv:
+				if (tmp.access != ClassAccess::deriv)
+					return tmp.val;
+				break;
+			case ClassAccess::prot:
+				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+					return tmp.val;
+				break;
+			case ClassAccess::deriv:
+				if (tmp.access != ClassAccess::priv)
+					return tmp.val;
+				break;
+			default:
+				throw NotImplementedException();
+			}
+			throw InvalidFunction("Try access to non public value");
+		}
+		return ValueItem();
+	}
+};
+
 
 
 using ProxyClassGetter = ValueItem(*)(void*);

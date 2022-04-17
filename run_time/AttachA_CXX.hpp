@@ -44,6 +44,10 @@ namespace AttachA {
 			DynDiv(&fres.val, (void**)&op.fres.val);
 			return *this;
 		}
+		Value& operator %=(const Value& op) {
+			DynRest(&fres.val, (void**)&op.fres.val);
+			return *this;
+		}
 		Value& operator ^=(const Value& op) {
 			DynBitXor(&fres.val, (void**)&op.fres.val);
 			return *this;
@@ -83,6 +87,39 @@ namespace AttachA {
 			return Value(*this) |= op;
 		}
 
+		bool operator==(Value& op) {
+			void* val1 = getValue(fres.val, fres.meta);
+			void* val2 = getValue(op.fres.val, op.fres.meta);
+			return compareValue(fres.meta.vtype, op.fres.meta.vtype, val1, val2).first;
+		}
+		bool operator!=(Value& op) {
+			void* val1 = getValue(fres.val, fres.meta);
+			void* val2 = getValue(op.fres.val, op.fres.meta);
+			return !compareValue(fres.meta.vtype, op.fres.meta.vtype, val1, val2).first;
+		}
+		bool operator<(Value& op) {
+			void* val1 = getValue(fres.val, fres.meta);
+			void* val2 = getValue(op.fres.val, op.fres.meta);
+			return compareValue(fres.meta.vtype, op.fres.meta.vtype, val1, val2).second;
+		}
+		bool operator>(Value& op) {
+			void* val1 = getValue(fres.val, fres.meta);
+			void* val2 = getValue(op.fres.val, op.fres.meta);
+			return !compareValue(fres.meta.vtype, op.fres.meta.vtype, val1, val2).second;
+		}
+		bool operator<=(Value& op) {
+			void* val1 = getValue(fres.val, fres.meta);
+			void* val2 = getValue(op.fres.val, op.fres.meta);
+			auto tmp = compareValue(fres.meta.vtype, op.fres.meta.vtype, val1, val2);
+			return tmp.first || tmp.second;
+		}
+		bool operator>=(Value& op) {
+			void* val1 = getValue(fres.val, fres.meta);
+			void* val2 = getValue(op.fres.val, op.fres.meta);
+			auto tmp = compareValue(fres.meta.vtype, op.fres.meta.vtype, val1, val2);
+			return tmp.first || !tmp.second;
+		}
+
 		template<class T = list_array<Value>>
 		T as() {
 			if constexpr (std::is_same_v<T, int8_t>)
@@ -101,6 +138,10 @@ namespace AttachA {
 				return ABI_IMPL::Vcast<int64_t>(fres.val, fres.meta);
 			else if constexpr (std::is_same_v<T, uint64_t>)
 				return ABI_IMPL::Vcast<uint64_t>(fres.val, fres.meta);
+			else if constexpr (std::is_same_v<T, float>)
+				return ABI_IMPL::Vcast<float>(fres.val, fres.meta);
+			else if constexpr (std::is_same_v<T, double>)
+				return ABI_IMPL::Vcast<double>(fres.val, fres.meta);
 			else if constexpr (std::is_same_v<T, std::string>)
 				return ABI_IMPL::Scast(fres.val, fres.meta);
 			else if constexpr (std::is_same_v<T, list_array<Value>>) {
@@ -111,6 +152,8 @@ namespace AttachA {
 			}
 			else if constexpr (std::is_same_v<T, ValueItem>)
 				return fres;
+			else if constexpr (std::is_same_v<T, ValueItem*>)
+				return new ValueItem(fres);
 			else {
 				static_assert(
 					!(
@@ -135,7 +178,7 @@ namespace AttachA {
 
 
 	template<class T = int8_t>
-	static ValueItem convValue(T& val) {
+	static ValueItem convValue(const T& val) {
 		if constexpr (std::is_same_v<T, int8_t>)
 			return ValueItem((void*)val, ValueMeta(VType::i8, false, true));
 		else if constexpr (std::is_same_v<T, uint8_t>)
@@ -150,8 +193,12 @@ namespace AttachA {
 			return ValueItem((void*)val, ValueMeta(VType::ui32, false, true));
 		else if constexpr (std::is_same_v<T, int64_t>)
 			return ValueItem((void*)val, ValueMeta(VType::i64, false, true));
-		else if constexpr (std::is_same_v<T, int64_t>)
+		else if constexpr (std::is_same_v<T, uint64_t>)
 			return ValueItem((void*)val, ValueMeta(VType::ui64, false, true));
+		else if constexpr (std::is_same_v<T, float>)
+			return ValueItem(*(void**)&val, ValueMeta(VType::flo, false, true));
+		else if constexpr (std::is_same_v<T, double>)
+			return ValueItem(*(void**)&val, ValueMeta(VType::doub, false, true));
 		else if constexpr (std::is_same_v<T, std::string> || std::is_same_v<T, const char*>)
 			return ValueItem(new std::string(val), ValueMeta(VType::string, false, true));
 		else if constexpr (std::is_same_v<T, list_array<Value>&>)

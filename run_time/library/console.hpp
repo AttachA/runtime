@@ -6,11 +6,14 @@
 
 #pragma once
 #include <cstdint>
+#include "../../library/list_array.hpp">
+struct ValueItem;
 namespace console {
 	extern const bool is_loaded;
 	extern "C" {
-		void printLine(const char* chars);
-		void print(const char* chars);
+		ValueItem* printLine(list_array<ValueItem>*);//print all arguments, convert all non string values to string
+		ValueItem* print(list_array<ValueItem>*);//print all arguments, convert all non string values to string
+		
 		void resetModifiers();
 		void boldText();
 		void italicText();
@@ -32,5 +35,12 @@ namespace console {
 		void setLine(uint32_t y);
 		void showCursor(uint32_t y);
 		void hideCursor(uint32_t y);
+
+
+
+		ValueItem* readWord(list_array<ValueItem>*);//return string, optional argument with buffer len
+		ValueItem* readLine(list_array<ValueItem>*);//return string, no arguments
+		ValueItem* readInput(list_array<ValueItem>*);//return string, no arguments
+		ValueItem* readValue(list_array<ValueItem>*);//return any value, no arguments
 	}
 }

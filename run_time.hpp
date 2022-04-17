@@ -7,7 +7,7 @@
 #pragma once
 #include "run_time/library/exceptions.hpp"
 #include "library/list_array.hpp"
-#include "library/events.hpp"
+#include "run_time/tasks.hpp"
 #include "library/string_convert.hpp"
 #include "run_time/cxxException.hpp"
 #include <thread>
@@ -16,8 +16,8 @@ typedef void* (*CALL_FUNC)(...);
 thread_local extern bool ex_proxy_enabled;
 extern size_t page_size;
 
-extern EventProvider<CXXExInfo&> unhandled_exception;
-extern EventProvider<> ex_fault;
+extern EventSystem unhandled_exception;
+extern EventSystem ex_fault;
 
 enum class FaultActionByDefault {
 	make_dump,

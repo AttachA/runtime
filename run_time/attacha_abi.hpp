@@ -210,6 +210,7 @@ void DynSum(void** val0, void** val1);
 void DynMinus(void** val0, void** val1);
 void DynMul(void** val0, void** val1);
 void DynDiv(void** val0, void** val1);
+void DynRest(void** val0, void** val1);
 
 
 void DynBitXor(void** val0, void** val1);

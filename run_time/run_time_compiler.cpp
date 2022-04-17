@@ -1857,43 +1857,4 @@ extern "C" void callFunction(const char* symbol_name, bool run_async) {
 		delete res;
 }
 
-#include "library/console.hpp"
-
-extern "C" void initStandardFunctions() {
-#pragma region Console
-	FuncEnviropment::AddNative(console::printLine, "console printLine", false);
-	FuncEnviropment::AddNative(console::print, "console print", false);
-	{
-		DynamicCall::FunctionTemplate templ;
-		templ.is_variadic = true;
-		templ.arguments.push_back(DynamicCall::FunctionTemplate::ValueT::getFromType<const char*>());
-		FuncEnviropment::AddNative((DynamicCall::PROC)printf, templ, "console printf", false);
-	}
-	FuncEnviropment::AddNative(console::resetModifiers, "console resetModifiers", false);
-	FuncEnviropment::AddNative(console::boldText, "console boldText", false);
-	FuncEnviropment::AddNative(console::italicText, "console italicText", false);
-	FuncEnviropment::AddNative(console::underlineText, "console underlineText", false);
-	FuncEnviropment::AddNative(console::slowBlink, "console slowBlink", false);
-	FuncEnviropment::AddNative(console::rapidBlink, "console rapidBlink", false);
-	FuncEnviropment::AddNative(console::invertColors, "console invertColors", false);
-	FuncEnviropment::AddNative(console::notBoldText, "console notBoldText", false);
-	FuncEnviropment::AddNative(console::notUnderlinedText, "console notUnderlinedText", false);
-	FuncEnviropment::AddNative(console::notBlinkText, "console notBlinkText", false);
-
-	FuncEnviropment::AddNative(console::resetTextColor, "console resetTextColor", false);
-	FuncEnviropment::AddNative(console::resetBgColor, "console resetBgColor", false);
-	FuncEnviropment::AddNative(console::setTextColor, "console setTextColor", false);
-	FuncEnviropment::AddNative(console::setBgColor, "console setBgColor", false);
-	FuncEnviropment::AddNative(console::setPos, "console setPos", false);
-	FuncEnviropment::AddNative(console::saveCurPos, "console saveCurPos", false);
-	FuncEnviropment::AddNative(console::loadCurPos, "console loadCurPos", false);
-	FuncEnviropment::AddNative(console::setLine, "console setLine", false);
-	FuncEnviropment::AddNative(console::showCursor, "console showCursor", false);
-	FuncEnviropment::AddNative(console::hideCursor, "console hideCursor", false);
-#pragma endregion
-#pragma region File
-
-#pragma endregion
-
-}
 
