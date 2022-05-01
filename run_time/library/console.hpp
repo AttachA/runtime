@@ -6,7 +6,7 @@
 
 #pragma once
 #include <cstdint>
-#include "../../library/list_array.hpp">
+#include "../../library/list_array.hpp"
 struct ValueItem;
 namespace console {
 	extern const bool is_loaded;

@@ -16,6 +16,7 @@ enum class Opcode : uint8_t {
 	minus,
 	div,
 	mul,
+	rest,
 	bit_xor,
 	bit_or,
 	bit_and,
@@ -41,8 +42,14 @@ enum class Opcode : uint8_t {
 	as,
 	is,
 	store_bool,//store bool from value for if statements, set false if type is noting, numeric types is zero and containers is empty, if another then true
-	load_bool//used if need save equaluty result, set numeric type as 1 or 0
+	load_bool,//used if need save equaluty result, set numeric type as 1 or 0
+	make_inline_call,
+	casm,
+	inline_native,//[len]{data} insert all bytes as instructions in current function
+	call_function_builder, 
 };
+
+
 enum class JumpCondition {
 	no_condition,
 	is_equal,
@@ -82,14 +89,22 @@ union CallFlags {
 		uint8_t async_mode : 1;
 		uint8_t use_result : 1;
 		uint8_t except_catch : 1;
-		uint8_t unused : 4;
+		uint8_t compiletime_constant : 1;//invalid when in_memory true, if true async_mode ignored
+		uint8_t : 3;
+	};
+	uint8_t encoded = 0;
+};
+union InlineCallFlags {
+	struct {
+		uint8_t use_result : 1;
+		uint8_t except_catch : 1;
+		uint8_t : 6;
 	};
 	uint8_t encoded = 0;
 };
 
-
 struct RFLAGS {
-	uint16_t unused_000000 : 1;
+	uint16_t : 1;
 	uint16_t nt : 1;
 	uint16_t iopl : 1;
 	uint16_t overflow : 1;
@@ -98,12 +113,38 @@ struct RFLAGS {
 	uint16_t tf : 1;
 	uint16_t sign_f : 1;
 	uint16_t zero : 1;
-	uint16_t unused_000001 : 1;
+	uint16_t : 1;
 	uint16_t auxiliary_carry : 1;
-	uint16_t unused_000002 : 1;
+	uint16_t : 1;
 	uint16_t parity : 1;
-	uint16_t unused_000003 : 1;
+	uint16_t : 1;
 	uint16_t carry : 1;
+	struct off_left {
+		static constexpr uint8_t nt = 13;
+		static constexpr uint8_t iopl = 12;
+		static constexpr uint8_t overflow = 11;
+		static constexpr uint8_t direction = 10;
+		static constexpr uint8_t ief = 9;
+		static constexpr uint8_t tf = 8;
+		static constexpr uint8_t sign_f = 7;
+		static constexpr uint8_t zero = 6;
+		static constexpr uint8_t auxiliary_carry = 4;
+		static constexpr uint8_t parity = 2;
+		static constexpr uint8_t carry = 0;
+	};
+	struct bit {
+		static constexpr uint16_t nt = 0x2000;
+		static constexpr uint16_t iopl = 0x1000;
+		static constexpr uint16_t overflow = 0x800;
+		static constexpr uint16_t direction = 0x400;
+		static constexpr uint16_t ief = 0x200;
+		static constexpr uint16_t tf = 0x100;
+		static constexpr uint16_t sign_f = 0x80;
+		static constexpr uint16_t zero = 0x40;
+		static constexpr uint16_t auxiliary_carry = 0x10;
+		static constexpr uint16_t parity = 0x4;
+		static constexpr uint16_t carry = 0x1;
+	};
 };
 
 enum class VType : uint8_t {
@@ -133,15 +174,12 @@ enum class VType : uint8_t {
 	async_res,
 	undefined_ptr,
 	except_value,//default from except call
-
-	// sstructure// ValueItem[] (allocated in stack)
-	// hstructure// ValueItem[] (allocated in heap)
-	// 
-	// class {define ptr, [values]}
-	// 
-	// morph {[funcs], [values]}
-	// proxy {define ptr, {value ptr}}
-	// 
+	faarr,//fixed any array
+	class_, 
+	morph,
+	proxy,
+	type_identifier,
+	function
 };
 union ValueMeta {
 	size_t encoded;
@@ -154,13 +192,26 @@ union ValueMeta {
 
 	ValueMeta() = default;
 	ValueMeta(const ValueMeta& copy) = default;
-	ValueMeta(VType ty, bool gc, bool editable, uint32_t length = 0) { vtype = ty; use_gc = gc; allow_edit = editable; val_len = length; }
+	ValueMeta(VType ty, bool gc = false, bool editable = true, uint32_t length = 0) { vtype = ty; use_gc = gc; allow_edit = editable; val_len = length; }
 	ValueMeta(size_t enc) { encoded = enc; }
 };
 
 struct ValueItem {
 	void* val;
 	ValueMeta meta;
+	ValueItem(int8_t val);
+	ValueItem(uint8_t val);
+	ValueItem(int16_t val);
+	ValueItem(uint16_t val);
+	ValueItem(int32_t val);
+	ValueItem(uint32_t val);
+	ValueItem(int64_t val);
+	ValueItem(uint64_t val);
+	ValueItem(float val);
+	ValueItem(double val);
+	ValueItem(const std::string& val);
+	ValueItem(const list_array<ValueItem>& val);
+
 	ValueItem() {
 		val = nullptr;
 		meta.encoded = 0;
@@ -172,6 +223,9 @@ struct ValueItem {
 	}
 	ValueItem(void* vall, ValueMeta meta);
 	ValueItem(void* vall, ValueMeta meta, bool no_copy);
+	ValueItem(void* vall, VType meta);
+	ValueItem(void* vall, VType meta, bool no_copy);
+	ValueItem(VType);
 	ValueItem(const ValueItem&);
 	ValueItem& operator=(const ValueItem& copy);
 	ValueItem& operator=(ValueItem&& copy) noexcept;
@@ -199,8 +253,23 @@ struct ValueItem {
 	ValueItem operator ^(const ValueItem& op) const;
 	ValueItem operator &(const ValueItem& op) const;
 	ValueItem operator |(const ValueItem& op) const;
-};
 
+	explicit operator int8_t();
+	explicit operator uint8_t();
+	explicit operator int16_t();
+	explicit operator uint16_t();
+	explicit operator int32_t();
+	explicit operator uint32_t();
+	explicit operator int64_t();
+	explicit operator uint64_t();
+	explicit operator float();
+	explicit operator double();
+	explicit operator std::string();
+	explicit operator list_array<ValueItem>();
+
+	ValueItem* operator()(list_array<ValueItem>* args);
+	void getAsync();
+};
 typedef ValueItem* (*Enviropment)(void** enviro, list_array<ValueItem>* args);
 typedef ValueItem* (*AttachACXX)(list_array<ValueItem>* arguments);
 
@@ -216,199 +285,41 @@ enum class ClassAccess : uint8_t {
 	deriv//derived only
 };
 struct ClassFnDefine {
-	typed_lgr <class FuncEnviropment > fn = nullptr;
+	typed_lgr<class FuncEnviropment> fn = nullptr;
 	uint8_t deletable : 1 = true;
 	ClassAccess access : 2 = ClassAccess::pub;
 };
+struct ClassDefine {
+	std::unordered_map<std::string, ClassFnDefine> funs;
+	std::string name;
+	ClassDefine();
+	ClassDefine(const std::string& name);
+};
+
 struct ClassValDefine {
 	ValueItem val;
 	ClassAccess access : 2 = ClassAccess::pub;
 };
 struct ClassValue {
 	std::unordered_map<std::string, ClassValDefine> val;
-	std::unordered_map<std::string, ClassFnDefine>* funs;
-	typed_lgr<class FuncEnviropment> callFnPtr(const std::string& str, ClassAccess acces) {
-		if (funs) {
-			if (funs->contains(str)) {
-				auto& tmp = funs->operator[](str);
-				switch (acces) {
-				case ClassAccess::pub:
-					if (tmp.access == ClassAccess::pub)
-						return tmp.fn;
-					break;
-				case ClassAccess::priv:
-					if (tmp.access != ClassAccess::deriv)
-						return tmp.fn;
-					break;
-				case ClassAccess::prot:
-					if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-						return tmp.fn;
-					break;
-				case ClassAccess::deriv:
-					if (tmp.access != ClassAccess::priv)
-						return tmp.fn;
-					break;
-				default:
-					throw NotImplementedException();
-				}
-				throw InvalidFunction("Try access to private function");
-			}
-		}
-		throw NotImplementedException();
-	}
-	auto* getFnMeta(const std::string& str) {
-		if (funs) {
-			if (funs->contains(str))
-				return &funs->operator[](str);
-		}
-		throw NotImplementedException();
-	}
-	ValueItem& getValue(const std::string& str, ClassAccess acces) {
-		if (val.contains(str)) {
-			auto& tmp = val[str];
-			switch (acces) {
-			case ClassAccess::pub:
-				if (tmp.access == ClassAccess::pub)
-					return tmp.val;
-				break;
-			case ClassAccess::priv:
-				if (tmp.access != ClassAccess::deriv)
-					return tmp.val;
-				break;
-			case ClassAccess::prot:
-				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-					return tmp.val;
-				break;
-			case ClassAccess::deriv:
-				if (tmp.access != ClassAccess::priv)
-					return tmp.val;
-				break;
-			default:
-				throw NotImplementedException();
-			}
-			throw InvalidFunction("Try access to non public value");
-		}
-		throw NotImplementedException();
-	}
-	ValueItem copyValue(const std::string& str, ClassAccess acces) {
-		if (val.contains(str)) {
-			auto& tmp = val[str];
-			switch (acces) {
-			case ClassAccess::pub:
-				if (tmp.access == ClassAccess::pub)
-					return tmp.val;
-				break;
-			case ClassAccess::priv:
-				if (tmp.access != ClassAccess::deriv)
-					return tmp.val;
-				break;
-			case ClassAccess::prot:
-				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-					return tmp.val;
-				break;
-			case ClassAccess::deriv:
-				if (tmp.access != ClassAccess::priv)
-					return tmp.val;
-				break;
-			default:
-				throw NotImplementedException();
-			}
-			throw InvalidFunction("Try access to non public value");
-		}
-		return ValueItem();
-	}
+	ClassDefine* define = nullptr;
+	typed_lgr<class FuncEnviropment> callFnPtr(const std::string& str, ClassAccess acces);
+	ClassFnDefine& getFnMeta(const std::string& str);
+	void setFnMeta(const std::string& str, ClassFnDefine& fn_decl);
+	bool containsFn(const std::string& str);
+	ValueItem& getValue(const std::string& str, ClassAccess acces);
+	ValueItem copyValue(const std::string& str, ClassAccess acces);
 };
 
 struct MorphValue {
 	std::unordered_map<std::string, ClassValDefine> val;
-	std::unordered_map<std::string, ClassFnDefine>* funs;
-	ClassFnDefine funcs_def;
-	typed_lgr<class FuncEnviropment> callFnPtr(const std::string& str, ClassAccess acces) {
-		if (funs->contains(str)) {
-			auto& tmp = funs->operator[](str);
-			switch (acces) {
-			case ClassAccess::pub:
-				if (tmp.access == ClassAccess::pub)
-					return tmp.fn;
-				break;
-			case ClassAccess::priv:
-				if (tmp.access != ClassAccess::deriv)
-					return tmp.fn;
-				break;
-			case ClassAccess::prot:
-				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-					return tmp.fn;
-				break;
-			case ClassAccess::deriv:
-				if (tmp.access != ClassAccess::priv)
-					return tmp.fn;
-				break;
-			default:
-				throw NotImplementedException();
-			}
-			throw InvalidFunction("Try access to private function");
-		}
-		throw NotImplementedException();
-	}
-	auto* getFnMeta(const std::string& str) {
-		if (funs->contains(str))
-			return &funs->operator[](str);
-		throw NotImplementedException();
-	}
-	ValueItem& getValue(const std::string& str, ClassAccess acces) {
-		if (val.contains(str)) {
-			auto& tmp = val[str];
-			switch (acces) {
-			case ClassAccess::pub:
-				if (tmp.access == ClassAccess::pub)
-					return tmp.val;
-				break;
-			case ClassAccess::priv:
-				if (tmp.access != ClassAccess::deriv)
-					return tmp.val;
-				break;
-			case ClassAccess::prot:
-				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-					return tmp.val;
-				break;
-			case ClassAccess::deriv:
-				if (tmp.access != ClassAccess::priv)
-					return tmp.val;
-				break;
-			default:
-				throw NotImplementedException();
-			}
-			throw InvalidFunction("Try access to non public value");
-		}
-		throw NotImplementedException();
-	}
-	ValueItem copyValue(const std::string& str, ClassAccess acces) {
-		if (val.contains(str)) {
-			auto& tmp = val[str];
-			switch (acces) {
-			case ClassAccess::pub:
-				if (tmp.access == ClassAccess::pub)
-					return tmp.val;
-				break;
-			case ClassAccess::priv:
-				if (tmp.access != ClassAccess::deriv)
-					return tmp.val;
-				break;
-			case ClassAccess::prot:
-				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-					return tmp.val;
-				break;
-			case ClassAccess::deriv:
-				if (tmp.access != ClassAccess::priv)
-					return tmp.val;
-				break;
-			default:
-				throw NotImplementedException();
-			}
-			throw InvalidFunction("Try access to non public value");
-		}
-		return ValueItem();
-	}
+	ClassDefine define;
+	typed_lgr<class FuncEnviropment> callFnPtr(const std::string& str, ClassAccess acces);
+	ClassFnDefine& getFnMeta(const std::string& str);
+	void setFnMeta(const std::string& str, ClassFnDefine& fn_decl);
+	bool containsFn(const std::string& str);
+	ValueItem& getValue(const std::string& str, ClassAccess acces);
+	ValueItem copyValue(const std::string& str, ClassAccess acces);
 };
 
 
@@ -416,14 +327,77 @@ struct MorphValue {
 using ProxyClassGetter = ValueItem(*)(void*);
 using ProxyClassSeter = void(*)(void*, ValueItem&);
 using ProxyClassDestructor = void(*)(void*);
+using ProxyClassCopy = void*(*)(void*);
 
-struct ProxyClassDeclare {
+struct ProxyClassDefine {
 	std::unordered_map<std::string, ProxyClassGetter> value_geter;
 	std::unordered_map<std::string, ProxyClassSeter> value_seter;
-	std::unordered_map<std::string, class FuncEnviropment*> public_fun;
-	ProxyClassDestructor destructor;
+	std::unordered_map<std::string, ClassFnDefine> funs;
+	ProxyClassDestructor destructor = nullptr;
+	ProxyClassCopy copy = nullptr;
+	std::string name;
+	ProxyClassDefine();
+	ProxyClassDefine(const std::string& name);
 };
-struct ProxyClassValueLgrItem {
-	ProxyClassDeclare* declare_ty = nullptr;
-	void* class_ptr = nullptr;
+struct ProxyClass {
+	ProxyClassDefine* declare_ty;
+	void* class_ptr;
+	ProxyClass();
+	ProxyClass(void* val);
+	ProxyClass(void* val, ProxyClassDefine* def);
+	~ProxyClass();
+
+	typed_lgr<class FuncEnviropment> callFnPtr(const std::string& str, ClassAccess acces);
+	ClassFnDefine& getFnMeta(const std::string& str);
+	void setFnMeta(const std::string& str, ClassFnDefine& fn_decl);
+	bool containsFn(const std::string& str);
+	ValueItem getValue(const std::string& str);
+	void* setValue(const std::string& str, ValueItem& it);
 };
+
+namespace std {
+	template<>
+	struct hash<ValueItem> {
+		size_t operator()(const ValueItem& cit) {
+			ValueItem& it = const_cast<ValueItem&>(cit);
+			it.getAsync();
+			switch (it.meta.vtype){
+			case VType::noting:return 0;
+			case VType::type_identifier:
+			case VType::i8:return hash<int8_t>()((int8_t)it);
+			case VType::i16:return hash<int16_t>()((int16_t)it);
+			case VType::i32:return hash<int32_t>()((int32_t)it);
+			case VType::i64:return hash<int64_t>()((int64_t)it);
+			case VType::ui8:return hash<uint8_t>()((uint8_t)it);
+			case VType::ui16:return hash<uint16_t>()((uint16_t)it);
+			case VType::ui32:return hash<uint32_t>()((uint32_t)it);
+			case VType::undefined_ptr:
+			case VType::ui64:return hash<uint64_t>()((uint64_t)it);
+			case VType::flo:return hash<float>()((float)it);
+			case VType::doub:return hash<double>()((double)it);
+			case VType::string:return hash<string>()((string)it);
+			case VType::uarr: return hash<list_array<ValueItem>>()((list_array<ValueItem>)it);
+			case VType::raw_arr_i8:
+			case VType::raw_arr_i16:
+			case VType::raw_arr_i32:
+			case VType::raw_arr_i64:
+			case VType::raw_arr_ui8:
+			case VType::raw_arr_ui16:
+			case VType::raw_arr_ui32:
+			case VType::raw_arr_ui64:
+			case VType::raw_arr_flo:
+			case VType::raw_arr_doub:
+			case VType::async_res:
+			case VType::except_value:
+			case VType::faarr:
+			case VType::class_:
+			case VType::morph:
+			case VType::proxy:
+			default:
+				//TO-DO add impl
+				throw NotImplementedException();
+			break;
+			}
+		}
+	};
+}

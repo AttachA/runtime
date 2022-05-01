@@ -153,7 +153,6 @@ Task::~Task() {
 	}
 }
 
-
 struct {
 	ctx::continuation* tmp_current_context = nullptr;
 	std::exception_ptr ex_ptr;
@@ -161,6 +160,23 @@ struct {
 	bool is_task_thread = false;
 	bool context_in_swap = false;
 } thread_local loc;
+
+class ValueEnvironment* Task::taskLocal() {
+	if (!loc.is_task_thread)
+		return nullptr;
+	else if (loc.curr_task->task_local) {
+		return loc.curr_task->task_local;
+	}
+	else {
+		return loc.curr_task->task_local = new ValueEnvironment();
+	}
+}
+size_t Task::taskID() {
+	if (!loc.is_task_thread)
+		return 0;
+	else 
+		return std::hash<size_t>()(reinterpret_cast<size_t>(loc.curr_task.getPtr()));
+}
 
 void checkCancelation() {
 	if (loc.curr_task->make_cancel)
@@ -987,7 +1003,7 @@ ValueItem* concurentReader(list_array<ValueItem>* arguments) {
 	if (len >= UINT32_MAX) {
 		list_array<char> res(len);
 		pfile->stream.read(res.data(), len);
-		return new ValueItem((void*)new OutOfRange("Array length is too large for store in raw array type"), ValueMeta(VType::except_value, false, true, len), true);
+		return new ValueItem((void*)new OutOfRange("Array length is too large for store in raw array type"), VType::except_value, true);
 	}
 	else {
 		char* res = new char[len];

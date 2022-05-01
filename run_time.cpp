@@ -31,8 +31,10 @@ EventSystem unhandled_exception;
 EventSystem ex_fault;
 #if _DEBUG
 FaultActionByDefault default_fault_action = FaultActionByDefault::invite_to_debugger;
+BreakPointActionByDefault break_point_action = BreakPointActionByDefault::invite_to_debugger;
 #else 
 FaultActionByDefault default_fault_action = FaultActionByDefault::show_error;
+BreakPointActionByDefault break_point_action = BreakPointActionByDefault::throw_exception;
 #endif
 
 LONG NTAPI win_exception_handler(LPEXCEPTION_POINTERS e) {
@@ -63,8 +65,29 @@ LONG NTAPI win_exception_handler(LPEXCEPTION_POINTERS e) {
 	case EXCEPTION_FLT_STACK_CHECK:
 	case EXCEPTION_FLT_UNDERFLOW:
 		throw NumericOverflowException();
-	case EXCEPTION_BREAKPOINT:
-		throw UnusedDebugPointException();
+	case EXCEPTION_BREAKPOINT: 
+		switch (break_point_action){
+		case BreakPointActionByDefault::invite_to_debugger: {
+			auto test = "Oops!,\n This program caught unhandled breakpoint, \nif you need debug program,\n attach to process with id: " + std::to_string(GetCurrentProcessId()) + ",\n then switch to thread id: " + std::to_string(GetCurrentThreadId()) + " and click OK";
+			MessageBoxA(NULL, test.c_str(), "Debug invite", MB_ICONQUESTION);
+			break;
+		}
+		case BreakPointActionByDefault::throw_exception:
+			throw UnusedDebugPointException();
+		default:
+		case BreakPointActionByDefault::ignore:
+#ifdef _AMD64_
+			e->ContextRecord->Rip++;
+#else
+			e->ContextRecord->Eip++;
+#endif    
+			break;
+		}
+		break;
+	case EXCEPTION_ILLEGAL_INSTRUCTION:
+		throw BadInstructionException();
+	case EXCEPTION_PRIV_INSTRUCTION:
+		throw BadInstructionException("This instruction is privileged");
 	default:
 		return EXCEPTION_CONTINUE_SEARCH;
 	}

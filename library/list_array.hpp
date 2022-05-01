@@ -2582,6 +2582,20 @@ public:
 		return arr.arr->arr_contain;
 	}
 };
+namespace std {
+	template<class B>
+	struct hash<list_array<B>> {
+		conexpr size_t operator()(const list_array<B>& list) {
+			std::hash<B> hasher;
+			size_t res = 0;
+			for (auto& it : list)
+				res ^= hasher(it) + 0x9e3779b9 + (res << 6) + (res >> 2);
+			return res;
+		}
+	};
+}
+
+
 #undef req
 #undef conexpr
 #endif

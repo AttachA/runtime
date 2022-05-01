@@ -27,10 +27,17 @@ enum class FaultActionByDefault {
 	system_default,
 	ignore = system_default
 };
+enum class BreakPointActionByDefault {
+	invite_to_debugger,
+	throw_exception,
+	ignore
+};
+
 
 
 extern unsigned long fault_reserved_stack_size;
 extern FaultActionByDefault default_fault_action;
+extern BreakPointActionByDefault break_point_action;
 bool restore_stack_fault();
 bool need_restore_stack_fault();
 

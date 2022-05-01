@@ -64,12 +64,12 @@ public:
 private:
 	static std::unordered_map<std::string, typed_lgr<FuncEnviropment>> enviropments;
 	TaskMutex compile_lock;
+	std::unordered_map<list_array<ValueItem>, ValueItem> cache_map;
 	DynamicCall::FunctionTemplate nat_templ;
 	std::vector<typed_lgr<FuncEnviropment>> used_envs;
 	std::vector<typed_lgr<FuncEnviropment>> local_funcs;
 	std::vector<uint8_t> cross_code;
-	list_array<std::string> strings;
-	std::string name;
+	list_array<ValueItem> values;
 	Enviropment curr_func = nullptr;
 	uint8_t* frame = nullptr;
 	std::atomic_size_t current_runners = 0;
@@ -78,6 +78,7 @@ private:
 	uint32_t need_compile : 1 = true;
 	uint32_t in_debug : 1 = false;
 	uint32_t can_be_unloaded : 1 = true;
+	uint32_t use_cache : 1 = false;
 	void Compile();
 	void funcComp() {
 		std::lock_guard lguard(compile_lock);
@@ -136,7 +137,6 @@ public:
 	FuncEnviropment& operator=(FuncEnviropment&& move) noexcept {
 		used_envs = std::move(move.used_envs);
 		cross_code = std::move(move.cross_code);
-		name = std::move(move.name);
 		nat_templ = std::move(move.nat_templ);
 		current_runners = move.current_runners.load();
 		curr_func = move.curr_func;
@@ -296,10 +296,6 @@ public:
 		return f->syncWrapper(args);
 	}
 
-	const char* getString(size_t ind) {
-		return strings[ind].c_str();
-	}
-
 	bool canBeUnloaded() {
 		return can_be_unloaded;
 	}
@@ -313,8 +309,6 @@ public:
 		return (void*)curr_func;
 	}
 };
-
-
 
 extern "C" void callFunction(const char* symbol_name, bool run_async);
 extern "C" void initStandardFunctions();

@@ -450,10 +450,10 @@ int main() {
 		FuncEnviropment::Load(programm, "Yay");
 	}
 	typed_lgr<FuncEnviropment> env = FuncEnviropment::enviropment("sleep_test");
-	//Task::start(new Task(FuncEnviropment::enviropment("4"), nullptr));
-	Task::start(new Task(FuncEnviropment::enviropment("3"), nullptr));
-	Task::start(new Task(FuncEnviropment::enviropment("2"), nullptr));
-	Task::start(new Task(FuncEnviropment::enviropment("1"), nullptr));
+	////Task::start(new Task(FuncEnviropment::enviropment("4"), nullptr));
+	//Task::start(new Task(FuncEnviropment::enviropment("3"), nullptr));
+	//Task::start(new Task(FuncEnviropment::enviropment("2"), nullptr));
+	//Task::start(new Task(FuncEnviropment::enviropment("1"), nullptr));
 
 	Task::awaitEndTasks();
 	try {
@@ -468,7 +468,7 @@ int main() {
 
 
 	//std::cout << "Hello!\n";
-	size_t e = 0;
+	int e = 0;
 	Task::awaitEndTasks();
 	{
 		Task::start(new Task(env, nullptr));

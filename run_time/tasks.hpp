@@ -25,7 +25,7 @@ void forceCancelCancellation(TaskCancellation& cancel_token);
 
 
 class TaskConditionVariable {
-	std::list<typed_lgr<class Task>> resume_task;
+	std::list<typed_lgr<struct Task>> resume_task;
 	std::condition_variable cd;
 	std::mutex no_race;
 public:
@@ -123,6 +123,8 @@ struct Task {
 	static void awaitTask(typed_lgr<Task>&& lgr_task) {
 		lgr_task->fres.awaitEnd();
 	}
+	static class ValueEnvironment* taskLocal();
+	static size_t taskID();
 };
 class TaskMutex {
 	std::timed_mutex no_race;

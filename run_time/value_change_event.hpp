@@ -51,13 +51,11 @@ public:
 	}
 
 	operator ValueItem&() {
-		list_array<AttachA::Value> tt{ AttachA::Value(new ValueItem()) };
 		list_array<ValueItem> args{ value };
 		get_notify->notify(&args);
 		return value;
 	}
 	operator const ValueItem&() const {
-		list_array<AttachA::Value> tt{ AttachA::Value(new ValueItem()) };
 		list_array<ValueItem> args{ value };
 		const_cast<typed_lgr<EventSystem>&>(get_notify)->notify(&args);
 		return value;

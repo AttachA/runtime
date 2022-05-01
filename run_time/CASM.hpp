@@ -184,6 +184,12 @@ public:
 		a.lea(res, asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) & 1) * 8));
 	}
 
+	static uint32_t enviroValueOffset(uint16_t off) {
+		return (int32_t(off) << 1) * 8;
+	}
+	static uint32_t enviroMetaOffset(uint16_t off) {
+		return ((int32_t(off) << 1) & 1) * 8;
+	}
 
 	void stackAlloc(size_t bytes_count) {
 		a.mov(resr, stack_ptr);
@@ -191,6 +197,12 @@ public:
 	}
 	void stackAlloc(creg64 bytes_count) {
 		a.mov(resr, stack_ptr);
+		a.sub(stack_ptr, bytes_count);
+	}
+	void stackIncrease(size_t bytes_count) {
+		a.sub(stack_ptr, bytes_count);
+	}
+	void stackIncrease(creg64 bytes_count) {
 		a.sub(stack_ptr, bytes_count);
 	}
 	void stackReduce(size_t bytes_count) {
@@ -241,7 +253,7 @@ public:
 		a.mov(res, asmjit::x86::ptr(base, off, v_siz));
 	}
 	void mov(creg64 res, creg64 base, int32_t off) {
-		a.mov(res, asmjit::x86::ptr_64(res, off));
+		a.mov(res, asmjit::x86::ptr_64(base, off));
 	}
 	void mov(creg128 res, const asmjit::Imm& v) {
 		if (resr_used)
@@ -485,6 +497,43 @@ public:
 		a.xor_(asmjit::x86::ptr(res, res_off, vsize), v);
 	}
 
+
+	void or_(creg64 c0, creg64 c1) {
+		a.or_(c0, c1);
+	}
+	void or_(creg32 c0, creg32 c1) {
+		a.or_(c0, c1);
+	}
+	void or_(creg16 c0, creg16 c1) {
+		a.or_(c0, c1);
+	}
+	void or_(creg8 c0, creg8 c1) {
+		a.or_(c0, c1);
+	}
+	void or_byte(creg8 res, creg64 base, int32_t off) {
+		a.or_(res, asmjit::x86::ptr_8(res, off));
+	}
+	void or_short(creg16 res, creg64 base, int32_t off) {
+		a.or_(res, asmjit::x86::ptr_16(res, off));
+	}
+	void or_int(creg32 res, creg64 base, int32_t off) {
+		a.or_(res, asmjit::x86::ptr_32(res, off));
+	}
+	void or_long(creg64 res, creg64 base, int32_t off) {
+		a.or_(res, asmjit::x86::ptr_64(res, off));
+	}
+	void or_(creg64 res, creg64 base, int32_t off) {
+		a.or_(res, asmjit::x86::ptr_64(res, off));
+	}
+	void or_(creg res, const asmjit::Imm& v) {
+		a.or_(res, v);
+	}
+	void or_(creg64 res, int32_t res_off, int32_t vsize, const asmjit::Imm& v) {
+		a.or_(asmjit::x86::ptr(res, res_off, vsize), v);
+	}
+
+
+
 	void and_(creg64 c0, creg64 c1) {
 		a.and_(c0, c1);
 	}
@@ -576,7 +625,6 @@ public:
 	void add(creg res, creg64 val, int32_t off, uint8_t vsize = 0) {
 		a.add(asmjit::x86::ptr(res, off, vsize), val);
 	}
-
 };
 
 
@@ -629,9 +677,12 @@ class BuildCall {
 	std::unordered_map<size_t, std::pair<creg64, size_t>> movs;
 	CASM& csm;
 	size_t arg_c = 0;
-
+	bool red_zone_inited = false;
 public:
 	BuildCall(CASM& a) : csm(a) {}
+	void iniRedzone() {
+		red_zone_inited = true;
+	}
 	void addArg(creg reg) {
 		Dargs[arg_c++] = reg;
 	}
@@ -656,10 +707,20 @@ public:
 	void movEnviroMeta(uint16_t off) {
 		movs[arg_c++] = { enviro_ptr,(int32_t(off) << 1) * 8 + 8 };
 	}
+	void skip() {
+		arg_c++;
+	}
+
 	template<class F>
-	void finalize(F func) {
+	void finalize(F func,bool clear_at_end = true) {
 		size_t pushed = 0;
 #if defined(_M_X64) || defined(__x86_64__)
+#ifdef _WIN64
+		if(red_zone_inited)
+			csm.stackIncrease(0x20);//function visual c++ abi
+#endif // _WIN64
+
+
 		for (size_t i = 0; i < arg_c; i++) {
 			if (Sargs.contains(i)) {
 				switch (i) {
@@ -691,23 +752,29 @@ public:
 			else if (Dargs.contains(i)) {
 				switch (i) {
 				case 0:
-					csm.movA(argr0, Dargs[i]);
+					if(argr0 != Dargs[i])
+						csm.movA(argr0, Dargs[i]);
 					break;
 				case 1:
-					csm.movA(argr1, Dargs[i]);
+					if (argr1 != Dargs[i])
+						csm.movA(argr1, Dargs[i]);
 					break;
 				case 2:
-					csm.movA(argr2, Dargs[i]);
+					if (argr2 != Dargs[i])
+						csm.movA(argr2, Dargs[i]);
 					break;
 				case 3:
-					csm.movA(argr3, Dargs[i]);
+					if (argr3 != Dargs[i])
+						csm.movA(argr3, Dargs[i]);
 					break;
 #ifndef _WIN64
 				case 4:
-					csm.movA(argr4, Dargs[i]);
+					if (argr4 != Dargs[i])
+						csm.movA(argr4, Dargs[i]);
 					break;
 				case 5:
-					csm.movA(argr5, Dargs[i]);
+					if (argr5 != Dargs[i])
+						csm.movA(argr5, Dargs[i]);
 					break;
 #endif
 				default:
@@ -801,6 +868,15 @@ public:
 		csm.call(func);
 		if (pushed) 
 			csm.stackReduce(pushed);
+		if (clear_at_end)
+			clear();
+	}
+	void clear() {
+		Dargs.clear();
+		Sargs.clear();
+		leas.clear();
+		movs.clear();
+		arg_c = 0;
 	}
 };
 

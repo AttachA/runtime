@@ -140,7 +140,9 @@ public:
 };
 class BadInstructionException : public AttachARuntimeException {
 public:
-	BadInstructionException() : AttachARuntimeException("Bad Instruction") {}
+	BadInstructionException() : AttachARuntimeException("This instruction undefined") {}
+	BadInstructionException(const std::string& msq) : AttachARuntimeException(msq) {}
+	BadInstructionException(const char* msq) : AttachARuntimeException(msq) {}
 	const char* name() const override {
 		return "BadInstructionException";
 	}

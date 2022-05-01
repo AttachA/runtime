@@ -561,10 +561,10 @@ double acoth(double d) {
 }
 
 
-ValueItem math_pow_impl(ValueItem& val,const ValueItem& m) {
+ValueItem math_pow_impl(ValueItem& val, ValueItem& m) {
 	if (val.meta.vtype == VType::async_res)
 		getAsyncResult(val.val, val.meta);
-	double x = AttachA::Value(m).as<double>();
+	double x = (double)m;
 
 	double t = 0;
 	switch (val.meta.vtype) {
@@ -611,7 +611,7 @@ ValueItem math_pow_impl(ValueItem& val,const ValueItem& m) {
 }
 ValueItem* math_pow(list_array<ValueItem>* args) {
 	if (args) {
-		static const ValueItem default_pow((void*)2, ValueMeta(VType::i32, false, true));
+		static ValueItem default_pow((void*)2, ValueMeta(VType::i32, false, true));
 		if (args->size() == 1)
 			return new ValueItem(math_pow_impl(args->operator[](0), default_pow));
 		else if (args->size() == 2) {
@@ -630,6 +630,68 @@ ValueItem* math_pow(list_array<ValueItem>* args) {
 }
 
 
+ValueItem math_frrt_impl(ValueItem& val) {
+	if (val.meta.vtype == VType::async_res)
+		getAsyncResult(val.val, val.meta);
+	constexpr double x = 1. / 4;
+	double t = 0;
+	switch (val.meta.vtype) {
+	case VType::i8:
+		t = pow((int8_t)val.val, x);
+		break;
+	case VType::ui8:
+		t = pow((uint8_t)val.val, x);
+		break;
+	case VType::i16:
+		t = pow((int16_t)val.val, x);
+		break;
+	case VType::ui16:
+		t = pow((uint16_t)val.val, x);
+		break;
+	case VType::i32:
+		t = pow((int32_t)val.val, x);
+		break;
+	case VType::ui32:
+		t = pow((uint32_t)val.val, x);
+		break;
+	case VType::i64:
+		t = pow((int64_t)val.val, x);
+		break;
+	case VType::ui64:
+		t = pow((uint64_t)val.val, x);
+		break;
+	case VType::flo:
+		t = pow(*(float*)&val.val, x);
+		break;
+	case VType::doub:
+		t = pow(*(double*)&val.val, x);
+		break;
+	}
+
+	switch (val.meta.vtype) {
+	case VType::flo: {
+		float f = t;
+		return ValueItem((void*)&f, ValueMeta(VType::flo, false, true));
+	}
+	default:
+		return ValueItem((void*)&t, ValueMeta(VType::doub, false, true));
+	}
+}
+ValueItem* math_frrt(list_array<ValueItem>* args) {
+	if (args) {
+		if (args->size() == 1)
+			return new ValueItem(math_frrt_impl(args->operator[](0)));
+		else {
+			list_array<ValueItem>* res = new list_array<ValueItem>;
+			res->reserve_push_back(args->size());
+			for (auto& it : *args)
+				res->push_back(math_frrt_impl(it));
+
+			return new ValueItem(res, ValueMeta(VType::uarr, false, true));
+		}
+	}
+	return nullptr;
+}
 
 extern "C" void initStandardFunctions() {
 #pragma region Console
@@ -709,6 +771,7 @@ extern "C" void initStandardFunctions() {
 	FuncEnviropment::AddNative(math_thrigonomic<acoth>, "math acoth", false);
 
 	FuncEnviropment::AddNative(math_thrigonomic_impl<sqrt>, "math sqrt", false);
+	FuncEnviropment::AddNative(math_thrigonomic_impl<cbrt>, "math cbrt", false);
 	FuncEnviropment::AddNative(math_pow, "math pow", false);
 	FuncEnviropment::AddNative(math_thrigonomic_impl<log>, "math log", false);
 	FuncEnviropment::AddNative(math_thrigonomic_impl<log2>, "math log2", false);
@@ -729,33 +792,33 @@ extern "C" void initStandardFunctions() {
 ValueItem* cmath_frexp(list_array<ValueItem>* args) {
 	double doub;
 	if (args)
-		doub = AttachA::Value(args->operator[](0)).as<double>();
+		doub = (double)args->operator[](0);
 	else
 		doub = 0;
 	list_array<ValueItem>* rs = new list_array<ValueItem>(2);
 	int res1;
-	rs->operator[](0) = AttachA::convValue<double>(std::frexp(doub, &res1));
-	rs->operator[](1) = AttachA::convValue<int>(res1);
+	rs->operator[](0) = std::frexp(doub, &res1);
+	rs->operator[](1) = res1;
 	return new ValueItem(rs, ValueMeta(VType::uarr, false, true));
 }
 ValueItem* cmath_modf(list_array<ValueItem>* args) {
 	double doub;
 	if (args)
-		doub = AttachA::Value(args->operator[](0)).as<double>();
+		doub = (double)args->operator[](0);
 	else
 		doub = 0;
 	list_array<ValueItem>* rs = new list_array<ValueItem>(2);
 	double res1;
-	rs->operator[](0) = AttachA::convValue<double>(std::modf(doub, &res1));
-	rs->operator[](1) = AttachA::convValue<double>(res1);
+	rs->operator[](0) = std::modf(doub, &res1);
+	rs->operator[](1) = res1;
 	return new ValueItem(rs, ValueMeta(VType::uarr, false, true));
 }
 ValueItem* cmath_remquo(list_array<ValueItem>* args) {
 	double doub0;
 	double doub1;
 	if (args) {
-		doub0 = AttachA::Value(args->operator[](0)).as<double>();
-		doub1 = AttachA::Value(args->operator[](1)).as<double>();
+		doub0 = (double)args->operator[](0);
+		doub1 = (double)args->operator[](1);
 	}
 	else {
 		doub0 = 0;
@@ -763,23 +826,23 @@ ValueItem* cmath_remquo(list_array<ValueItem>* args) {
 	}
 	list_array<ValueItem>* rs = new list_array<ValueItem>(2);
 	int res1;
-	rs->operator[](0) = AttachA::convValue<double>(std::remquo(doub0, doub1, &res1));
-	rs->operator[](1) = AttachA::convValue<int>(res1);
+	rs->operator[](0) = std::remquo(doub0, doub1, &res1);
+	rs->operator[](1) = res1;
 	return new ValueItem(rs, ValueMeta(VType::uarr, false, true));
 }
 ValueItem* cmath_nexttoward(list_array<ValueItem>* args) {
 	float doub0;
 	long double doub1;
 	if (args) {
-		doub0 = AttachA::Value(args->operator[](0)).as<float>();
-		doub1 = AttachA::Value(args->operator[](1)).as<double>();
+		doub0 = (double)args->operator[](0);
+		doub1 = (double)args->operator[](1);
 	}
 	else {
 		doub0 = 0;
 		doub1 = 0;
 	}
 	list_array<ValueItem>* rs = new list_array<ValueItem>(2);
-	rs->operator[](0) = AttachA::convValue<float>(std::nexttoward(doub0, doub1));
+	rs->operator[](0) = std::nexttoward(doub0, doub1);
 	return new ValueItem(rs, ValueMeta(VType::uarr, false, true));
 }
 extern "C" void initCMathLib() {

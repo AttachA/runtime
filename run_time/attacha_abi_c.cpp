@@ -303,13 +303,15 @@ void** copyEnviropement(void** env, uint16_t env_it_count) {
 void** preSetValue(void** value, ValueMeta set_meta, bool match_gc_dif) {
 	void** res = getValueLink(value);
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
-	if (match_gc_dif) {
-		if (meta.allow_edit && meta.vtype == set_meta.vtype && meta.use_gc == set_meta.use_gc)
-			return res;
+	if (!needAlloc(meta.vtype)) {
+		if (match_gc_dif) {
+			if (meta.allow_edit && meta.vtype == set_meta.vtype && meta.use_gc == set_meta.use_gc)
+				return res;
+		}
+		else
+			if (meta.allow_edit && meta.vtype == set_meta.vtype)
+				return res;
 	}
-	else
-		if (meta.allow_edit && meta.vtype == set_meta.vtype)
-			return res;
 	universalRemove(value);
 	universalAlloc(value, set_meta);
 	return getValueLink(value);
@@ -395,7 +397,9 @@ bool integer_unsigned(VType typ) {
 		return false;
 	}
 }
-
+#pragma warning(push)  
+#pragma warning( disable: 4311)
+#pragma warning( disable: 4302)
 //return equal,lower bool result
 std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val2) {
 	bool cmp_int;
@@ -617,42 +621,16 @@ void copyEnviropement(void** env, uint16_t env_it_count, void*** res) {
 
 
 
-ValueItem::ValueItem(void* vall, ValueMeta vmeta) {
-	val = copyValue(vall, vmeta);
-	meta = vmeta;
-}
-ValueItem::ValueItem(void* vall, ValueMeta vmeta, bool) {
-	val = vall;
-	meta = vmeta;
-}
-ValueItem::ValueItem(const ValueItem& copy) {
-	ValueItem& tmp = (ValueItem&)copy;
-	val = copyValue(tmp.val, tmp.meta);
-	meta = copy.meta;
-}
-
-ValueItem& ValueItem::operator=(const ValueItem& copy) {
-	ValueItem& tmp = (ValueItem&)copy;
-	val = copyValue(tmp.val, tmp.meta);
-	meta = copy.meta;
-	return *this;
-}
-ValueItem& ValueItem::operator=(ValueItem&& move) noexcept {
-	val = move.val;
-	meta = move.meta;
-	move.val = nullptr;
-	return *this;
-}
-ValueItem::~ValueItem() {
-	if (val)
-		if (needAlloc(meta.vtype))
-			universalFree(&val, meta);
-}
 
 
 
 
 namespace ABI_IMPL {
+
+	ValueItem* _Vcast_callFN(void* ptr) {
+		return FuncEnviropment::syncCall(*(typed_lgr<FuncEnviropment>*)ptr, nullptr);
+	}
+
 	std::string Scast(void*& val, ValueMeta& meta) {
 		switch (meta.vtype) {
 		case VType::noting:
@@ -1453,8 +1431,7 @@ void AsArr(void** val) {
 	if (meta.vtype == VType::uarr)
 		return;
 	else {
-		auto tmp = new list_array<ValueItem>(1);
-		tmp->operator[](0) = ValueItem(*val, meta);
+		auto tmp = new list_array<ValueItem>(ABI_IMPL::Vcast<list_array<ValueItem>>(*val, meta));
 		universalRemove(val);
 		*val = tmp;
 		meta.allow_edit = true;
@@ -1501,6 +1478,7 @@ void asValue(void** val, VType type) {
 		ABI_IMPL::setValue(ABI_IMPL::Vcast<double>(*val, meta), val);
 		break;
 	case VType::uarr:
+		ABI_IMPL::setValue(ABI_IMPL::Vcast<list_array<ValueItem>>(*val, meta), val);
 		AsArg(val);
 		break;
 	case VType::string:
@@ -1525,6 +1503,12 @@ void asValue(void** val, VType type) {
 		throw NotImplementedException();
 	}
 }
+bool isValue(void** val, VType type) {
+	ValueMeta& meta = *reinterpret_cast<ValueMeta*>(val + 1);
+	getAsyncResult(*val, meta);
+	return meta.vtype == type;
+}
+
 bool isTrueValue(void** value) {
 	getAsyncResult(*value, *reinterpret_cast<ValueMeta*>(value + 1));
 	switch (reinterpret_cast<ValueMeta*>(value + 1)->vtype) {
@@ -1744,6 +1728,158 @@ size_t getSize(void** value) {
 
 
 
+ValueItem::ValueItem(void* vall, ValueMeta vmeta) {
+	val = copyValue(vall, vmeta);
+	meta = vmeta;
+}
+ValueItem::ValueItem(void* vall, ValueMeta vmeta, bool) {
+	val = vall;
+	meta = vmeta;
+}
+ValueItem::ValueItem(const ValueItem& copy) {
+	ValueItem& tmp = (ValueItem&)copy;
+	val = copyValue(tmp.val, tmp.meta);
+	meta = copy.meta;
+}
+ValueItem::ValueItem(int8_t val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(uint8_t val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(int16_t val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(uint16_t val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(int32_t val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(uint32_t val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(int64_t val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(uint64_t val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(float val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(double val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(const std::string& val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(const list_array<ValueItem>& val) {
+	*this = ABI_IMPL::BVcast(val);
+}
+ValueItem::ValueItem(void* vall, VType type) {
+	ValueMeta vmeta(type);
+	val = copyValue(vall, vmeta);
+	meta = vmeta;
+}
+ValueItem::ValueItem(void* vall, VType type, bool no_copy) {
+	val = vall;
+	meta = type;
+}
+ValueItem::ValueItem(VType type) {
+	meta = type;
+	switch (type) {
+	case VType::noting:
+	case VType::async_res:
+	case VType::undefined_ptr:
+	case VType::type_identifier:
+	case VType::i8:
+	case VType::i16:
+	case VType::i32:
+	case VType::i64:
+	case VType::ui8:
+	case VType::ui16:
+	case VType::ui32:
+	case VType::ui64:
+	case VType::flo:
+	case VType::doub:
+		val = nullptr;
+		break;
+	case VType::raw_arr_i8:
+	case VType::raw_arr_ui8:
+		val = new uint8_t[1]{0};
+		meta.val_len = 1;
+		break;
+	case VType::raw_arr_i16:
+	case VType::raw_arr_ui16:
+		val = new uint16_t[1]{ 0 };
+		meta.val_len = 1;
+		break;
+	case VType::raw_arr_i32:
+	case VType::raw_arr_ui32:
+	case VType::raw_arr_flo:
+		val = new uint32_t[1]{ 0 };
+		meta.val_len = 1;
+		break;
+	case VType::raw_arr_i64:
+	case VType::raw_arr_ui64:
+	case VType::raw_arr_doub:
+		val = new uint64_t[1]{ 0 };
+		meta.val_len = 1;
+		break;
+	case VType::uarr:
+		val = new list_array<ValueItem>();
+		break;
+	case VType::string:
+		val = new std::string();
+		break;
+	case VType::except_value:
+		try {
+			throw AException("Undefined exception","No description");
+		}
+		catch(AException&ex) {
+			val = new std::exception_ptr(std::make_exception_ptr(ex));
+		}
+		break;
+	case VType::faarr:
+		val = new ValueItem[1]{};
+		meta.val_len = 1;
+		break;
+	case VType::class_:
+		val = new ClassValue();
+		break;
+	case VType::morph:
+		val = new MorphValue();
+		break;
+	case VType::proxy:
+		val = new ProxyClass();
+		break;
+	case VType::function:
+		val = new typed_lgr<FuncEnviropment>();
+		break;
+	default:
+		throw NotImplementedException();
+	}
+}
+ValueItem::~ValueItem() {
+	if (val)
+		if (needAlloc(meta.vtype))
+			universalFree(&val, meta);
+}
+
+ValueItem& ValueItem::operator=(const ValueItem& copy) {
+	ValueItem& tmp = (ValueItem&)copy;
+	val = copyValue(tmp.val, tmp.meta);
+	meta = copy.meta;
+	return *this;
+}
+ValueItem& ValueItem::operator=(ValueItem&& move) noexcept {
+	val = move.val;
+	meta = move.meta;
+	move.val = nullptr;
+	return *this;
+}
+
 bool ValueItem::operator<(const ValueItem& cmp) const {
 	void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
 	void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
@@ -1836,4 +1972,314 @@ ValueItem ValueItem::operator |(const ValueItem& op) const {
 }
 
 
+ValueItem::operator int8_t() {
+	return ABI_IMPL::Vcast<int8_t>(val, meta);
+}
+ValueItem::operator uint8_t() {
+	return ABI_IMPL::Vcast<uint8_t>(val, meta);
+}
+ValueItem::operator int16_t() {
+	return ABI_IMPL::Vcast<int16_t>(val, meta);
+}
+ValueItem::operator uint16_t() {
+	return ABI_IMPL::Vcast<uint16_t>(val, meta);
+}
+ValueItem::operator int32_t() {
+	return ABI_IMPL::Vcast<int32_t>(val, meta);
+}
+ValueItem::operator uint32_t() {
+	return ABI_IMPL::Vcast<uint32_t>(val, meta);
+}
+ValueItem::operator int64_t() {
+	return ABI_IMPL::Vcast<int64_t>(val, meta);
+}
+ValueItem::operator uint64_t() {
+	return ABI_IMPL::Vcast<uint64_t>(val, meta);
+}
+ValueItem::operator float() {
+	return ABI_IMPL::Vcast<float>(val, meta);
+}
+ValueItem::operator double() {
+	return ABI_IMPL::Vcast<double>(val, meta);
+}
+ValueItem::operator std::string() {
+	return ABI_IMPL::Scast(val, meta);
+}
+ValueItem::operator list_array<ValueItem>() {
+	return ABI_IMPL::Vcast<list_array<ValueItem>>(val, meta);
+}
+ValueItem* ValueItem::operator()(list_array<ValueItem>* args) {
+	if (meta.vtype == VType::function)
+		return FuncEnviropment::syncCall((*(typed_lgr<FuncEnviropment>*)getValue(val, meta)),args);
+	else
+		return new ValueItem(*this);
+}
 
+void ValueItem::getAsync() {
+	while (meta.vtype == VType::async_res)
+		getAsyncResult(val, meta);
+}
+
+
+
+
+
+ClassDefine::ClassDefine():name("Unnamed") { }
+ClassDefine::ClassDefine(const std::string& name) { this->name = name; }
+
+typed_lgr<class FuncEnviropment> ClassValue::callFnPtr(const std::string & str, ClassAccess acces) {
+	if (define) {
+		if (define->funs.contains(str)) {
+			auto& tmp = define->funs[str];
+			switch (acces) {
+			case ClassAccess::pub:
+				if (tmp.access == ClassAccess::pub)
+					return tmp.fn;
+				break;
+			case ClassAccess::priv:
+				if (tmp.access != ClassAccess::deriv)
+					return tmp.fn;
+				break;
+			case ClassAccess::prot:
+				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+					return tmp.fn;
+				break;
+			case ClassAccess::deriv:
+				if (tmp.access != ClassAccess::priv)
+					return tmp.fn;
+				break;
+			default:
+				throw NotImplementedException();
+			}
+			throw InvalidFunction("Try access to private function");
+		}
+	}
+	throw NotImplementedException();
+}
+ClassFnDefine& ClassValue::getFnMeta(const std::string & str) {
+	if (define) {
+			if (define->funs.contains(str))
+				return define->funs[str];
+		}
+	throw NotImplementedException();
+}
+void ClassValue::setFnMeta(const std::string& str, ClassFnDefine& fn_decl) {
+	if (define) {
+		if (define->funs.contains(str))
+			if (!define->funs[str].deletable)
+				throw InvalidOperation("This class has non modifable function declaration");
+	}
+	else
+		define = new ClassDefine();
+	define->funs[str] = fn_decl;
+}
+bool ClassValue::containsFn(const std::string& str) {
+	if (!define)
+		return false;
+	return define->funs.contains(str);
+}
+ValueItem& ClassValue::getValue(const std::string& str, ClassAccess acces) {
+	if (val.contains(str)) {
+		auto& tmp = val[str];
+		switch (acces) {
+		case ClassAccess::pub:
+			if (tmp.access == ClassAccess::pub)
+				return tmp.val;
+			break;
+		case ClassAccess::priv:
+			if (tmp.access != ClassAccess::deriv)
+				return tmp.val;
+			break;
+		case ClassAccess::prot:
+			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+				return tmp.val;
+			break;
+		case ClassAccess::deriv:
+			if (tmp.access != ClassAccess::priv)
+				return tmp.val;
+			break;
+		default:
+			throw NotImplementedException();
+		}
+		throw InvalidFunction("Try access to non public value");
+	}
+	throw NotImplementedException();
+}
+ValueItem ClassValue::copyValue(const std::string& str, ClassAccess acces) {
+	if (val.contains(str)) {
+		return getValue(str, acces);
+	}
+	return ValueItem();
+}
+
+
+typed_lgr<class FuncEnviropment> MorphValue::callFnPtr(const std::string & str, ClassAccess acces) {
+	if (define.funs.contains(str)) {
+		auto& tmp = define.funs[str];
+		switch (acces) {
+		case ClassAccess::pub:
+			if (tmp.access == ClassAccess::pub)
+				return tmp.fn;
+			break;
+		case ClassAccess::priv:
+			if (tmp.access != ClassAccess::deriv)
+				return tmp.fn;
+			break;
+		case ClassAccess::prot:
+			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+				return tmp.fn;
+			break;
+		case ClassAccess::deriv:
+			if (tmp.access != ClassAccess::priv)
+				return tmp.fn;
+			break;
+		default:
+			throw NotImplementedException();
+		}
+		throw InvalidFunction("Try access to private function");
+	}
+	throw NotImplementedException();
+}
+ClassFnDefine& MorphValue::getFnMeta(const std::string& str) {
+	if (define.funs.contains(str))
+		return define.funs[str];
+	throw NotImplementedException();
+}
+void MorphValue::setFnMeta(const std::string& str, ClassFnDefine& fn_decl) {
+	if (define.funs.contains(str))
+		if (!define.funs[str].deletable)
+			throw InvalidOperation("This class has non modifable function declaration");
+	define.funs[str] = fn_decl;
+}
+bool MorphValue::containsFn(const std::string& str) {
+	return define.funs.contains(str);
+}
+ValueItem& MorphValue::getValue(const std::string& str, ClassAccess acces) {
+	if (val.contains(str)) {
+		auto& tmp = val[str];
+		switch (acces) {
+		case ClassAccess::pub:
+			if (tmp.access == ClassAccess::pub)
+				return tmp.val;
+			break;
+		case ClassAccess::priv:
+			if (tmp.access != ClassAccess::deriv)
+				return tmp.val;
+			break;
+		case ClassAccess::prot:
+			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+				return tmp.val;
+			break;
+		case ClassAccess::deriv:
+			if (tmp.access != ClassAccess::priv)
+				return tmp.val;
+			break;
+		default:
+			throw NotImplementedException();
+		}
+		throw InvalidFunction("Try access to non public value");
+	}
+	throw NotImplementedException();
+}
+ValueItem MorphValue::copyValue(const std::string& str, ClassAccess acces) {
+	if (val.contains(str)) {
+		return getValue(str, acces);
+	}
+	return ValueItem();
+}
+
+
+
+
+
+ProxyClassDefine::ProxyClassDefine() :name("Unnamed") {}
+ProxyClassDefine::ProxyClassDefine(const std::string& name) :name(name) { }
+ProxyClass::ProxyClass() {
+	class_ptr = nullptr;
+	declare_ty = nullptr;
+}
+ProxyClass::ProxyClass(void* val) {
+	class_ptr = val;
+	declare_ty = nullptr;
+}
+ProxyClass::ProxyClass(void* val, ProxyClassDefine* def) {
+	class_ptr = val;
+	declare_ty = def;
+}
+ProxyClass::~ProxyClass() {
+	if (declare_ty)
+		declare_ty->destructor(class_ptr);
+}
+
+typed_lgr<class FuncEnviropment> ProxyClass::callFnPtr(const std::string& str, ClassAccess acces) {
+	if (declare_ty) {
+		auto& define = *declare_ty;
+		if (define.funs.contains(str)) {
+			auto& tmp = define.funs[str];
+			switch (acces) {
+			case ClassAccess::pub:
+				if (tmp.access == ClassAccess::pub)
+					return tmp.fn;
+				break;
+			case ClassAccess::priv:
+				if (tmp.access != ClassAccess::deriv)
+					return tmp.fn;
+				break;
+			case ClassAccess::prot:
+				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
+					return tmp.fn;
+				break;
+			case ClassAccess::deriv:
+				if (tmp.access != ClassAccess::priv)
+					return tmp.fn;
+				break;
+			default:
+				throw NotImplementedException();
+			}
+			throw InvalidFunction("Try access to private function");
+		}
+	}
+	throw NotImplementedException();
+}
+ClassFnDefine& ProxyClass::getFnMeta(const std::string& str) {
+	if (declare_ty) {
+		auto& define = *declare_ty;
+		if (define.funs.contains(str))
+			return define.funs[str];
+	}
+	throw NotImplementedException();
+}
+void ProxyClass::setFnMeta(const std::string& str, ClassFnDefine& fn_decl) {
+	if (declare_ty) {
+		if (declare_ty->funs.contains(str))
+			if (!declare_ty->funs[str].deletable)
+				throw InvalidOperation("This class has non modifable function declaration");
+	}
+	else
+		declare_ty = new ProxyClassDefine();
+	declare_ty->funs[str] = fn_decl;
+}
+bool ProxyClass::containsFn(const std::string& str) {
+	if (declare_ty)
+		return declare_ty->funs.contains(str);
+	else
+		return false;
+}
+ValueItem ProxyClass::getValue(const std::string& str) {
+	if (declare_ty) {
+		if (declare_ty->value_geter.contains(str)) {
+			auto& tmp = declare_ty->value_geter[str];
+			return tmp(class_ptr);
+		}
+	}
+	throw NotImplementedException();
+}
+void* ProxyClass::setValue(const std::string& str, ValueItem& it) {
+	if (declare_ty) {
+		if (declare_ty->value_seter.contains(str)) {
+			auto& tmp = declare_ty->value_seter[str];
+			tmp(class_ptr, it);
+		}
+	}
+	throw NotImplementedException();
+}
