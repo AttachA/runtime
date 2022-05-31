@@ -1728,7 +1728,7 @@ size_t getSize(void** value) {
 
 
 
-ValueItem::ValueItem(void* vall, ValueMeta vmeta) {
+ValueItem::ValueItem(void* vall, ValueMeta vmeta) : val(0) {
 	val = copyValue(vall, vmeta);
 	meta = vmeta;
 }
@@ -1736,53 +1736,56 @@ ValueItem::ValueItem(void* vall, ValueMeta vmeta, bool) {
 	val = vall;
 	meta = vmeta;
 }
-ValueItem::ValueItem(const ValueItem& copy) {
+ValueItem::ValueItem(const ValueItem& copy) : val(0) {
 	ValueItem& tmp = (ValueItem&)copy;
 	val = copyValue(tmp.val, tmp.meta);
 	meta = copy.meta;
 }
-ValueItem::ValueItem(int8_t val) {
+ValueItem::ValueItem(int8_t val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(uint8_t val) {
+ValueItem::ValueItem(uint8_t val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(int16_t val) {
+ValueItem::ValueItem(int16_t val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(uint16_t val) {
+ValueItem::ValueItem(uint16_t val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(int32_t val) {
+ValueItem::ValueItem(int32_t val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(uint32_t val) {
+ValueItem::ValueItem(uint32_t val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(int64_t val) {
+ValueItem::ValueItem(int64_t val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(uint64_t val) {
+ValueItem::ValueItem(uint64_t val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(float val) {
+ValueItem::ValueItem(float val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(double val) {
+ValueItem::ValueItem(double val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(const std::string& val) {
+ValueItem::ValueItem(const std::string& val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(const list_array<ValueItem>& val) {
+ValueItem::ValueItem(const char* str) : val(0) {
+	*this = ABI_IMPL::BVcast(std::string(str));
+}
+ValueItem::ValueItem(const list_array<ValueItem>& val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(void* vall, VType type) {
+ValueItem::ValueItem(void* vall, VType type) : val(0) {
 	ValueMeta vmeta(type);
 	val = copyValue(vall, vmeta);
 	meta = vmeta;
 }
-ValueItem::ValueItem(void* vall, VType type, bool no_copy) {
+ValueItem::ValueItem(void* vall, VType type, bool no_copy) : val(0) {
 	val = vall;
 	meta = type;
 }
@@ -1869,11 +1872,17 @@ ValueItem::~ValueItem() {
 
 ValueItem& ValueItem::operator=(const ValueItem& copy) {
 	ValueItem& tmp = (ValueItem&)copy;
+	if (val)
+		if (needAlloc(meta.vtype))
+			universalFree(&val, meta);
 	val = copyValue(tmp.val, tmp.meta);
 	meta = copy.meta;
 	return *this;
 }
 ValueItem& ValueItem::operator=(ValueItem&& move) noexcept {
+	if (val)
+		if (needAlloc(meta.vtype))
+			universalFree(&val, meta);
 	val = move.val;
 	meta = move.meta;
 	move.val = nullptr;
@@ -2020,6 +2029,9 @@ void ValueItem::getAsync() {
 		getAsyncResult(val, meta);
 }
 
+void*& ValueItem::getSourcePtr() {
+	return getValue(val, meta);
+}
 
 
 

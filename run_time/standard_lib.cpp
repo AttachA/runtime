@@ -670,7 +670,7 @@ ValueItem math_frrt_impl(ValueItem& val) {
 
 	switch (val.meta.vtype) {
 	case VType::flo: {
-		float f = t;
+		float f = (float)t;
 		return ValueItem((void*)&f, ValueMeta(VType::flo, false, true));
 	}
 	default:

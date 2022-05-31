@@ -13,10 +13,6 @@ size_t page_size = []() {
 	GetSystemInfo(&si);
 	return si.dwPageSize;
 }();
-#else
-#include <unistd.h>
-size_t page_size = sysconf(_SC_PAGESIZE);
-#endif
 
 #include "run_time.hpp"
 #include <sstream>
@@ -273,3 +269,22 @@ bool restore_stack_fault() {
 bool need_restore_stack_fault() {
 	return need_stack_restore;
 }
+
+
+
+#else
+#include <unistd.h>
+size_t page_size = sysconf(_SC_PAGESIZE);
+
+
+
+
+
+
+
+
+
+
+
+
+#endif

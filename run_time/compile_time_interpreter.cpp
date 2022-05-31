@@ -71,7 +71,7 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 			throw CompileTimeException("Reached end of builder function");
 		Opcode opcodes = (Opcode)code[ii];
 		switch (opcodes) {
-		case Opcode::invalid: throw CompileTimeException("Caught invalid builder opcode");
+		case Opcode::noting:break;
 		case Opcode::set:
 			uint16_t value_index = readData<uint16_t>(code, code_len, ii);
 			switch (readData<VType>(code, code_len, ii)) {
@@ -294,8 +294,6 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 
 			break;
 		}
-		case Opcode::attacha:
-			//TO-DO
 			break;
 		case Opcode::casm: {
 			//TO-DO
@@ -317,15 +315,6 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 				fn_code.push_back(readData<uint8_t>(code, code_len, ii));
 			break;
 		}
-		case Opcode::constant:
-			getValue(readData<uint16_t>(code, code_len, ii), its) = constants[readString(code, code_len, ii)];
-			break;
-		case Opcode::fault:
-			throw AException("CompileTimeException Fault", readString(code, code_len, ii));
-		case Opcode::undefined_fault:
-			throw AException("CompileTimeException UndefinedFault", "Caught to undefined fault");
-		case Opcode::finish:
-			return { fn_code,fn_code_can_be_unloaded,fn_code_val_count, readData<bool>(code, code_len, ii) };
 		default:
 			throw CompileTimeException("Invalid opcode");
 		}

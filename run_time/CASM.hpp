@@ -148,9 +148,11 @@ constexpr creg128 vec13 = asmjit::x86::xmm13;
 constexpr creg128 vec14 = asmjit::x86::xmm14;
 constexpr creg128 vec15 = asmjit::x86::xmm15;
 #endif
+#if defined(_M_X64) || defined(__x86_64__)
+#define CASM_X64
+#endif
 
-
-#if  defined(__x86_64__) || defined(_M_X64)
+#ifdef CASM_X64
 
 
 
@@ -671,211 +673,193 @@ struct FrameResult {
 
 #include <unordered_map>
 class BuildCall {
-	std::unordered_map<size_t, creg> Dargs;
-	std::unordered_map<size_t, asmjit::Imm> Sargs;
-	std::unordered_map<size_t, std::pair<creg64, size_t>> leas;
-	std::unordered_map<size_t, std::pair<creg64, size_t>> movs;
 	CASM& csm;
 	size_t arg_c = 0;
+	size_t pushed = 0;
 	bool red_zone_inited = false;
+#ifdef _WIN64
+	void callStart() {
+		if (!arg_c) {
+			if (red_zone_inited)
+				csm.stackIncrease(0x20);//function visual c++ abi
+			red_zone_inited = true;
+		}
+	}
+#else
+#define callStart()
+#endif // _WIN64
 public:
 	BuildCall(CASM& a) : csm(a) {}
+	~BuildCall() noexcept(false) {
+		if (arg_c)
+			throw InvalidOperation("Build call is incomplete, need finalization");
+	}
 	void iniRedzone() {
+		callStart();
 		red_zone_inited = true;
 	}
 	void addArg(creg reg) {
-		Dargs[arg_c++] = reg;
+		callStart();
+		switch (arg_c++) {
+		case 0:
+			if (argr0 != reg)
+				csm.movA(argr0, reg);
+			break;
+		case 1:
+			if (argr1 != reg)
+				csm.movA(argr1, reg);
+			break;
+		case 2:
+			if (argr2 != reg)
+				csm.movA(argr2, reg);
+			break;
+		case 3:
+			if (argr3 != reg)
+				csm.movA(argr3, reg);
+			break;
+#ifndef _WIN64
+		case 4:
+			if (argr4 != reg)
+				csm.movA(argr4, reg);
+			break;
+		case 5:
+			if (argr5 != reg)
+				csm.movA(argr5, reg);
+			break;
+#endif
+		default:
+			csm.push(reg);
+			pushed += 8;
+		}
 	}
 	void addArg(const asmjit::Imm& val) {
-		Sargs[arg_c++] = val;
+		callStart();
+		switch (arg_c++) {
+		case 0:
+			csm.mov(argr0, val);
+			break;
+		case 1:
+			csm.mov(argr1, val);
+			break;
+		case 2:
+			csm.mov(argr2, val);
+			break;
+		case 3:
+			csm.mov(argr3, val);
+			break;
+#ifndef _WIN64
+		case 4:
+			csm.mov(argr4, val);
+			break;
+		case 5:
+			csm.mov(argr5, val);
+			break;
+#endif
+		default:
+			csm.push(val);
+			pushed += val.size();
+		}
 	}
-	void lea(creg64 reg, size_t off) {
-		leas[arg_c++] = { reg,off };
+	void lea(creg64 reg, int32_t off) {
+		callStart();
+		switch (arg_c++) {
+		case 0:
+			csm.lea(argr0, reg, off);
+			break;
+		case 1:
+			csm.lea(argr1, reg, off);
+			break;
+		case 2:
+			csm.lea(argr2, reg, off);
+			break;
+		case 3:
+			csm.lea(argr3, reg, off);
+			break;
+#ifndef _WIN64
+		case 4:
+			csm.lea(argr4, reg, off);
+			break;
+		case 5:
+			csm.lea(argr5, reg, off);
+			break;
+#endif
+		default:
+			if (off) {
+				csm.lea(mut_temp_ptr, reg, off);
+				csm.push(mut_temp_ptr);
+			} else csm.push(reg);
+			pushed += 8;
+		}
 	}
 	void leaEnviro(uint16_t off) {
-		leas[arg_c++] = { enviro_ptr,(int32_t(off) << 1) * 8 };
+		callStart();
+		lea(enviro_ptr,(size_t(off) << 1) * 8 );
 	}
 	void leaEnviroMeta(uint16_t off) {
-		leas[arg_c++] = { enviro_ptr,(int32_t(off) << 1) * 8 + 8 };
+		callStart();
+		lea(enviro_ptr,(size_t(off) << 1) * 8 + 8 );
 	}
-	void mov(creg64 reg, size_t off) {
-		movs[arg_c++] = { reg,off };
+	void mov(creg64 reg, int32_t off) {
+		callStart();
+		switch (arg_c++) {
+		case 0:
+			csm.mov(argr0, reg, off);
+			break;
+		case 1:
+			csm.mov(argr1, reg, off);
+			break;
+		case 2:
+			csm.mov(argr2, reg, off);
+			break;
+		case 3:
+			csm.mov(argr3, reg, off);
+			break;
+#ifndef _WIN64
+		case 4:
+			csm.mov(argr4, reg, off);
+			break;
+		case 5:
+			csm.mov(argr5, reg, off);
+			break;
+#endif
+		default:
+			csm.mov(mut_temp_ptr, reg, off);
+			csm.push(mut_temp_ptr);
+			pushed += 8;
+		}
 	}
 	void movEnviro(uint16_t off) {
-		movs[arg_c++] = { enviro_ptr,(int32_t(off) << 1) * 8 };
+		callStart();
+		mov(enviro_ptr, (size_t(off) << 1) * 8);
 	}
 	void movEnviroMeta(uint16_t off) {
-		movs[arg_c++] = { enviro_ptr,(int32_t(off) << 1) * 8 + 8 };
+		callStart();
+		mov(enviro_ptr, (size_t(off) << 1) * 8 + 8);
 	}
 	void skip() {
-		arg_c++;
+		callStart();
+		switch (arg_c++) {
+		case 0:
+		case 1:
+		case 2:
+		case 3:
+#ifndef _WIN64
+		case 4:
+		case 5:
+#endif
+			break;
+		default:
+			//push(*)
+			pushed += 8;
+		}
 	}
 
 	template<class F>
-	void finalize(F func,bool clear_at_end = true) {
-		size_t pushed = 0;
-#if defined(_M_X64) || defined(__x86_64__)
-#ifdef _WIN64
-		if(red_zone_inited)
-			csm.stackIncrease(0x20);//function visual c++ abi
-#endif // _WIN64
-
-
-		for (size_t i = 0; i < arg_c; i++) {
-			if (Sargs.contains(i)) {
-				switch (i) {
-				case 0:
-					csm.mov(argr0, Sargs[i]);
-					break;
-				case 1:
-					csm.mov(argr1, Sargs[i]);
-					break;
-				case 2:
-					csm.mov(argr2, Sargs[i]);
-					break;
-				case 3:
-					csm.mov(argr3, Sargs[i]);
-					break;
-#ifndef _WIN64
-				case 4:
-					csm.mov(argr4, Sargs[i]);
-					break;
-				case 5:
-					csm.mov(argr5, Sargs[i]);
-					break;
-#endif
-				default:
-					csm.push(Sargs[i]);
-					pushed += Sargs[i].size();
-				}
-			}
-			else if (Dargs.contains(i)) {
-				switch (i) {
-				case 0:
-					if(argr0 != Dargs[i])
-						csm.movA(argr0, Dargs[i]);
-					break;
-				case 1:
-					if (argr1 != Dargs[i])
-						csm.movA(argr1, Dargs[i]);
-					break;
-				case 2:
-					if (argr2 != Dargs[i])
-						csm.movA(argr2, Dargs[i]);
-					break;
-				case 3:
-					if (argr3 != Dargs[i])
-						csm.movA(argr3, Dargs[i]);
-					break;
-#ifndef _WIN64
-				case 4:
-					if (argr4 != Dargs[i])
-						csm.movA(argr4, Dargs[i]);
-					break;
-				case 5:
-					if (argr5 != Dargs[i])
-						csm.movA(argr5, Dargs[i]);
-					break;
-#endif
-				default:
-					csm.push(Dargs[i]);
-					pushed += 8;
-				}
-			}
-			else if (leas.contains(i)) {
-				switch (i) {
-				case 0:
-					csm.lea(argr0, leas[i].first, leas[i].second);
-					break;
-				case 1:
-					csm.lea(argr1, leas[i].first, leas[i].second);
-					break;
-				case 2:
-					csm.lea(argr2, leas[i].first, leas[i].second);
-					break;
-				case 3:
-					csm.lea(argr3, leas[i].first, leas[i].second);
-					break;
-#ifndef _WIN64
-				case 4:
-					csm.lea(argr4, leas[i].first, leas[i].second);
-					break;
-				case 5:
-					csm.lea(argr5, leas[i].first, leas[i].second);
-					break;
-#endif
-				default:
-					csm.lea(mut_temp_ptr, leas[i].first, leas[i].second);
-					csm.push(mut_temp_ptr);
-					pushed += 8;
-				}
-			}
-			else if (movs.contains(i)) {
-				switch (i) {
-				case 0:
-					csm.mov(argr0, movs[i].first, movs[i].second);
-					break;
-				case 1:
-					csm.mov(argr1, movs[i].first, movs[i].second);
-					break;
-				case 2:
-					csm.mov(argr2, movs[i].first, movs[i].second);
-					break;
-				case 3:
-					csm.mov(argr3, movs[i].first, movs[i].second);
-					break;
-#ifndef _WIN64
-				case 4:
-					csm.mov(argr4, movs[i].first, movs[i].second);
-					break;
-				case 5:
-					csm.mov(argr5, movs[i].first, movs[i].second);
-					break;
-#endif
-				default:
-					csm.mov(mut_temp_ptr, movs[i].first, movs[i].second);
-					csm.push(mut_temp_ptr);
-					pushed += 8;
-				}
-			}
-			else
-				throw CompileTimeException("Unexcepted exception when building function call");
-		}
-#else
-		for (size_t i = 0; i < arg_c; i++) {
-			if (Sargs.contains(i)) {
-				csm.push(Sargs[i]);
-				pushed += Sargs[i].size();
-			}
-			else if (Dargs.contains(i)) {
-				csm.push(Dargs[i]);
-				pushed += 4;
-			}
-			else if (leas.contains(i)) {
-				csm.lea(mut_temp_ptr, leas[i].first, leas[i].second);
-				csm.push(mut_temp_ptr);
-				pushed += 4;
-			}
-			else if (movs.contains(i)) {
-				csm.mov(mut_temp_ptr, movs[i].first, movs[i].second);
-				csm.push(mut_temp_ptr);
-				pushed += 4;
-			}
-			else
-				throw CompileTimeException("Unexcepted exception when building function call");
-		}
-#endif
+	void finalize(F func) {
 		csm.call(func);
 		if (pushed) 
 			csm.stackReduce(pushed);
-		if (clear_at_end)
-			clear();
-	}
-	void clear() {
-		Dargs.clear();
-		Sargs.clear();
-		leas.clear();
-		movs.clear();
+		pushed = 0;
 		arg_c = 0;
 	}
 };

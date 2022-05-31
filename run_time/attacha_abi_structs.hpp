@@ -44,9 +44,54 @@ enum class Opcode : uint8_t {
 	store_bool,//store bool from value for if statements, set false if type is noting, numeric types is zero and containers is empty, if another then true
 	load_bool,//used if need save equaluty result, set numeric type as 1 or 0
 	make_inline_call,
+	make_inline_call_and_ret,
 	casm,
-	inline_native,//[len]{data} insert all bytes as instructions in current function
-	call_function_builder, 
+	inline_native,//[len]{data} insert all bytes as instructions
+};
+enum class OpcodeArray : uint8_t {
+	set,
+	insert,
+	push_end,
+	push_start,
+	insert_range,
+
+	get,
+	take,
+	take_end,
+	take_start,
+	get_range,
+	take_range,
+
+
+	pop_end,
+	pop_start,
+	remove_item,
+	remove_range,
+
+	resize,
+	resize_default,
+
+
+	reserve_push_end,
+	reserve_push_start,
+	commit,
+	decommit,
+	remove_reserved,
+
+	size
+};
+union OpArrFlags {
+	enum class CheckMode : uint8_t {
+		no_check,
+		check,
+		no_throw_check
+	};
+	struct {
+		uint8_t move_mode : 1;
+		CheckMode checked : 2;
+		uint8_t by_val_mode : 1;
+	};
+	uint8_t raw;
 };
 
 
@@ -210,6 +255,7 @@ struct ValueItem {
 	ValueItem(float val);
 	ValueItem(double val);
 	ValueItem(const std::string& val);
+	ValueItem(const char* str);
 	ValueItem(const list_array<ValueItem>& val);
 
 	ValueItem() {
@@ -269,6 +315,7 @@ struct ValueItem {
 
 	ValueItem* operator()(list_array<ValueItem>* args);
 	void getAsync();
+	void*& getSourcePtr();
 };
 typedef ValueItem* (*Enviropment)(void** enviro, list_array<ValueItem>* args);
 typedef ValueItem* (*AttachACXX)(list_array<ValueItem>* arguments);

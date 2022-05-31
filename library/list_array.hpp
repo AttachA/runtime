@@ -89,7 +89,7 @@ public:
 			}
 		}
 	public:
-		using iterator_category = std::forward_iterator_tag;
+		using iterator_category = std::bidirectional_iterator_tag;
 		using value_type = T;
 		using difference_type = ptrdiff_t;
 		using pointer = T*;
@@ -176,7 +176,7 @@ public:
 			}
 		}
 	public:
-		using iterator_category = std::forward_iterator_tag;
+		using iterator_category = std::bidirectional_iterator_tag;
 		using value_type = T;
 		using difference_type = ptrdiff_t;
 		using pointer = T*;
@@ -249,7 +249,7 @@ public:
 		arr_block<T>* block;
 		size_t pos;
 	public:
-		using iterator_category = std::forward_iterator_tag;
+		using iterator_category = std::bidirectional_iterator_tag;
 		using value_type = T;
 		using difference_type = ptrdiff_t;
 		using pointer = T*;
@@ -327,7 +327,7 @@ public:
 		const arr_block<T>* block;
 		size_t pos;
 	public:
-		using iterator_category = std::forward_iterator_tag;
+		using iterator_category = std::bidirectional_iterator_tag;
 		using value_type = T;
 		using difference_type = ptrdiff_t;
 		using pointer = T*;
@@ -1982,7 +1982,7 @@ public:
 			}
 			swap(result);
 		}
-		else if constexpr (std::is_signed<T>::value && !sizeof(T) < sizeof(size_t)) {
+		else if constexpr (std::is_signed<T>::value && sizeof(T) <= sizeof(size_t)) {
 			auto normalize = [](const T& to) {
 				constexpr size_t to_shift = sizeof(8) * 4;
 				return size_t((SIZE_MAX >> to_shift) + to);
@@ -2071,6 +2071,75 @@ public:
 		}
 		return *this;
 	}
+	template<class _FN>
+	conexpr list_array<T> sort_copy(_FN compare) const {
+		return list_array<T>(*this).sort(compare);
+	}
+	template<class _FN>
+	conexpr list_array<T>& sort(_FN compare) {
+		size_t curr_L_size = _size / 2 + 1;
+		size_t curr_M_size = _size / 2 + 1;
+		T* L = new T[_size / 2 + 1];
+		T* M = new T[_size / 2 + 1];
+		auto fix_size = [&L, &M, &curr_L_size, &curr_M_size](size_t start, size_t mindle, size_t end) {
+			size_t l = mindle - start + 1;
+			size_t m = end - mindle + 1;
+			if (curr_L_size < l) {
+				delete[] L;
+				L = new T[l];
+				curr_L_size = l;
+			}
+			if (curr_M_size < m) {
+				delete[] M;
+				M = new T[m];
+				curr_M_size = m;
+			}
+		};
+		auto merge = [&](size_t start, size_t mindle, size_t end) {
+			size_t n1 = mindle - start;
+			size_t n2 = end - mindle;
+			if (curr_L_size < n1 || curr_M_size < n2)
+				fix_size(start, mindle, end);
+			get_iterator(start)._fast_load(L, n1);
+			get_iterator(mindle)._fast_load(M, n2);
+			size_t i = 0, j = 0, k = start;
+			for (T& it : range(start, end)) {
+				if (i < n1 && j < n2)
+					it = compare(L[i],M[j]) ? L[i++] : M[j++];
+				else if (i < n1)
+					it = L[i++];
+				else if (j < n2)
+					it = M[j++];
+			}
+		};
+		for (size_t b = 2; b < _size; b <<= 1) {
+			for (size_t i = 0; i < _size; i += b) {
+				if (i + b > _size)
+					merge(i, i + ((_size - i) >> 1), _size);
+				else
+					merge(i, i + (b >> 1), i + b);
+			}
+			if (b << 1 > _size)
+				merge(0, b, _size);
+		}
+		auto non_sorted_finder = [&](size_t continue_search) {
+			const auto* check = &operator[](0);
+			size_t res = 0;
+			for (const T& it : *this) {
+				if (*check > it)
+					return res;
+				check = &it;
+				++res;
+			}
+			return size_t(0);
+		};
+		size_t err = 0;
+		while (err = non_sorted_finder(err))
+			merge(0, err, _size);
+		delete[] L;
+		delete[] M;
+		return *this;
+	}
 
 	conexpr const T& mmax() const {
 		if (!_size)
@@ -2150,6 +2219,13 @@ public:
 		remove(split_pos, _size);
 		return res;
 	}
+
+	conexpr std::pair<list_array<T>, list_array<T>> split_copy(size_t split_pos) const {
+		list_array<T> tmp(*this);
+		return { tmp, tmp.split()};
+	}
+
+
 	conexpr list_array<T> take() {
 		list_array<T> res(0);
 		res.swap(*this);
@@ -2283,7 +2359,7 @@ public:
 	conexpr list_array<T> copy() const {
 		return *this;
 	}
-
+#pragma region no_copy
 	conexpr size_t unique() {
 		return unique(0, _size);
 	}
@@ -2401,6 +2477,110 @@ public:
 		delete[] selector;
 		return result;
 	}
+#pragma endregion
+#pragma region join
+	template<class _FN = bool(*)(const T&) >
+	conexpr void join(const T& insert_item, _FN where_join) {
+		operator=(join_copy(insert_item, 0, _size, where_join));
+	}
+	template<class _FN>
+	conexpr list_array<T> join_copy(const T& insert_item, _FN where_join) const {
+		return join_copy(insert_item, 0, _size, where_join);
+	}
+	template<class _FN>
+	conexpr list_array<T> join_copy(const T& insert_item, size_t start_pos, size_t end_pos, _FN where_join) const {
+		list_array<T> res;
+		res.reserve_push_back(_size * 2);
+		if (start_pos > end_pos) {
+			std::swap(start_pos, end_pos);
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			for (auto& i : reverse_range(start_pos, end_pos)) {
+				res.push_back(i);
+				if(where_join(i))
+					res.push_back(insert_item);
+			}
+		}
+		else {
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			for (auto& i : range(start_pos, end_pos)) {
+				res.push_back(i);
+				if (where_join(i))
+					res.push_back(insert_item);
+			}
+		}
+		return res;
+	}
+	
+	template<class _FN>
+	conexpr void join(const list_array<T>& insert_items, _FN where_join) {
+		operator=(join_copy(insert_items, 0, _size, where_join));
+	}
+	template<class _FN>
+	conexpr list_array<T> join_copy(const list_array<T>& insert_items, _FN where_join) const {
+		return join_copy(insert_items, 0, _size, where_join);
+	}
+	template<class _FN>
+	conexpr list_array<T> join_copy(const list_array<T>& insert_items, size_t start_pos, size_t end_pos, _FN where_join) const {
+		list_array<T> res;
+		res.reserve_push_back(_size * 2);
+		if (start_pos > end_pos) {
+			std::swap(start_pos, end_pos);
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			for (auto& i : reverse_range(start_pos, end_pos)) {
+				res.push_back(i);
+				if (where_join(i))
+					res.push_back(insert_items);
+			}
+		}
+		else {
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			for (auto& i : range(start_pos, end_pos)) {
+				res.push_back(i);
+				if (where_join(i))
+					res.push_back(insert_items);
+			}
+		}
+		return res;
+	}
+
+
+	template<class _FN>
+	conexpr void join(T* insert_items,size_t items_count, _FN where_join) {
+		operator=(join_copy(insert_items, items_count, 0, _size, where_join));
+	}
+	template<class _FN>
+	conexpr list_array<T> join_copy(T* insert_items, size_t items_count, _FN where_join) const {
+		return join_copy(insert_items, items_count, 0, _size, where_join);
+	}
+	template<class _FN>
+	conexpr list_array<T> join_copy(T* insert_items, size_t items_count, size_t start_pos, size_t end_pos, _FN where_join) const {
+		list_array<T> res;
+		res.reserve_push_back(_size * 2);
+		if (start_pos > end_pos) {
+			std::swap(start_pos, end_pos);
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			for (auto& i : reverse_range(start_pos, end_pos)) {
+				res.push_back(i);
+				if (where_join(i))
+					res.push_back(insert_items, items_count);
+			}
+		}
+		else {
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			for (auto& i : range(start_pos, end_pos)) {
+				res.push_back(i);
+				if (where_join(i))
+					res.push_back(insert_items, items_count);
+			}
+		}
+		return res;
+	}
 
 	conexpr void join(const T& insert_item) {
 		operator=(join_copy(insert_item, 0, _size));
@@ -2431,9 +2611,72 @@ public:
 		return res;
 	}
 
+	conexpr void join(const list_array<T>& insert_items) {
+		operator=(join_copy(insert_items, 0, _size));
+	}
+	conexpr list_array<T> join_copy(const list_array<T>& insert_items) const {
+		return join_copy(insert_items, 0, _size);
+	}
+	conexpr list_array<T> join_copy(const list_array<T>& insert_items, size_t start_pos, size_t end_pos) const {
+		list_array<T> res;
+		res.reserve_push_back(_size * 2);
+		if (start_pos > end_pos) {
+			std::swap(start_pos, end_pos);
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			for (auto& i : reverse_range(start_pos, end_pos)) {
+				res.push_back(i);
+				res.push_back(insert_items);
+			}
+		}
+		else {
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			for (auto& i : range(start_pos, end_pos)) {
+				res.push_back(i);
+				res.push_back(insert_items);
+			}
+		}
+		return res;
+	}
+
+
+	template<class _FN>
+	conexpr void join(T* insert_items, size_t items_count) {
+		operator=(join_copy(insert_items, items_count, 0, _size));
+	}
+	template<class _FN>
+	conexpr list_array<T> join_copy(T* insert_items, size_t items_count) const {
+		return join_copy(insert_items, items_count, 0, _size);
+	}
+	template<class _FN>
+	conexpr list_array<T> join_copy(T* insert_items, size_t items_count, size_t start_pos, size_t end_pos) const {
+		list_array<T> res;
+		res.reserve_push_back(_size * 2);
+		if (start_pos > end_pos) {
+			std::swap(start_pos, end_pos);
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			for (auto& i : reverse_range(start_pos, end_pos)) {
+				res.push_back(i);
+				res.push_back(insert_items, items_count);
+			}
+		}
+		else {
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			for (auto& i : range(start_pos, end_pos)) {
+				res.push_back(i);
+				res.push_back(insert_items, items_count);
+			}
+		}
+		return res;
+	}
+
+#pragma endregion
 	template<class _Fn>
 	conexpr list_array<T> where(_Fn check_fn) const {
-		return where_copy(check_fn, 0, _size);
+		return where(check_fn, 0, _size);
 	}
 	template<class _Fn>
 	conexpr list_array<T> where(_Fn check_fn, size_t start_pos, size_t end_pos) const {
@@ -2452,6 +2695,34 @@ public:
 				throw std::out_of_range("end_pos out of size limit");
 			for (auto& i : range(start_pos, end_pos))
 				if (check_fn(i))
+					res.push_back(i);
+		}
+		res.shrink_to_fit();
+		return res;
+	}
+	template<class _Fn>
+	conexpr list_array<T> whereI(_Fn check_fn) const {
+		return whereI(check_fn, 0, _size);
+	}
+	template<class _Fn>
+	conexpr list_array<T> whereI(_Fn check_fn, size_t start_pos, size_t end_pos) const {
+		list_array<T> res;
+		res.reserve_push_back(_size);
+		if (start_pos > end_pos) {
+			std::swap(start_pos, end_pos);
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			size_t pos = end_pos;
+			for (auto& i : reverse_range(start_pos, end_pos))
+				if (check_fn(i, pos--))
+					res.push_back(i);
+		}
+		else {
+			if (end_pos > _size)
+				throw std::out_of_range("end_pos out of size limit");
+			size_t pos = start_pos;
+			for (auto& i : range(start_pos, end_pos))
+				if (check_fn(i, pos--))
 					res.push_back(i);
 		}
 		res.shrink_to_fit();
