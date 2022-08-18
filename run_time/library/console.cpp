@@ -8,8 +8,6 @@
 #ifdef _WIN64
 #include <Windows.h>
 #endif
-
-#include "console.hpp"
 #include "exceptions.hpp"
 #include "../../library/string_convert.hpp"
 #include "../AttachA_CXX.hpp"
@@ -71,25 +69,28 @@ namespace console {
 
 
 	extern "C" {
-		ValueItem* printLine(list_array<ValueItem>* args) {
+		ValueItem* printLine(ValueItem* args, uint32_t len) {
 			was_w_mode();
 			if (args == nullptr)
 				fwrite("\n", 1, 1, _stdout);
 			else {
-				for (auto& it : *args) {
+				while (len--) {
+					auto& it = *args++;
 					std::string tmp = ABI_IMPL::Scast(it.val, it.meta) + '\n';
 					fwrite(tmp.c_str(), 1, tmp.size(), _stdout);
 				}
 			}
 			return nullptr;
 		}
-		ValueItem* print(list_array<ValueItem>* args) {
-			was_w_mode();
-			if (args != nullptr)
-				for (auto& it : *args) {
+		ValueItem* print(ValueItem* args, uint32_t len) {
+			if (args != nullptr) {
+				was_w_mode();
+				while (len--) {
+					auto& it = *args++;
 					std::string tmp = ABI_IMPL::Scast(it.val, it.meta);
 					fwrite(tmp.c_str(), 1, tmp.size(), _stdout);
 				}
+			}
 			return nullptr;
 		}
 
@@ -151,14 +152,14 @@ namespace console {
 			else
 				printf("\033[999999D\033[%dC",y);
 		}
-		void showCursor(uint32_t y) {
+		void showCursor() {
 			print("\033[?25h");
 		}
-		void hideCursor(uint32_t y) {
+		void hideCursor() {
 			print("\033[?25l");
 		}
 
-		ValueItem* readWord(list_array<ValueItem>* args) {
+		ValueItem* readWord(ValueItem* args, uint32_t len) {
 			was_r_mode();
 			std::string str;
 			char c;
@@ -190,7 +191,7 @@ namespace console {
 		end:
 			return new ValueItem(ABI_IMPL::SBcast(str));
 		}
-		ValueItem* readLine(list_array<ValueItem>* args) {
+		ValueItem* readLine(ValueItem* args, uint32_t len) {
 			was_r_mode();
 			std::string str;
 			char c;
@@ -204,7 +205,7 @@ namespace console {
 			}
 			return new ValueItem(new std::string(std::move(str)), ValueMeta(VType::string, false, true));
 		}
-		ValueItem* readInput(list_array<ValueItem>*) {
+		ValueItem* readInput(ValueItem* args, uint32_t len) {
 			was_r_mode();
 			std::string str;
 			char c;
@@ -214,7 +215,7 @@ namespace console {
 			return new ValueItem(new std::string(std::move(str)), ValueMeta(VType::string, false, true));
 
 		}
-		ValueItem* readValue(list_array<ValueItem>*) {
+		ValueItem* readValue(ValueItem* args, uint32_t len) {
 			was_r_mode();
 			std::string str;
 			char c;

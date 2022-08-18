@@ -3,19 +3,20 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-
-#include "attacha_abi.hpp"
-#include "run_time_compiler.hpp"
-#include "tasks.hpp"
+#include "AttachA_CXX.hpp"
 #include <string>
 #include <sstream>
-
-
 #include <mutex>
 
 
 
-bool needAlloc(VType type) {
+bool needAlloc(ValueMeta type) {
+	if (type.use_gc)
+		return true;
+	return needAllocType(type.vtype);
+}
+
+bool needAllocType(VType type) {
 	switch (type) {
 	case VType::raw_arr_i8:
 	case VType::raw_arr_i16:
@@ -31,12 +32,16 @@ bool needAlloc(VType type) {
 	case VType::string:
 	case VType::async_res:
 	case VType::except_value:
+	case VType::faarr:
+	case VType::class_:
+	case VType::morph:
+	case VType::proxy:
+	case VType::function:
 		return true;
 	default:
 		return false;
 	}
 }
-
 
 
 
@@ -98,6 +103,21 @@ void universalFree(void** value, ValueMeta meta) {
 	case VType::except_value:
 		delete (std::exception_ptr*)*value;
 		return;
+	case VType::faarr:
+		delete[](ValueItem*)* value;
+		return;
+	case VType::class_:
+		delete (ClassValue*)*value;
+		return;
+	case VType::morph:
+		delete (MorphValue*)*value;
+		return;
+	case VType::proxy:
+		delete (ProxyClass*)*value;
+		return;
+	case VType::function:
+		delete (typed_lgr<FuncEnviropment>*)*value;
+		return;
 	default:
 		delete *value;
 	}
@@ -109,14 +129,23 @@ void universalRemove(void** value) {
 	ValueMeta& meta = *reinterpret_cast<ValueMeta*>(value + 1);
 	if (!meta.encoded)
 		return;
-	if (needAlloc(meta.vtype))
-		universalFree(value, meta);
+	if (!*value)
+		return;
+	if(!meta.as_ref)
+		if (needAlloc(meta))
+			universalFree(value, meta);
+	if (meta.vtype == VType::saarr) {
+		ValueItem* begin = (ValueItem*)*value;
+		uint32_t count = meta.val_len;
+		while (count--)
+			universalRemove((void**)begin++);
+	}
 	meta.encoded = 0;
 }
 void universalAlloc(void** value, ValueMeta meta) {
 	if (*value)
 		universalRemove(value);
-	if (needAlloc(meta.vtype)) {
+	if (needAllocType(meta.vtype)) {
 		switch (meta.vtype) {
 		case VType::raw_arr_i8:
 		case VType::raw_arr_ui8:
@@ -142,12 +171,59 @@ void universalAlloc(void** value, ValueMeta meta) {
 		case VType::string:
 			*value = new std::string();
 			break;
+		case VType::except_value:
+			try {
+				throw AException("Undefined exception", "No description");
+			}
+			catch (...) {
+				*value = new std::exception_ptr(std::current_exception());
+				break;
+			}
+		case VType::faarr:
+			*value = new ValueItem[meta.val_len]();
+			break;
+		case VType::saarr:
+			throw InvalidOperation("Fail alocate local stack value");
+			break;
+		case VType::class_:
+			*value = new ClassValue();
+			break;
+		case VType::morph:
+			*value = new MorphValue();
+			break;
 		}
 	}
 	if (meta.use_gc) {
 		void(*destructor)(void*) = nullptr;
 		bool(*deph)(void*) = nullptr;
-		switch (meta.vtype) {
+		switch (meta.vtype)
+		{
+		case VType::noting:
+			break;
+		case VType::i8:
+		case VType::ui8:
+			destructor = defaultDestructor<uint8_t>;
+			*value = new uint8_t(0);
+			break;
+		case VType::i16:
+		case VType::ui16:
+			destructor = defaultDestructor<uint16_t>;
+			*value = new uint16_t(0);
+			break;
+		case VType::i32:
+		case VType::ui32:
+		case VType::flo:
+			destructor = defaultDestructor<uint32_t>;
+			*value = new uint32_t(0);
+			break;
+		case VType::i64:
+		case VType::ui64:
+		case VType::undefined_ptr:
+		case VType::doub:
+		case VType::type_identifier:
+			destructor = defaultDestructor<uint64_t>;
+			*value = new uint64_t(0);
+			break;
 		case VType::raw_arr_i8:
 		case VType::raw_arr_ui8:
 			destructor = arrayDestructor<uint8_t>;
@@ -161,8 +237,8 @@ void universalAlloc(void** value, ValueMeta meta) {
 		case VType::raw_arr_flo:
 			destructor = arrayDestructor<uint32_t>;
 			break;
-		case VType::raw_arr_ui64:
 		case VType::raw_arr_i64:
+		case VType::raw_arr_ui64:
 		case VType::raw_arr_doub:
 			destructor = arrayDestructor<uint64_t>;
 			break;
@@ -172,6 +248,22 @@ void universalAlloc(void** value, ValueMeta meta) {
 			break;
 		case VType::string:
 			destructor = defaultDestructor<std::string>;
+			break;
+		case VType::except_value:
+			destructor = defaultDestructor<std::exception_ptr>;
+			break;
+		case VType::faarr:
+			destructor = arrayDestructor<ValueItem>;
+			break;
+		case VType::saarr:
+			break;
+		case VType::class_:
+			destructor = defaultDestructor<ClassValue>;
+			break;
+		case VType::morph:
+			destructor = defaultDestructor<MorphValue>;
+			break;
+		default:
 			break;
 		}
 		*value = new lgr(value, deph, destructor);
@@ -197,13 +289,9 @@ char* getStrBegin(std::string* str) {
 void throwInvalidType() {
 	throw InvalidType("Requested specifed type but recuived another");
 }
-
-auto gcCall(lgr* gc, list_array<ValueItem>* args, bool async_mode) {
-	return FuncEnviropment::CallFunc(*(std::string*)gc->getPtr(), args, async_mode);
-}
 ValueItem* getAsyncValueItem(void* val) {
 	typed_lgr<Task>& tmp = *(typed_lgr<Task>*)val;
-	return Task::getResult(tmp);
+	return Task::get_result(tmp);
 }
 void getValueItem(void** value, ValueItem* f_res) {
 	universalRemove(value);
@@ -233,13 +321,18 @@ ValueItem* buildRes(void** value) {
 
 void getAsyncResult(void*& value, ValueMeta& meta) {
 	while (meta.vtype == VType::async_res) {
-		auto res = getAsyncValueItem(value);
-		void* moveValue = res->val;
-		void* new_meta = (void*)res->meta.encoded;
-		res->val = nullptr;
-		universalFree(&value, meta);
-		value = moveValue;
-		meta.encoded = (size_t)new_meta;
+		ValueItem* vaal = (ValueItem*)&value;
+		ValueItem* res = nullptr;
+		try {
+			auto res = getAsyncValueItem(meta.use_gc ? ((lgr*)value)->getPtr() : value);
+			*vaal = std::move(*res);
+		}
+		catch (...) {
+			if (res)
+				delete res;
+		}
+		if (res)
+			delete res;
 	}
 }
 void* copyValue(void*& val, ValueMeta& meta) {
@@ -248,7 +341,7 @@ void* copyValue(void*& val, ValueMeta& meta) {
 	void* actual_val = val;
 	if (meta.use_gc)
 		actual_val = ((lgr*)val)->getPtr();
-	if (needAlloc(meta.vtype)) {
+	if (needAllocType(meta.vtype)) {
 		switch (meta.vtype) {
 		case VType::raw_arr_i8:
 		case VType::raw_arr_ui8: {
@@ -282,28 +375,34 @@ void* copyValue(void*& val, ValueMeta& meta) {
 			return new std::string(*(std::string*)actual_val);
 		case VType::async_res:
 			return new typed_lgr<Task>(*(typed_lgr<Task>*)actual_val);
+		case VType::except_value:
+			return new std::exception_ptr(*(std::exception_ptr*)actual_val);
+		case VType::faarr: {
+			ValueItem* cop = new ValueItem[meta.val_len]();
+			for (uint32_t i = 0; i < meta.val_len; i++)
+				cop[i] = reinterpret_cast<ValueItem*>(val)[i];
+			return cop;
+		}
+		case VType::class_:
+			return new ClassValue(*(ClassValue*)actual_val);
+		case VType::morph:
+			return new MorphValue(*(MorphValue*)actual_val);
+		case VType::proxy:
+			return new ProxyClass(*(ProxyClass*)actual_val);
+		case VType::function:
+			return new typed_lgr<FuncEnviropment>(*(typed_lgr<FuncEnviropment>*)actual_val);
 		default:
 			throw NotImplementedException();
 		}
 	}
 	else return actual_val;
 }
-void copyEnviropement(void** env, uint16_t env_it_count, void*** res);
-void** copyEnviropement(void** env, uint16_t env_it_count) {
-	uint32_t it_count = env_it_count;
-	it_count <<= 1;
-	void** new_env = new void* [it_count];
-	if (new_env == nullptr)
-		throw EnviropmentRuinException();
-	for (uint32_t i = 0; i < it_count; i += 2)
-		new_env[i] = copyValue(env[i], *(ValueMeta*)(&(new_env[i & 1] = env[i & 1])));
-}
 
 
 void** preSetValue(void** value, ValueMeta set_meta, bool match_gc_dif) {
 	void** res = getValueLink(value);
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
-	if (!needAlloc(meta.vtype)) {
+	if (!needAlloc(meta)) {
 		if (match_gc_dif) {
 			if (meta.allow_edit && meta.vtype == set_meta.vtype && meta.use_gc == set_meta.use_gc)
 				return res;
@@ -312,8 +411,9 @@ void** preSetValue(void** value, ValueMeta set_meta, bool match_gc_dif) {
 			if (meta.allow_edit && meta.vtype == set_meta.vtype)
 				return res;
 	}
-	universalRemove(value);
-	universalAlloc(value, set_meta);
+	if(!meta.as_ref)
+		universalRemove(value);
+	*(value + 1) = (void*)set_meta.encoded;
 	return getValueLink(value);
 }
 void*& getValue(void*& value, ValueMeta& meta) {
@@ -321,7 +421,7 @@ void*& getValue(void*& value, ValueMeta& meta) {
 		getAsyncResult(value, meta);
 	if (meta.use_gc)
 		if (((lgr*)value)->is_deleted()) {
-			universalFree(&value, meta);
+			universalRemove(&value);
 			meta = ValueMeta(0);
 		}
 	return meta.use_gc ? (**(lgr*)value) : value;
@@ -332,8 +432,8 @@ void*& getValue(void** value) {
 		getAsyncResult(*value, meta);
 	if (meta.use_gc)
 		if (((lgr*)value)->is_deleted()) {
-			universalFree(value, meta);
-			meta = ValueMeta(0);
+			universalRemove(value);
+			meta = 0;
 		}
 	return meta.use_gc ? (**(lgr*)value) : *value;
 }
@@ -343,9 +443,9 @@ void* getSpecificValue(void** value, VType typ) {
 		getAsyncResult(*value, meta);
 	if (meta.vtype != typ)
 		throw InvalidType("Requested specifed type but recuived another");
-	if (meta.use_gc)
+	if(meta.use_gc)
 		if (((lgr*)value)->is_deleted()) {
-			universalFree(value, meta);
+			universalRemove(value);
 			meta = ValueMeta(0);
 		}
 	return meta.use_gc ? ((lgr*)value)->getPtr() : *value;
@@ -397,24 +497,398 @@ bool integer_unsigned(VType typ) {
 		return false;
 	}
 }
+bool is_raw_array(VType typ) {
+	switch (typ)
+	{
+	case VType::raw_arr_i8:
+	case VType::raw_arr_i16:
+	case VType::raw_arr_i32:
+	case VType::raw_arr_i64:
+	case VType::raw_arr_ui8:
+	case VType::raw_arr_ui16:
+	case VType::raw_arr_ui32:
+	case VType::raw_arr_ui64:
+	case VType::raw_arr_flo:
+	case VType::raw_arr_doub:
+	case VType::faarr:
+	case VType::saarr:
+		return true;
+	default:
+		return false;
+	}
+}
+bool has_interface(VType typ) {
+	switch (typ) {
+	case VType::class_:
+	case VType::morph:
+	case VType::proxy:
+		return true;
+	default:
+		return false;
+	}
+}
 #pragma warning(push)  
 #pragma warning( disable: 4311)
 #pragma warning( disable: 4302)
-//return equal,lower bool result
-std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val2) {
-	bool cmp_int;
-	if (cmp_int = (is_integer(cmp1) || cmp1 == VType::undefined_ptr) != (is_integer(cmp2) || cmp1 == VType::undefined_ptr))
+
+
+
+std::pair<bool, bool> compareArrays(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2) {
+	if (!calc_safe_deph_arr(val1))
 		return { false,false };
+	else if (!calc_safe_deph_arr(val2))
+		return { false,false };
+	else {
+		auto& arr1 = *(list_array<ValueItem>*)val1;
+		auto& arr2 = *(list_array<ValueItem>*)val2;
+		if (arr1.size() < arr2.size())
+			return { false, true };
+		else if (arr1.size() == arr2.size()) {
+			auto tmp = arr2.begin();
+			for (auto& it : arr1) {
+				auto res = compareValue(it.meta, tmp->meta, it.val, tmp->val);
+				if (!res.first)
+					return res;
+				++tmp;
+			}
+			return { true, false };
+		}
+		else return { false, false };
+	}
+}
+//uarr and raw_arr_* or faarr/saarr
+std::pair<bool, bool> compareUarrARawArr(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2, bool flip_args = false) {
+	if (!calc_safe_deph_arr(val1))
+		return { false,false };
+	else {
+		auto& arr1 = *(list_array<ValueItem>*)val1;
+		if (arr1.size() < cmp2.val_len)
+			return { false, true };
+		else if (arr1.size() == cmp2.val_len) {
+			switch (cmp2.vtype) {
+			case VType::raw_arr_i8: {
+				auto arr2 = (int8_t*)val2;
+				for (auto& it : arr1) {
+					auto first = *arr2;
+					auto res = compareValue(it.meta, VType::i8, it.val, &first);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			case VType::raw_arr_i16: {
+				auto arr2 = (int16_t*)val2;
+				for (auto& it : arr1) {
+					auto first = *arr2;
+					auto res = compareValue(it.meta, VType::i16, it.val, &first);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			case VType::raw_arr_i32: {
+				auto arr2 = (int32_t*)val2;
+				for (auto& it : arr1) {
+					auto first = *arr2;
+					auto res = compareValue(it.meta, VType::i32, it.val, &first);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			case VType::raw_arr_i64: {
+				auto arr2 = (int64_t*)val2;
+				for (auto& it : arr1) {
+					auto first = *arr2;
+					auto res = compareValue(it.meta, VType::i64, it.val, &first);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			case VType::raw_arr_ui8: {
+				auto arr2 = (uint8_t*)val2;
+				for (auto& it : arr1) {
+					auto first = *arr2;
+					auto res = compareValue(it.meta, VType::ui8, it.val, &first);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			case VType::raw_arr_ui16: {
+				auto arr2 = (uint16_t*)val2;
+				for (auto& it : arr1) {
+					auto first = *arr2;
+					auto res = compareValue(it.meta, VType::ui16, it.val, &first);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			case VType::raw_arr_ui32: {
+				auto arr2 = (uint32_t*)val2;
+				for (auto& it : arr1) {
+					auto first = *arr2;
+					auto res = compareValue(it.meta, VType::ui32, it.val, &first);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			case VType::raw_arr_ui64: {
+				auto arr2 = (uint64_t*)val2;
+				for (auto& it : arr1) {
+					auto first = *arr2;
+					auto res = compareValue(it.meta, VType::ui64, it.val, &first);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			case VType::raw_arr_flo: {
+				auto arr2 = (float*)val2;
+				for (auto& it : arr1) {
+					auto first = *arr2;
+					auto res = compareValue(it.meta, VType::flo, it.val, &first);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			case VType::raw_arr_doub: {
+				auto arr2 = (double*)val2;
+				for (auto& it : arr1) {
+					auto first = *arr2;
+					auto res = compareValue(it.meta, VType::doub, it.val, &first);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			case VType::faarr:
+			case VType::saarr: {
+				auto arr2 = (ValueItem*)val2;
+				for (auto& it : arr1) {
+					auto res = compareValue(it.meta, arr2->meta, it.val, arr2->val);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++arr2;
+				}
+				break;
+			}
+			default:
+				throw InvalidOperation("Wrong compare operation, notify devs via github, reason: used function for compare uarr and raw_arr_* but second operand is actualy " + enum_to_string(cmp2.vtype));
+			}
+			return { true, false };
+		}
+		else return { false, false };
+	}
+}
+//uarr and raw_arr_* or faarr/saarr
+std::pair<bool, bool> compareUarrAInterface(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2, bool flip_args = false) {
+	if (!calc_safe_deph_arr(val1))
+		return { false,false };
+	else {
+		auto& arr1 = *(list_array<ValueItem>*)val1;
+		uint64_t length;  
+		switch (cmp2.vtype) {
+		case VType::class_:
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv,*(ClassValue*)val2,"size");
+			break;
+		case VType::morph:
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(MorphValue*)val2, "size");
+			break;
+		case VType::proxy:
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "size");
+			break;
+		default:
+			throw AException("Implementation exception", "Wrong function usage compareUarrAInterface");
+		}
+		if (arr1.size() < length)
+			return { false, true };
+		else if (arr1.size() == length) {
+			auto iter = arr1.begin(); 
+			if ((*(ProxyClass*)val2).containsFn("begin")) {
+				auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "begin");
+				for (uint64_t i = 0; i < length; i++) {
+					auto& it1 = *iter;
+					auto it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, "next");
+					auto res = compareValue(it1.meta, it2.meta, it1.val, it2.val);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++iter;
+				}
+			}
+			else if ((*(ProxyClass*)val2).containsFn("index")) {
+				for (uint64_t i = 0; i < length; i++) {
+					auto& it1 = *iter;
+					auto it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "index", i);
+					auto res = compareValue(it1.meta, it2.meta, it1.val, it2.val);
+					if (!res.first)
+						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
+					++iter;
+				}
+			}
+			else
+				throw NotImplementedException();
+
+			return { true, false };
+		}
+		else return { false, false };
+	}
+}
+template<class T,VType T_VType>
+std::tuple<bool, bool, bool> compareRawArrAInterface_Worst0(void* val1, void* val2,uint64_t length) {
+	auto arr2 = (T*)val2;
+	if ((*(ProxyClass*)val2).containsFn("begin")) {
+		auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "begin");
+		for (uint64_t i = 0; i < length; i++) {
+			T first = *arr2;
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, "next");
+			auto res = compareValue(T_VType, it2.meta, &first, it2.val);
+			if (!res.first)
+				return { false, res.second,true };
+			++arr2;
+		}
+	}
+	else if ((*(ProxyClass*)val2).containsFn("index")) {
+		for (uint64_t i = 0; i < length; i++) {
+			T first = *arr2;
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "index", i);
+			auto res = compareValue(T_VType, it2.meta, &first, it2.val);
+			if (!res.first)
+				return { false, res.second,true };
+			++arr2;
+		}
+	}
+	else
+		throw NotImplementedException();
+	return { false,false,false };
+}
+std::tuple<bool, bool, bool> compareRawArrAInterface_Worst1(void* val1, void* val2, uint64_t length) {
+	auto arr2 = (ValueItem*)val2;
+	if ((*(ProxyClass*)val2).containsFn("begin")) {
+		auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "begin");
+		for (uint64_t i = 0; i < length; i++) {
+			ValueItem& first = *arr2;
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, "next");
+			auto res = compareValue(first.meta, it2.meta, first.val, it2.val);
+			if (!res.first)
+				return { false, res.second,true };
+			++arr2;
+		}
+	}
+	else if ((*(ProxyClass*)val2).containsFn("index")) {
+		for (uint64_t i = 0; i < length; i++) {
+			ValueItem& first = *arr2;
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "index", i);
+			auto res = compareValue(first.meta, it2.meta, first.val, it2.val);
+			if (!res.first)
+				return { false, res.second,true };
+			++arr2;
+		}
+	}
+	else
+		throw NotImplementedException();
+	return { false,false,false };
+}
+std::pair<bool, bool> compareRawArrAInterface(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2, bool flip_args = false) {
+	if (!calc_safe_deph_arr(val1))
+		return { false,false };
+	else {
+		auto& arr1 = *(list_array<ValueItem>*)val1;
+		uint64_t length;
+		switch (cmp2.vtype) {
+		case VType::class_:
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ClassValue*)val2, "size");
+			break;
+		case VType::morph:
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(MorphValue*)val2, "size");
+			break;
+		case VType::proxy:
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "size");
+			break;
+		default:
+			throw AException("Implementation exception", "Wrong function usage compareRawArrAInterface");
+		}
+		if (arr1.size() < length)
+			return { false, true };
+		else if (arr1.size() == length) {
+			std::tuple<bool, bool, bool> res;
+			switch (cmp2.vtype) {
+			case VType::raw_arr_i8: 
+				res = compareRawArrAInterface_Worst0<int8_t, VType::i8>(val1, val2, length);
+				break;
+			case VType::raw_arr_i16:
+				res = compareRawArrAInterface_Worst0<int16_t, VType::i16>(val1, val2, length);
+				break;
+			case VType::raw_arr_i32:
+				res = compareRawArrAInterface_Worst0<int32_t, VType::i32>(val1, val2, length);
+				break;
+			case VType::raw_arr_i64:
+				res = compareRawArrAInterface_Worst0<int64_t, VType::i64>(val1, val2, length);
+				break;
+			case VType::raw_arr_ui8:
+				res = compareRawArrAInterface_Worst0<uint8_t, VType::ui8>(val1, val2, length);
+				break;
+			case VType::raw_arr_ui16:
+				res = compareRawArrAInterface_Worst0<uint16_t, VType::ui16>(val1, val2, length);
+				break;
+			case VType::raw_arr_ui32:
+				res = compareRawArrAInterface_Worst0<uint32_t, VType::ui32>(val1, val2, length);
+				break;
+			case VType::raw_arr_ui64:
+				res = compareRawArrAInterface_Worst0<uint64_t, VType::ui64>(val1, val2, length);
+				break;
+			case VType::raw_arr_flo:
+				res = compareRawArrAInterface_Worst0<float, VType::flo>(val1, val2, length);
+				break;
+			case VType::raw_arr_doub:
+				res = compareRawArrAInterface_Worst0<double, VType::doub>(val1, val2, length);
+				break;
+			case VType::faarr:
+			case VType::saarr:
+				res = compareRawArrAInterface_Worst1(val1, val2, length);
+				break;
+			default:
+				throw InvalidOperation("Wrong compare operation, notify devs via github, reason: used function for compare uarr and raw_arr_* but second operand is actualy " + enum_to_string(cmp2.vtype));
+			}
+			auto& [eq, low, has_res] = res;
+			if (has_res)
+				return { eq,low };
+			else
+				return { true, false };
+		}
+		else return { false, false };
+	}
+}
+//return equal,lower bool result
+std::pair<bool, bool> compareValue(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2) {
+	bool cmp_int;
+	if (cmp_int = (is_integer(cmp1.vtype) || cmp1.vtype == VType::undefined_ptr) != (is_integer(cmp2.vtype) || cmp1.vtype == VType::undefined_ptr))
+		return { false,false };
+
 	if (cmp_int) {
 		if (val1 == val2)
 			return { true,false };
 
-		bool temp1 = (integer_unsigned(cmp1) || cmp1 == VType::undefined_ptr);
-		bool temp2 = (integer_unsigned(cmp2) || cmp2 == VType::undefined_ptr);
+		bool temp1 = (integer_unsigned(cmp1.vtype) || cmp1.vtype == VType::undefined_ptr);
+		bool temp2 = (integer_unsigned(cmp2.vtype) || cmp2.vtype == VType::undefined_ptr);
 		if (temp1 && temp2)
 			return { false, uint64_t(val1) < uint64_t(val2) };
 		else if (temp1)
-			switch (cmp2) {
+			switch (cmp2.vtype) {
 			case VType::i8:
 				return { false, uint64_t(val1) < int8_t(val2) };
 			case VType::i16:
@@ -429,7 +903,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				return { false, uint64_t(val1) < *(double*)&val2 };
 			}
 		else if (temp2)
-			switch (cmp1) {
+			switch (cmp1.vtype) {
 			case VType::i8:
 				return { false, int8_t(val1) < uint64_t(val2) };
 			case VType::i16:
@@ -444,9 +918,9 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				return { false, *(double*)&val1 < uint64_t(val2) };
 			}
 		else
-			switch (cmp1) {
+			switch (cmp1.vtype) {
 			case VType::i8:
-				switch (cmp1) {
+				switch (cmp2.vtype) {
 				case VType::i8:
 					return { false, int8_t(val1) < int8_t(val2) };
 				case VType::i16:
@@ -462,7 +936,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				}
 				break;
 			case VType::i16:
-				switch (cmp1) {
+				switch (cmp2.vtype) {
 				case VType::i8:
 					return { false, int16_t(val1) < int8_t(val2) };
 				case VType::i16:
@@ -478,7 +952,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				}
 				break;
 			case VType::i32:
-				switch (cmp1) {
+				switch (cmp2.vtype) {
 				case VType::i8:
 					return { false, int32_t(val1) < int8_t(val2) };
 				case VType::i16:
@@ -494,7 +968,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				}
 				break;
 			case VType::i64:
-				switch (cmp1) {
+				switch (cmp2.vtype) {
 				case VType::i8:
 					return { false, int64_t(val1) < int8_t(val2) };
 				case VType::i16:
@@ -510,7 +984,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				}
 				break;
 			case VType::flo:
-				switch (cmp1) {
+				switch (cmp2.vtype) {
 				case VType::i8:
 					return { false, *(float*)&val1 < int8_t(val2) };
 				case VType::i16:
@@ -526,7 +1000,7 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 				}
 				break;
 			case VType::doub:
-				switch (cmp1) {
+				switch (cmp2.vtype) {
 				case VType::i8:
 					return { false, *(double*)&val1 < int8_t(val2) };
 				case VType::i16:
@@ -543,40 +1017,21 @@ std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val
 			}
 		return { false, false };
 	}
-	else if (cmp1 == VType::string && cmp2 == VType::string) {
+	else if (cmp1.vtype == VType::string && cmp2.vtype == VType::string) {
 		if (*(std::string*)val1 == *(std::string*)val2)
 			return { true, false };
 		else
 			return { false, *(std::string*)val1 < *(std::string*)val2 };
 	}
-	else if (cmp1 == VType::uarr && cmp2 == VType::uarr) {
-		if (!calc_safe_deph_arr(val1))
-			return { false,false };
-		else if (!calc_safe_deph_arr(val2))
-			return { false,false };
-		else {
-			auto& arr1 = *(list_array<ValueItem>*)val1;
-			auto& arr2 = *(list_array<ValueItem>*)val2;
-			if (arr1.size() < arr2.size())
-				return { false, true };
-			else if (arr1.size() == arr2.size()) {
-				auto tmp = arr1.begin();
-				for (auto& it : arr1) {
-					auto& first = *tmp;
-					void* val1 = getValue(first.val, first.meta);
-					void* val2 = getValue(it.val, it.meta);
-					auto res = compareValue(first.meta.vtype, it.meta.vtype, first.val, it.val);
-					if (!res.first)
-						return res;
-					++tmp;
-				}
-				return { true, false };
-			}
-			else return { false, false };
-		}
-	}
+	else if (cmp1.vtype == VType::uarr && cmp2.vtype == VType::uarr) return compareArrays(cmp1, cmp2, val1, val2);
+	else if (cmp1.vtype == VType::uarr && is_raw_array(cmp2.vtype)) return compareUarrARawArr(cmp1, cmp2, val1, val2);
+	else if (is_raw_array(cmp1.vtype) && cmp2.vtype == VType::uarr) return compareUarrARawArr(cmp2, cmp1, val2, val1, true);
+	else if (cmp1.vtype == VType::uarr && has_interface(cmp2.vtype)) return compareUarrAInterface(cmp1, cmp2, val1, val2);
+	else if (has_interface(cmp1.vtype) && cmp2.vtype == VType::uarr) return compareUarrAInterface(cmp2, cmp1, val2, val1, true);
+	else if (is_raw_array(cmp1.vtype) && has_interface(cmp2.vtype)) return compareRawArrAInterface(cmp1, cmp2, val1, val2);
+	else if (has_interface(cmp1.vtype) && is_raw_array(cmp2.vtype)) return compareRawArrAInterface(cmp2, cmp1, val2, val1, true);
 	else
-		return { cmp1 == cmp2, false };
+		return { cmp1.vtype == cmp2.vtype, false };
 }
 RFLAGS compare(RFLAGS old, void** value_1, void** value_2) {
 	void* val1 = getValue(value_1);
@@ -585,7 +1040,7 @@ RFLAGS compare(RFLAGS old, void** value_1, void** value_2) {
 	ValueMeta cmp2 = *(ValueMeta*)(value_2 + 1);
 
 	old.parity = old.auxiliary_carry = old.sign_f = old.overflow = 0;
-	auto res = compareValue(cmp1.vtype, cmp2.vtype, val1, val2);
+	auto res = compareValue(cmp1, cmp2, val1, val2);
 	old.zero = res.first;
 	old.carry = res.second;
 	return old;
@@ -597,7 +1052,6 @@ RFLAGS link_compare(RFLAGS old, void** value_1, void** value_2) {
 	ValueMeta cmp2 = *(ValueMeta*)(value_2 + 1);
 
 	old.parity = old.auxiliary_carry = old.sign_f = old.overflow = 0;
-	auto res = compareValue(cmp1.vtype, cmp2.vtype, val1, val2);
 	if (*value_1 == *value_2) { 
 		old.zero = true;
 		old.carry = false;
@@ -609,16 +1063,6 @@ RFLAGS link_compare(RFLAGS old, void** value_1, void** value_2) {
 	return old;
 }
 
-void copyEnviropement(void** env, uint16_t env_it_count, void*** res) {
-	uint32_t it_count = env_it_count;
-	it_count <<= 1;
-	void**& new_env = *res;
-	if (new_env == nullptr)
-		throw EnviropmentRuinException();
-	for (uint32_t i = 0; i < it_count; i += 2)
-		new_env[i] = copyValue(env[i], (ValueMeta&)(new_env[i & 1] = env[i & 1]));
-}
-
 
 
 
@@ -628,10 +1072,11 @@ void copyEnviropement(void** env, uint16_t env_it_count, void*** res) {
 namespace ABI_IMPL {
 
 	ValueItem* _Vcast_callFN(void* ptr) {
-		return FuncEnviropment::syncCall(*(typed_lgr<FuncEnviropment>*)ptr, nullptr);
+		return FuncEnviropment::sync_call(*(typed_lgr<FuncEnviropment>*)ptr, nullptr, 0);
 	}
 
-	std::string Scast(void*& val, ValueMeta& meta) {
+	std::string Scast(void*& ref_val, ValueMeta& meta) {
+		void* val = getValue(ref_val, meta);
 		switch (meta.vtype) {
 		case VType::noting:
 			return "null";
@@ -757,7 +1202,7 @@ namespace ABI_IMPL {
 			return res;
 		}
 		case VType::string:
-			return reinterpret_cast<std::string&>(val);
+			return *(std::string*)val;
 			break;
 		case VType::undefined_ptr:
 			return "0x" + (std::ostringstream() << val).str();
@@ -852,6 +1297,10 @@ namespace ABI_IMPL {
 		else if constexpr (std::is_same_v<T, uint64_t*>) {
 			*reinterpret_cast<uint64_t**>(set_val) = val;
 			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui64, false, true);
+		}
+		else if constexpr (std::is_same_v < T, bool> ) {
+			*reinterpret_cast<bool*>(set_val) = val;
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::boolean, false, true);
 		}
 		else if constexpr (std::is_same_v<T, int8_t>) {
 			*reinterpret_cast<int8_t*>(set_val) = val;
@@ -1081,16 +1530,48 @@ void DynMul(void** val0, void** val1) {
 	case VType::doub:
 		reinterpret_cast<double&>(actual_val0) *= ABI_IMPL::Vcast<double>(actual_val1, val1_meta);
 		break;
+	case VType::raw_arr_i8:
+	case VType::raw_arr_i16:
+	case VType::raw_arr_i32:
+	case VType::raw_arr_i64:
+	case VType::raw_arr_ui8:
+	case VType::raw_arr_ui16:
+	case VType::raw_arr_ui32:
+	case VType::raw_arr_ui64:
+	case VType::raw_arr_flo:
+	case VType::raw_arr_doub:
 	case VType::uarr:
 		if (val1_meta.vtype == VType::uarr)
 			reinterpret_cast<list_array<ValueItem>&>(actual_val0).insert(reinterpret_cast<list_array<ValueItem>&>(actual_val0).size() - 1, reinterpret_cast<list_array<ValueItem>&>(actual_val1));
 		else
-			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(ValueItem(copyValue(actual_val1,val1_meta), val1_meta));
+			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(ValueItem(copyValue(actual_val1, val1_meta), val1_meta));
 		break;
 	case VType::string:
 		throw InvalidOperation("for strings multiply operation is not defined");
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) *= ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
+		break;
+	case VType::faarr:
+	case VType::saarr: {
+
+
+
+
+		break;
+	}
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::priv, reinterpret_cast<ClassValue&>(actual_val0), "operator *", reinterpret_cast<ValueItem&>(val1));
+		break;
+	case VType::morph:
+		AttachA::Interface::makeCall(ClassAccess::priv, reinterpret_cast<MorphValue&>(actual_val0), "operator *", reinterpret_cast<ValueItem&>(val1));
+		break;
+	case VType::proxy:
+		AttachA::Interface::makeCall(ClassAccess::priv, reinterpret_cast<ProxyClass&>(actual_val0), "operator *", reinterpret_cast<ValueItem&>(val1));
+		break;
+	case VType::type_identifier:
+		throw InvalidCast("Fail use value for mul operation, cause value type is type_identifier");
+	case VType::function:
+		throw InvalidCast("Fail use value for mul operation, cause value type is function");
 		break;
 	default:
 		throw InvalidCast("Fail cast value for mul operation, cause value type is undefined");
@@ -1412,17 +1893,19 @@ void DynBitNot(void** val0) {
 
 void* AsArg(void** val) {
 	ValueMeta& meta = *((ValueMeta*)val + 1);
-	if (meta.vtype == VType::uarr)
+	ValueItem* value = (ValueItem*)val;
+	if (meta.vtype == VType::faarr || meta.vtype == VType::saarr)
 		return *val;
+	else if (meta.vtype == VType::uarr) {
+		list_array<ValueItem>& vil = *reinterpret_cast<list_array<ValueItem>*>(*val);
+		if (vil.size() > UINT32_MAX)
+			throw InvalidCast("Fail cast uarr to faarr due too large array");
+		*value = ValueItem(vil.to_array(), (uint32_t)vil.size());
+		return value->getSourcePtr();
+	}
 	else {
-		auto tmp = new list_array<ValueItem>(1);
-		tmp->operator[](0) = ValueItem(*val, meta);
-		universalRemove(val);
-		*val = tmp;
-		meta.allow_edit = true;
-		meta.use_gc = false;
-		meta.vtype = VType::uarr;
-		return tmp;
+		*value = ValueItem(std::initializer_list{ std::move(*(ValueItem*)(val)) });
+		return value->getSourcePtr();
 	}
 }
 
@@ -1511,15 +1994,17 @@ bool isValue(void** val, VType type) {
 
 bool isTrueValue(void** value) {
 	getAsyncResult(*value, *reinterpret_cast<ValueMeta*>(value + 1));
+	void** val = &(getValue(value));
 	switch (reinterpret_cast<ValueMeta*>(value + 1)->vtype) {
 	case VType::noting:
 		return false;
+	case VType::boolean:
 	case VType::i8:
 	case VType::ui8:
-		return (uint8_t)*value;
+		return (uint8_t)*val;
 	case VType::i16:
 	case VType::ui16:
-		return (uint16_t)*value;
+		return (uint16_t)*val;
 	case VType::i32:
 	case VType::ui32:
 		return (uint32_t)*value;
@@ -1548,31 +2033,10 @@ void setBoolValue(bool boolean,void** value) {
 		return;
 	}
 	ValueMeta& meta = *reinterpret_cast<ValueMeta*>(value + 1);
-
-	if (meta.use_gc) {
-		switch (meta.vtype) {
-		case VType::undefined_ptr:
-		case VType::i8:
-		case VType::i16:
-		case VType::i32:
-		case VType::i64:
-		case VType::ui8:
-		case VType::ui16:
-		case VType::ui32:
-		case VType::ui64:
-		case VType::flo:
-		case VType::doub:
-			getValue(value) = (void*)1;
-			return;
-		default:
-			universalRemove(value);
-		}
-	}
 	switch (meta.vtype) {
 	case VType::noting:
-		meta = ValueMeta(VType::i8, false, true);
-		__fallthrough;
 	case VType::undefined_ptr:
+	case VType::boolean:
 	case VType::i8:
 	case VType::i16:
 	case VType::i32:
@@ -1583,11 +2047,11 @@ void setBoolValue(bool boolean,void** value) {
 	case VType::ui64:
 	case VType::flo:
 	case VType::doub:
-		*value = (void*)1;
-		break;
+		getValue(value) = (void*)1;
+		return;
 	default:
 		universalRemove(value);
-		meta = ValueMeta(VType::i8, false, true);
+		meta = ValueMeta(VType::boolean, false, true);
 		*value = (void*)1;
 	}
 }
@@ -1599,7 +2063,7 @@ namespace exception_abi {
 	void ignore_except(void** val) {
 		if (!is_except(val))
 			return;
-		universalFree(val, *(ValueMeta*)(val + 1));
+		universalRemove(val);
 		(*val) = (*(val + 1)) = nullptr;
 	}
 	void continue_unwind(void** val) {
@@ -1608,7 +2072,7 @@ namespace exception_abi {
 	bool call_except_handler(void** val, bool(*func_symbol)(void** val), bool ignore_fault) {
 		try {
 			if (func_symbol(getSpecificValueLink(val, VType::except_value))) {
-				universalFree(val, *(ValueMeta*)(val + 1));
+				universalRemove(val);
 				(*val) = (*(val + 1)) = nullptr;
 			}
 			return true;
@@ -1706,14 +2170,14 @@ size_t getSize(void** value) {
 		return (uint64_t)res;
 	case VType::flo: {
 		float tmp = *(float*)&res;
-		actual = tmp;
+		actual = (size_t)tmp;
 		if (tmp != actual)
 			throw NumericUndererflowException();
 		return actual;
 	}
 	case VType::doub: {
 		double tmp = *(double*)&res;
-		actual = tmp;
+		actual = (size_t)tmp;
 		if (tmp != actual)
 			throw NumericUndererflowException();
 		return actual;
@@ -1728,18 +2192,23 @@ size_t getSize(void** value) {
 
 
 
-ValueItem::ValueItem(void* vall, ValueMeta vmeta) : val(0) {
-	val = copyValue(vall, vmeta);
+ValueItem::ValueItem(const void* vall, ValueMeta vmeta) : val(0) {
+	auto tmp = (void*)vall;
+	val = copyValue(tmp, vmeta);
 	meta = vmeta;
 }
-ValueItem::ValueItem(void* vall, ValueMeta vmeta, bool) {
+ValueItem::ValueItem(void* vall, ValueMeta vmeta, bool,bool as_ref) {
 	val = vall;
 	meta = vmeta;
+	meta.as_ref = as_ref;
 }
 ValueItem::ValueItem(const ValueItem& copy) : val(0) {
 	ValueItem& tmp = (ValueItem&)copy;
 	val = copyValue(tmp.val, tmp.meta);
 	meta = copy.meta;
+}
+ValueItem::ValueItem(bool val) : val(0) {
+	*this = ABI_IMPL::BVcast((uint8_t)val);
 }
 ValueItem::ValueItem(int8_t val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
@@ -1780,14 +2249,62 @@ ValueItem::ValueItem(const char* str) : val(0) {
 ValueItem::ValueItem(const list_array<ValueItem>& val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(void* vall, VType type) : val(0) {
-	ValueMeta vmeta(type);
-	val = copyValue(vall, vmeta);
-	meta = vmeta;
+ValueItem::ValueItem(list_array<ValueItem>&& val) : val(new list_array<ValueItem>(std::move(val))) {
+	meta = VType::uarr;
 }
-ValueItem::ValueItem(void* vall, VType type, bool no_copy) : val(0) {
-	val = vall;
-	meta = type;
+ValueItem::ValueItem(ValueItem* vals, uint32_t len) : val(0) {
+	*this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len));
+}
+ValueItem::ValueItem(const int8_t* vals, uint32_t len) {
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len));
+}
+ValueItem::ValueItem(const uint8_t* vals, uint32_t len) {
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len));
+}
+ValueItem::ValueItem(const int16_t* vals, uint32_t len) {
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len));
+}
+ValueItem::ValueItem(const uint16_t* vals, uint32_t len) {
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len));
+}
+ValueItem::ValueItem(const int32_t* vals, uint32_t len) {
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len));
+}
+ValueItem::ValueItem(const uint32_t* vals, uint32_t len) {
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len));
+}
+ValueItem::ValueItem(const int64_t* vals, uint32_t len) {
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len));
+}
+ValueItem::ValueItem(const uint64_t* vals, uint32_t len) {
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len));
+}
+ValueItem::ValueItem(const float* vals, uint32_t len) {
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len));
+}
+ValueItem::ValueItem(const double* vals, uint32_t len) {
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len));
+}
+ValueItem::ValueItem(typed_lgr<struct Task> task) {
+	val = new typed_lgr(task);
+	meta = VType::async_res;
+}
+ValueItem::ValueItem(const std::initializer_list<ValueItem>& args) : val(0) {
+	if (args.size() > (size_t)UINT32_MAX)
+		throw OutOfRange("Too large array");
+	uint32_t len = (uint32_t)args.size();
+	meta = ValueMeta(VType::faarr, false, true, len);
+	if (args.size()) {
+		ValueItem* res = new ValueItem[args.size()];
+		const ValueItem* copy = args.begin();
+		for(uint32_t i = 0;i< len;i++)
+			res[i] = std::move(copy[i]);
+		val = res;
+	}
+}
+ValueItem::ValueItem(const std::exception_ptr& ex) {
+	val = new std::exception_ptr(ex);
+	meta = VType::except_value;
 }
 ValueItem::ValueItem(VType type) {
 	meta = type;
@@ -1840,8 +2357,8 @@ ValueItem::ValueItem(VType type) {
 		try {
 			throw AException("Undefined exception","No description");
 		}
-		catch(AException&ex) {
-			val = new std::exception_ptr(std::make_exception_ptr(ex));
+		catch(...) {
+			val = new std::exception_ptr(std::current_exception());
 		}
 		break;
 	case VType::faarr:
@@ -1864,25 +2381,32 @@ ValueItem::ValueItem(VType type) {
 		throw NotImplementedException();
 	}
 }
+ValueItem::ValueItem(ValueMeta type) {
+	val = &type;
+	meta = VType::type_identifier;
+}
 ValueItem::~ValueItem() {
 	if (val)
-		if (needAlloc(meta.vtype))
-			universalFree(&val, meta);
+		if(!meta.as_ref)
+			if (needAlloc(meta))
+				universalFree(&val, meta);
 }
 
 ValueItem& ValueItem::operator=(const ValueItem& copy) {
 	ValueItem& tmp = (ValueItem&)copy;
 	if (val)
-		if (needAlloc(meta.vtype))
-			universalFree(&val, meta);
+		if(!meta.as_ref)
+			if (needAlloc(meta))
+				universalFree(&val, meta);
 	val = copyValue(tmp.val, tmp.meta);
 	meta = copy.meta;
 	return *this;
 }
 ValueItem& ValueItem::operator=(ValueItem&& move) noexcept {
 	if (val)
-		if (needAlloc(meta.vtype))
-			universalFree(&val, meta);
+		if (!meta.as_ref)
+			if (needAlloc(meta))
+				universalFree(&val, meta);
 	val = move.val;
 	meta = move.meta;
 	move.val = nullptr;
@@ -1981,6 +2505,9 @@ ValueItem ValueItem::operator |(const ValueItem& op) const {
 }
 
 
+ValueItem::operator bool() {
+	return (bool)ABI_IMPL::Vcast<uint8_t>(val, meta);
+}
 ValueItem::operator int8_t() {
 	return ABI_IMPL::Vcast<int8_t>(val, meta);
 }
@@ -2014,23 +2541,61 @@ ValueItem::operator double() {
 ValueItem::operator std::string() {
 	return ABI_IMPL::Scast(val, meta);
 }
+ValueItem::operator void*() {
+	return ABI_IMPL::Vcast<void*>(val, meta);
+}
 ValueItem::operator list_array<ValueItem>() {
 	return ABI_IMPL::Vcast<list_array<ValueItem>>(val, meta);
 }
-ValueItem* ValueItem::operator()(list_array<ValueItem>* args) {
+ValueItem::operator ClassValue&() {
+	if (meta.vtype == VType::class_)
+		return *(ClassValue*)getSourcePtr();
+	else
+		throw InvalidCast("This type is not class");
+}
+ValueItem::operator MorphValue&() {
+	if (meta.vtype == VType::morph)
+		return *(MorphValue*)getSourcePtr();
+	else
+		throw InvalidCast("This type is not morph");
+}
+ValueItem::operator ProxyClass&() {
+	if (meta.vtype == VType::proxy)
+		return *(ProxyClass*)getSourcePtr();
+	else
+		throw InvalidCast("This type is not proxy");
+}
+ValueItem::operator std::exception_ptr() {
+	if (meta.vtype == VType::except_value)
+		return *(std::exception_ptr*)getSourcePtr();
+	else {
+		try {
+			throw InvalidCast("This type is not proxy");
+		}catch(...){
+			return std::current_exception();
+		}
+	}
+}
+ValueItem* ValueItem::operator()(ValueItem* args,uint32_t len) {
 	if (meta.vtype == VType::function)
-		return FuncEnviropment::syncCall((*(typed_lgr<FuncEnviropment>*)getValue(val, meta)),args);
+		return FuncEnviropment::sync_call((*(typed_lgr<FuncEnviropment>*)getValue(val, meta)),args,len);
 	else
 		return new ValueItem(*this);
 }
 
 void ValueItem::getAsync() {
-	while (meta.vtype == VType::async_res)
-		getAsyncResult(val, meta);
+	if(val)
+		while (meta.vtype == VType::async_res)
+			getAsyncResult(val, meta);
 }
 
 void*& ValueItem::getSourcePtr() {
 	return getValue(val, meta);
+}
+typed_lgr<FuncEnviropment>* ValueItem::funPtr() {
+	if (meta.vtype == VType::function)
+		return (typed_lgr<FuncEnviropment>*)getValue(val, meta);
+	return nullptr;
 }
 
 
@@ -2039,11 +2604,11 @@ void*& ValueItem::getSourcePtr() {
 ClassDefine::ClassDefine():name("Unnamed") { }
 ClassDefine::ClassDefine(const std::string& name) { this->name = name; }
 
-typed_lgr<class FuncEnviropment> ClassValue::callFnPtr(const std::string & str, ClassAccess acces) {
+typed_lgr<class FuncEnviropment> ClassValue::callFnPtr(const std::string & str, ClassAccess access) {
 	if (define) {
 		if (define->funs.contains(str)) {
 			auto& tmp = define->funs[str];
-			switch (acces) {
+			switch (access) {
 			case ClassAccess::pub:
 				if (tmp.access == ClassAccess::pub)
 					return tmp.fn;
@@ -2061,9 +2626,9 @@ typed_lgr<class FuncEnviropment> ClassValue::callFnPtr(const std::string & str, 
 					return tmp.fn;
 				break;
 			default:
-				throw NotImplementedException();
+				throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 			}
-			throw InvalidFunction("Try access to private function");
+			throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " function");
 		}
 	}
 	throw NotImplementedException();
@@ -2090,10 +2655,10 @@ bool ClassValue::containsFn(const std::string& str) {
 		return false;
 	return define->funs.contains(str);
 }
-ValueItem& ClassValue::getValue(const std::string& str, ClassAccess acces) {
+ValueItem& ClassValue::getValue(const std::string& str, ClassAccess access) {
 	if (val.contains(str)) {
 		auto& tmp = val[str];
-		switch (acces) {
+		switch (access) {
 		case ClassAccess::pub:
 			if (tmp.access == ClassAccess::pub)
 				return tmp.val;
@@ -2111,24 +2676,27 @@ ValueItem& ClassValue::getValue(const std::string& str, ClassAccess acces) {
 				return tmp.val;
 			break;
 		default:
-			throw NotImplementedException();
+			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 		}
-		throw InvalidFunction("Try access to non public value");
+		throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " value");
 	}
 	throw NotImplementedException();
 }
-ValueItem ClassValue::copyValue(const std::string& str, ClassAccess acces) {
+ValueItem ClassValue::copyValue(const std::string& str, ClassAccess access) {
 	if (val.contains(str)) {
-		return getValue(str, acces);
+		return getValue(str, access);
 	}
 	return ValueItem();
 }
+bool ClassValue::containsValue(const std::string& str) {
+	return val.contains(str);
+}
 
 
-typed_lgr<class FuncEnviropment> MorphValue::callFnPtr(const std::string & str, ClassAccess acces) {
+typed_lgr<class FuncEnviropment> MorphValue::callFnPtr(const std::string & str, ClassAccess access) {
 	if (define.funs.contains(str)) {
 		auto& tmp = define.funs[str];
-		switch (acces) {
+		switch (access) {
 		case ClassAccess::pub:
 			if (tmp.access == ClassAccess::pub)
 				return tmp.fn;
@@ -2146,9 +2714,9 @@ typed_lgr<class FuncEnviropment> MorphValue::callFnPtr(const std::string & str, 
 				return tmp.fn;
 			break;
 		default:
-			throw NotImplementedException();
+			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 		}
-		throw InvalidFunction("Try access to private function");
+		throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " function");
 	}
 	throw NotImplementedException();
 }
@@ -2166,10 +2734,10 @@ void MorphValue::setFnMeta(const std::string& str, ClassFnDefine& fn_decl) {
 bool MorphValue::containsFn(const std::string& str) {
 	return define.funs.contains(str);
 }
-ValueItem& MorphValue::getValue(const std::string& str, ClassAccess acces) {
+ValueItem& MorphValue::getValue(const std::string& str, ClassAccess access) {
 	if (val.contains(str)) {
 		auto& tmp = val[str];
-		switch (acces) {
+		switch (access) {
 		case ClassAccess::pub:
 			if (tmp.access == ClassAccess::pub)
 				return tmp.val;
@@ -2187,19 +2755,56 @@ ValueItem& MorphValue::getValue(const std::string& str, ClassAccess acces) {
 				return tmp.val;
 			break;
 		default:
-			throw NotImplementedException();
+			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 		}
-		throw InvalidFunction("Try access to non public value");
+		throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " value");
 	}
 	throw NotImplementedException();
 }
-ValueItem MorphValue::copyValue(const std::string& str, ClassAccess acces) {
+ValueItem MorphValue::copyValue(const std::string& str, ClassAccess access) {
 	if (val.contains(str)) {
-		return getValue(str, acces);
+		return getValue(str, access);
 	}
 	return ValueItem();
 }
-
+void MorphValue::setValue(const std::string& str, ClassAccess access, ValueItem& set_val) {
+	if (val.contains(str)) {
+		auto& tmp = val[str];
+		switch (access) {
+		case ClassAccess::pub:
+			if (tmp.access == ClassAccess::pub) {
+				tmp.val = set_val;
+				return;
+			}
+			else break;
+		case ClassAccess::priv:
+			if (tmp.access != ClassAccess::deriv) {
+				tmp.val = set_val;
+				return;
+			}
+			else break;
+		case ClassAccess::prot:
+			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot) {
+				tmp.val = set_val;
+				return;
+			}
+			else break;
+		case ClassAccess::deriv:
+			if (tmp.access != ClassAccess::priv) {
+				tmp.val = set_val;
+				return;
+			}
+			else break;
+		default:
+			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
+		}
+		throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " value");
+	}
+	throw NotImplementedException();
+}
+bool MorphValue::containsValue(const std::string& str) {
+	return val.contains(str);
+}
 
 
 
@@ -2223,12 +2828,12 @@ ProxyClass::~ProxyClass() {
 		declare_ty->destructor(class_ptr);
 }
 
-typed_lgr<class FuncEnviropment> ProxyClass::callFnPtr(const std::string& str, ClassAccess acces) {
+typed_lgr<class FuncEnviropment> ProxyClass::callFnPtr(const std::string& str, ClassAccess access) {
 	if (declare_ty) {
 		auto& define = *declare_ty;
 		if (define.funs.contains(str)) {
 			auto& tmp = define.funs[str];
-			switch (acces) {
+			switch (access) {
 			case ClassAccess::pub:
 				if (tmp.access == ClassAccess::pub)
 					return tmp.fn;
@@ -2246,9 +2851,9 @@ typed_lgr<class FuncEnviropment> ProxyClass::callFnPtr(const std::string& str, C
 					return tmp.fn;
 				break;
 			default:
-				throw NotImplementedException();
+				throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 			}
-			throw InvalidFunction("Try access to private function");
+			throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " function");
 		}
 	}
 	throw NotImplementedException();
@@ -2277,7 +2882,7 @@ bool ProxyClass::containsFn(const std::string& str) {
 	else
 		return false;
 }
-ValueItem ProxyClass::getValue(const std::string& str) {
+ValueItem* ProxyClass::getValue(const std::string& str) {
 	if (declare_ty) {
 		if (declare_ty->value_geter.contains(str)) {
 			auto& tmp = declare_ty->value_geter[str];
@@ -2286,7 +2891,7 @@ ValueItem ProxyClass::getValue(const std::string& str) {
 	}
 	throw NotImplementedException();
 }
-void* ProxyClass::setValue(const std::string& str, ValueItem& it) {
+void ProxyClass::setValue(const std::string& str, ValueItem& it) {
 	if (declare_ty) {
 		if (declare_ty->value_seter.contains(str)) {
 			auto& tmp = declare_ty->value_seter[str];
@@ -2294,4 +2899,7 @@ void* ProxyClass::setValue(const std::string& str, ValueItem& it) {
 		}
 	}
 	throw NotImplementedException();
+}
+bool ProxyClass::containsValue(const std::string& str) {
+	return declare_ty ? declare_ty->value_seter.contains(str) && declare_ty->value_geter.contains(str) : false;
 }

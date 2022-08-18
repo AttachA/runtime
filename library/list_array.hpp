@@ -970,6 +970,8 @@ private:
 			return arr_end->index_back(_size - pos - 1);
 		}
 		conexpr iterator<T> get_iterator(size_t pos) {
+			if(!_size)
+				return iterator<T>(nullptr, 0);
 			if (pos < (_size >> 1))
 				return arr->get_iterator(pos);
 			else {
@@ -980,6 +982,8 @@ private:
 			}
 		}
 		conexpr const_iterator<T> get_iterator(size_t pos) const {
+			if (!_size)
+				return iterator<T>(nullptr, 0);
 			if (pos < (_size >> 1))
 				return arr->get_iterator(pos);
 			else {

@@ -2,7 +2,6 @@
 #pragma once
 #include <vector>
 #include <memory>
-using namespace asmjit;
 #ifdef _WIN32
 #include <Windows.h>
 #include <DbgHelp.h>

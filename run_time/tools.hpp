@@ -1,7 +1,8 @@
 #pragma once
 #include <vector>
 #include <string>
-#include "attacha_abi.hpp"
+#include "library/exceptions.hpp"
+#include "attacha_abi_structs.hpp"
 namespace run_time {
 	template<class T>
 	inline T readData(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {
@@ -29,6 +30,126 @@ namespace run_time {
 	inline uint32_t readLen(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {
 		return readData<uint32_t>(data, data_len, i);
 	}
+	inline ValueItem readAny(const std::vector<uint8_t>& data, size_t data_len, size_t& i);
+	inline ValueItem* readRawAny(const std::vector<uint8_t>& data, size_t data_len, size_t& i, uint32_t len) {
+		ValueItem* res = new ValueItem[len];
+		for (uint32_t j = 0; j < len; j++)
+			res[j] = readAny(data, data_len, i);
+		return res;
+	}
+
+	inline list_array<ValueItem> readAnyUarr(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {
+		uint64_t len = readData<uint64_t>(data, data_len, i);
+		list_array<ValueItem> uarr;
+		uarr.reserve_push_back(len);
+		while (len--) {
+			uarr.push_back(readAny(data, data_len, i));
+		}
+		return uarr;
+	}
+
+	inline ValueItem readAny(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {
+		ValueMeta meta = readData<ValueMeta>(data, data_len, i);
+		ValueItem res;
+		res.meta = meta;
+		switch (meta.vtype) {
+		case VType::noting:
+			break;
+		case VType::i8:
+			res.val = (void*)readData<int8_t>(data, data_len, i);
+			break;
+		case VType::i16:
+			res.val = (void*)readData<int16_t>(data, data_len, i);
+			break;
+		case VType::i32:
+			res.val = (void*)readData<int32_t>(data, data_len, i);
+			break;
+		case VType::i64:
+			res.val = (void*)readData<int64_t>(data, data_len, i);
+			break;
+		case VType::ui8:
+		case VType::type_identifier:
+			res.val = (void*)readData<uint8_t>(data, data_len, i);
+			break;
+		case VType::ui16:
+			res.val = (void*)readData<uint16_t>(data, data_len, i);
+			break;
+		case VType::ui32:
+			res.val = (void*)readData<uint32_t>(data, data_len, i);
+			break;
+		case VType::ui64:
+		case VType::undefined_ptr:
+			res.val = (void*)readData<uint64_t>(data, data_len, i);
+			break;
+		case VType::flo: {
+			float r = readData<float>(data, data_len, i);
+			res.val = *(void**)&r;
+			break;
+		}
+		case VType::doub:{
+			double r = readData<double>(data, data_len, i);
+			res.val = *(void**)&r;
+			break;
+		}
+		case VType::raw_arr_i8:
+			res.val = readRawArray<int8_t>(data, data_len, i, readData<uint32_t>(data,data_len,i));
+			break;
+		case VType::raw_arr_i16:
+			res.val = readRawArray<int16_t>(data, data_len, i, readData<uint32_t>(data, data_len, i));
+			break;
+		case VType::raw_arr_i32:
+			res.val = readRawArray<int32_t>(data, data_len, i, readData<uint32_t>(data, data_len, i));
+			break;
+		case VType::raw_arr_i64:
+			res.val = readRawArray<int64_t>(data, data_len, i, readData<uint32_t>(data, data_len, i));
+			break;
+		case VType::raw_arr_ui8:
+			res.val = readRawArray<uint8_t>(data, data_len, i, readData<uint32_t>(data, data_len, i));
+			break;
+		case VType::raw_arr_ui16:
+			res.val = readRawArray<uint16_t>(data, data_len, i, readData<uint32_t>(data, data_len, i));
+			break;
+		case VType::raw_arr_ui32:
+			res.val = readRawArray<uint32_t>(data, data_len, i, readData<uint32_t>(data, data_len, i));
+			break;
+		case VType::raw_arr_ui64:
+			res.val = readRawArray<uint64_t>(data, data_len, i, readData<uint32_t>(data, data_len, i));
+			break;
+		case VType::raw_arr_flo:
+			res.val = readRawArray<float>(data, data_len, i, readData<uint32_t>(data, data_len, i));
+			break;
+		case VType::raw_arr_doub:
+			res.val = readRawArray<double>(data, data_len, i, readData<uint32_t>(data, data_len, i));
+			break;
+		case VType::uarr:
+			res.val = new list_array<ValueItem>(readAnyUarr(data, data_len, i));
+			break;
+		case VType::string:
+			res.val = new std::string(readString(data, data_len, i));
+			break;
+		case VType::except_value:
+			break;
+		case VType::faarr:
+			res.val = readRawAny(data, data_len, i, readLen(data, data_len, i));
+			break;
+		case VType::class_:
+			break;
+		case VType::morph:
+			break;
+		case VType::proxy:
+			break;
+		case VType::function:
+
+
+
+			break;
+		default:
+			break;
+		}
+		if (meta.use_gc)
+			res.val = new lgr(res.val);
+		return res;
+	}
 
 
 
@@ -49,12 +170,12 @@ namespace run_time {
 			if (str.size() > (size_t)UINT32_MAX)
 				throw NumericOverflowException();
 			write(data, (uint32_t)str.size());
-			for (char it : str)
-				data.push_back(it);
+			for(size_t i = 0; i < str.size(); i++)
+				write(data, str[i]);
 		}
 		inline void writeAny(std::vector<uint8_t>& data, ValueItem& it);
 		inline void writeAnyUarr(std::vector<uint8_t>& data, list_array<ValueItem>& v) {
-			write(data, v.size());
+			write(data, (uint64_t)v.size());
 			for (auto& it : v)
 				writeAny(data, it);
 		}

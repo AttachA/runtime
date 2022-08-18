@@ -48,12 +48,12 @@ constexpr creg64 argr2 = asmjit::x86::r8;
 constexpr creg64 argr3 = asmjit::x86::r9;
 
 constexpr creg64 arg_ptr = asmjit::x86::r13;
+constexpr creg32 arg_len_32 = asmjit::x86::r11d;
 constexpr creg64 enviro_ptr = asmjit::x86::r12;
 
 
 constexpr creg64 stack_ptr = asmjit::x86::rsp;
 constexpr creg64 frame_ptr = asmjit::x86::rbp;
-constexpr creg64 mut_temp_ptr = asmjit::x86::r11;
 
 
 
@@ -153,9 +153,9 @@ constexpr creg128 vec15 = asmjit::x86::xmm15;
 #endif
 
 #ifdef CASM_X64
+#define CASM_REDZONE_SIZE 0x20
 
-
-
+extern void* __casm_test_handle;
 class CASM {
 	asmjit::x86::Assembler a;
 public:
@@ -168,29 +168,34 @@ public:
 		a.mov(asmjit::x86::ptr_64(enviro_ptr, (int32_t(off) << 1) * 8), res);
 	}
 	void movEnviroMeta(uint16_t off, creg64 res) {
-		a.mov(asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) & 1) * 8), res);
+		a.mov(asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) | 1) * 8), res);
 	}
 	void movEnviroMeta(uint16_t off, asmjit::Imm res) {
-		a.mov(asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) & 1) * 8), res);
+		a.mov(asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) | 1) * 8), res);
 	}
 	void movEnviro(creg64 res, uint16_t off = 0) {
 		a.mov(res, asmjit::x86::ptr_64(enviro_ptr, (int32_t(off) << 1) * 8));
 	}
 	void movEnviroMeta(creg64 res, uint16_t off = 0) {
-		a.mov(res, asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) & 1) * 8));
+		a.mov(res, asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) | 1) * 8));
 	}
 	void leaEnviro(creg64 res, uint16_t off = 0) {
 		a.lea(res, asmjit::x86::ptr(enviro_ptr, (int32_t(off) << 1) * 8));
 	}
 	void leaEnviroMeta(creg64 res, uint16_t off = 0) {
-		a.lea(res, asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) & 1) * 8));
+		a.lea(res, asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) | 1) * 8));
+	}
+	void getEnviroMetaSize(creg32 res, uint16_t off = 0) {
+		int32_t val_off = (int32_t(off) << 1) * 8;
+		val_off += 12;
+		a.mov(res, asmjit::x86::ptr_32(enviro_ptr, val_off));
 	}
 
 	static uint32_t enviroValueOffset(uint16_t off) {
 		return (int32_t(off) << 1) * 8;
 	}
 	static uint32_t enviroMetaOffset(uint16_t off) {
-		return ((int32_t(off) << 1) & 1) * 8;
+		return ((int32_t(off) << 1) | 1) * 8;
 	}
 
 	void stackAlloc(size_t bytes_count) {
@@ -253,6 +258,21 @@ public:
 	}
 	void mov_default(creg res, creg64 base, int32_t off, uint32_t v_siz) {
 		a.mov(res, asmjit::x86::ptr(base, off, v_siz));
+	}
+	void mov_byte(creg8 res, int32_t off, creg64 base) {
+		a.mov(asmjit::x86::ptr_8(res, off), base);
+	}
+	void mov_short(creg16 res, int32_t off, creg64 base) {
+		a.mov(asmjit::x86::ptr_16(res, off), base);
+	}
+	void mov_int(creg32 res, int32_t off, creg64 base) {
+		a.mov(asmjit::x86::ptr_8(res, off), base);
+	}
+	void mov_long(creg64 res, int32_t off, creg64 base) {
+		a.mov(asmjit::x86::ptr_8(res, off), base);
+	}
+	void mov_default(creg res, int32_t off, uint32_t v_siz, creg64 base) {
+		a.mov(asmjit::x86::ptr(res, off, v_siz), base);
 	}
 	void mov(creg64 res, creg64 base, int32_t off) {
 		a.mov(res, asmjit::x86::ptr_64(base, off));
@@ -478,19 +498,19 @@ public:
 		a.xor_(c0, c1);
 	}
 	void xor_byte(creg8 res, creg64 base, int32_t off) {
-		a.xor_(res, asmjit::x86::ptr_8(res, off));
+		a.xor_(res, asmjit::x86::ptr_8(base, off));
 	}
 	void xor_short(creg16 res, creg64 base, int32_t off) {
-		a.xor_(res, asmjit::x86::ptr_16(res, off));
+		a.xor_(res, asmjit::x86::ptr_16(base, off));
 	}
 	void xor_int(creg32 res, creg64 base, int32_t off) {
-		a.xor_(res, asmjit::x86::ptr_32(res, off));
+		a.xor_(res, asmjit::x86::ptr_32(base, off));
 	}
 	void xor_long(creg64 res, creg64 base, int32_t off) {
-		a.xor_(res, asmjit::x86::ptr_64(res, off));
+		a.xor_(res, asmjit::x86::ptr_64(base, off));
 	}
 	void xor_(creg64 res, creg64 base, int32_t off) {
-		a.xor_(res, asmjit::x86::ptr_64(res, off));
+		a.xor_(res, asmjit::x86::ptr_64(base, off));
 	}
 	void xor_(creg res, const asmjit::Imm& v) {
 		a.xor_(res, v);
@@ -513,19 +533,19 @@ public:
 		a.or_(c0, c1);
 	}
 	void or_byte(creg8 res, creg64 base, int32_t off) {
-		a.or_(res, asmjit::x86::ptr_8(res, off));
+		a.or_(res, asmjit::x86::ptr_8(base, off));
 	}
 	void or_short(creg16 res, creg64 base, int32_t off) {
-		a.or_(res, asmjit::x86::ptr_16(res, off));
+		a.or_(res, asmjit::x86::ptr_16(base, off));
 	}
 	void or_int(creg32 res, creg64 base, int32_t off) {
-		a.or_(res, asmjit::x86::ptr_32(res, off));
+		a.or_(res, asmjit::x86::ptr_32(base, off));
 	}
 	void or_long(creg64 res, creg64 base, int32_t off) {
-		a.or_(res, asmjit::x86::ptr_64(res, off));
+		a.or_(res, asmjit::x86::ptr_64(base, off));
 	}
 	void or_(creg64 res, creg64 base, int32_t off) {
-		a.or_(res, asmjit::x86::ptr_64(res, off));
+		a.or_(res, asmjit::x86::ptr_64(base, off));
 	}
 	void or_(creg res, const asmjit::Imm& v) {
 		a.or_(res, v);
@@ -627,6 +647,9 @@ public:
 	void add(creg res, creg64 val, int32_t off, uint8_t vsize = 0) {
 		a.add(asmjit::x86::ptr(res, off, vsize), val);
 	}
+	void insertNative(uint8_t* opcodes,uint32_t len){
+		a.embed(opcodes, len);
+	}
 };
 
 
@@ -680,8 +703,8 @@ class BuildCall {
 #ifdef _WIN64
 	void callStart() {
 		if (!arg_c) {
-			if (red_zone_inited)
-				csm.stackIncrease(0x20);//function visual c++ abi
+			if (!red_zone_inited)
+				csm.stackIncrease(CASM_REDZONE_SIZE);//function visual c++ abi
 			red_zone_inited = true;
 		}
 	}
@@ -689,16 +712,19 @@ class BuildCall {
 #define callStart()
 #endif // _WIN64
 public:
-	BuildCall(CASM& a) : csm(a) {}
+	BuildCall(CASM& a, bool red_zone_inited = false) : csm(a), red_zone_inited(red_zone_inited) {}
 	~BuildCall() noexcept(false) {
 		if (arg_c)
 			throw InvalidOperation("Build call is incomplete, need finalization");
+	}
+	void redZoneAlreadyInited() {
+		red_zone_inited = true;
 	}
 	void iniRedzone() {
 		callStart();
 		red_zone_inited = true;
 	}
-	void addArg(creg reg) {
+	void addArg(creg64 reg) {
 		callStart();
 		switch (arg_c++) {
 		case 0:
@@ -732,6 +758,108 @@ public:
 			pushed += 8;
 		}
 	}
+	void addArg(creg32 reg) {
+		callStart();
+		switch (arg_c++) {
+		case 0:
+			if (argr0_32 != reg)
+				csm.movA(argr0_32, reg);
+			break;
+		case 1:
+			if (argr1_32 != reg)
+				csm.movA(argr1_32, reg);
+			break;
+		case 2:
+			if (argr2_32 != reg)
+				csm.movA(argr2_32, reg);
+			break;
+		case 3:
+			if (argr3_32 != reg)
+				csm.movA(argr3_32, reg);
+			break;
+#ifndef _WIN64
+		case 4:
+			if (argr4_32 != reg)
+				csm.movA(argr4_32, reg);
+			break;
+		case 5:
+			if (argr5_32 != reg)
+				csm.movA(argr5_32, reg);
+			break;
+#endif
+		default:
+			csm.push(creg::fromTypeAndId(resr.type(), reg.id()));
+			pushed += 8;
+		}
+	}
+	void addArg(creg16 reg) {
+		callStart();
+		switch (arg_c++) {
+		case 0:
+			if (argr0_16 != reg)
+				csm.movA(argr0_16, reg);
+			break;
+		case 1:
+			if (argr1_16 != reg)
+				csm.movA(argr1_16, reg);
+			break;
+		case 2:
+			if (argr2_16 != reg)
+				csm.movA(argr2_16, reg);
+			break;
+		case 3:
+			if (argr3_16 != reg)
+				csm.movA(argr3_16, reg);
+			break;
+#ifndef _WIN64
+		case 4:
+			if (argr4_16 != reg)
+				csm.movA(argr4_16, reg);
+			break;
+		case 5:
+			if (argr5_16 != reg)
+				csm.movA(argr5_16, reg);
+			break;
+#endif
+		default:
+			csm.push(creg::fromTypeAndId(resr.type(), reg.id()));
+			pushed += 8;
+		}
+	}
+	void addArg(creg8 reg) {
+		callStart();
+		switch (arg_c++) {
+		case 0:
+			if (argr0_8l != reg)
+				csm.movA(argr0_8l, reg);
+			break;
+		case 1:
+			if (argr1_8l != reg)
+				csm.movA(argr1_8l, reg);
+			break;
+		case 2:
+			if (argr2_8l != reg)
+				csm.movA(argr2_8l, reg);
+			break;
+		case 3:
+			if (argr3_8l != reg)
+				csm.movA(argr3_8l, reg);
+			break;
+#ifndef _WIN64
+		case 4:
+			if (argr4_8l != reg)
+				csm.movA(argr4_8l, reg);
+			break;
+		case 5:
+			if (argr5_8l != reg)
+				csm.movA(argr5_8l, reg);
+			break;
+#endif
+		default:
+			csm.push(creg::fromTypeAndId(resr.type(), reg.id()));
+			pushed += 8;
+		}
+	}
 	void addArg(const asmjit::Imm& val) {
 		callStart();
 		switch (arg_c++) {
@@ -760,7 +888,7 @@ public:
 			pushed += val.size();
 		}
 	}
-	void lea(creg64 reg, int32_t off) {
+	void lea(creg64 reg, int32_t off, bool allow_use_resr = true) {
 		callStart();
 		switch (arg_c++) {
 		case 0:
@@ -785,21 +913,28 @@ public:
 #endif
 		default:
 			if (off) {
-				csm.lea(mut_temp_ptr, reg, off);
-				csm.push(mut_temp_ptr);
+				if (allow_use_resr) {
+					csm.lea(resr, reg, off);
+					csm.push(resr);
+				}
+				else {
+					csm.lea(reg, reg, off);
+					csm.push(reg);
+					csm.lea(reg, reg, -off);
+				}
 			} else csm.push(reg);
 			pushed += 8;
 		}
 	}
-	void leaEnviro(uint16_t off) {
+	void leaEnviro(uint16_t off, bool allow_use_resr = true) {
 		callStart();
-		lea(enviro_ptr,(size_t(off) << 1) * 8 );
+		lea(enviro_ptr,(size_t(off) << 1) * 8, allow_use_resr);
 	}
-	void leaEnviroMeta(uint16_t off) {
+	void leaEnviroMeta(uint16_t off, bool allow_use_resr = true) {
 		callStart();
-		lea(enviro_ptr,(size_t(off) << 1) * 8 + 8 );
+		lea(enviro_ptr,(size_t(off) << 1) * 8 + 8 , allow_use_resr);
 	}
-	void mov(creg64 reg, int32_t off) {
+	void mov(creg64 reg, int32_t off, bool allow_use_resr = true) {
 		callStart();
 		switch (arg_c++) {
 		case 0:
@@ -823,8 +958,21 @@ public:
 			break;
 #endif
 		default:
-			csm.mov(mut_temp_ptr, reg, off);
-			csm.push(mut_temp_ptr);
+			if (off) {
+				if (allow_use_resr) {
+					csm.mov(resr, reg, off);
+					csm.push(resr);
+				}
+				else {
+					csm.stackIncrease(8);
+					csm.push(reg);
+					csm.mov(reg, reg, off);
+					csm.mov_long(stack_ptr,-2, reg);
+					csm.pop(reg);
+				}
+			}
+			else 
+				csm.push(reg);
 			pushed += 8;
 		}
 	}
@@ -849,7 +997,7 @@ public:
 #endif
 			break;
 		default:
-			//push(*)
+			csm.push(0);
 			pushed += 8;
 		}
 	}
@@ -870,7 +1018,7 @@ class BuildProlog {
 	std::vector<std::pair<uint16_t, creg>> pushes;
 	std::vector<std::pair<uint16_t, uint32_t>> stack_alloc;
 	std::vector<std::pair<uint16_t, uint16_t>> set_frame;
-	std::vector<std::pair<uint16_t, std::pair<creg, size_t>>> save_to_stack;
+	std::vector<std::pair<uint16_t, std::pair<creg, int32_t>>> save_to_stack;
 
 
 	CASM& csm;
@@ -887,8 +1035,8 @@ class BuildProlog {
 	};
 	size_t stack_align = 0;
 	uint16_t cur_op = 0;
-	bool frame_inited = false;
-	bool prolog_preEnd = false;
+	bool frame_inited : 1 = false;
+	bool prolog_preEnd : 1 = false;
 public:
 	BuildProlog(CASM& a) : csm(a) {}
 	~BuildProlog() {
@@ -899,7 +1047,9 @@ public:
 	}
 	void pushReg(creg reg) {
 		csm.push(reg.fromTypeAndId(asmjit::RegType::kGp64, reg.id()));
-		res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_PUSH_NONVOL, reg.id()).solid);
+		if ((uint8_t)csm.offset() != csm.offset())
+			throw CompileTimeException("prolog too large");
+		res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_PUSH_NONVOL, reg.id()).solid);
 		pushes.push_back({ cur_op++,reg });
 		stack_align += 8;
 	}
@@ -909,18 +1059,20 @@ public:
 		//align stack
 		size = (size / 8 + ((size % 8) ? 1 : 0)) * 8;
 		csm.sub(stack_ptr, size);
+		if ((uint8_t)csm.offset() != csm.offset())
+			throw CompileTimeException("prolog too large");
 		if (size <= 128) 
-			res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_ALLOC_SMALL, size / 8 - 1).solid);
+			res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_SMALL, size / 8 - 1).solid);
 		else if (size <= 524280) {
 			//512K - 8
 			res.prolog.push_back(size / 8);
-			res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_ALLOC_LARGE, 0).solid);
+			res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_LARGE, 0).solid);
 		}
 		else if(size <= 4294967288) {
 			//4gb - 8
 			res.prolog.push_back((uint16_t)(size >> 16));
 			res.prolog.push_back((uint16_t)size);
-			res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_ALLOC_LARGE, 1).solid);
+			res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_LARGE, 1).solid);
 		}
 		else 
 			throw CompileTimeException("Invalid uwind code, too large stack alocation");
@@ -934,9 +1086,10 @@ public:
 			throw CompileTimeException("Invalid frame offset, it must be aligned by 16");
 		if(uint8_t(stack_offset / 16) != stack_offset / 16)
 			throw CompileTimeException("frameoffset too large");
-
 		csm.lea(frame_ptr, stack_ptr, stack_offset);
-		res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_SET_FPREG, 0).solid);
+		if ((uint8_t)csm.offset() != csm.offset())
+			throw CompileTimeException("prolog too large");
+		res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SET_FPREG, 0).solid);
 		set_frame.push_back({ cur_op++, stack_offset });
 		res.head.FrameOffset = stack_offset / 16;
 		frame_inited = true;
@@ -948,14 +1101,18 @@ public:
 					throw CompileTimeException("Overflow, fail convert 64 point to 32 point");
 				if (UINT16_MAX > stack_back_offset || stack_back_offset % 16) {
 					csm.mov(stack_ptr, stack_back_offset, reg.as<creg128>());
+					if ((uint8_t)csm.offset() != csm.offset())
+						throw CompileTimeException("prolog too large");
 					res.prolog.push_back(stack_back_offset & (UINT32_MAX ^ UINT16_MAX));
 					res.prolog.push_back(stack_back_offset & UINT16_MAX);
-					res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_SAVE_XMM128_FAR, reg.id()).solid);
+					res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_XMM128_FAR, reg.id()).solid);
 				}
 				else {
 					csm.mov(stack_ptr, stack_back_offset, reg.as<creg128>());
+					if ((uint8_t)csm.offset() != csm.offset())
+						throw CompileTimeException("prolog too large");
 					res.prolog.push_back(uint16_t(stack_back_offset / 16));
-					res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_SAVE_XMM128, reg.id()).solid);
+					res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_XMM128, reg.id()).solid);
 				}
 			}
 			else
@@ -963,29 +1120,44 @@ public:
 		}
 		else {
 			csm.mov(stack_ptr, stack_back_offset, reg.size(), reg);
+			if ((uint8_t)csm.offset() != csm.offset())
+				throw CompileTimeException("prolog too large");
 			if (stack_back_offset % 8) {
 				res.prolog.push_back(stack_back_offset & (UINT32_MAX ^ UINT16_MAX));
 				res.prolog.push_back(stack_back_offset & UINT16_MAX);
-				res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_SAVE_NONVOL_FAR, reg.id()).solid);
+				res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_NONVOL_FAR, reg.id()).solid);
 			}
 			else {
 				res.prolog.push_back(uint16_t(stack_back_offset / 8));
-				res.prolog.push_back(UWCODE(csm.offset(), UWC::UWOP_SAVE_NONVOL, reg.id()).solid);
+				res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_NONVOL, reg.id()).solid);
 			}
 		}
 		save_to_stack.push_back({ cur_op++, {reg,stack_back_offset} });
 	}
 	void alignPush() {
-		if (prolog_preEnd)
-			throw CompileTimeException("alignPush will be used only once");
 		if (stack_align & 0xF)
 			stackAlloc(8);
-		prolog_preEnd = true;
 	}
 	size_t cur_stack_offset() {
 		return stack_align;
 	}
-	FrameResult& finalize() {
+	void end_prolog() {
+		if (prolog_preEnd)
+			throw CompileTimeException("end_prolog will be used only once");
+		if (stack_align & 0xF)
+			stackAlloc(8);
+		prolog_preEnd = true;
+		if ((uint8_t)csm.offset() != csm.offset())
+			throw CompileTimeException("prolog too large");
+		res.head.SizeOfProlog = (uint8_t)csm.offset();
+		if ((uint8_t)res.prolog.size() != res.prolog.size())
+			throw CompileTimeException("prolog too large");
+		res.head.CountOfUnwindCodes = (uint8_t)res.prolog.size();
+
+		if (res.head.CountOfUnwindCodes & 1)
+			res.prolog.push_back(0);
+	}
+	FrameResult& finalize_epilog() {
 		while (cur_op--) {
 			if (pushes.size()) {
 				if (pushes.back().first == cur_op) {
@@ -1022,11 +1194,6 @@ public:
 			throw CompileTimeException("fail build prolog");
 		}
 		csm.ret();
-		res.head.SizeOfProlog = csm.offset();
-		res.head.CountOfUnwindCodes = res.prolog.size();
-
-		if (res.head.CountOfUnwindCodes & 1)
-			res.prolog.push_back(0);
 		return res;
 	}
 };

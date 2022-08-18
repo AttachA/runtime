@@ -11,7 +11,8 @@
 #include "attacha_abi_structs.hpp"
 #include "cxxException.hpp"
 
-bool needAlloc(VType type);
+bool needAlloc(ValueMeta type);
+bool needAllocType(VType type);
 
 
 
@@ -38,7 +39,44 @@ void Allocate(void** a) {
 	*a = new T();
 }
 
-
+template<class T>
+constexpr VType Type_as_VType() {
+	if constexpr (std::is_same<T, void>) return VType::noting;
+	else if constexpr (std::is_same<T, bool>) return VType::boolean;
+	else if constexpr (std::is_same<T, int8_t>) return VType::i8;
+	else if constexpr (std::is_same<T, int16_t>) return VType::i16;
+	else if constexpr (std::is_same<T, int32_t>) return VType::i32;
+	else if constexpr (std::is_same<T, int64_t>) return VType::i64;
+	else if constexpr (std::is_same<T, uint8_t>) return VType::ui8;
+	else if constexpr (std::is_same<T, uint16_t>) return VType::ui16;
+	else if constexpr (std::is_same<T, uint32_t>) return VType::ui32;
+	else if constexpr (std::is_same<T, uint64_t>) return VType::ui64;
+	else if constexpr (std::is_same<T, float>) return VType::flo;
+	else if constexpr (std::is_same<T, double>) return VType::doub;
+	else if constexpr (std::is_same<T, int8_t*>) return VType::raw_arr_i8;
+	else if constexpr (std::is_same<T, int16_t*>) return VType::raw_arr_i16;
+	else if constexpr (std::is_same<T, int32_t*>) return VType::raw_arr_i32;
+	else if constexpr (std::is_same<T, int64_t*>) return VType::raw_arr_i64;
+	else if constexpr (std::is_same<T, uint8_t*>) return VType::raw_arr_ui8;
+	else if constexpr (std::is_same<T, uint16_t*>) return VType::raw_arr_ui16;
+	else if constexpr (std::is_same<T, uint32_t*>) return VType::raw_arr_ui32;
+	else if constexpr (std::is_same<T, uint64_t*>) return VType::raw_arr_ui64;
+	else if constexpr (std::is_same<T, float*>) return VType::raw_arr_flo;
+	else if constexpr (std::is_same<T, double*>) return VType::raw_arr_doub;
+	else if constexpr (std::is_same<T, list_array<ValueItem>>) return VType::uarr;
+	else if constexpr (std::is_same<T, std::string>) return VType::string;
+	else if constexpr (std::is_same<T, typed_lgr<Task>>) return VType::async_res;
+	else if constexpr (std::is_same<T, void*>) return VType::undefined_ptr;
+	else if constexpr (std::is_same<T, std::exception_ptr*>) return VType::except_value;
+	else if constexpr (std::is_same<T, ValueItem*>) return VType::faarr;
+	else if constexpr (std::is_same<T, ClassValue>) return VType::class_;
+	else if constexpr (std::is_same<T, MorphValue>) return VType::morph;
+	else if constexpr (std::is_same<T, ProxyClass>) return VType::proxy;
+	else if constexpr (std::is_same<T, ValueMeta>) return VType::type_identifier;
+	else if constexpr (std::is_same<T, typed_lgr<class FuncEnviropment>>) return VType::function;
+	else
+		throw AttachARuntimeException("Invalid c++ type convert");
+}
 
 
 void universalFree(void** value, ValueMeta meta);
@@ -47,11 +85,9 @@ void universalAlloc(void** value, ValueMeta meta);
 
 void initEnviropement(void** res, uint32_t vals_count);
 void removeEnviropement(void** env, uint16_t vals_count);
-void removeArgsEnviropement(list_array<ValueItem>* env);
 char* getStrBegin(std::string* str);
 void throwInvalidType();
 
-auto gcCall(lgr* gc, list_array<ValueItem>* args, bool async_mode);
 ValueItem* getAsyncValueItem(void* val);
 void getValueItem(void** value, ValueItem* f_res);
 ValueItem* buildRes(void** value);
@@ -72,9 +108,11 @@ void** getValueLink(void** value);
 
 bool is_integer(VType typ);
 bool integer_unsigned(VType typ);
+bool is_raw_array(VType typ);
+bool has_interface(VType typ);
 
 //return equal,lower bool result
-std::pair<bool, bool> compareValue(VType cmp1, VType cmp2, void* val1, void* val2);
+std::pair<bool, bool> compareValue(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2);
 RFLAGS compare(RFLAGS old, void** value_1, void** value_2);
 RFLAGS link_compare(RFLAGS old, void** value_1, void** value_2);
 
@@ -86,40 +124,68 @@ void copyEnviropement(void** env, uint16_t env_it_count, void*** res);
 
 namespace ABI_IMPL {
 	ValueItem* _Vcast_callFN(void* ptr);
+	template<class T, class A, std::is_convertible<A, T>::value>
+	T* AsPointer(void* val) {
+		return new T[] {(T)(A)val };
+	}
+	template<class T, class A>
+	T* AsPointer(void* val) {
+		throw InvalidCast("Try convert unconvertible types");
+	}
+
 
 	std::string Scast(void*& val, ValueMeta& meta);
 	ValueItem SBcast(const std::string& str);
 	template<class T = int8_t>
 	ValueItem BVcast(const T& val) {
-		if constexpr (std::is_same_v<std::remove_cvref_t<T>, int8_t>)
-			return ValueItem((void*)val, ValueMeta(VType::i8, false, true));
+		if constexpr (std::is_same_v<std::remove_cvref_t<T>, bool>)
+			return ValueItem((void*)val, VType::boolean);
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int8_t>)
+			return ValueItem((void*)val, VType::i8);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, uint8_t>)
-			return ValueItem((void*)val, ValueMeta(VType::ui8, false, true));
+			return ValueItem((void*)val, VType::ui8);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int16_t>)
-			return ValueItem((void*)val, ValueMeta(VType::i16, false, true));
+			return ValueItem((void*)val, VType::i16);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, uint16_t>)
-			return ValueItem((void*)val, ValueMeta(VType::ui16, false, true));
+			return ValueItem((void*)val, VType::ui16);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int32_t>)
-			return ValueItem((void*)val, ValueMeta(VType::i32, false, true));
+			return ValueItem((void*)val, VType::i32);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int32_t>)
-			return ValueItem((void*)val, ValueMeta(VType::ui32, false, true));
+			return ValueItem((void*)val, VType::ui32);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int64_t>)
-			return ValueItem((void*)val, ValueMeta(VType::i64, false, true));
+			return ValueItem((void*)val, VType::i64);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, uint64_t>)
-			return ValueItem((void*)val, ValueMeta(VType::ui64, false, true));
+			return ValueItem((void*)val, VType::ui64);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, float>)
-			return ValueItem(*(void**)&val, ValueMeta(VType::flo, false, true));
+			return ValueItem(*(void**)&val, VType::flo);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, double>)
-			return ValueItem(*(void**)&val, ValueMeta(VType::doub, false, true));
+			return ValueItem(*(void**)&val, VType::doub);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, std::string> || std::is_same_v<T, const char*>)
-			return ValueItem(new std::string(val), ValueMeta(VType::string, false, true));
+			return ValueItem(new std::string(val), VType::string);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>>)
-			return ValueItem(new list_array<ValueItem>(val), ValueMeta(VType::uarr, false, true));
+			return ValueItem(new list_array<ValueItem>(val), VType::uarr);
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueMeta>)
+			return ValueItem(*(void**)&val, VType::type_identifier);
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ClassValue>)
+			return ValueItem(new ClassValue(val), VType::class_);
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, MorphValue>)
+			return ValueItem(new MorphValue(val), VType::morph);
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ProxyClass>)
+			return ValueItem(new ProxyClass(val), VType::proxy);
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnviropment>>)
+			return ValueItem(new typed_lgr<class FuncEnviropment>(val), VType::function);
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueItem>)
+			return val;
 		else {
 			static_assert(
 				(
 					std::is_arithmetic_v<std::remove_cvref_t<T>> ||
 					std::is_same_v<std::remove_cvref_t<T>, std::string> ||
+					std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
+					std::is_same_v<std::remove_cvref_t<T>, ValueMeta> ||
+					std::is_same_v<std::remove_cvref_t<T>, ClassValue> ||
+					std::is_same_v<std::remove_cvref_t<T>, MorphValue> ||
+					std::is_same_v<std::remove_cvref_t<T>, ProxyClass> ||
 					std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
 					std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>>
 					),
@@ -129,8 +195,9 @@ namespace ABI_IMPL {
 		}
 	}
 	template <class T>
-	T Vcast(void*& val, ValueMeta& meta) {
-		getAsyncResult(val, meta);
+	T Vcast(void*& ref_val, ValueMeta& meta) {
+		getAsyncResult(ref_val, meta);
+		void* val = getValue(ref_val, meta);
 		if constexpr (std::is_same_v<T, std::string>) {
 			return Scast(val, meta);
 		}
@@ -138,6 +205,7 @@ namespace ABI_IMPL {
 			switch (meta.vtype) {
 			case VType::noting:
 				return T();
+			case VType::boolean:
 			case VType::i8: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
@@ -146,11 +214,10 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int8_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)(int8_t)val };
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
+					return AsPointer<T, int8_t>(val);
 				else
 					return (T)val;
+				break;
 			}
 			case VType::i16: {
 				if constexpr (std::is_same_v<T, void*>)
@@ -160,11 +227,10 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int16_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)(int16_t)val };
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
+					return AsPointer<T, int16_t>(val);
 				else
 					return (T)val;
+				break;
 			}
 			case VType::i32: {
 				if constexpr (std::is_same_v<T, void*>)
@@ -174,11 +240,10 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int32_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)(int32_t)val };
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
+					return AsPointer<T, int32_t>(val);
 				else
 					return (T)val;
+				break;
 			}
 			case VType::i64: {
 				if constexpr (std::is_same_v<T, void*>)
@@ -188,11 +253,10 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int64_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)(int64_t)val };
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
+					return AsPointer<T, int64_t>(val);
 				else
 					return (T)val;
+				break;
 			}
 			case VType::ui8: {
 				if constexpr (std::is_same_v<T, void*>)
@@ -202,11 +266,10 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint8_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)(uint8_t)val };
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
+					return AsPointer<T, uint8_t>(val);
 				else
 					return (T)val;
+				break;
 			}
 			case VType::ui16: {
 				if constexpr (std::is_same_v<T, void*>)
@@ -216,11 +279,10 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint16_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)(uint16_t)val };
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
+					return AsPointer<T, uint16_t>(val);
 				else
 					return (T)val;
+				break;
 			}
 			case VType::ui32: {
 				if constexpr (std::is_same_v<T, void*>)
@@ -230,11 +292,10 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint32_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)(uint32_t)val };
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
+					return AsPointer<T, uint32_t>(val);
 				else
 					return (T)val;
+				break;
 			}
 			case VType::ui64: {
 				if constexpr (std::is_same_v<T, void*>)
@@ -244,11 +305,10 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint64_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)(uint64_t)val };
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
+					return AsPointer<T, uint64_t>(val);
 				else
 					return (T)val;
+				break;
 			}
 			case VType::flo: {
 				if constexpr (std::is_same_v<T, void*>)
@@ -258,11 +318,10 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * (float*)&val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* (float*)&val };
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
+					return AsPointer<T, float>(val);
 				else
 					return (T)val;
+				break;
 			}
 			case VType::doub: {
 				if constexpr (std::is_same_v<T, void*>)
@@ -272,17 +331,14 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * (double*)&val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* (double*)&val };
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
+					return AsPointer<T, double>(val);
 				else
 					return (T)val;
+				break;
 			}
 			case VType::raw_arr_i8: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<int8_t*>(val);
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -305,12 +361,11 @@ namespace ABI_IMPL {
 					else return { ValueItem(val,meta) };
 				}
 				else throw InvalidCast("Fail cast raw_arr_i8");
+				break;
 			}
 			case VType::raw_arr_i16: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<int16_t*>(val);
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -333,12 +388,11 @@ namespace ABI_IMPL {
 					else return { ValueItem(val,meta) };
 				}
 				else throw InvalidCast("Fail cast raw_arr_i16");
+				break;
 			}
 			case VType::raw_arr_i32: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<int32_t*>(val);
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -361,12 +415,11 @@ namespace ABI_IMPL {
 					else return { ValueItem(val,meta) };
 				}
 				else throw InvalidCast("Fail cast raw_arr_i32");
+				break;
 			}
 			case VType::raw_arr_i64: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * (int64_t*)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -389,12 +442,11 @@ namespace ABI_IMPL {
 					else return { ValueItem(val,meta) };
 				}
 				else throw InvalidCast("Fail cast raw_arr_i64");
+				break;
 			}
 			case VType::raw_arr_ui8: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<uint8_t*>(val);
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -417,12 +469,11 @@ namespace ABI_IMPL {
 					else return { ValueItem(val,meta) };
 				}
 				else throw InvalidCast("Fail cast raw_arr_ui8");
+				break;
 			}
 			case VType::raw_arr_ui16: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<uint16_t*>(val);
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -445,12 +496,11 @@ namespace ABI_IMPL {
 					else return { ValueItem(val,meta) };
 				}
 				else throw InvalidCast("Fail cast raw_arr_ui16");
+				break;
 			}
 			case VType::raw_arr_ui32: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<uint32_t*>(val);
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -473,12 +523,11 @@ namespace ABI_IMPL {
 					else return { ValueItem(val,meta) };
 				}
 				else throw InvalidCast("Fail cast raw_arr_ui32");
+				break;
 			}
 			case VType::raw_arr_ui64: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<uint64_t*>(val);
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -501,12 +550,11 @@ namespace ABI_IMPL {
 					else return { ValueItem(val,meta) };
 				}
 				else throw InvalidCast("Fail cast raw_arr_ui64");
+				break;
 			}
 			case VType::raw_arr_flo: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<float*>(val);
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -523,18 +571,17 @@ namespace ABI_IMPL {
 						list_array<ValueItem> res;
 						res.resize(meta.val_len);
 						for (uint32_t i = 0; i < meta.val_len; i++)
-							res[i] = ValueItem((void*)reinterpret_cast<float*>(val)[i], VType::flo);
+							res[i] = ValueItem(*(void**)&reinterpret_cast<float*>(val)[i], VType::flo);
 						return res;
 					}
 					else return { ValueItem(val,meta) };
 				}
 				else throw InvalidCast("Fail cast raw_arr_flo");
+				break;
 			}
 			case VType::raw_arr_doub: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<double*>(val);
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -551,12 +598,13 @@ namespace ABI_IMPL {
 						list_array<ValueItem> res;
 						res.resize(meta.val_len);
 						for (uint32_t i = 0; i < meta.val_len; i++)
-							res[i] = ValueItem((void*)reinterpret_cast<double*>(val)[i], VType::doub);
+							res[i] = ValueItem(*(void**)&(reinterpret_cast<double*>(val)[i]), VType::doub);
 						return res;
 					}
 					else return { ValueItem(val,meta) };
 				}
 				else throw InvalidCast("Fail cast raw_arr_doub");
+				break;
 			}
 			case VType::uarr: {
 				if constexpr (std::is_same_v<T, void*>)
@@ -568,7 +616,7 @@ namespace ABI_IMPL {
 						throw InvalidCast("Fail cast uarr");
 					else {
 						auto& tmp = (*(list_array<ValueItem>*)val)[0];
-						return Vcast<T>(tmp.val, tmp.meta);
+						return (T)tmp;
 					}
 				}
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
@@ -577,7 +625,7 @@ namespace ABI_IMPL {
 						std::remove_pointer_t<T>* res = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++) {
 							ValueItem& tmp = ref[i];
-							res[i] = Vcast<std::remove_pointer_t<T>>(tmp.val, tmp.meta);
+							res[i] = (std::remove_pointer_t<T>)tmp;
 						}
 						return res;
 					}
@@ -587,16 +635,22 @@ namespace ABI_IMPL {
 					return reinterpret_cast<list_array<ValueItem>&>(val);
 				}
 				else throw InvalidCast("Fail cast uarr");
+				break;
 			}
 			case VType::string: {
-				ValueItem tmp = SBcast(reinterpret_cast<const std::string&>(val));
-				if (tmp.meta.vtype == VType::string) {
-					if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-						return { ValueItem(val,meta) };
-					else throw InvalidCast("Fail cast string");
+				if constexpr (std::is_same_v<T, void*>)
+					return val;
+				else {
+					ValueItem tmp = SBcast(reinterpret_cast<const std::string&>(val));
+					if (tmp.meta.vtype == VType::string) {
+						if constexpr (std::is_same_v<T, list_array<ValueItem>>)
+							return { ValueItem(val,meta) };
+						else throw InvalidCast("Fail cast string");
+					}
+					else
+						return (T)tmp;
 				}
-				else
-					return Vcast<T>(tmp.val, tmp.meta);
+				break;
 			}
 			case VType::undefined_ptr:{
 				if constexpr (std::is_same_v<T, void*>)
@@ -608,8 +662,9 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_pointer_v<T>)
 					return (T)val;
 				else throw InvalidCast("Fail cast undefined_ptr");
+				break;
 			}
-			case VType::type_identifier:
+			case VType::type_identifier: {
 				if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
@@ -618,18 +673,84 @@ namespace ABI_IMPL {
 					return meta.vtype;
 				else
 					throw InvalidCast("Fail cast type_identifier");
+				break;
+			}
+			case VType::faarr: {
+				if constexpr (std::is_same_v<T, list_array<ValueItem>>)
+					return list_array<ValueItem>((ValueItem*)val, ((ValueItem*)val) + meta.val_len);
+				else if constexpr (std::is_arithmetic_v<T>)
+					return (T)meta.vtype;
+				else if constexpr (std::is_same_v<T, VType>)
+					return meta.vtype;
+				else
+					throw InvalidCast("Fail cast type_identifier");
+				break;
+			}
+			case VType::class_: {
+				if constexpr (std::is_same_v<T, ClassValue>)
+					return (ClassValue&)val;
+				else if constexpr (std::is_same_v<T, void*>) {
+					return val;
+				}
+				else {
+					ValueItem tmp(val, meta, true);
+					ValueItem* res = ((ClassValue&)val).callFnPtr("()", ClassAccess::pub)->syncWrapper(&tmp,1);
+					tmp.val = 0;
+					ValueItem m(std::move(*res));
+					delete res;
+					return (T)m;
+				}
+				break;
+			}
+			case VType::morph: {
+				if constexpr (std::is_same_v<T, MorphValue>)
+					return (MorphValue&)val;
+				else if constexpr (std::is_same_v<T, void*>) {
+					return val;
+				}
+				else {
+					ValueItem tmp(val, meta, true);
+					ValueItem* res = ((MorphValue&)val).callFnPtr("()", ClassAccess::pub)->syncWrapper(&tmp,1);
+					tmp.val = 0;
+					ValueItem m(std::move(*res));
+					delete res;
+					return Vcast<T>(m.val, m.meta);
+				}
+				break;
+			}
+			case VType::proxy: {
+				if constexpr (std::is_same_v<T, ClassValue>)
+					return (ClassValue&)val;
+				else if constexpr (std::is_same_v<T, void*>) {
+					return val;
+				}
+				else {
+					ValueItem tmp(val, meta, true);
+					ValueItem* res = ((ProxyClass&)val).callFnPtr("()", ClassAccess::pub)->syncWrapper(&tmp,1);
+					ValueItem m(std::move(*res));
+					delete res;
+					return Vcast<T>(m.val, m.meta);
+				}
+				break;
+			}
 			case VType::function: {
-				auto tmp = _Vcast_callFN(val);
-				T res;
-				try {
-					res = std::move(Vcast<T>(tmp->val, tmp->meta));
+				if constexpr (std::is_same_v<T, void*>) {
+					return val;
 				}
-				catch (...) {
+				else {
+					auto tmp = _Vcast_callFN(val);
+					T res;
+					try {
+						res = (T)*tmp;
+					}
+					catch (...) {
+						delete tmp;
+						throw;
+					}
 					delete tmp;
-					throw;
+					return res;
 				}
-				delete tmp;
-				return res;
+				break;
 			}
 			default:
 				throw InvalidCast("Fail cast undefined type");
@@ -686,11 +807,11 @@ namespace exception_abi {
 	template<class _FN, class ...Args>
 	ValueItem* catchCall(_FN func, Args... args) {
 		try {
-			return func(args...);
+			return func(std::forward(args)...);
 		}
 		catch (...) {
 			try {
-				return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, true);
 			}
 			catch (const std::bad_alloc& ex) {
 				throw EnviropmentRuinException();

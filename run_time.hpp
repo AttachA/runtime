@@ -11,6 +11,7 @@
 #include "library/string_convert.hpp"
 #include "run_time/cxxException.hpp"
 #include <thread>
+#include "run_time/dynamic_call.hpp"
 typedef void* (*CALL_FUNC)(...);
 
 thread_local extern bool ex_proxy_enabled;
@@ -38,16 +39,26 @@ enum class BreakPointActionByDefault {
 extern unsigned long fault_reserved_stack_size;
 extern FaultActionByDefault default_fault_action;
 extern BreakPointActionByDefault break_point_action;
+extern bool enable_thread_naming;
 bool restore_stack_fault();
 bool need_restore_stack_fault();
 
+bool _set_name_thread_dbg(const std::string& name);
+
+std::string _get_name_thread_dbg(int thread_id);
+
+int _thread_id();
+
 void ini_current();
+
 
 class NativeLib {
 	void* hGetProcIDDLL;
+	std::unordered_map<std::string, typed_lgr<class FuncEnviropment>> envs;
 public:
 	NativeLib(const char* libray_path);
 	CALL_FUNC get_func(const char* func_name);
+	typed_lgr<class FuncEnviropment> get_func_enviro(const char* func_name, const DynamicCall::FunctionTemplate& templ);
 	size_t get_pure_func(const char* func_name);
 	~NativeLib();
 };

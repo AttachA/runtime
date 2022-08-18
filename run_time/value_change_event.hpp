@@ -21,7 +21,7 @@ public:
 		value = set;
 	}
 	ValueMonitor(ValueMonitor&& set) noexcept(false) {
-		value = std::move(set);
+		value = std::move((ValueItem&)set);
 		set = ValueItem();
 	}
 	ValueMonitor(const ValueMonitor& set) {
@@ -29,78 +29,78 @@ public:
 	}
 
 	ValueMonitor& operator=(ValueItem&& set) {
-		list_array<ValueItem> args{ value, set };
+		ValueItem args{ value, set };
 		value = std::move(set);
-		set_notify->notify(&args);
+		set_notify->notify(args);
 	}
 	ValueMonitor& operator=(const ValueItem& set) {
-		list_array<ValueItem> args{ value, set };
+		ValueItem args{ value, set };
 		value = set;
-		set_notify->notify(&args);
+		set_notify->notify(args);
 	}
 
 	ValueMonitor& operator=(ValueMonitor&& set) noexcept(false) {
-		list_array<ValueItem> args{ value, set };
+		ValueItem args{ value, set };
 		value = std::move(set);
-		set_notify->notify(&args);
+		set_notify->notify(args);
 	}
 	ValueMonitor& operator=(const ValueMonitor& set) {
-		list_array<ValueItem> args{ value, set };
+		ValueItem args{ value, set };
 		value = set;
-		set_notify->notify(&args);
+		set_notify->notify(args);
 	}
 
 	operator ValueItem&() {
-		list_array<ValueItem> args{ value };
-		get_notify->notify(&args);
+		ValueItem args{ value };
+		get_notify->notify(args);
 		return value;
 	}
 	operator const ValueItem&() const {
-		list_array<ValueItem> args{ value };
-		const_cast<typed_lgr<EventSystem>&>(get_notify)->notify(&args);
+		ValueItem args{ value };
+		const_cast<typed_lgr<EventSystem>&>(get_notify)->notify(args);
 		return value;
 	}
 };
 
-class ValueChangeEvent {
+class ValueChangeMonitor {
 	ValueItem value;
 public:
 	typed_lgr<EventSystem> set_notify;
 
-	ValueChangeEvent(ValueItem&& set) noexcept {
+	ValueChangeMonitor(ValueItem&& set) noexcept {
 		value = std::move(set);
 	}
-	ValueChangeEvent(const ValueItem& set) {
+	ValueChangeMonitor(const ValueItem& set) {
 		value = set;
 	}
-	ValueChangeEvent(ValueChangeEvent&& set) noexcept(false) {
-		value = std::move(set);
+	ValueChangeMonitor(ValueChangeMonitor&& set) noexcept(false) {
+		value = std::move((ValueItem&)set);
 		set = ValueItem();
 	}
-	ValueChangeEvent(const ValueChangeEvent& set) {
+	ValueChangeMonitor(const ValueChangeMonitor& set) {
 		value = set;
 	}
 
-	ValueChangeEvent& operator=(ValueItem&& set) {
-		list_array<ValueItem> args{ value, set };
+	ValueChangeMonitor& operator=(ValueItem&& set) {
+		ValueItem args{ value, set };
 		value = std::move(set);
-		set_notify->notify(&args);
+		set_notify->notify(args);
 	}
-	ValueChangeEvent& operator=(const ValueItem& set) {
-		list_array<ValueItem> args{ value, set };
+	ValueChangeMonitor& operator=(const ValueItem& set) {
+		ValueItem args{value, set};
 		value = set;
-		set_notify->notify(&args);
+		set_notify->notify(args);
 	}
 
-	ValueChangeEvent& operator=(ValueChangeEvent&& set) noexcept(false) {
-		list_array<ValueItem> args{ value, set };
+	ValueChangeMonitor& operator=(ValueChangeMonitor&& set) noexcept(false) {
+		ValueItem args{ value, set };
 		value = std::move(set);
-		set_notify->notify(&args);
+		set_notify->notify(args);
 	}
-	ValueChangeEvent& operator=(const ValueChangeEvent& set) {
-		list_array<ValueItem> args{ value, set };
+	ValueChangeMonitor& operator=(const ValueChangeMonitor& set) {
+		ValueItem args{ value, set };
 		value = set;
-		set_notify->notify(&args);
+		set_notify->notify(args);
 	}
 
 	operator ValueItem& () {

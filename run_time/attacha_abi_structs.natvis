@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+	<Type Name="ValueItem">
+		<DisplayString Condition="meta.vtype == VType::boolean &amp;&amp; !meta.use_gc">{{ type=boolean, value={(bool)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::i8 &amp;&amp; !meta.use_gc">{{ type=i8, value={(int8_t)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::i16 &amp;&amp; !meta.use_gc">{{ type=i16, value={(int16_t)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::i32 &amp;&amp; !meta.use_gc">{{ type=i32, value={(int32_t)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::i64 &amp;&amp; !meta.use_gc">{{ type=i64, value={(int64_t)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::ui8 &amp;&amp; !meta.use_gc">{{ type=ui8, value={(uint8_t)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::ui16 &amp;&amp; !meta.use_gc">{{ type=ui16, value={(uint16_t)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::ui32 &amp;&amp; !meta.use_gc">{{ type=ui32, value={(uint32_t)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::ui64 &amp;&amp; !meta.use_gc">{{ type=ui64, value={(uint64_t)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::flo &amp;&amp; !meta.use_gc">{{ type=flo, value={*(float*)&amp;val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::doub &amp;&amp; !meta.use_gc">{{ type=doub, value={*(double*)&amp;val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::uarr &amp;&amp; !meta.use_gc">{{ type=uarr, size={((list_array&lt;ValueItem&gt;*)val)->_size} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::string &amp;&amp; !meta.use_gc">{{ type=string, value={*(std::string*)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::async_res &amp;&amp; !meta.use_gc">{{ type=async_res }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::except_value &amp;&amp; !meta.use_gc">{{ type=except_value }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::undefined_ptr &amp;&amp; !meta.use_gc">{{ type=undefined_ptr }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::type_identifier &amp;&amp; !meta.use_gc">{{ type=type_identifier }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::raw_arr_i8 &amp;&amp; !meta.use_gc">{{ type=raw_arr_i8, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::raw_arr_i16 &amp;&amp; !meta.use_gc">{{ type=raw_arr_i16, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::raw_arr_i32 &amp;&amp; !meta.use_gc">{{ type=raw_arr_i32, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::raw_arr_i64 &amp;&amp; !meta.use_gc">{{ type=raw_arr_i64, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::raw_arr_ui8 &amp;&amp; !meta.use_gc">{{ type=raw_arr_ui8, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::raw_arr_ui16 &amp;&amp; !meta.use_gc">{{ type=raw_arr_ui16, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::raw_arr_ui32 &amp;&amp; !meta.use_gc">{{ type=raw_arr_ui32, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::raw_arr_ui64 &amp;&amp; !meta.use_gc">{{ type=raw_arr_ui64, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::raw_arr_flo &amp;&amp; !meta.use_gc">{{ type=raw_arr_flo, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::raw_arr_doub &amp;&amp; !meta.use_gc">{{ type=raw_arr_doub, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::faarr &amp;&amp; !meta.use_gc">{{ type=faarr, size={meta.val_len} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::saarr &amp;&amp; !meta.use_gc">{{ type=saarr, size={meta.val_len} }}</DisplayString>
+
+		<DisplayString Condition="meta.vtype == VType::map &amp;&amp; !meta.use_gc">{{ type=map }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::set &amp;&amp; !meta.use_gc">{{ type=set }}</DisplayString>
+
+		<Expand>
+			<Item Name="[type]" ExcludeView="simple">meta.vtype</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::boolean &amp;&amp; !meta.use_gc">(bool)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::i8 &amp;&amp; !meta.use_gc">(int8_t)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::i16 &amp;&amp; !meta.use_gc">(int16_t)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::i32 &amp;&amp; !meta.use_gc">(int32_t)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::i64 &amp;&amp; !meta.use_gc">(int64_t)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::ui8 &amp;&amp; !meta.use_gc">(uint8_t)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::ui16 &amp;&amp; !meta.use_gc">(uint16_t)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::ui32 &amp;&amp; !meta.use_gc">(uint32_t)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::ui64 &amp;&amp; !meta.use_gc">(uint64_t)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::flo &amp;&amp; !meta.use_gc">*(float*)&amp;val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::doub &amp;&amp; !meta.use_gc">*(double*)&amp;val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::uarr &amp;&amp; !meta.use_gc">*(list_array&lt;ValueItem&gt;*)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::string &amp;&amp; !meta.use_gc">*(std::string*)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::async_res &amp;&amp; !meta.use_gc">*(Task*)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::except_value &amp;&amp; !meta.use_gc">*(std::exception_ptr*)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::undefined_ptr &amp;&amp; !meta.use_gc">(void*)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::type_identifier &amp;&amp; !meta.use_gc">(VType)val</Item>
+
+
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_i8 &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(int8_t*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_i16 &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(int16_t*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_i32 &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(int32_t*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_i64 &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(int64_t*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_ui8 &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(uint8_t*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_ui16 &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(uint16_t*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_ui32 &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(uint32_t*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_ui64 &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(uint64_t*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_flo &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(float*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_doub &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(double*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+
+
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::faarr &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(ValueItem*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+			<Synthetic Name="[Value]" Condition="meta.vtype == VType::saarr &amp;&amp; !meta.use_gc">
+				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
+				<Expand>
+					<ArrayItems>
+						<Size>meta.val_len</Size>
+						<ValuePointer>(ValueItem*)val</ValuePointer>
+					</ArrayItems>
+				</Expand>
+			</Synthetic>
+		</Expand>
+</Type>
+</AutoVisualizer>

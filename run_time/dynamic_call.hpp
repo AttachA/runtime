@@ -342,5 +342,5 @@ namespace DynamicCall {
 		}
 	};
 
-	[[noreturn]] void justJump(void* point);
+	extern "C" [[noreturn]] void justJump(void* point);
 }

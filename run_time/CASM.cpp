@@ -11,6 +11,7 @@
 #include <string>
 #include <unordered_map>
 #include <mutex>
+#include <cassert>
 void _______dbgOut(const char* str) {
 	OutputDebugStringA(str);
 }
@@ -52,11 +53,11 @@ size_t alocate_and_prepare_code(uint8_t*& res, CodeHolder* code, asmjit::JitAllo
 			size_t bufferSize = size_t(section->bufferSize());
 			size_t virtualSize = size_t(section->virtualSize());
 
-			ASMJIT_ASSERT(offset + bufferSize <= codeSize);
+			assert(offset + bufferSize <= codeSize);
 			memcpy(rw + offset, section->data(), bufferSize);
 
 			if (virtualSize > bufferSize) {
-				ASMJIT_ASSERT(offset + virtualSize <= codeSize);
+				assert(offset + virtualSize <= codeSize);
 				memset(rw + offset + bufferSize, 0, virtualSize - bufferSize);
 			}
 		}
@@ -194,16 +195,26 @@ std::vector<uint16_t> convert(FrameResult& frame) {
 		info.push_back(0);
 
 	if (frame.use_handle) {
-		info.resize(info.size() + 2);
-		*(DWORD*)(info.data() + info.size() - 2) = frame.exHandleOff;
-		info.resize(info.size() + 2);
+		info.resize(info.size() + 4);
+		*(DWORD*)(info.data() + info.size() - 4) = frame.exHandleOff;
 	}
+	info.resize(info.size() + 8);
+	*(uint64_t*)(info.data() + info.size() - 8) = 0xFFFFFFFFFFFFFFFF;
 	return info;
 }
 
 
+EXCEPTION_DISPOSITION handle_s(
+	IN PEXCEPTION_RECORD ExceptionRecord,
+	IN ULONG64 EstablisherFrame,
+	IN OUT PCONTEXT ContextRecord,
+	IN OUT PDISPATCHER_CONTEXT DispatcherContext
+) {
+	printf("hello!");
+	return ExceptionContinueSearch;
+}
 
-
+void* __casm_test_handle = (void*)handle_s;
 void* FrameResult::init(uint8_t*& frame,CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name, const char* file_path) {
 	std::vector<uint16_t> unwindInfo = convert(*this);
 	size_t unwindInfoSize = unwindInfo.size() * sizeof(uint16_t);

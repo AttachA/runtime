@@ -8,6 +8,10 @@
 #pragma comment(lib,"Dbghelp.lib")
 #include <Windows.h>
 #include <Dbghelp.h>
+#include <Psapi.h>
+#include <format>
+#include <chrono>
+#include "library/string_convert.hpp"
 size_t page_size = []() {
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
@@ -17,11 +21,39 @@ size_t page_size = []() {
 #include "run_time.hpp"
 #include <sstream>
 #include "library/string_help.hpp"
-
+#include <filesystem>
+#include "run_time/FuncEnviropment.hpp"
 
 unsigned long fault_reserved_stack_size = 524288;
 thread_local unsigned long stack_size_tmp = 0;
 thread_local bool need_stack_restore = false;
+bool enable_thread_naming = true;
+
+bool _set_name_thread_dbg(const std::string& name) {
+	auto data = stringC::utf8::convert(name);
+	return SUCCEEDED(SetThreadDescription(GetCurrentThread(), data.c_str()));
+}
+
+std::string _get_name_thread_dbg(int thread_id) {
+	HANDLE thread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION,false,thread_id);
+	if (!thread)
+		return "";
+	WCHAR* res;
+	if (SUCCEEDED(GetThreadDescription(thread, &res))) {
+		std::string str = stringC::utf8::convert(res);
+		LocalFree(res);
+		CloseHandle(thread);
+		return str;
+	}
+	else {
+		return "";
+	}
+}
+
+int _thread_id() {
+	return GetCurrentThreadId();
+}
+
 
 EventSystem unhandled_exception;
 EventSystem ex_fault;
@@ -29,7 +61,7 @@ EventSystem ex_fault;
 FaultActionByDefault default_fault_action = FaultActionByDefault::invite_to_debugger;
 BreakPointActionByDefault break_point_action = BreakPointActionByDefault::invite_to_debugger;
 #else 
-FaultActionByDefault default_fault_action = FaultActionByDefault::show_error;
+FaultActionByDefault default_fault_action = FaultActionByDefault::make_dump;
 BreakPointActionByDefault break_point_action = BreakPointActionByDefault::throw_exception;
 #endif
 
@@ -125,44 +157,75 @@ void show_err(LPEXCEPTION_POINTERS e) {
 }
 
 
+void make_dump(LPEXCEPTION_POINTERS e, CXXExInfo* cxx) {
+	std::filesystem::path path;
+	{
+		constexpr uint16_t limit = 65535;
+		wchar_t* tmp;
+		try {
+			tmp = new wchar_t[limit];
+		}
+		catch (...) {
+			return;
+		}
+		DWORD len = GetEnvironmentVariableW(L"AttachA_dump_path", tmp, limit);
+		if (!len) {
+			path = std::filesystem::current_path();
+		}
+		else {
+			path = std::wstring(tmp, tmp + len);
+		}
+		len = GetModuleFileNameExW(GetCurrentProcess(), nullptr, tmp, limit);
+		if (!len) {
+			path /= "AttachA";
+		}
+		else {
+			path /= std::filesystem::path(std::wstring(tmp, tmp + len)).stem();
+		}
+		delete[] tmp;
+	}
+	path += " exception fault ";
+	if(cxx)
+		path += cxx->ty_arr[0].ty_info->name();
+	path += std::format(" {}.dmp", (uint16_t)std::hash<long long>()(std::chrono::system_clock::now().time_since_epoch().count()));
+	HANDLE hndl = CreateFileW(path.native().c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_ARCHIVE, 0);
+	if (hndl == INVALID_HANDLE_VALUE)
+		return;
+	auto flags =
+		MiniDumpWithFullMemory |
+		MiniDumpWithFullMemoryInfo |
+		MiniDumpWithHandleData |
+		MiniDumpWithUnloadedModules |
+		MiniDumpWithThreadInfo;
 
+	MINIDUMP_EXCEPTION_INFORMATION info;
+	info.ClientPointers = false;
+	info.ExceptionPointers = e;
+	info.ThreadId = GetCurrentThreadId();
+
+	MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hndl, (MINIDUMP_TYPE)flags, &info, NULL, NULL);
+	CloseHandle(hndl);
+}
 
 LONG WINAPI win_fault_handler(LPEXCEPTION_POINTERS e) {
 	if (e->ExceptionRecord->ExceptionCode == 0xe06d7363) {
 		CXXExInfo cxx;
 		getCxxExInfoFromNative(cxx, e);
 		{
-			list_array<ValueItem> vit{ ValueItem(&cxx,ValueMeta(VType::undefined_ptr,false,false))};
-			unhandled_exception.sync_notify(&vit);
+			ValueItem val(&cxx,ValueMeta(VType::undefined_ptr,false,false));
+			unhandled_exception.sync_notify(val);
 		}
 		switch (default_fault_action) {
 		case FaultActionByDefault::show_error:
 			show_err(cxx);
 			break;
 		case FaultActionByDefault::dump_and_show_error:
+			make_dump(e, &cxx);
 			show_err(cxx);
-			__fallthrough;
-		case FaultActionByDefault::make_dump: {
-			char* dump_path = new char[4096];
-			DWORD len = GetEnvironmentVariableA("AttachA_dump_path", dump_path, 4096);
-			if (len < 4095 && len) {
-				dump_path[len] = 0;
-				HANDLE hndl = CreateFileA(dump_path, GENERIC_READ | GENERIC_WRITE,0,NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_ARCHIVE ,0);
-				if (hndl == INVALID_HANDLE_VALUE) {
-					delete[] dump_path;
-					return EXCEPTION_CONTINUE_SEARCH;
-				}
-				auto flags = 
-				MiniDumpWithFullMemory |
-					MiniDumpWithFullMemoryInfo |
-					MiniDumpWithHandleData |
-					MiniDumpWithUnloadedModules |
-					MiniDumpWithThreadInfo;
-				MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hndl, (MINIDUMP_TYPE)flags, NULL, NULL, NULL);
-			}
-			delete[] dump_path;
 			break;
-		}
+		case FaultActionByDefault::make_dump: 
+			make_dump(e, &cxx);
+			break;
 		case FaultActionByDefault::invite_to_debugger: {
 			auto test = "Hello! In this program unhandled exception occoured,\n if you wanna debug it, attach to process with id: " + std::to_string(GetCurrentProcessId()) + ",\n then switch to thread id: " + std::to_string(GetCurrentThreadId()) + " and click OK";
 			MessageBoxA(NULL, test.c_str(), "Debug invite", MB_ICONQUESTION);
@@ -174,35 +237,20 @@ LONG WINAPI win_fault_handler(LPEXCEPTION_POINTERS e) {
 		}
 	}
 	else {
-		ex_fault.sync_notify(nullptr);
+
+		ValueItem noting;
+		ex_fault.sync_notify(noting);
 		switch (default_fault_action) {
 		case FaultActionByDefault::show_error:
 			show_err(e);
 			break;
 		case FaultActionByDefault::dump_and_show_error:
+			make_dump(e, nullptr);
 			show_err(e);
-			__fallthrough;
-		case FaultActionByDefault::make_dump: {
-			char* dump_path = new char[4096];
-			DWORD len = GetEnvironmentVariableA("AttachA_dump_path", dump_path, 4096);
-			if (len < 4095 && len) {
-				dump_path[len] = 0;
-				HANDLE hndl = CreateFileA(dump_path, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_ARCHIVE, 0);
-				if (hndl == INVALID_HANDLE_VALUE) {
-					delete[] dump_path;
-					return EXCEPTION_CONTINUE_SEARCH;
-				}
-				auto flags =
-					MiniDumpWithFullMemory |
-					MiniDumpWithFullMemoryInfo |
-					MiniDumpWithHandleData |
-					MiniDumpWithUnloadedModules |
-					MiniDumpWithThreadInfo;
-				MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), hndl, (MINIDUMP_TYPE)flags, NULL, NULL, NULL);
-			}
-			delete[] dump_path;
 			break;
-		}
+		case FaultActionByDefault::make_dump:
+			make_dump(e, nullptr);
+			break;
 		case FaultActionByDefault::invite_to_debugger: {
 			auto test = "Hello! In this program unhandled exception occoured,\n if you wanna debug it, attach to process with id: " + std::to_string(GetCurrentProcessId()) + ",\n then switch to thread id: " + std::to_string(GetCurrentThreadId()) + " and click to yes to look callstack";
 			MessageBoxA(NULL, test.c_str(), "Debug invite", MB_YESNO | MB_ICONQUESTION);
@@ -244,6 +292,16 @@ CALL_FUNC NativeLib::get_func(const char* func_name) {
 		throw LibrayFunctionNotFoundException();
 	return (CALL_FUNC)tmp;
 }
+typed_lgr<FuncEnviropment> NativeLib::get_func_enviro(const char* func_name, const DynamicCall::FunctionTemplate& templ) {
+	auto& env = envs[func_name];
+	if (!env) {
+		DynamicCall::PROC tmp = (DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name);
+		if (!tmp)
+			throw LibrayFunctionNotFoundException();
+		return env = new FuncEnviropment(tmp, templ, true);
+	}
+	return env;
+}
 size_t NativeLib::get_pure_func(const char* func_name) {
 	size_t tmp = (size_t)GetProcAddress((HMODULE)hGetProcIDDLL, func_name);
 	if (!tmp)
@@ -251,6 +309,8 @@ size_t NativeLib::get_pure_func(const char* func_name) {
 	return tmp;
 }
 NativeLib::~NativeLib() {
+	for (auto&[_, it] : envs)
+		it->ForceUnload();
 	if (hGetProcIDDLL)
 		FreeLibrary((HMODULE)hGetProcIDDLL);
 }
@@ -269,9 +329,6 @@ bool restore_stack_fault() {
 bool need_restore_stack_fault() {
 	return need_stack_restore;
 }
-
-
-
 #else
 #include <unistd.h>
 size_t page_size = sysconf(_SC_PAGESIZE);

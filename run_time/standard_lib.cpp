@@ -1,27 +1,28 @@
-#include "standard_lib.hpp"
 #include "library/console.hpp"
+#include "library/parallel.hpp"
+#include "library/chanel.hpp"
 #include "AttachA_CXX.hpp"
 #include <cmath>
 #include <math.h>
-
+#pragma region math_abs
 ValueItem math_abs_impl(ValueItem& val) {
-	if(val.meta.vtype == VType::async_res)
-		getAsyncResult(val.val, val.meta);
+	if (val.meta.vtype == VType::async_res)
+		val.getAsync();
 	switch (val.meta.vtype) {
 	case VType::i8:
-		return ValueItem((void*)(std::abs(int8_t(val.val))), val.meta);
+		return ValueItem((void*)(std::abs(int8_t(val))), val.meta);
 	case VType::i16:
-		return ValueItem((void*)(std::abs(int16_t(val.val))), val.meta);
+		return ValueItem((void*)(std::abs(int16_t(val))), val.meta);
 	case VType::i32:
-		return ValueItem((void*)(std::abs(int32_t(val.val))), val.meta);
+		return ValueItem((void*)(std::abs(int32_t(val))), val.meta);
 	case VType::i64:
-		return ValueItem((void*)(std::abs(int64_t(val.val))), val.meta);
+		return ValueItem((void*)(std::abs(int64_t(val))), val.meta);
 	case VType::flo: {
 		union {
 			float abs;
 			void* res = nullptr;
 		};
-		abs = std::abs(*(float*)val.val);
+		abs = std::abs((float)val);
 		return ValueItem(res, val.meta);
 		
 	}
@@ -30,189 +31,441 @@ ValueItem math_abs_impl(ValueItem& val) {
 			double abs;
 			void* res = nullptr;
 		};
-		abs = +(*(double*)val.val);
+		abs = +((double)val);
 		return ValueItem(res, val.meta);
 	}
 	default:
 		return val;
 	}
 }
-ValueItem* math_abs(list_array<ValueItem>* args) {
+template<VType type, class T>
+ValueItem* math_abs(T* args, uint32_t args_len) {
+	T* res = new T[args_len];
+	for (size_t i = 1; i < args_len; i++) {
+		if constexpr (std::is_same_v<T, ValueItem>)
+			res[i] = math_abs_impl(args[i]);
+		else if constexpr (std::is_same_v<T, int64_t>)
+			res[i] = std::abs(args[i]);
+		else if constexpr (std::is_same_v<T, uint64_t>)
+			res[i] = (T)std::abs((int64_t)args[i]);
+		else
+			res[i] = (T)std::abs((double)args[i]);
+	}
+	return new ValueItem(res, type, true);
+}
+ValueItem* math_abs(ValueItem* args, uint32_t args_len) {
 	if (args) {
-		if (args->size() == 1)
-			return new ValueItem(math_abs_impl(args->operator[](0)));
+		if (args_len == 1) {
+			switch (args->meta.vtype) {
+			case VType::uarr: {
+				list_array<ValueItem>* tmp = new list_array<ValueItem>(*(list_array<ValueItem>*)args->getSourcePtr());
+				for (auto& it : *tmp) {
+					it = math_abs_impl(it);
+				}
+				return new ValueItem(tmp, VType::uarr,true);
+			}
+			case VType::faarr:
+			case VType::saarr:
+				return math_abs<VType::faarr>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i8:
+				return math_abs<VType::raw_arr_i8>((int8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i16:
+				return math_abs<VType::raw_arr_i16>((int16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i32:
+				return math_abs<VType::raw_arr_i32>((int32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i64:
+				return math_abs<VType::raw_arr_i64>((int64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui8:
+				return math_abs<VType::raw_arr_ui8>((uint8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui16:
+				return math_abs<VType::raw_arr_ui16>((uint16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui32:
+				return math_abs<VType::raw_arr_ui32>((uint32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui64:
+				return math_abs<VType::raw_arr_ui64>((uint64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_flo:
+				return math_abs<VType::raw_arr_flo>((float*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_doub:
+				return math_abs<VType::raw_arr_doub>((float*)args->getSourcePtr(), args->meta.val_len);
+			default:
+				return new ValueItem(math_abs_impl(*args));
+			}
+		}
 		else {
-			list_array<ValueItem>* res = new list_array<ValueItem>;
-			res->reserve_push_back(args->size());
-			for (auto& it : *args)
-				res->push_back(math_abs_impl(it));
-			return new ValueItem(res,ValueMeta(VType::uarr,false,true));
+			return math_abs<VType::faarr>(args, args_len);
 		}
 	}
 	return nullptr;
 }
-ValueItem* math_max(list_array<ValueItem>* args) {
+#pragma endregion
+#pragma region math_max
+template<class T>
+ValueItem* math_max(T* args, uint32_t args_len) {
+	T* max = args;
+	for (size_t i = 1; i < args_len; i++) {
+		if (*max < args[i])
+			max = &args[i];
+	}
+	return new ValueItem(*max);
+}
+ValueItem* math_max(ValueItem* args, uint32_t args_len) {
 	if (args) {
-		if (args->size() == 1) {
-			if (args->operator[](0).meta.vtype == VType::uarr)
-				return math_max((list_array<ValueItem>*)args->operator[](0).val);
-			else
-				return new ValueItem(args->operator[](0));
-		}
-		else {
-			bool ist_first = true;
-			ValueItem* max = nullptr;
-			for (auto& it : *args) {
-				if (ist_first) {
-					max = &it;
-					ist_first = false;
-					continue;
+		if (args_len == 1) {
+			switch (args->meta.vtype) {
+			case VType::uarr: {
+				list_array<ValueItem>& tmp = *(list_array<ValueItem>*)args->getSourcePtr();
+				ValueItem* max = &tmp[0];
+				size_t len = tmp.size();
+				for (size_t i = 1; i < len; i++) {
+					if (*max < tmp[i])
+						max = &tmp[i];
 				}
-				if (*max < it)
-					max = &it;
-			}
-			if (max)
 				return new ValueItem(*max);
-		}
-	}
-	return nullptr;
-}
-ValueItem* math_min(list_array<ValueItem>* args) {
-	if (args) {
-		if (args->size() == 1) {
-			if (args->operator[](0).meta.vtype == VType::uarr)
-				return math_min((list_array<ValueItem>*)args->operator[](0).val);
-			else
-				return new ValueItem(args->operator[](0));
-		}
-		else {
-			bool ist_first = true;
-			ValueItem* min = nullptr;
-			for (auto& it : *args) {
-				if (ist_first) {
-					min = &it;
-					ist_first = false;
-					continue;
-				}
-				if (*min > it)
-					min = &it;
 			}
-			if (min)
-				return new ValueItem(*min);
-		}
-	}
-	return nullptr;
-}
-
-ValueItem* math_median(list_array<ValueItem>* args) {
-	if (args) {
-		if (args->size() == 1) {
-			if (args->operator[](0).meta.vtype == VType::uarr)
-				return math_median((list_array<ValueItem>*)args->operator[](0).val);
-			else
-				return new ValueItem(args->operator[](0));
-		}
-		else {
-			args->sort();
-			size_t pos = args->size() / 2;
-			if(args->size() % 2)
-				return new ValueItem(args->operator[](pos));
-			else {
-				return new ValueItem(
-					(args->operator[](pos) + args->operator[](pos + 1))
-						/ ValueItem((void*)2, ValueMeta(VType::i64, false, true))
-				);
+			case VType::faarr:
+			case VType::saarr:
+				return math_max<ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i8:
+				return math_max((int8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i16:
+				return math_max((int16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i32:
+				return math_max((int32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i64:
+				return math_max((int64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui8:
+				return math_max((uint8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui16:
+				return math_max((uint16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui32:
+				return math_max((uint32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui64:
+				return math_max((uint64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_flo:
+				return math_max((float*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_doub:
+				return math_max((double*)args->getSourcePtr(), args->meta.val_len);
+			default:
+				return new ValueItem(*args);
 			}
 		}
+		else {
+			return math_max<ValueItem>(args, args_len);
+		}
 	}
 	return nullptr;
 }
-ValueItem* math_range(list_array<ValueItem>* args) {
+#pragma endregion
+#pragma region math_min
+template<class T>
+ValueItem* math_min(T* args, uint32_t args_len) {
+	T* min = args;
+	for (size_t i = 1; i < args_len; i++) {
+		if (*min > args[i])
+			min = &args[i];
+	}
+	return new ValueItem(*min);
+}
+ValueItem* math_min(ValueItem* args, uint32_t args_len) {
 	if (args) {
-		if (args->size() == 1) {
-			if (args->operator[](0).meta.vtype == VType::uarr)
-				return math_median((list_array<ValueItem>*)args->operator[](0).val);
-			else 
-				return new ValueItem(args->operator[](0));
-		}
-		else {
-			bool ist_first = true;
-			ValueItem* max = nullptr;
-			ValueItem* min = nullptr;
-			for (auto& it : *args) {
-				if (ist_first) {
-					max = &it;
-					min = &it;
-					ist_first = false;
-					continue;
+		if (args_len == 1) {
+			switch (args->meta.vtype) {
+			case VType::uarr: {
+				list_array<ValueItem>& tmp = *(list_array<ValueItem>*)args->getSourcePtr();
+				ValueItem* min = &tmp[0];
+				size_t len = tmp.size();
+				for (size_t i = 1; i < len; i++) {
+					if (*min > tmp[i])
+						min = &tmp[i];
 				}
-				if (*max < it)
-					max = &it;
-				if (*min > it)
-					min = &it;
+				return new ValueItem(*min); 
 			}
-			if (max) 
-				return new ValueItem(*max - *min);
+			case VType::faarr:
+			case VType::saarr:
+				return math_min<ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i8:
+				return math_min((int8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i16:
+				return math_min((int16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i32:
+				return math_min((int32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i64:
+				return math_min((int64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui8:
+				return math_min((uint8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui16:
+				return math_min((uint16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui32:
+				return math_min((uint32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui64:
+				return math_min((uint64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_flo:
+				return math_min((float*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_doub:
+				return math_min((double*)args->getSourcePtr(), args->meta.val_len);
+			default:
+				return new ValueItem(*args);
+			}
+		}
+		else {
+			return math_min<ValueItem>(args, args_len);
 		}
 	}
 	return nullptr;
 }
-ValueItem* math_mode(list_array<ValueItem>* args) {
+#pragma endregion
+#pragma region math_median
+template<class T>
+ValueItem* math_median(T* args, uint32_t args_len) {
+	size_t pos = args_len / 2;
+	if (args_len % 2)
+		return new ValueItem(args[pos]);
+	else 
+		return new ValueItem((args[pos] + args[pos + 1]) / 2);
+}
+ValueItem* math_median(ValueItem* args, uint32_t args_len) {
 	if (args) {
-		if (args->size() == 1) {
-			if (args->operator[](0).meta.vtype == VType::uarr)
-				return math_mode((list_array<ValueItem>*)args->operator[](0).val);
-			else
-				return new ValueItem(args->operator[](0));
+		if (args_len == 1) {
+			switch (args->meta.vtype) {
+			case VType::uarr: {
+				list_array<ValueItem>& tmp = *(list_array<ValueItem>*)args->getSourcePtr();
+				size_t pos = tmp.size() / 2;
+				if (tmp.size() % 2)
+					return new ValueItem(tmp[pos]);
+				else 
+					return new ValueItem((tmp[pos] + tmp[pos + 1])/ ValueItem((void*)2, VType::i64));
+			}
+			case VType::faarr:
+			case VType::saarr:
+				return math_median<ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i8:
+				return math_median((int8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i16:
+				return math_median((int16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i32:
+				return math_median((int32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i64:
+				return math_median((int64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui8:
+				return math_median((uint8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui16:
+				return math_median((uint16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui32:
+				return math_median((uint32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui64:
+				return math_median((uint64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_flo:
+				return math_median((float*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_doub:
+				return math_median((double*)args->getSourcePtr(), args->meta.val_len);
+			default:
+				return new ValueItem(*args);
+			}
 		}
 		else {
-			args->sort();
-			size_t max_count = 0;
-			ValueItem* max_it = nullptr;
-			size_t cur_count = 0;
-			ValueItem* cur_it = nullptr;
-			for (auto& it : *args) {
-				if (!cur_it) {
-					cur_it = &it;
-					++cur_count;
-					continue;
-				}
-				if (*cur_it != it) {
-					if (!max_it) {
-						max_it = cur_it;
-						max_count = cur_count;
+			return math_median<ValueItem>(args, args_len);
+		}
+	}
+	return nullptr;
+}
+#pragma endregion
+#pragma region math_range
+template<class T>
+ValueItem* math_range(T* args, uint32_t args_len) {
+	T* max = args;
+	T* min = args;
+	for (uint32_t i = 0; i < args_len; i++) {
+		T& it = args[i];
+		if (*max < it)
+			max = &it;
+		if (*min > it)
+			min = &it;
+	}
+	if (args_len)
+		return new ValueItem(*max - *min);
+	else
+		return nullptr;
+}
+ValueItem* math_range(ValueItem* args, uint32_t args_len) {
+	if (args) {
+		if (args_len == 1) {
+			switch (args->meta.vtype) {
+			case VType::uarr: {
+				list_array<ValueItem>& tmp = *(list_array<ValueItem>*)args->getSourcePtr();
+				bool ist_first = true;
+				ValueItem* max = nullptr;
+				ValueItem* min = nullptr;
+				for (auto& it : tmp) {
+					if (ist_first) {
+						max = &it;
+						min = &it;
+						ist_first = false;
+						continue;
 					}
-					else if(max_count < cur_count) {
-						max_it = cur_it;
-						max_count = cur_count;
-					}
-					cur_it = &it;
-					cur_count = 0;
+					if (*max < it)
+						max = &it;
+					if (*min > it)
+						min = &it;
 				}
-				++cur_count;
-			}
-			if (!max_it)
-				if (!cur_it)
-					return nullptr;
+				if (max)
+					return new ValueItem(*max - *min);
 				else
-					return new ValueItem(*cur_it);
-			else
-				return new ValueItem(*max_it);
+					return nullptr;
+			}
+			case VType::faarr:
+			case VType::saarr:
+				return math_range<ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i8:
+				return math_range((int8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i16:
+				return math_range((int16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i32:
+				return math_range((int32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i64:
+				return math_range((int64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui8:
+				return math_range((uint8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui16:
+				return math_range((uint16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui32:
+				return math_range((uint32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui64:
+				return math_range((uint64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_flo:
+				return math_range((float*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_doub:
+				return math_range((double*)args->getSourcePtr(), args->meta.val_len);
+			default:
+				return new ValueItem(*args);
+			}
+		}
+		else {
+			return math_range<ValueItem>(args, args_len);
 		}
 	}
 	return nullptr;
 }
-
-ValueItem math_round_impl(ValueItem& val) {
+#pragma endregion
+#pragma region math_mode
+template<class T>
+ValueItem* math_mode(T* args, uint32_t args_len) {
+	list_array<T> copy(args, args + args_len);
+	copy.sort();
+	size_t max_count = 0;
+	T* max_it = nullptr;
+	size_t cur_count = 0;
+	T* cur_it = nullptr;
+	for (auto& it : copy) {
+		if (!cur_it) {
+			cur_it = &it;
+			++cur_count;
+			continue;
+		}
+		if (*cur_it != it) {
+			if (!max_it) {
+				max_it = cur_it;
+				max_count = cur_count;
+			}
+			else if (max_count < cur_count) {
+				max_it = cur_it;
+				max_count = cur_count;
+			}
+			cur_it = &it;
+			cur_count = 0;
+		}
+		++cur_count;
+	}
+	if (!max_it)
+		if (!cur_it)
+			return nullptr;
+		else
+			return new ValueItem(*cur_it);
+	else
+		return new ValueItem(*max_it);
+}
+ValueItem* math_mode(ValueItem* args, uint32_t args_len) {
+	if (args) {
+		if (args_len == 1) {
+			switch (args->meta.vtype) {
+			case VType::uarr: {
+				size_t max_count = 0;
+				ValueItem* max_it = nullptr;
+				size_t cur_count = 0;
+				ValueItem* cur_it = nullptr;
+				for (auto& it : ((list_array<ValueItem>*)args->getSourcePtr())->sort_copy()) {
+					if (!cur_it) {
+						cur_it = &it;
+						++cur_count;
+						continue;
+					}
+					if (*cur_it != it) {
+						if (!max_it) {
+							max_it = cur_it;
+							max_count = cur_count;
+						}
+						else if (max_count < cur_count) {
+							max_it = cur_it;
+							max_count = cur_count;
+						}
+						cur_it = &it;
+						cur_count = 0;
+					}
+					++cur_count;
+				}
+				if (!max_it)
+					if (!cur_it)
+						return nullptr;
+					else
+						return new ValueItem(*cur_it);
+				else
+					return new ValueItem(*max_it);
+			}
+			case VType::faarr:
+			case VType::saarr:
+				return math_mode<ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i8:
+				return math_mode((int8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i16:
+				return math_mode((int16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i32:
+				return math_mode((int32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i64:
+				return math_mode((int64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui8:
+				return math_mode((uint8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui16:
+				return math_mode((uint16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui32:
+				return math_mode((uint32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui64:
+				return math_mode((uint64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_flo:
+				return math_mode((float*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_doub:
+				return math_mode((double*)args->getSourcePtr(), args->meta.val_len);
+			default:
+				return new ValueItem(*args);
+			}
+		}
+		else {
+			return math_mode<ValueItem>(args, args_len);
+		}
+	}
+	return nullptr;
+}
+#pragma endregion
+#pragma region math_transform_fn
+template<float(*ffn)(float), double(*dfn)(double)>
+ValueItem math_transform_impl(ValueItem& val) {
 	if (val.meta.vtype == VType::async_res)
-		getAsyncResult(val.val, val.meta);
+		val.getAsync();
 	switch (val.meta.vtype) {
 	case VType::flo: {
 		union {
 			float abs;
 			void* res = nullptr;
 		};
-		abs = round((*(float*)val.val));
+		abs = ffn((float)val);
 		return ValueItem(res, val.meta);
 	}
 	case VType::doub: {
@@ -220,145 +473,60 @@ ValueItem math_round_impl(ValueItem& val) {
 			double abs;
 			void* res = nullptr;
 		};
-		abs = round((*(double*)val.val));
+		abs = dfn((double)val);
 		return ValueItem(res, val.meta);
 	}
 	default:
 		return val;
 	}
 }
-ValueItem* math_round(list_array<ValueItem>* args) {
-	if (args) {
-		if (args->size() == 1)
-			return new ValueItem(math_round_impl(args->operator[](0)));
-		else {
-			list_array<ValueItem>* res = new list_array<ValueItem>;
-			res->reserve_push_back(args->size());
-			for (auto& it : *args)
-				res->push_back(math_round_impl(it));
 
-			return new ValueItem(res, ValueMeta(VType::uarr, false, true));
+template<VType arr_ty, float(*ffn)(float), double(*dfn)(double), class T>
+ValueItem* math_transform(T* args, uint32_t args_len) {
+	T* new_arr = new T[args_len];
+	for (size_t i = 0; i < args_len; i++) {
+		if constexpr (std::is_same_v<T, ValueItem>)
+			new_arr[i] = math_transform_impl<ffn, dfn>(args[i]);
+		else if constexpr (std::is_same_v<T, float>) {
+			new_arr[i] = ffn(args[i]);
+		}
+		else if constexpr (std::is_same_v<T, double>) {
+			new_arr[i] = dfn(args[i]);
+		}
+	}
+	return new ValueItem(new_arr, ValueMeta(arr_ty,false,true, args_len));
+}
+template<float(*ffn)(float), double(*dfn)(double)>
+ValueItem* math_transform_fn(ValueItem* args, uint32_t args_len) {
+	if (args) {
+		if (args_len == 1) {
+			switch (args->meta.vtype) {
+			case VType::uarr: {
+				auto& args_r = *(list_array<ValueItem>*)args->getSourcePtr();
+				list_array<ValueItem>* res = new list_array<ValueItem>;
+				res->reserve_push_back(args_r.size());
+				for (auto& it : args_r)
+					res->push_back(math_transform_impl<ffn, dfn>(it));
+				return new ValueItem(res, VType::uarr, true);
+			}
+			case VType::faarr:
+			case VType::saarr:
+				return math_transform<VType::faarr, ffn, dfn>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_flo:
+				return math_transform<VType::raw_arr_flo, ffn, dfn>((float*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_doub:
+				return math_transform<VType::raw_arr_doub, ffn, dfn>((double*)args->getSourcePtr(), args->meta.val_len);
+			default:
+				return new ValueItem(*args);
+			}
+		}
+		else {
+			return math_transform<VType::faarr, ffn, dfn>(args, args_len);
 		}
 	}
 	return nullptr;
 }
-ValueItem math_floor_impl(ValueItem& val) {
-	if (val.meta.vtype == VType::async_res)
-		getAsyncResult(val.val, val.meta);
-	switch (val.meta.vtype) {
-	case VType::flo: {
-		union {
-			float abs;
-			void* res = nullptr;
-		};
-		abs = floor((*(float*)val.val));
-		return ValueItem(res, val.meta);
-	}
-	case VType::doub: {
-		union {
-			double abs;
-			void* res = nullptr;
-		};
-		abs = floor((*(double*)val.val));
-		return ValueItem(res, val.meta);
-	}
-	default:
-		return val;
-	}
-}
-ValueItem* math_floor(list_array<ValueItem>* args) {
-	if (args) {
-		if (args->size() == 1)
-			return new ValueItem(math_floor_impl(args->operator[](0)));
-		else {
-			list_array<ValueItem>* res = new list_array<ValueItem>;
-			res->reserve_push_back(args->size());
-			for (auto& it : *args)
-				res->push_back(math_floor_impl(it));
-
-			return new ValueItem(res, ValueMeta(VType::uarr, false, true));
-		}
-	}
-	return nullptr;
-}
-ValueItem math_ceil_impl(ValueItem& val) {
-	if (val.meta.vtype == VType::async_res)
-		getAsyncResult(val.val, val.meta);
-	switch (val.meta.vtype) {
-	case VType::flo: {
-		union {
-			float abs;
-			void* res = nullptr;
-		};
-		abs = ceil((*(float*)val.val));
-		return ValueItem(res, val.meta);
-	}
-	case VType::doub: {
-		union {
-			double abs;
-			void* res = nullptr;
-		};
-		abs = ceil((*(double*)val.val));
-		return ValueItem(res, val.meta);
-	}
-	default:
-		return val;
-	}
-}
-ValueItem* math_ceil(list_array<ValueItem>* args) {
-	if (args) {
-		if (args->size() == 1)
-			return new ValueItem(math_ceil_impl(args->operator[](0)));
-		else {
-			list_array<ValueItem>* res = new list_array<ValueItem>;
-			res->reserve_push_back(args->size());
-			for (auto& it : *args)
-				res->push_back(math_ceil_impl(it));
-
-			return new ValueItem(res, ValueMeta(VType::uarr, false, true));
-		}
-	}
-	return nullptr;
-}
-ValueItem math_fix_impl(ValueItem& val) {
-	if (val.meta.vtype == VType::async_res)
-		getAsyncResult(val.val, val.meta);
-	switch (val.meta.vtype) {
-	case VType::flo: {
-		union {
-			float abs;
-			void* res = nullptr;
-		};
-		abs = trunc((*(float*)val.val));
-		return ValueItem(res, val.meta);
-	}
-	case VType::doub: {
-		union {
-			double abs;
-			void* res = nullptr;
-		};
-		abs = trunc((*(double*)val.val));
-		return ValueItem(res, val.meta);
-	}
-	default:
-		return val;
-	}
-}
-ValueItem* math_fix(list_array<ValueItem>* args) {
-	if (args) {
-		if (args->size() == 1)
-			return new ValueItem(math_fix_impl(args->operator[](0)));
-		else {
-			list_array<ValueItem>* res = new list_array<ValueItem>;
-			res->reserve_push_back(args->size());
-			for (auto& it : *args)
-				res->push_back(math_fix_impl(it));
-
-			return new ValueItem(res, ValueMeta(VType::uarr, false, true));
-		}
-	}
-	return nullptr;
-}
+#pragma endregion
 
 
 
@@ -380,7 +548,7 @@ uint64_t math_factorial_impl__FAST_FACTOR(uint64_t m) {
 	}
 
 }
-uint64_t math_factorial_impl_FACTOR(uint64_t m) {
+uint64_t math_factorial_impl_FACTORu(uint64_t m) {
 	if (m < 0)
 		return -1;
 	if (m < 10)
@@ -391,7 +559,7 @@ uint64_t math_factorial_impl_FACTOR(uint64_t m) {
 	res *= m;
 	return res;
 }
-int64_t math_factorial_impl_FACTOR(int64_t m) {
+int64_t math_factorial_impl_FACTORs(int64_t m) {
 	if (m < 0)
 		return -1;
 	if (m < 10)
@@ -404,32 +572,33 @@ int64_t math_factorial_impl_FACTOR(int64_t m) {
 }
 ValueItem math_factorial_impl(ValueItem& val) {
 	if (val.meta.vtype == VType::async_res)
-		getAsyncResult(val.val, val.meta);
+		val.getAsync();
+	
 	switch (val.meta.vtype) {
 	case VType::i8:
-		return ValueItem((void*)math_factorial_impl_FACTOR((int64_t)(int8_t)val.val), val.meta);
+		return ValueItem((void*)math_factorial_impl_FACTORs((int8_t)val), val.meta);
 	case VType::ui8:
-		return ValueItem((void*)math_factorial_impl_FACTOR((uint64_t)(uint8_t)val.val), val.meta);
+		return ValueItem((void*)math_factorial_impl_FACTORu((uint8_t)val), val.meta);
 	case VType::i16:
-		return ValueItem((void*)math_factorial_impl_FACTOR((int64_t)(int16_t)val.val), val.meta);
+		return ValueItem((void*)math_factorial_impl_FACTORs((int16_t)val), val.meta);
 	case VType::ui16:
-		return ValueItem((void*)math_factorial_impl_FACTOR((uint64_t)(uint16_t)val.val), val.meta);
+		return ValueItem((void*)math_factorial_impl_FACTORu((uint16_t)val), val.meta);
 	case VType::i32:
-		return ValueItem((void*)math_factorial_impl_FACTOR((int64_t)(int32_t)val.val), val.meta);
+		return ValueItem((void*)math_factorial_impl_FACTORs((int32_t)val), val.meta);
 	case VType::ui32:
-		return ValueItem((void*)math_factorial_impl_FACTOR((uint64_t)(uint32_t)val.val), val.meta);
+		return ValueItem((void*)math_factorial_impl_FACTORu((uint32_t)val), val.meta);
 	case VType::i64:
-		return ValueItem((void*)math_factorial_impl_FACTOR((int64_t)val.val), val.meta);
+		return ValueItem((void*)math_factorial_impl_FACTORs((int64_t)val), val.meta);
 	case VType::ui64:
-		return ValueItem((void*)math_factorial_impl_FACTOR((uint64_t)val.val), val.meta);
+		return ValueItem((void*)math_factorial_impl_FACTORu((uint64_t)val), val.meta);
 	case VType::undefined_ptr:
-		return ValueItem((void*)math_factorial_impl_FACTOR((uint64_t)(size_t)val.val), val.meta);
+		return ValueItem((void*)math_factorial_impl_FACTORu((size_t)val), val.meta);
 	case VType::flo: {
 		union {
 			float x;
 			void* res = nullptr;
 		};
-		x = (float)std::tgamma((double)(*(float*)val.val) + 1);
+		x = (float)std::tgamma((double)val);
 		return ValueItem(res, val.meta);
 	}
 	case VType::doub: {
@@ -437,24 +606,71 @@ ValueItem math_factorial_impl(ValueItem& val) {
 			double x;
 			void* res = nullptr;
 		};
-		x = std::tgamma((*(double*)val.val) + 1);
+		x = std::tgamma((double)val);
 		return ValueItem(res, val.meta);
 	}
 	default:
 		return val;
 	}
 }
-ValueItem* math_factorial(list_array<ValueItem>* args) {
-	if (args) {
-		if (args->size() == 1)
-			return new ValueItem(math_factorial_impl(args->operator[](0)));
+template<class T>
+ValueItem* math_factorial(T* args, uint32_t args_len) {
+	T* new_arr = new T[args_len];
+	for (size_t i = 0; i < args_len; i++) {
+		if constexpr (std::is_same_v<T, ValueItem>)
+			new_arr[i] = math_factorial_impl(args[i]);
+		else if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
+			new_arr[i] = std::tgamma(args[i]);
+		}
+		else if constexpr(std::is_unsigned_v<T>) {
+			new_arr[i] = math_factorial_impl_FACTORu((uint64_t)args[i]);
+		}
 		else {
-			list_array<ValueItem>* res = new list_array<ValueItem>;
-			res->reserve_push_back(args->size());
-			for (auto& it : *args)
-				res->push_back(math_factorial_impl(it));
-
-			return new ValueItem(res, ValueMeta(VType::uarr, false, true));
+			new_arr[i] = math_factorial_impl_FACTORs((int64_t)args[i]);
+		}
+	}
+	return new ValueItem(new_arr, args_len);
+}
+ValueItem* math_factorial(ValueItem* args, uint32_t args_len) {
+	if (args) {
+		if (args_len == 1) {
+			switch (args->meta.vtype) {
+			case VType::uarr: {
+				list_array<ValueItem> new_uarr;
+				new_uarr.reserve_push_back((((list_array<ValueItem>*)args->getSourcePtr())->size()));
+				for (auto& it : *(list_array<ValueItem>*)args->getSourcePtr())
+					new_uarr.push_back(math_factorial_impl(it));
+				return new ValueItem(std::move(new_uarr));
+			}
+			case VType::faarr:
+			case VType::saarr:
+				return math_factorial<ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i8:
+				return math_factorial((int8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i16:
+				return math_factorial((int16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i32:
+				return math_factorial((int32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i64:
+				return math_factorial((int64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui8:
+				return math_factorial((uint8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui16:
+				return math_factorial((uint16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui32:
+				return math_factorial((uint32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui64:
+				return math_factorial((uint64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_flo:
+				return math_factorial((float*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_doub:
+				return math_factorial((double*)args->getSourcePtr(), args->meta.val_len);
+			default:
+				return new ValueItem(*args);
+			}
+		}
+		else {
+			return math_factorial<ValueItem>(args, args_len);
 		}
 	}
 	return nullptr;
@@ -466,7 +682,7 @@ ValueItem* math_factorial(list_array<ValueItem>* args) {
 template<double(*fn)(double)>
 ValueItem math_thrigonomic_impl(ValueItem& val) {
 	if (val.meta.vtype == VType::async_res)
-		getAsyncResult(val.val, val.meta);
+		val.getAsync();
 	switch (val.meta.vtype) {
 	case VType::i8:
 	case VType::ui8:
@@ -476,47 +692,71 @@ ValueItem math_thrigonomic_impl(ValueItem& val) {
 	case VType::ui32:
 	case VType::i64:
 	case VType::ui64:
-		double t = ABI_IMPL::Vcast<double>(val.val, val.meta);
-		ValueItem tmp((void*)&t, ValueMeta(VType::doub, false, true));
+		ValueItem tmp((double)val);
 		return math_thrigonomic_impl<fn>(tmp);
 	}
 	switch (val.meta.vtype) {
-	case VType::flo: {
-		union {
-			float x;
-			void* res = nullptr;
-		};
-		x = fn((*(float*)val.val));
-		return ValueItem(res, val.meta);
-	}
-	case VType::doub: {
-		union {
-			double x;
-			void* res = nullptr;
-		};
-		x = fn((*(double*)val.val));
-		return ValueItem(res, val.meta);
-	}
+	case VType::flo:
+		return ValueItem((float)fn((float)val));
+	case VType::doub: 
+		return ValueItem(fn((double)val));
 	default:
 		return val;
 	}
 }
+template<double(*fn)(double), class T>
+ValueItem* math_thrigonomic(T* args, uint32_t args_len) {
+	T* new_arr = new T[args_len];
+	for (size_t i = 0; i < args_len; i++) {
+		if constexpr (std::is_same_v<T, ValueItem>)
+			new_arr[i] = math_thrigonomic_impl<fn>(args[i]);
+		else {
+			new_arr[i] = (T)fn((double)args[i]);
+		}
+	}
+	return new ValueItem(new_arr, args_len);
+}
 template<double(*fn)(double)>
-ValueItem* math_thrigonomic(list_array<ValueItem>* args) {
+ValueItem* math_thrigonomic(ValueItem* args, uint32_t args_len) {
 	if (args) {
-		if (args->size() == 1) {
-			if (args->operator[](0).meta.vtype == VType::uarr)
-				return math_mode((list_array<ValueItem>*)args->operator[](0).val);
-			else
-				return new ValueItem(math_thrigonomic_impl<fn>(args->operator[](0)));
+		if (args_len == 1) {
+			switch (args->meta.vtype) {
+			case VType::uarr: {
+				list_array<ValueItem> new_uarr;
+				new_uarr.reserve_push_back((((list_array<ValueItem>*)args->getSourcePtr())->size()));
+				for (auto& it : *(list_array<ValueItem>*)args->getSourcePtr())
+					new_uarr.push_back(math_thrigonomic_impl<fn>(it));
+				return new ValueItem(std::move(new_uarr));
+			}
+			case VType::faarr:
+			case VType::saarr:
+				return math_thrigonomic<fn,ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i8:
+				return math_thrigonomic<fn, int8_t>((int8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i16:
+				return math_thrigonomic<fn, int16_t>((int16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i32:
+				return math_thrigonomic<fn, int32_t>((int32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_i64:
+				return math_thrigonomic<fn, int64_t>((int64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui8:
+				return math_thrigonomic<fn, uint8_t>((uint8_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui16:
+				return math_thrigonomic<fn, uint16_t >((uint16_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui32:
+				return math_thrigonomic<fn, uint32_t>((uint32_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_ui64:
+				return math_thrigonomic<fn, uint64_t>((uint64_t*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_flo:
+				return math_thrigonomic<fn, float>((float*)args->getSourcePtr(), args->meta.val_len);
+			case VType::raw_arr_doub:
+				return math_thrigonomic<fn, double>((double*)args->getSourcePtr(), args->meta.val_len);
+			default:
+				return new ValueItem(*args);
+			}
 		}
 		else {
-			list_array<ValueItem>* res = new list_array<ValueItem>;
-			res->reserve_push_back(args->size());
-			for (auto& it : *args)
-				res->push_back(math_thrigonomic_impl<fn>(it));
-
-			return new ValueItem(res, ValueMeta(VType::uarr, false, true));
+			return math_thrigonomic<fn, ValueItem>(args, args_len);
 		}
 	}
 	return nullptr;
@@ -560,138 +800,64 @@ double acoth(double d) {
 	return tanh(1 / d);
 }
 
-
-ValueItem math_pow_impl(ValueItem& val, ValueItem& m) {
-	if (val.meta.vtype == VType::async_res)
-		getAsyncResult(val.val, val.meta);
-	double x = (double)m;
-
-	double t = 0;
-	switch (val.meta.vtype) {
-	case VType::i8:
-		t = pow((int8_t)val.val,x);
-		break;
-	case VType::ui8:
-		t = pow((uint8_t)val.val, x);
-		break;
-	case VType::i16:
-		t = pow((int16_t)val.val, x);
-		break;
-	case VType::ui16:
-		t = pow((uint16_t)val.val, x);
-		break;
-	case VType::i32:
-		t = pow((int32_t)val.val, x);
-		break;
-	case VType::ui32:
-		t = pow((uint32_t)val.val, x);
-		break;
-	case VType::i64:
-		t = pow((int64_t)val.val, x);
-		break;
-	case VType::ui64:
-		t = pow((uint64_t)val.val, x);
-		break;
-	case VType::flo:
-		t = pow(*(float*)&val.val, x);
-		break;
-	case VType::doub:
-		t = pow(*(double*)&val.val, x);
-		break;
-	}
-
-	switch (val.meta.vtype) {
-	case VType::flo: {
-		float f = t;
-		return ValueItem((void*)&f, ValueMeta(VType::flo, false, true));
-	}
-	default:
-		return ValueItem((void*)&t, ValueMeta(VType::doub, false, true));
-	}
+template<class T>
+ValueItem* math_pow(T* args, uint32_t args_len,double power) {
+	T* new_arr = new T[args_len];
+	for (size_t i = 0; i < args_len; i++)
+		new_arr[i] = (T)pow((double)args[i], power);
+	return new ValueItem(new_arr, args_len);
 }
-ValueItem* math_pow(list_array<ValueItem>* args) {
+ValueItem* math_pow(ValueItem* args, uint32_t args_len) {
 	if (args) {
-		static ValueItem default_pow((void*)2, ValueMeta(VType::i32, false, true));
-		if (args->size() == 1)
-			return new ValueItem(math_pow_impl(args->operator[](0), default_pow));
-		else if (args->size() == 2) {
-			return new ValueItem(math_pow_impl(args->operator[](0), args->operator[](1)));
-		} 
-		else{
-			list_array<ValueItem>* res = new list_array<ValueItem>;
-			res->reserve_push_back(args->size());
-			for (auto& it : *args)
-				res->push_back(math_pow_impl(it, default_pow));
-
-			return new ValueItem(res, ValueMeta(VType::uarr, false, true));
+		double power = 2;
+		if (args_len <= 2) {
+			double power;
+			if (args_len == 2)
+				power = (double)args[1];
+			else
+				power = 2;
+			switch (args->meta.vtype) {
+			case VType::uarr: {
+				list_array<ValueItem> new_uarr;
+				new_uarr.reserve_push_back((((list_array<ValueItem>*)args->getSourcePtr())->size()));
+				for (auto& it : *(list_array<ValueItem>*)args->getSourcePtr())
+					new_uarr.push_back(pow((double)it, power));
+				return new ValueItem(std::move(new_uarr));
+			}
+			case VType::faarr:
+			case VType::saarr:
+				return math_pow<ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len, power);
+			case VType::raw_arr_i8:
+				return math_pow((int8_t*)args->getSourcePtr(), args->meta.val_len, power);
+			case VType::raw_arr_i16:
+				return math_pow((int16_t*)args->getSourcePtr(), args->meta.val_len, power);
+			case VType::raw_arr_i32:
+				return math_pow((int32_t*)args->getSourcePtr(), args->meta.val_len, power);
+			case VType::raw_arr_i64:
+				return math_pow((int64_t*)args->getSourcePtr(), args->meta.val_len, power);
+			case VType::raw_arr_ui8:
+				return math_pow((uint8_t*)args->getSourcePtr(), args->meta.val_len, power);
+			case VType::raw_arr_ui16:
+				return math_pow((uint16_t*)args->getSourcePtr(), args->meta.val_len, power);
+			case VType::raw_arr_ui32:
+				return math_pow((uint32_t*)args->getSourcePtr(), args->meta.val_len, power);
+			case VType::raw_arr_ui64:
+				return math_pow((uint64_t*)args->getSourcePtr(), args->meta.val_len, power);
+			case VType::raw_arr_flo:
+				return math_pow((float*)args->getSourcePtr(), args->meta.val_len, power);
+			case VType::raw_arr_doub:
+				return math_pow((double*)args->getSourcePtr(), args->meta.val_len, power);
+			default:
+				return new ValueItem(*args);
+			}
 		}
-	}
-	return nullptr;
-}
-
-
-ValueItem math_frrt_impl(ValueItem& val) {
-	if (val.meta.vtype == VType::async_res)
-		getAsyncResult(val.val, val.meta);
-	constexpr double x = 1. / 4;
-	double t = 0;
-	switch (val.meta.vtype) {
-	case VType::i8:
-		t = pow((int8_t)val.val, x);
-		break;
-	case VType::ui8:
-		t = pow((uint8_t)val.val, x);
-		break;
-	case VType::i16:
-		t = pow((int16_t)val.val, x);
-		break;
-	case VType::ui16:
-		t = pow((uint16_t)val.val, x);
-		break;
-	case VType::i32:
-		t = pow((int32_t)val.val, x);
-		break;
-	case VType::ui32:
-		t = pow((uint32_t)val.val, x);
-		break;
-	case VType::i64:
-		t = pow((int64_t)val.val, x);
-		break;
-	case VType::ui64:
-		t = pow((uint64_t)val.val, x);
-		break;
-	case VType::flo:
-		t = pow(*(float*)&val.val, x);
-		break;
-	case VType::doub:
-		t = pow(*(double*)&val.val, x);
-		break;
-	}
-
-	switch (val.meta.vtype) {
-	case VType::flo: {
-		float f = (float)t;
-		return ValueItem((void*)&f, ValueMeta(VType::flo, false, true));
-	}
-	default:
-		return ValueItem((void*)&t, ValueMeta(VType::doub, false, true));
-	}
-}
-ValueItem* math_frrt(list_array<ValueItem>* args) {
-	if (args) {
-		if (args->size() == 1)
-			return new ValueItem(math_frrt_impl(args->operator[](0)));
 		else {
-			list_array<ValueItem>* res = new list_array<ValueItem>;
-			res->reserve_push_back(args->size());
-			for (auto& it : *args)
-				res->push_back(math_frrt_impl(it));
-
-			return new ValueItem(res, ValueMeta(VType::uarr, false, true));
+			return math_pow<ValueItem>(args, args_len, 2);
 		}
 	}
 	return nullptr;
 }
+
 
 extern "C" void initStandardFunctions() {
 #pragma region Console
@@ -739,11 +905,11 @@ extern "C" void initStandardFunctions() {
 	FuncEnviropment::AddNative(math_range, "math range", false);
 	FuncEnviropment::AddNative(math_mode, "math mode", false);
 
-	FuncEnviropment::AddNative(math_round, "math round", false);
-	FuncEnviropment::AddNative(math_floor, "math floor", false);
-	FuncEnviropment::AddNative(math_ceil, "math ceil", false);
-	FuncEnviropment::AddNative(math_fix, "math fix", false);
-
+	FuncEnviropment::AddNative(math_transform_fn<(float(*)(float))round, (double(*)(double))round>, "math round", false);
+	FuncEnviropment::AddNative(math_transform_fn<(float(*)(float))floor, (double(*)(double))floor>, "math floor", false);
+	FuncEnviropment::AddNative(math_transform_fn<(float(*)(float))ceil, (double(*)(double))ceil>, "math ceil", false);
+	FuncEnviropment::AddNative(math_transform_fn<(float(*)(float))trunc, (double(*)(double))trunc>, "math fix", false);
+	
 	FuncEnviropment::AddNative(math_factorial, "math factorial", false);
 	FuncEnviropment::AddNative(math_thrigonomic<sin>, "math sin", false);
 	FuncEnviropment::AddNative(math_thrigonomic<asin>, "math asin", false);
@@ -770,12 +936,12 @@ extern "C" void initStandardFunctions() {
 	FuncEnviropment::AddNative(math_thrigonomic<coth>, "math coth", false);
 	FuncEnviropment::AddNative(math_thrigonomic<acoth>, "math acoth", false);
 
-	FuncEnviropment::AddNative(math_thrigonomic_impl<sqrt>, "math sqrt", false);
-	FuncEnviropment::AddNative(math_thrigonomic_impl<cbrt>, "math cbrt", false);
+	FuncEnviropment::AddNative(math_thrigonomic<sqrt>, "math sqrt", false);
+	FuncEnviropment::AddNative(math_thrigonomic<cbrt>, "math cbrt", false);
 	FuncEnviropment::AddNative(math_pow, "math pow", false);
-	FuncEnviropment::AddNative(math_thrigonomic_impl<log>, "math log", false);
-	FuncEnviropment::AddNative(math_thrigonomic_impl<log2>, "math log2", false);
-	FuncEnviropment::AddNative(math_thrigonomic_impl<log10>, "math log10", false);
+	FuncEnviropment::AddNative(math_thrigonomic<log>, "math log", false);
+	FuncEnviropment::AddNative(math_thrigonomic<log2>, "math log2", false);
+	FuncEnviropment::AddNative(math_thrigonomic<log10>, "math log10", false);
 
 
 
@@ -785,65 +951,77 @@ extern "C" void initStandardFunctions() {
 #pragma region File
 
 #pragma endregion
+#pragma region Paralel
+	parallel::init();
+	FuncEnviropment::AddNative(parallel::constructor::createProxy_Mutex, "# parallel mutex", false);
+	FuncEnviropment::AddNative(parallel::constructor::createProxy_ConditionVariable, "# parallel condition_variable", false);
+	FuncEnviropment::AddNative(parallel::constructor::createProxy_Semaphore, "# parallel semaphore", false);
+	FuncEnviropment::AddNative(parallel::constructor::createProxy_ConcurentFile, "# parallel concurent_file", false);
+	FuncEnviropment::AddNative(parallel::constructor::createProxy_EventSystem, "# parallel event_system", false);
+	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskLimiter, "# parallel task_limiter", false);
+	FuncEnviropment::AddNative(parallel::createThread, "parallel create_thread", false);
+#pragma endregion
+#pragma region Chanel
+	FuncEnviropment::AddNative(chanel::constructor::createProxy_Chanel, "# chanel chanel", false);
+	FuncEnviropment::AddNative(chanel::constructor::createProxy_ChanelHandler, "# chanel chanel_handler", false);
+#pragma endregion
 }
 
 
 
-ValueItem* cmath_frexp(list_array<ValueItem>* args) {
+ValueItem* cmath_frexp(ValueItem* args, uint32_t args_len) {
 	double doub;
-	if (args)
-		doub = (double)args->operator[](0);
+	if (args && args_len >= 1)
+		doub = (double)args[0];
 	else
 		doub = 0;
-	list_array<ValueItem>* rs = new list_array<ValueItem>(2);
+	ValueItem* rs = new ValueItem[2];
 	int res1;
-	rs->operator[](0) = std::frexp(doub, &res1);
-	rs->operator[](1) = res1;
-	return new ValueItem(rs, ValueMeta(VType::uarr, false, true));
+	rs[0] = std::frexp(doub, &res1);
+	rs[1] = res1;
+	return new ValueItem(rs, 2, true);
 }
-ValueItem* cmath_modf(list_array<ValueItem>* args) {
+ValueItem* cmath_modf(ValueItem* args, uint32_t args_len) {
 	double doub;
-	if (args)
-		doub = (double)args->operator[](0);
+	if (args && args_len >= 1)
+		doub = (double)args[0];
 	else
 		doub = 0;
-	list_array<ValueItem>* rs = new list_array<ValueItem>(2);
+	ValueItem* rs = new ValueItem[2];
 	double res1;
-	rs->operator[](0) = std::modf(doub, &res1);
-	rs->operator[](1) = res1;
-	return new ValueItem(rs, ValueMeta(VType::uarr, false, true));
+	rs[0] = std::modf(doub, &res1);
+	rs[1] = res1;
+	return new ValueItem(rs, 2, true);
 }
-ValueItem* cmath_remquo(list_array<ValueItem>* args) {
+ValueItem* cmath_remquo(ValueItem* args, uint32_t args_len) {
 	double doub0;
 	double doub1;
-	if (args) {
-		doub0 = (double)args->operator[](0);
-		doub1 = (double)args->operator[](1);
+	if (args && args_len >= 2) {
+		doub0 = (double)args[0];
+		doub1 = (double)args[1];
 	}
 	else {
 		doub0 = 0;
 		doub1 = 0;
 	}
-	list_array<ValueItem>* rs = new list_array<ValueItem>(2);
+	ValueItem* rs = new ValueItem[2];
 	int res1;
-	rs->operator[](0) = std::remquo(doub0, doub1, &res1);
-	rs->operator[](1) = res1;
-	return new ValueItem(rs, ValueMeta(VType::uarr, false, true));
+	rs[0] = std::remquo(doub0, doub1, &res1);
+	rs[1] = res1;
+	return new ValueItem(rs, 2, true);
 }
-ValueItem* cmath_nexttoward(list_array<ValueItem>* args) {
+ValueItem* cmath_nexttoward(ValueItem* args, uint32_t args_len) {
 	float doub0;
 	long double doub1;
-	if (args) {
-		doub0 = (double)args->operator[](0);
-		doub1 = (double)args->operator[](1);
+	if (args && args_len >= 2) {
+		doub0 = (float)args[0];
+		doub1 = (double)args[1];
 	}
 	else {
 		doub0 = 0;
 		doub1 = 0;
 	}
-	list_array<ValueItem>* rs = new list_array<ValueItem>(2);
-	rs->operator[](0) = std::nexttoward(doub0, doub1);
-	return new ValueItem(rs, ValueMeta(VType::uarr, false, true));
+	return new ValueItem(std::nexttoward(doub0, doub1));
 }
 extern "C" void initCMathLib() {
 	FuncEnviropment::AddNative((double(*)(double))std::acos, "cmath acos", false);

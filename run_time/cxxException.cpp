@@ -45,7 +45,7 @@ namespace except_abi {
 		{
 			const ExCatchableType* ss = (const ExCatchableType*)(e->ExceptionRecord->ExceptionInformation[3] + cArray->array_of_catchable_types(0));
 			CXXExInfo::Tys tys
-			{ 
+			{
 				(const std::type_info*)(e->ExceptionRecord->ExceptionInformation[3] + ss->type_info),
 				(const void*)(e->ExceptionRecord->ExceptionInformation[3] + ss->copy_function)
 			};
@@ -56,19 +56,18 @@ namespace except_abi {
 		return ex;
 	}
 
+	static void ex_rethrow(const std::exception_ptr& ex) { std::rethrow_exception(ex); }
 
 	static int getCxxExInfoFromException(CXXExInfo& res, void* e) {
 		res = except_abi::exceptCXXDetails((LPEXCEPTION_POINTERS)e);
 		return EXCEPTION_EXECUTE_HANDLER;
 	}
-	static void ex_rethrow(const std::exception_ptr& ex) { std::rethrow_exception(ex); }
 
 	static void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex) {
-		__try { except_abi::ex_rethrow(ex); }
+		__try { ex_rethrow(ex); }
 		__except (except_abi::getCxxExInfoFromException(res, GetExceptionInformation())) {}
 	}
 }
-
 void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex) {
 	except_abi::getCxxExInfoFromException(res, ex);
 }

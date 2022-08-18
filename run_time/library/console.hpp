@@ -6,13 +6,14 @@
 
 #pragma once
 #include <cstdint>
+#include "../attacha_abi_structs.hpp"
 #include "../../library/list_array.hpp"
 struct ValueItem;
 namespace console {
 	extern const bool is_loaded;
 	extern "C" {
-		ValueItem* printLine(list_array<ValueItem>*);//print all arguments, convert all non string values to string
-		ValueItem* print(list_array<ValueItem>*);//print all arguments, convert all non string values to string
+		ValueItem* printLine(ValueItem* args,uint32_t len);//print all arguments, convert all non string values to string
+		ValueItem* print(ValueItem* args, uint32_t len);//print all arguments, convert all non string values to string
 		
 		void resetModifiers();
 		void boldText();
@@ -33,14 +34,14 @@ namespace console {
 		void saveCurPos();
 		void loadCurPos();
 		void setLine(uint32_t y);
-		void showCursor(uint32_t y);
-		void hideCursor(uint32_t y);
+		void showCursor();
+		void hideCursor();
 
 
 
-		ValueItem* readWord(list_array<ValueItem>*);//return string, optional argument with buffer len
-		ValueItem* readLine(list_array<ValueItem>*);//return string, no arguments
-		ValueItem* readInput(list_array<ValueItem>*);//return string, no arguments
-		ValueItem* readValue(list_array<ValueItem>*);//return any value, no arguments
+		ValueItem* readWord(ValueItem* args, uint32_t len);//return string, no arguments
+		ValueItem* readLine(ValueItem* args, uint32_t len);//return string, no arguments
+		ValueItem* readInput(ValueItem* args, uint32_t len);//return string, no arguments
+		ValueItem* readValue(ValueItem* args, uint32_t len);//return any value, no arguments
 	}
 }
