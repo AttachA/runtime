@@ -702,11 +702,12 @@ class BuildCall {
 	bool red_zone_inited = false;
 #ifdef _WIN64
 	void callStart() {
-		if (!arg_c) {
-			if (!red_zone_inited)
-				csm.stackIncrease(CASM_REDZONE_SIZE);//function visual c++ abi
-			red_zone_inited = true;
-		}
+		//in vc++ x64 cdecl and vectorcal are different TO-DO implement them, 
+		//if (!arg_c) {
+		//	if (!red_zone_inited)
+		//		csm.stackIncrease(CASM_REDZONE_SIZE);//function visual c++ abi
+		//	red_zone_inited = true;
+		//}
 	}
 #else
 #define callStart()
@@ -997,16 +998,24 @@ public:
 #endif
 			break;
 		default:
-			csm.push(0);
+			csm.push(0ull);
 			pushed += 8;
 		}
 	}
 
 	template<class F>
 	void finalize(F func) {
-		csm.call(func);
-		if (pushed) 
-			csm.stackReduce(pushed);
+		//vector call calle impl
+		if(CASM_REDZONE_SIZE > pushed){
+			csm.stackIncrease(CASM_REDZONE_SIZE - pushed);
+			csm.call(func);
+			csm.stackReduce(CASM_REDZONE_SIZE);
+		}else{
+			//vector call and cdecl calle impl
+			csm.call(func);
+			if (pushed) 
+				csm.stackReduce(pushed);
+		}
 		pushed = 0;
 		arg_c = 0;
 	}
@@ -1046,7 +1055,7 @@ public:
 		::abort();
 	}
 	void pushReg(creg reg) {
-		csm.push(reg.fromTypeAndId(asmjit::RegType::kGp64, reg.id()));
+		csm.push(reg.fromTypeAndId(asmjit::x86::Reg::kTypeGp64, reg.id()));
 		if ((uint8_t)csm.offset() != csm.offset())
 			throw CompileTimeException("prolog too large");
 		res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_PUSH_NONVOL, reg.id()).solid);
@@ -1096,7 +1105,7 @@ public:
 	}
 	void saveToStack(creg reg, int32_t stack_back_offset) {
 		if (reg.isVec()) {
-			if (reg.type() == asmjit::RegType::kVec128) {
+			if (reg.type() == asmjit::x86::Reg::kTypeVec128) {
 				if (INT32_MAX > stack_back_offset)
 					throw CompileTimeException("Overflow, fail convert 64 point to 32 point");
 				if (UINT16_MAX > stack_back_offset || stack_back_offset % 16) {

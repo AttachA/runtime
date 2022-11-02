@@ -127,9 +127,11 @@ gc_destruct:
 }
 void universalRemove(void** value) {
 	ValueMeta& meta = *reinterpret_cast<ValueMeta*>(value + 1);
-	if (!meta.encoded)
+	if (!value)
 		return;
 	if (!*value)
+		return;
+	if (!meta.encoded)
 		return;
 	if(!meta.as_ref)
 		if (needAlloc(meta))

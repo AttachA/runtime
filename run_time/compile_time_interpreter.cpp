@@ -2,47 +2,14 @@
 #include "tasks.hpp"
 #include <asmjit/core/cpuinfo.h>
 #include "tools.hpp"
+#include "attacha_abi.hpp"
 using namespace run_time;
 namespace constant_calc {
 	std::string arch() {
-		switch (asmjit::Arch::kHost) {
-		default:
-		case asmjit::Arch::kUnknown: return "Unknown";
-		case asmjit::Arch::kX86: return "X86";
-		case asmjit::Arch::kX64: return "X64";
-		case asmjit::Arch::kRISCV32: return "RISCv32";
-		case asmjit::Arch::kRISCV64: return "RISCv64";
-		case asmjit::Arch::kARM: return "ARM";
-		case asmjit::Arch::kAArch64: return "AArch64";
-		case asmjit::Arch::kThumb: return "ARM_Thumb";
-		case asmjit::Arch::kMIPS32_LE: return "MIPS32_LE";
-		case asmjit::Arch::kMIPS64_LE: return "MIPS64_LE";
-		case asmjit::Arch::kARM_BE: return "ARM_BE";
-		case asmjit::Arch::kAArch64_BE: return "AArch64_BE";
-		case asmjit::Arch::kThumb_BE: return "ARM_Thumb_BE";
-		case asmjit::Arch::kMIPS32_BE: return "MIPS32_BE";
-		case asmjit::Arch::kMIPS64_BE: return "MIPS64_BE";
-		}
+		return "Unknown";
 	}
 	uint8_t arch_id() {
-		switch (asmjit::Arch::kHost) {
-		default:
-		case asmjit::Arch::kUnknown: return 0;
-		case asmjit::Arch::kX86: return 1;
-		case asmjit::Arch::kX64: return 2;
-		case asmjit::Arch::kRISCV32: return 3;
-		case asmjit::Arch::kRISCV64: return 4;
-		case asmjit::Arch::kARM: return 5;
-		case asmjit::Arch::kAArch64: return 6;
-		case asmjit::Arch::kThumb: return 7;
-		case asmjit::Arch::kMIPS32_LE: return 8;
-		case asmjit::Arch::kMIPS64_LE: return 9;
-		case asmjit::Arch::kARM_BE: return 10;
-		case asmjit::Arch::kAArch64_BE: return 11;
-		case asmjit::Arch::kThumb_BE: return 12;
-		case asmjit::Arch::kMIPS32_BE: return 13;
-		case asmjit::Arch::kMIPS64_BE: return 14;
-		}
+		return 0;
 	}
 }
 
@@ -72,7 +39,7 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 		Opcode opcodes = (Opcode)code[ii];
 		switch (opcodes) {
 		case Opcode::noting:break;
-		case Opcode::set:
+		case Opcode::set:{
 			uint16_t value_index = readData<uint16_t>(code, code_len, ii);
 			switch (readData<VType>(code, code_len, ii)) {
 			case VType::i8:
@@ -142,6 +109,7 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 				break;
 			}
 			break;
+		}
 		case Opcode::remove:
 			getValue(readData<uint16_t>(code, code_len, ii), its) = VType::noting;
 			break;
@@ -195,7 +163,7 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 		case Opcode::compare:
 			flags = compare(flags, &getValue(readData<uint16_t>(code, code_len, ii), its).val, &getValue(readData<uint16_t>(code, code_len, ii), its).val);
 			break;
-		case Opcode::jump:
+		case Opcode::jump:{
 			uint64_t to_jump = readData<uint64_t>(code, code_len, ii);
 			switch (readData<JumpCondition>(code, code_len, ii)){
 			default:
@@ -235,6 +203,7 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 			}
 			}
 			break;
+		}
 		case Opcode::call: {
 			CallFlags cflags;
 			cflags.encoded = readData<uint8_t>(code, code_len, ii);
@@ -245,8 +214,8 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 				readString(code, code_len, ii);
 
 			r = cflags.except_catch ?
-				FuncEnviropment::CallFunc_catch(fnn, arg_reg, cflags.async_mode) :
-				FuncEnviropment::CallFunc(fnn, arg_reg, cflags.async_mode);
+				FuncEnviropment::callFunc_catch(fnn, nullptr, 0, cflags.async_mode) :
+				FuncEnviropment::callFunc(fnn, nullptr, 0, cflags.async_mode);
 
 			if (cflags.use_result)
 				getValue(readData<uint16_t>(code, code_len, ii), its) = std::move(*r);
@@ -265,7 +234,7 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 		case Opcode::force_debug_break:
 			__debugbreak();
 			break;
-		case Opcode::throw_ex:
+		case Opcode::throw_ex:{
 			bool in_memory = readData<bool>(code, code_len, ii);
 			if (in_memory) {
 				std::string exname = (std::string)getValue(readData<uint16_t>(code, code_len, ii), its);
@@ -275,6 +244,7 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 				std::string exname = readString(code, code_len, ii);
 				throw AException(exname, readString(code, code_len, ii));
 			}
+		}
 		case Opcode::as: {
 			uint16_t vid = readData<uint16_t>(code, code_len, ii);
 			asValue(&getValue(vid, its).val, (readData<VType>(code, code_len, ii)));
@@ -286,19 +256,6 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 			break;
 		case Opcode::load_bool:
 			break;
-		case Opcode::make_inline_call: {
-
-
-
-
-
-			break;
-		}
-			break;
-		case Opcode::casm: {
-			//TO-DO
-			break;
-		}
 		case Opcode::inline_native: {
 			union {
 				uint16_t len;

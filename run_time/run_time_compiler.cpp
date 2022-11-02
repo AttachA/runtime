@@ -778,7 +778,6 @@ void FuncEviroBuilder::arr_pop_end(uint16_t arr, bool static_mode) {
 void FuncEviroBuilder::arr_pop_start(uint16_t arr, bool static_mode) {
 	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
 	builder::write(code, arr);
-	OpArrFlags flags;
 	code.push_back(0);
 	code.push_back((uint8_t)OpcodeArray::pop_start);
 }

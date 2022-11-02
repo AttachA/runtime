@@ -58,114 +58,109 @@ namespace chanel {
 	}
 	ChanelHandler::ChanelHandler(){}
 	ValueItem ChanelHandler::take() {
-			while (res_cache.empty()) {
-				{
-					std::lock_guard guard(res_lock);
-					if (!allow_sub)
-						throw AException("TaskDeath", "Detached from chanel");
-				}
-				res_await.wait_for(500);
-			}
-			std::lock_guard guard(res_lock);
-			if (!allow_sub)
-				if (res_cache.size() == 1)
-					return res_cache.front();
-
-			auto res = std::move(res_cache.front());
-			res_cache.pop();
-			return res;
-		}
+		if(res_cache.empty())
+			if (!wait_item())
+				throw AException("TaskDeath", "Detached from chanel");
+		if (!allow_sub)
+			if (res_cache.size() == 1)
+				return res_cache.front();
+		auto res = std::move(res_cache.front());
+		res_cache.pop();
+		return res;
+	}
 	bool ChanelHandler::can_take() {
-			std::lock_guard guard(res_lock);
-			if (res_cache.size() > 1)
-				return true;
-			return allow_sub;
-		}
-	bool ChanelHandler::end_of_chanel() {
-			return allow_sub;
-		}
-	bool ChanelHandler::wait_item() {
-			while (res_cache.empty()) {
-				{
-					std::lock_guard guard(res_lock);
-					if (!allow_sub)
-						return false;
-				}
-				res_await.wait_for(500);
-			}
+		std::lock_guard guard(res_lock);
+		if (res_cache.size() > 1)
 			return true;
+		return allow_sub;
+	}
+	bool ChanelHandler::end_of_chanel() {
+		return allow_sub;
+	}
+	bool ChanelHandler::wait_item() {
+		while (res_cache.empty()) {
+			{
+				std::lock_guard guard(res_lock);
+				if (!allow_sub)
+					return false;
+			}
+			MutexUnify mu(res_lock);
+			std::unique_lock ul(mu);
+			res_await.wait_for(ul, 500);
 		}
+		return true;
+	}
 	
 
 	Chanel::Chanel() {}
 	Chanel::~Chanel() {
-			std::lock_guard guard(no_race);
-			auto begin = suber.begin();
-			auto end = suber.end();
-			ValueItem val = _lazy_load_singleton_chanelDeath();
-			while (begin != end) {
-				if (begin->totalLinks() == 1)
-					begin = suber.erase(begin);
-				else {
-					std::lock_guard item_guard((*begin)->res_lock);
-					(*begin)->res_cache.push(val);
-					(*begin)->allow_sub = false;
-				}
-			}
-			notifier.notify_all();
-		}
-	void Chanel::notify(const ValueItem& val) {
-			std::lock_guard guard(no_race);
-			auto begin = suber.begin();
-			auto end = suber.end();
-			while (begin != end) {
-				if (begin->totalLinks() == 1)
-					begin = suber.erase(begin);
-				else
-					(*begin++)->put(val);
-			}
-		}
-	void Chanel::notify(ValueItem* vals, uint32_t len) {
-			std::lock_guard guard(no_race);
-			auto begin = suber.begin();
-			auto end = suber.end();
-			while (begin != end) {
-				std::lock_guard item_guard((*begin)->res_lock);
-				if (begin->totalLinks() == 1)
-					begin = suber.erase(begin);
-				else {
-					auto ibegin = vals;
-					auto iend = vals + len;
-					auto& cache = (*begin++)->res_cache;
-					while (ibegin != iend)
-						cache.push(*ibegin++);
-				}
-				(*begin)->res_await.notify_all();
-			}
-		}
-	typed_lgr<ChanelHandler> Chanel::create_handle() {
-			std::lock_guard guard(no_race);
-			return suber.emplace_back(new ChanelHandler());
-		}
-	typed_lgr<ChanelHandler> Chanel::add_handle(typed_lgr<ChanelHandler> handler) {
-			std::lock_guard guard(no_race);
-			return suber.emplace_back(handler);
-		}
-	void Chanel::remove_handle(typed_lgr<ChanelHandler> handle) {
-			std::lock_guard guard(no_race);
-			auto end = suber.end();
-			auto found = std::find(suber.begin(), end, handle);
-			if (found == end)
-				return;
+		std::lock_guard guard(no_race);
+		auto begin = suber.begin();
+		auto end = suber.end();
+		ValueItem val = _lazy_load_singleton_chanelDeath();
+		while (begin != end) {
+			if (begin->totalLinks() == 1)
+				begin = suber.erase(begin);
 			else {
-				{
-					std::lock_guard item_guard((*found)->res_lock);
-					(*found)->allow_sub = false;
-					(*found)->res_cache.push(_lazy_load_singleton_handleDeath());
-				}
-				suber.erase(found);
+				std::lock_guard item_guard((*begin)->res_lock);
+				(*begin)->res_cache.push(val);
+				(*begin)->allow_sub = false;
 			}
 		}
+		notifier.notify_all();
+	}
+	void Chanel::notify(const ValueItem& val) {
+		std::lock_guard guard(no_race);
+		auto begin = suber.begin();
+		auto end = suber.end();
+		while (begin != end) {
+			if (begin->totalLinks() == 1)
+				begin = suber.erase(begin);
+			else
+				(*begin++)->put(val);
+		}
+	}
+	void Chanel::notify(ValueItem* vals, uint32_t len) {
+		std::lock_guard guard(no_race);
+		auto begin = suber.begin();
+		auto end = suber.end();
+		while (begin != end) {
+			std::lock_guard item_guard((*begin)->res_lock);
+			if (begin->totalLinks() == 1)
+				begin = suber.erase(begin);
+			else {
+				auto ibegin = vals;
+				auto iend = vals + len;
+				auto& cache = (*begin++)->res_cache;
+				while (ibegin != iend)
+					cache.push(*ibegin++);
+			}
+			(*begin)->res_await.notify_all();
+		}
+	}
+	typed_lgr<ChanelHandler> Chanel::create_handle() {
+		std::lock_guard guard(no_race);
+		return suber.emplace_back(new ChanelHandler());
+	}
+	typed_lgr<ChanelHandler> Chanel::add_handle(typed_lgr<ChanelHandler> handler) {
+		std::lock_guard guard(no_race);
+		return suber.emplace_back(handler);
+	}
+	void Chanel::remove_handle(typed_lgr<ChanelHandler> handle) {
+		std::lock_guard guard(no_race);
+		auto end = suber.end();
+		auto found = std::find(suber.begin(), end, handle);
+		if (found == end)
+			return;
+		else {
+			{
+				std::lock_guard item_guard((*found)->res_lock);
+				(*found)->allow_sub = false;
+				(*found)->res_cache.push(_lazy_load_singleton_handleDeath());
+			}
+			suber.erase(found);
+		}
+	}
 
 
 

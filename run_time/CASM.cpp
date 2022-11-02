@@ -46,7 +46,8 @@ size_t alocate_and_prepare_code(uint8_t*& res, CodeHolder* code, asmjit::JitAllo
 		alloc->shrink(rx, codeSize + additional_size);
 
 	{
-		asmjit::VirtMem::ProtectJitReadWriteScope rwScope(rx, codeSize);
+		//asmjit deprecated
+		//asmjit::VirtMem::ProtectJitReadWriteScope rwScope(rx, codeSize);
 
 		for (asmjit::Section* section : code->_sections) {
 			size_t offset = size_t(section->offset());

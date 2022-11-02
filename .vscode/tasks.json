@@ -1,0 +1,13 @@
+{
+    "tasks": [
+        {
+            "label": "cmake",
+            "type": "shell",
+            "options": {
+                "cwd": "${workspaceRoot}/build"
+            },
+            "command": "cmake  ${workspaceRoot}",
+        },
+    ],
+    "version": "2.0.0"
+}
