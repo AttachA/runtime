@@ -967,6 +967,7 @@ TaskConditionVariable::~TaskConditionVariable() {
 
 ValueItem* _tcv_wait(ValueItem* args, uint32_t len) {
 	((TaskConditionVariable*)args->val)->wait(*(std::unique_lock<MutexUnify>*)args[1].val);
+	std::unique_lock ul(*(std::mutex*)args[4].val);
 	(*(bool*)args[3].val)=true;
 	((std::condition_variable*)args[2].val)->notify_all();
 	return nullptr;
@@ -989,10 +990,10 @@ void TaskConditionVariable::wait(std::unique_lock<MutexUnify>& mut) {
 	else {
 		std::condition_variable cd;
 		bool has_res = false;
-		ValueItem tmp{ ValueItem(this, VType::undefined_ptr),ValueItem(&mut, VType::undefined_ptr), ValueItem(&cd, VType::undefined_ptr), ValueItem(&has_res, VType::undefined_ptr)};
-		typed_lgr task = new Task(tcv_wait, tmp);
 		std::mutex mt;
     	std::unique_lock<std::mutex> ul(mt);
+		ValueItem tmp{ ValueItem(this, VType::undefined_ptr),ValueItem(&mut, VType::undefined_ptr), ValueItem(&cd, VType::undefined_ptr), ValueItem(&has_res, VType::undefined_ptr), ValueItem(&mt, VType::undefined_ptr)};
+		typed_lgr task = new Task(tcv_wait, tmp);
 		Task::start(task);
 		cd.wait(ul,[&has_res](){return has_res;});
 	}
@@ -1004,6 +1005,7 @@ bool TaskConditionVariable::wait_for(std::unique_lock<MutexUnify>& mut, size_t m
 }
 ValueItem* _tcv_wait_until(ValueItem* args, uint32_t len) {
 	auto res = ((TaskConditionVariable*)args->val)->wait_until(*(std::unique_lock<MutexUnify>*)args[1].val, std::chrono::high_resolution_clock::time_point(std::chrono::high_resolution_clock::duration((int64_t)args[2]))) ? new ValueItem(true) : nullptr;
+    std::unique_lock ul(*(std::mutex*)args[5].val);
 	(*(bool*)args[4].val)=true;
 	((std::condition_variable*)args[3].val)->notify_all();
 	return res;
@@ -1024,10 +1026,10 @@ bool TaskConditionVariable::wait_until(std::unique_lock<MutexUnify>& mut, std::c
 	else {
 		std::condition_variable cd;
 		bool has_res = false;
-		ValueItem tmp{ ValueItem(this, VType::undefined_ptr),ValueItem(&mut, VType::undefined_ptr), ValueItem(&cd, VType::undefined_ptr), ValueItem(&has_res, VType::undefined_ptr), time_point.time_since_epoch().count()};
-		typed_lgr task = new Task(tcv_wait_until, tmp);
 		std::mutex mt;
     	std::unique_lock<std::mutex> ul(mt);
+		ValueItem tmp{ ValueItem(this, VType::undefined_ptr),ValueItem(&mut, VType::undefined_ptr), ValueItem(&cd, VType::undefined_ptr), ValueItem(&has_res, VType::undefined_ptr), ValueItem(&mt, VType::undefined_ptr), time_point.time_since_epoch().count()};
+		typed_lgr task = new Task(tcv_wait_until, tmp);
 		Task::start(task);
 		cd.wait_until(ul,time_point,[&has_res](){return has_res;});
 		return (bool)Task::await_results(task)[0];
