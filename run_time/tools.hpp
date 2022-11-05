@@ -56,26 +56,26 @@ namespace run_time {
 		case VType::noting:
 			break;
 		case VType::i8:
-			res.val = (void*)readData<int8_t>(data, data_len, i);
+			res.val = (void*)(0ll+readData<int8_t>(data, data_len, i));
 			break;
 		case VType::i16:
-			res.val = (void*)readData<int16_t>(data, data_len, i);
+			res.val = (void*)(0ll+readData<int16_t>(data, data_len, i));
 			break;
 		case VType::i32:
-			res.val = (void*)readData<int32_t>(data, data_len, i);
+			res.val = (void*)(0ll+readData<int32_t>(data, data_len, i));
 			break;
 		case VType::i64:
 			res.val = (void*)readData<int64_t>(data, data_len, i);
 			break;
 		case VType::ui8:
 		case VType::type_identifier:
-			res.val = (void*)readData<uint8_t>(data, data_len, i);
+			res.val = (void*)(0ull+readData<uint8_t>(data, data_len, i));
 			break;
 		case VType::ui16:
-			res.val = (void*)readData<uint16_t>(data, data_len, i);
+			res.val = (void*)(0ull+readData<uint16_t>(data, data_len, i));
 			break;
 		case VType::ui32:
-			res.val = (void*)readData<uint32_t>(data, data_len, i);
+			res.val = (void*)(0ull+readData<uint32_t>(data, data_len, i));
 			break;
 		case VType::ui64:
 		case VType::undefined_ptr:

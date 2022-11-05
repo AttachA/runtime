@@ -311,7 +311,7 @@ ValueItem* buildRes(void** value) {
 	try {
 		res = new ValueItem();
 	}
-	catch (const std::bad_alloc& ex)
+	catch (const std::bad_alloc&)
 	{
 		throw EnviropmentRuinException();
 	}
@@ -899,7 +899,7 @@ std::pair<bool, bool> compareValue(ValueMeta cmp1, ValueMeta cmp2, void* val1, v
 			case VType::i32:
 				return { false, uint64_t(val1) < int32_t(val2) };
 			case VType::i64:
-				return { false, uint64_t(val1) < int64_t(val2) };
+				return { false, int64_t(val2) < 0 ? false : uint64_t(val1) < uint64_t(val2) };
 			case VType::flo:
 				return { false, uint64_t(val1) < *(float*)&val2 };
 			case VType::doub:
@@ -914,7 +914,7 @@ std::pair<bool, bool> compareValue(ValueMeta cmp1, ValueMeta cmp2, void* val1, v
 			case VType::i32:
 				return { false, int32_t(val1) < uint64_t(val2) };
 			case VType::i64:
-				return { false, int64_t(val1) < uint64_t(val2) };
+				return { false, int64_t(val1) < 0 ? true : uint64_t(val1) < uint64_t(val2) };
 			case VType::flo:
 				return { false, *(float*)&val1 < uint64_t(val2) };
 			case VType::doub:
@@ -1978,7 +1978,7 @@ void asValue(void** val, VType type) {
 			try {
 				throw AException("Undefined", ABI_IMPL::Scast(*val, meta),copyValue(*val, meta), meta.encoded);
 			}
-			catch (AException& ex) {
+			catch (AException&) {
 				universalRemove(val);
 				*val = new std::exception_ptr(std::current_exception());
 				meta = ValueMeta(VType::except_value, false, true);

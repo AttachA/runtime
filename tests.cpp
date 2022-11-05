@@ -24,12 +24,13 @@
 struct test_struct {
 	uint64_t a, b;
 };
-
-
+#pragma warning(push) 
+#pragma warning(disable : 4717)
 void SOVER() {
 	void* test = alloca(100000);
 	SOVER();
 }
+#pragma warning(pop)
 
 
 void TestCall() {
@@ -140,7 +141,7 @@ ValueItem* timeout_test(ValueItem*, uint32_t) {
 			Task::yield();
 		}
 	}
-	catch (const TaskCancellation& c) {
+	catch (const TaskCancellation&) {
 		std::cout << "task canceled: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count() << std::endl;
 		throw;
 	}

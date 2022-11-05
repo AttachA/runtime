@@ -139,19 +139,19 @@ namespace ABI_IMPL {
 	template<class T = int8_t>
 	ValueItem BVcast(const T& val) {
 		if constexpr (std::is_same_v<std::remove_cvref_t<T>, bool>)
-			return ValueItem((void*)val, VType::boolean);
+			return ValueItem((void*)(0ull + val), VType::boolean);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int8_t>)
-			return ValueItem((void*)val, VType::i8);
+			return ValueItem((void*)(0ll + val), VType::i8);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, uint8_t>)
-			return ValueItem((void*)val, VType::ui8);
+			return ValueItem((void*)(0ull + val), VType::ui8);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int16_t>)
-			return ValueItem((void*)val, VType::i16);
+			return ValueItem((void*)(0ll + val), VType::i16);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, uint16_t>)
-			return ValueItem((void*)val, VType::ui16);
+			return ValueItem((void*)(0ull + val), VType::ui16);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int32_t>)
-			return ValueItem((void*)val, VType::i32);
+			return ValueItem((void*)(0ll + val), VType::i32);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int32_t>)
-			return ValueItem((void*)val, VType::ui32);
+			return ValueItem((void*)(0ull + val), VType::ui32);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int64_t>)
 			return ValueItem((void*)val, VType::i64);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, uint64_t>)

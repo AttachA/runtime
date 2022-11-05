@@ -121,7 +121,7 @@ struct NativeSymbolResolver {
 		return { "UNDEFINED","UNDEFINED", SIZE_MAX };
 	}
 };
-int CaptureStackTrace(int max_frames, void** out_frames) {
+uint32_t CaptureStackTrace(uint32_t max_frames, void** out_frames) {
 	memset(out_frames, 0, sizeof(void*) * max_frames);
 
 	// RtlCaptureStackBackTrace doesn't support RtlAddFunctionTable..
@@ -138,7 +138,7 @@ int CaptureStackTrace(int max_frames, void** out_frames) {
 	ULONG64 establisherframe = 0;
 	PVOID handlerdata = nullptr;
 	
-	int frame;
+	uint32_t frame;
 	for (frame = 0; frame < max_frames; frame++) {
 		ULONG64 imagebase;
 		PRUNTIME_FUNCTION rtfunc = RtlLookupFunctionEntry(context.Rip, &imagebase, &history);
@@ -309,8 +309,10 @@ size_t JITPCToLine(uint8_t* pc, const frame_info* info) {
 	//}
 	return SIZE_MAX;
 }
-int CaptureStackTrace(int max_frames, void** out_frames) {
-	return backtrace(out_frames, max_frames);
+uint32_t CaptureStackTrace(uint32_t max_frames, void** out_frames) {
+	if(max_frames != (int32_t)max_frames)
+		return 0;
+	return (uint32_t)backtrace(out_frames, (int)max_frames);
 }
 
 
@@ -347,7 +349,7 @@ std::vector<StackTraceItem> FrameResult::JitCaptureStackTrace(uint32_t framesToS
 	max_frames += 1;
 	std::unique_ptr<void*> frames_buffer; frames_buffer.reset(new void* [max_frames]);
 	void** frame = frames_buffer.get();
-	int numframes = CaptureStackTrace(max_frames, frame);
+	uint32_t numframes = CaptureStackTrace(max_frames, frame);
 
 	std::unique_ptr<NativeSymbolResolver> nativeSymbols;
 	if (includeNativeFrames)
@@ -368,7 +370,7 @@ std::vector<void*>* FrameResult::JitCaptureStackChainTrace(uint32_t framesToSkip
 	max_frames += 1;
 	std::unique_ptr<void*> frames_buffer; frames_buffer.reset(new void* [max_frames]);
 	void** frame = frames_buffer.get();
-	int numframes = CaptureStackTrace(max_frames, frame);
+	uint32_t numframes = CaptureStackTrace(max_frames, frame);
 	if (framesToSkip >= numframes)
 		return nullptr;
 	else 

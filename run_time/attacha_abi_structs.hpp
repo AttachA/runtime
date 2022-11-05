@@ -286,16 +286,16 @@ struct ValueItem {
 	template<size_t len>
 	ValueItem(ValueItem(&vals)[len]) : ValueItem(vals, len) {}
 	ValueItem(typed_lgr<struct Task> task);
-	ValueItem(const std::initializer_list<int8_t>& args) : ValueItem(args.begin(), args.size()){};
-	ValueItem(const std::initializer_list<uint8_t>& args) : ValueItem(args.begin(), args.size()){};
-	ValueItem(const std::initializer_list<int16_t>& args) : ValueItem(args.begin(), args.size()){};
-	ValueItem(const std::initializer_list<uint16_t>& args) : ValueItem(args.begin(), args.size()){};
-	ValueItem(const std::initializer_list<int32_t>& args) : ValueItem(args.begin(), args.size()){};
-	ValueItem(const std::initializer_list<uint32_t>& args) : ValueItem(args.begin(), args.size()){};
-	ValueItem(const std::initializer_list<int64_t>& args) : ValueItem(args.begin(), args.size()) {};
-	ValueItem(const std::initializer_list<uint64_t>& args) : ValueItem(args.begin(), args.size()) {};
-	ValueItem(const std::initializer_list<float>& args) : ValueItem(args.begin(), args.size()) {};
-	ValueItem(const std::initializer_list<double>& args) : ValueItem(args.begin(), args.size()) {};
+	ValueItem(const std::initializer_list<int8_t>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX){};
+	ValueItem(const std::initializer_list<uint8_t>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX){};
+	ValueItem(const std::initializer_list<int16_t>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX){};
+	ValueItem(const std::initializer_list<uint16_t>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX){};
+	ValueItem(const std::initializer_list<int32_t>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX){};
+	ValueItem(const std::initializer_list<uint32_t>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX){};
+	ValueItem(const std::initializer_list<int64_t>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX) {};
+	ValueItem(const std::initializer_list<uint64_t>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX) {};
+	ValueItem(const std::initializer_list<float>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX) {};
+	ValueItem(const std::initializer_list<double>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX) {};
 	ValueItem(const std::initializer_list<ValueItem>& args);
 	ValueItem(const std::exception_ptr&);
 	ValueItem() {

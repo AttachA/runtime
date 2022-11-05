@@ -6,8 +6,6 @@
 #include <codecvt>
 namespace stringC {
 	namespace multibyte {
-		std::string convert(const std::wstring& s){ return convert(s.c_str());}
-		std::wstring convert(const std::string& s){ return convert(s.c_str());}
 		std::string convert(const wchar_t* s){
 			const size_t len = wcslen(s);
 			std::string result(len, '\0');
@@ -33,6 +31,8 @@ namespace stringC {
 			}
 			return result;
 		}
+		std::string convert(const std::wstring& s){ return convert(s.c_str());}
+		std::wstring convert(const std::string& s){ return convert(s.c_str());}
 	}//namespace multibyte
 
 	namespace stdlocal {

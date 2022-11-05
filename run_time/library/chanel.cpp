@@ -14,9 +14,7 @@ namespace chanel {
 	}
 	ValueItem _lazy_load_singleton_chanelDeath() {
 		static ValueItem val;
-		if (val.meta.vtype != VType::noting)
-			return val;
-		else {
+		if (val.meta.vtype == VType::noting) {
 			static TaskMutex m;
 			std::lock_guard guard(m);
 			if (val.meta.vtype == VType::noting) {
@@ -26,15 +24,13 @@ namespace chanel {
 				catch (...) {
 					val = std::current_exception();
 				}
-				return val;
 			}
 		}
+		return val;
 	}
 	ValueItem _lazy_load_singleton_handleDeath() {
 		static ValueItem val;
-		if (val.meta.vtype != VType::noting)
-			return val;
-		else {
+		if (val.meta.vtype == VType::noting){
 			static TaskMutex m;
 			std::lock_guard guard(m);
 			if (val.meta.vtype == VType::noting) {
@@ -45,8 +41,8 @@ namespace chanel {
 					val = std::current_exception();
 				}
 			}
-			return val;
 		}
+		return val;
 	}
 
 

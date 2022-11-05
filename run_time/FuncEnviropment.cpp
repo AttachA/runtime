@@ -105,28 +105,28 @@ void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, Value
 			call.AddValueArgument((void*)0);
 			break;
 		case VType::i8:
-			call.AddValueArgument((int8_t)arg);
+			call.AddValueArgument(*(int8_t*)&arg);
 			break;
 		case VType::i16:
-			call.AddValueArgument((int16_t)arg);
+			call.AddValueArgument(*(int16_t*)&arg);
 			break;
 		case VType::i32:
-			call.AddValueArgument((int32_t)arg);
+			call.AddValueArgument(*(int32_t*)&arg);
 			break;
 		case VType::i64:
-			call.AddValueArgument((int64_t)arg);
+			call.AddValueArgument(*(int64_t*)&arg);
 			break;
 		case VType::ui8:
-			call.AddValueArgument((uint8_t)arg);
+			call.AddValueArgument(*(uint8_t*)&arg);
 			break;
 		case VType::ui16:
-			call.AddValueArgument((int16_t)arg);
+			call.AddValueArgument(*(int16_t*)&arg);
 			break;
 		case VType::ui32:
-			call.AddValueArgument((uint32_t)arg);
+			call.AddValueArgument(*(uint32_t*)&arg);
 			break;
 		case VType::ui64:
-			call.AddValueArgument((uint64_t)arg);
+			call.AddValueArgument(*(uint64_t*)&arg);
 			break;
 		case VType::flo:
 			call.AddValueArgument(*(float*)&arg);
@@ -183,25 +183,25 @@ void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, Value
 			call.AddValueArgument((void*)0);
 			break;
 		case VType::i8:
-			call.AddValueArgument((int8_t)arg);
+			call.AddValueArgument(*(int8_t*)&arg);
 			break;
 		case VType::i16:
-			call.AddValueArgument((int16_t)arg);
+			call.AddValueArgument(*(int16_t*)&arg);
 			break;
 		case VType::i32:
-			call.AddValueArgument((int32_t)arg);
+			call.AddValueArgument(*(int32_t*)&arg);
 			break;
 		case VType::i64:
-			call.AddValueArgument((int64_t)arg);
+			call.AddValueArgument(*(int64_t*)&arg);
 			break;
 		case VType::ui8:
-			call.AddValueArgument((uint8_t)arg);
+			call.AddValueArgument(*(uint8_t*)&arg);
 			break;
 		case VType::ui16:
-			call.AddValueArgument((int16_t)arg);
+			call.AddValueArgument(*(int16_t*)&arg);
 			break;
 		case VType::ui32:
-			call.AddValueArgument((uint32_t)arg);
+			call.AddValueArgument(*(uint32_t*)&arg);
 			break;
 		case VType::ui64:
 			call.AddValueArgument((uint64_t)arg);
@@ -281,25 +281,25 @@ ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(ValueItem* arguments, ui
 				if (to_add.ptype == FunctionTemplate::ValueT::PlaceType::as_value) {
 					switch (meta.vtype) {
 					case VType::i8:
-						call.AddValueArgument((int8_t)arg);
+						call.AddValueArgument(*(int8_t*)&arg);
 						break;
 					case VType::i16:
-						call.AddValueArgument((int16_t)arg);
+						call.AddValueArgument(*(int16_t*)&arg);
 						break;
 					case VType::i32:
-						call.AddValueArgument((int32_t)arg);
+						call.AddValueArgument(*(int32_t*)&arg);
 						break;
 					case VType::i64:
-						call.AddValueArgument((int64_t)arg);
+						call.AddValueArgument(*(int64_t*)&arg);
 						break;
 					case VType::ui8:
-						call.AddValueArgument((uint8_t)arg);
+						call.AddValueArgument(*(uint8_t*)&arg);
 						break;
 					case VType::ui16:
-						call.AddValueArgument((uint16_t)arg);
+						call.AddValueArgument(*(int16_t*)&arg);
 						break;
 					case VType::ui32:
-						call.AddValueArgument((uint32_t)arg);
+						call.AddValueArgument(*(uint32_t*)&arg);
 						break;
 					case VType::ui64:
 						call.AddValueArgument((uint64_t)arg);
@@ -860,7 +860,7 @@ void* valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueI
 			try {
 				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, true);
 			}
-			catch (const std::bad_alloc& ex) {
+			catch (const std::bad_alloc&) {
 				throw EnviropmentRuinException();
 			}
 		}
@@ -940,7 +940,7 @@ void* staticValueItemDynamicCall(const std::string& name, ValueItem* class_ptr, 
 			try {
 				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, true);
 			}
-			catch (const std::bad_alloc& ex) {
+			catch (const std::bad_alloc&) {
 				throw EnviropmentRuinException();
 			}
 		}
@@ -3094,7 +3094,7 @@ void FuncEnviropment::RuntimeCompile() {
 	auto& tmp = bprolog.finalize_epilog();
 
 	tmp.use_handle = true;
-	tmp.exHandleOff = a.offset();
+	tmp.exHandleOff = a.offset() <= UINT32_MAX ? (uint32_t)a.offset() : throw CompileTimeException("Too big function");
 	a.jmp(__attacha_handle);
 
 	curr_func = (Enviropment)tmp.init(frame, a.code(), jrt, "attach_a_symbol");

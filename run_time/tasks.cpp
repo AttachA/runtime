@@ -463,7 +463,7 @@ ctx::continuation context_exec(ctx::continuation&& sink) {
 	catch (TaskCancellation& cancel) {
 		forceCancelCancellation(cancel);
 	}
-	catch (const ctx::detail::forced_unwind& uw) {
+	catch (const ctx::detail::forced_unwind&) {
 		throw;
 	}
 	catch (...) {
@@ -1642,7 +1642,7 @@ typed_lgr<FuncEnviropment> ConcurentWriterLong(new FuncEnviropment(concurentWrit
 typed_lgr<Task> ConcurentFile::read(typed_lgr<ConcurentFile>& file, uint32_t len, uint64_t pos) {
 	ValueItem tmp[]{
 				ValueItem(new typed_lgr<ConcurentFile>(file),ValueMeta(VType::undefined_ptr,false,true), true),
-				ValueItem((void*)len ,ValueMeta(VType::ui64,false,true), true),
+				ValueItem((void*)(0ull + len),ValueMeta(VType::ui64,false,true), true),
 				ValueItem((void*)pos,ValueMeta(VType::ui64,false,true), true)
 	};
 	ValueItem args(tmp);

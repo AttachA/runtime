@@ -227,19 +227,19 @@ namespace DynamicCall {
 				else if (atc) {
 					switch (tmp.vsize) {
 					case 1:
-						holder.push_value((uint8_t)value);
+						holder.push_value(*(uint8_t*)&value);
 						current_argument++;
 						break;
 					case 2:
-						holder.push_value((uint16_t)value);
+						holder.push_value(*(uint16_t*)&value);
 						current_argument++;
 						break;
 					case 4:
-						holder.push_value((uint32_t)value);
+						holder.push_value(*(uint32_t*)&value);
 						current_argument++;
 						break;
 					case 8:
-						holder.push_value((uint64_t)value);
+						holder.push_value(*(uint64_t*)&value);
 						current_argument++;
 						break;
 					default:

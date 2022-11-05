@@ -276,6 +276,7 @@ namespace parallel {
 			}
 			throw InvalidOperation("That function used only in proxy class");
 		}
+		return nullptr;
 	}
 	template<uint8_t val_len>
 	ValueItem ___funs_ConcurentFile_write_val(typed_lgr<ConcurentFile>& class_, ValueItem& item, uint64_t pos) {
@@ -298,7 +299,7 @@ namespace parallel {
 		if (ref.size() <= UINT32_MAX) {
 			char* clone = new char[ref.size()];
 			memcpy(clone, ref.c_str(), ref.size());
-			return ConcurentFile::write(class_, clone, ref.size(), pos);
+			return ConcurentFile::write(class_, clone, (uint32_t)ref.size(), pos);
 		}
 		else
 			return ConcurentFile::write_long(class_, new list_array<uint8_t>(ref.begin(), ref.end(), ref.size()), pos);

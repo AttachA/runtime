@@ -10,13 +10,13 @@ ValueItem math_abs_impl(ValueItem& val) {
 		val.getAsync();
 	switch (val.meta.vtype) {
 	case VType::i8:
-		return ValueItem((void*)(std::abs(int8_t(val))), val.meta);
+		return ValueItem((void*)(0ll + std::abs(int8_t(val))), val.meta);
 	case VType::i16:
-		return ValueItem((void*)(std::abs(int16_t(val))), val.meta);
+		return ValueItem((void*)(0ll + std::abs(int16_t(val))), val.meta);
 	case VType::i32:
-		return ValueItem((void*)(std::abs(int32_t(val))), val.meta);
+		return ValueItem((void*)(0ll + std::abs(int32_t(val))), val.meta);
 	case VType::i64:
-		return ValueItem((void*)(std::abs(int64_t(val))), val.meta);
+		return ValueItem((void*)std::abs(int64_t(val)), val.meta);
 	case VType::flo: {
 		union {
 			float abs;
@@ -623,10 +623,10 @@ ValueItem* math_factorial(T* args, uint32_t args_len) {
 			new_arr[i] = std::tgamma(args[i]);
 		}
 		else if constexpr(std::is_unsigned_v<T>) {
-			new_arr[i] = math_factorial_impl_FACTORu((uint64_t)args[i]);
+			new_arr[i] = (T)math_factorial_impl_FACTORu((uint64_t)args[i]);
 		}
 		else {
-			new_arr[i] = math_factorial_impl_FACTORs((int64_t)args[i]);
+			new_arr[i] = (T)math_factorial_impl_FACTORs((int64_t)args[i]);
 		}
 	}
 	return new ValueItem(new_arr, args_len);
