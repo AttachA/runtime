@@ -33,8 +33,8 @@ public:
 
 class TaskMutex {
 	std::timed_mutex no_race;
-	std::list<typed_lgr<class Task>> resume_task;
-	class Task* current_task = nullptr;
+	std::list<typed_lgr<struct Task>> resume_task;
+	struct Task* current_task = nullptr;
 public:
 	TaskMutex() {}
 	~TaskMutex();
@@ -52,6 +52,7 @@ ENUM_t(MutexUnifyType, uint8_t,
 	(ntimed)
 	(nrec)
 	(umut)
+	(mmut)
 );
 struct MutexUnify {
 	union {
@@ -59,6 +60,7 @@ struct MutexUnify {
 		std::timed_mutex* ntimed;
 		std::recursive_mutex* nrec;
 		TaskMutex* umut;
+		struct MultiplyMutex* mmut;
 	};
 	MutexUnify();
 	MutexUnify(const MutexUnify& mut);
@@ -66,6 +68,7 @@ struct MutexUnify {
 	MutexUnify(std::timed_mutex& smut);
 	MutexUnify(std::recursive_mutex& smut);
 	MutexUnify(TaskMutex& smut);
+	MutexUnify(struct MultiplyMutex& mmut);
 	MutexUnify(nullptr_t);
 
 
@@ -74,6 +77,7 @@ struct MutexUnify {
 	MutexUnify& operator=(std::timed_mutex& smut);
 	MutexUnify& operator=(std::recursive_mutex& smut);
 	MutexUnify& operator=(TaskMutex& smut);
+	MutexUnify& operator=(struct MultiplyMutex& mmut);
 	MutexUnify& operator=(nullptr_t);
 
 	MutexUnifyType type;
@@ -84,7 +88,15 @@ struct MutexUnify {
 	void unlock();
 	operator bool();
 };
-
+struct MultiplyMutex {
+	list_array<MutexUnify> mu;
+	MultiplyMutex(const std::initializer_list<MutexUnify>& muts);
+	void lock();
+	bool try_lock();
+	bool try_lock_for(size_t milliseconds);
+	bool try_lock_until(std::chrono::high_resolution_clock::time_point time_point);
+	void unlock();
+};
 
 class TaskConditionVariable {
 	std::list<typed_lgr<struct Task>> resume_task;

@@ -74,7 +74,7 @@ constexpr creg128 vec13 = asmjit::x86::xmm13;
 constexpr creg128 vec14 = asmjit::x86::xmm14;
 constexpr creg128 vec15 = asmjit::x86::xmm15;
 
-#elif
+#else
 constexpr creg8 resr_8h = asmjit::x86::ah;
 constexpr creg8 resr1_8h = asmjit::x86::dh;
 constexpr creg8 argr0_8h = asmjit::x86::dh;
@@ -105,8 +105,8 @@ constexpr creg32 resr_32 = asmjit::x86::eax;
 constexpr creg32 resr1_32 = asmjit::x86::edx;
 constexpr creg32 argr0_32 = asmjit::x86::edi;
 constexpr creg32 argr1_32 = asmjit::x86::esi;
-constexpr creg64 argr2_32 = asmjit::x86::edx;
-constexpr creg64 argr3_32 = asmjit::x86::ecx;
+constexpr creg32 argr2_32 = asmjit::x86::edx;
+constexpr creg32 argr3_32 = asmjit::x86::ecx;
 constexpr creg32 argr4_32 = asmjit::x86::r8d;
 constexpr creg32 argr5_32 = asmjit::x86::r9d;
 

@@ -20,6 +20,8 @@ FILE(GLOB SRCFILES
         *.cpp
 )
 add_executable(AttachA ${SRCFILES})
+set_property(TARGET AttachA PROPERTY
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 find_package(Boost REQUIRED COMPONENTS context)
 find_package(asmjit REQUIRED)

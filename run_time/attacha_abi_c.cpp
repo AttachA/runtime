@@ -143,6 +143,7 @@ void universalRemove(void** value) {
 			universalRemove((void**)begin++);
 	}
 	meta.encoded = 0;
+	*value = nullptr;
 }
 void universalAlloc(void** value, ValueMeta meta) {
 	if (*value)
@@ -1074,7 +1075,7 @@ RFLAGS link_compare(RFLAGS old, void** value_1, void** value_2) {
 namespace ABI_IMPL {
 
 	ValueItem* _Vcast_callFN(void* ptr) {
-		return FuncEnviropment::sync_call(*(typed_lgr<FuncEnviropment>*)ptr, nullptr, 0);
+		return FuncEnviropment::sync_call(*(class typed_lgr<class FuncEnviropment>*)ptr, nullptr, 0);
 	}
 
 	std::string Scast(void*& ref_val, ValueMeta& meta) {
@@ -2580,7 +2581,7 @@ ValueItem::operator std::exception_ptr() {
 }
 ValueItem* ValueItem::operator()(ValueItem* args,uint32_t len) {
 	if (meta.vtype == VType::function)
-		return FuncEnviropment::sync_call((*(typed_lgr<FuncEnviropment>*)getValue(val, meta)),args,len);
+		return FuncEnviropment::sync_call((*(class typed_lgr<class FuncEnviropment>*)getValue(val, meta)),args,len);
 	else
 		return new ValueItem(*this);
 }

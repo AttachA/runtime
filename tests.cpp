@@ -237,10 +237,10 @@ int main() {
 	Task::create_executor(1);
 	ex_handle_test();
 	interface_test();
-	Task::create_executor(9);
+	Task::create_executor(1);
 
 	//Task::sleep(1000);
-	Task::create_executor(10);
+	//Task::create_executor(10);
 	//Task::sleep(1000);
 
 
@@ -285,15 +285,15 @@ int main() {
 	build.arr_set(1, 2, 3, false, ArrCheckMode::no_check, VType::faarr);
 
 	build.arg_set(1);
-	build.call_and_ret("console printf");
+	build.call("console printf");
 	build.remove(1);
 	build.ret();
 	build.loadFunc("start");
 	callFunction("start", false);
 
 
-	for (size_t i = 0; i < 1000000; i++)
-		callFunction("start", false);
+	//for (size_t i = 0; i < 1000000; i++)
+	//	callFunction("start", false);
 
 
 	FuncEnviropment::AddNative(TestCall, "test");
@@ -342,8 +342,8 @@ int main() {
 
 
 	for (size_t i = 0; i < 10000; i++) {
-		tasks.push_back(new Task(FuncEnviropment::enviropment("start"), noting));
-		tasks.push_back(new Task(FuncEnviropment::enviropment("1"), noting));
+		//tasks.push_back(new Task(FuncEnviropment::enviropment("start"), noting));
+		//tasks.push_back(new Task(FuncEnviropment::enviropment("1"), noting));
 		tasks.push_back(new Task(env, noting));
 	}
 

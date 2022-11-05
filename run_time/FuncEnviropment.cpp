@@ -2335,7 +2335,7 @@ void FuncEnviropment::RuntimeCompile() {
 				b.addArg(ValueMeta(VType::saarr, false, true, len).encoded);
 				b.addArg(cmd.is_gc_mode);
 				b.finalize(preSetValue);
-				a.lea(argr0, stack_ptr, -CASM_REDZONE_SIZE);
+				a.lea(argr0, stack_ptr, 0 /*-CASM_REDZONE_SIZE*/);
 				a.stackIncrease(len * sizeof(ValueItem));
 				a.mov(resr, 0, 8, argr0);
 				break;

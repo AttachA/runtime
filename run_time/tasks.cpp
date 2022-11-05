@@ -39,6 +39,9 @@ void MutexUnify::lock() {
 	case MutexUnifyType::umut:
 		umut->lock();
 		break;
+	case MutexUnifyType::mmut:
+		mmut->lock();
+		break;
 	default:
 		break;
 	}
@@ -63,10 +66,14 @@ bool MutexUnify::try_lock_for(size_t milliseconds) {
 		return false;
 	case MutexUnifyType::ntimed:
 		return ntimed->try_lock_for(std::chrono::milliseconds(milliseconds));
+	case MutexUnifyType::nrec:
+		return nrec->try_lock();
 	case MutexUnifyType::umut:
 		return umut->try_lock_for(milliseconds);
+	case MutexUnifyType::mmut:
+		return mmut->try_lock_for(milliseconds);
 	default:
-		throw InvalidOperation("Invalid operation for non timing mutex: " + enum_to_string(type));
+		return false;
 	}
 }
 bool MutexUnify::try_lock_until(std::chrono::high_resolution_clock::time_point time_point) {
@@ -75,10 +82,14 @@ bool MutexUnify::try_lock_until(std::chrono::high_resolution_clock::time_point t
 		return false;
 	case MutexUnifyType::ntimed:
 		return ntimed->try_lock_until(time_point);
+	case MutexUnifyType::nrec:
+		return nrec->try_lock();
 	case MutexUnifyType::umut:
 		return umut->try_lock_until(time_point);
+	case MutexUnifyType::mmut:
+		return mmut->try_lock_until(time_point);
 	default:
-		throw InvalidOperation("Invalid operation for non timing mutex: " + enum_to_string(type));
+		return false;
 	}
 }
 void MutexUnify::unlock() {
@@ -95,6 +106,9 @@ void MutexUnify::unlock() {
 	case MutexUnifyType::umut:
 		umut->unlock();
 		break;
+	case MutexUnifyType::mmut:
+		mmut->unlock();
+		break;
 	default:
 		break;
 	}
@@ -110,19 +124,19 @@ MutexUnify::MutexUnify(const MutexUnify& mut) {
 }
 MutexUnify::MutexUnify(std::mutex& smut) {
 	type = MutexUnifyType::nmut;
-	nmut = &smut;
+	nmut = std::addressof(smut);
 }
 MutexUnify::MutexUnify(std::timed_mutex& smut) {
 	type = MutexUnifyType::ntimed;
-	ntimed = &smut;
+	ntimed = std::addressof(smut);
 }
 MutexUnify::MutexUnify(std::recursive_mutex& smut) {
 	type = MutexUnifyType::nrec;
-	nrec = &smut;
+	nrec = std::addressof(smut);
 }
 MutexUnify::MutexUnify(TaskMutex& smut) {
 	type = MutexUnifyType::umut;
-	umut = &smut;
+	umut = std::addressof(smut);
 }
 MutexUnify::MutexUnify(nullptr_t) {
 	type = MutexUnifyType::noting;
@@ -135,22 +149,22 @@ MutexUnify& MutexUnify::operator=(const MutexUnify& mut) {
 }
 MutexUnify& MutexUnify::operator=(std::mutex& smut) {
 	type = MutexUnifyType::nmut;
-	nmut = &smut;
+	nmut = std::addressof(smut);
 	return *this;
 }
 MutexUnify& MutexUnify::operator=(std::timed_mutex& smut) {
 	type = MutexUnifyType::ntimed;
-	ntimed = &smut;
+	ntimed = std::addressof(smut);
 	return *this;
 }
 MutexUnify& MutexUnify::operator=(std::recursive_mutex& smut) {
 	type = MutexUnifyType::nrec;
-	nrec = &smut;
+	nrec = std::addressof(smut);
 	return *this;
 }
 MutexUnify& MutexUnify::operator=(TaskMutex& smut) {
 	type = MutexUnifyType::umut;
-	umut = &smut;
+	umut = std::addressof(smut);
 	return *this;
 }
 MutexUnify& MutexUnify::operator=(nullptr_t) {
@@ -161,6 +175,76 @@ MutexUnify::operator bool() {
 	return type != MutexUnifyType::noting;
 }
 
+
+
+MultiplyMutex::MultiplyMutex(const std::initializer_list<MutexUnify>& muts):mu(muts) {}
+void MultiplyMutex::lock() {
+		for (auto& mut : mu)
+			mut.lock();
+	}
+bool MultiplyMutex::try_lock() {
+	list_array<MutexUnify> locked;
+	for (auto& mut : mu) {
+		if (mut.try_lock()) 
+			locked.push_back(mut);
+		else
+			goto fail;
+	}
+	return true;
+fail:
+	for (auto& to_unlock : locked.reverse())
+		to_unlock.unlock();
+	return false;
+}
+bool MultiplyMutex::try_lock_for(size_t milliseconds) {
+	list_array<MutexUnify> locked;
+	for (auto& mut : mu) {
+		if (mut.type != MutexUnifyType::nrec) {
+			if (mut.try_lock_for(milliseconds))
+				locked.push_back(mut);
+			else
+				goto fail;
+		}
+		else {
+			if (mut.try_lock())
+				locked.push_back(mut);
+			else
+				goto fail;
+		}
+	}
+	return true;
+fail:
+	for (auto& to_unlock : locked.reverse())
+		to_unlock.unlock();
+	return false;
+}
+bool MultiplyMutex::try_lock_until(std::chrono::high_resolution_clock::time_point time_point) {
+	list_array<MutexUnify> locked;
+	for (auto& mut : mu) {
+		if (mut.type != MutexUnifyType::nrec) {
+			if (mut.try_lock_until(time_point))
+				locked.push_back(mut);
+			else
+				goto fail;
+		}
+		else {
+			if (mut.try_lock())
+				locked.push_back(mut);
+			else
+				goto fail;
+		}
+	}
+	return true;
+fail:
+	for (auto& to_unlock : locked.reverse())
+		to_unlock.unlock();
+	return false;
+}
+void MultiplyMutex::unlock() {
+	for (auto& mut : mu.reverse())
+		mut.unlock();
+}
+	
 
 
 size_t Task::max_running_tasks = 0;
@@ -182,6 +266,7 @@ void forceCancelCancellation(TaskCancellation& cancel_token) {
 TaskResult::~TaskResult() {
 	if (context) {
 		size_t i = 0;
+		//maybe race condition, TO-DO: check destructor and fix
 		while (!end_of_life)
 			getResult(i++);//for yield task
 		reinterpret_cast<ctx::continuation&>(context).~continuation();
@@ -190,14 +275,11 @@ TaskResult::~TaskResult() {
 
 
 ValueItem* TaskResult::getResult(size_t res_num) {
+	MutexUnify uni(no_race);
+	std::unique_lock l(uni);
 	if (results.size() >= res_num) {
-		{
-			MutexUnify uni(no_race);
-			std::unique_lock l(uni);
-			while (results.size() >= res_num && !end_of_life)
-				result_notify.wait_for(l, 400);
-		}
-
+		while (results.size() >= res_num && !end_of_life)
+			result_notify.wait(l);
 		if (results.size() >= res_num)
 			return new ValueItem();
 	}
@@ -207,9 +289,11 @@ void TaskResult::awaitEnd() {
 	MutexUnify uni(no_race);
 	std::unique_lock l(uni);
 	while (!end_of_life)
-		result_notify.wait_for(l, 1000);
+		result_notify.wait(l);
 }
 void TaskResult::yieldResult(ValueItem* res, bool release) {
+	MutexUnify uni(no_race);
+	std::unique_lock l(uni);
 	if (res) {
 		results.push_back(std::move(*res));
 		if (release)
@@ -220,28 +304,28 @@ void TaskResult::yieldResult(ValueItem* res, bool release) {
 	result_notify.notify_all();
 }
 void TaskResult::yieldResult(ValueItem&& res) {
+	MutexUnify uni(no_race);
+	std::unique_lock l(uni);
 	results.push_back(std::move(res));
 	result_notify.notify_all();
 }
 void TaskResult::finalResult(ValueItem* res) {
+	MutexUnify uni(no_race);
+	std::unique_lock l(uni);
 	if (res) {
 		results.push_back(std::move(*res));
 		delete res;
 	}
 	else
 		results.push_back(ValueItem());
-	{
-		std::lock_guard l(no_race);
-		end_of_life = true;
-	}
+	end_of_life = true;
 	result_notify.notify_all();
 }
 void TaskResult::finalResult(ValueItem&& res) {
+	MutexUnify uni(no_race);
+	std::unique_lock l(uni);
 	results.push_back(std::move(res));
-	{
-		std::lock_guard l(no_race);
-		end_of_life = true;
-	}
+	end_of_life = true;
 	result_notify.notify_all();
 }
 TaskResult::TaskResult() {}
@@ -385,6 +469,8 @@ ctx::continuation context_exec(ctx::continuation&& sink) {
 	catch (...) {
 		loc.ex_ptr = std::current_exception();
 	}
+	MutexUnify uni(loc.curr_task->no_race);
+	std::unique_lock l(uni);
 	loc.curr_task->end_of_life = true;
 	loc.curr_task->fres.result_notify.notify_all();
 	--glob.in_run_tasks;
@@ -408,6 +494,9 @@ ctx::continuation context_ex_handle(ctx::continuation&& sink) {
 	catch (...) {
 		loc.ex_ptr = std::current_exception();
 	}
+	
+	MutexUnify uni(loc.curr_task->no_race);
+	std::unique_lock l(uni);
 	loc.curr_task->end_of_life = true;
 	loc.curr_task->fres.result_notify.notify_all();
 	--glob.in_run_tasks;
@@ -430,10 +519,11 @@ bool loadTask() {
 		size_t len = glob.tasks.size();
 		if (!len)
 			return true;
-		loc.curr_task = std::move(glob.tasks.front());
+		auto tmp = std::move(glob.tasks.front());
 		glob.tasks.pop();
 		if (len == 1)
 			glob.no_tasks_notifier.notify_all();
+		loc.curr_task = std::move(tmp);
 	}
 	loc.tmp_current_context = &reinterpret_cast<ctx::continuation&>(loc.curr_task->fres.context);
 	return false;
@@ -623,16 +713,17 @@ Task::Task(typed_lgr<class FuncEnviropment> call_func, ValueItem& arguments, boo
 		if (arguments.meta.vtype != VType::noting)
 			args = ValueItem(&arguments, 1);
 	}
-	MutexUnify uni(glob.task_thread_safety);
-	std::unique_lock l(uni);
-	if (Task::max_planned_tasks)
-		while (glob.planned_tasks >= Task::max_planned_tasks)
-			glob.can_planned_new_notifier.wait(l);
-	++glob.planned_tasks;
 	timeout = task_timeout;
-
 	if (used_task_local)
 		_task_local = new ValueEnvironment();
+
+	if (Task::max_planned_tasks) {
+		MutexUnify uni(glob.task_thread_safety);
+		std::unique_lock l(uni);
+		while (glob.planned_tasks >= Task::max_planned_tasks)
+			glob.can_planned_new_notifier.wait(l);
+	}
+	++glob.planned_tasks;
 
 }
 Task::Task(Task&& mov) noexcept : fres(std::move(mov.fres)) {
@@ -966,10 +1057,8 @@ TaskConditionVariable::~TaskConditionVariable() {
 }
 
 ValueItem* _tcv_wait(ValueItem* args, uint32_t len) {
-	((TaskConditionVariable*)args->val)->wait(*(std::unique_lock<MutexUnify>*)args[1].val);
-	std::unique_lock ul(*(std::mutex*)args[4].val);
-	(*(bool*)args[3].val)=true;
-	((std::condition_variable*)args[2].val)->notify_all();
+	(*(bool*)args[0].val)=true;
+	((std::condition_variable_any*)args[1].val)->notify_all();
 	return nullptr;
 }
 typed_lgr<FuncEnviropment> tcv_wait(new FuncEnviropment(_tcv_wait, false));
@@ -977,25 +1066,33 @@ typed_lgr<FuncEnviropment> tcv_wait(new FuncEnviropment(_tcv_wait, false));
 
 void TaskConditionVariable::wait(std::unique_lock<MutexUnify>& mut) {
 	if (loc.is_task_thread) {
-		if (mut.mutex()->nrec == &glob.task_thread_safety) {
+		if (mut.mutex()->nmut == &no_race) {
 			resume_task.push_back(loc.curr_task);
-			swapCtxRelock(glob.task_thread_safety);
+			swapCtxRelock(no_race);
 		}
 		else {
-			std::lock_guard guard(glob.task_thread_safety);
+			std::lock_guard guard(no_race);
 			resume_task.push_back(loc.curr_task);
-			swapCtxRelock(glob.task_thread_safety, *mut.mutex());
+			swapCtxRelock(no_race, *mut.mutex());
 		}
 	}
 	else {
-		std::condition_variable cd;
+		std::condition_variable_any cd;
 		bool has_res = false;
-		std::mutex mt;
-    	std::unique_lock<std::mutex> ul(mt);
-		ValueItem tmp{ ValueItem(this, VType::undefined_ptr),ValueItem(&mut, VType::undefined_ptr), ValueItem(&cd, VType::undefined_ptr), ValueItem(&has_res, VType::undefined_ptr), ValueItem(&mt, VType::undefined_ptr)};
+		ValueItem tmp{ ValueItem(&has_res, VType::undefined_ptr), ValueItem(&cd, VType::undefined_ptr) };
 		typed_lgr task = new Task(tcv_wait, tmp);
-		Task::start(task);
-		cd.wait(ul,[&has_res](){return has_res;});
+		if (mut.mutex()->nmut == &no_race) {
+			resume_task.push_back(task);
+			while (!has_res)
+				cd.wait(mut);
+		}
+		else {
+			no_race.lock();
+			resume_task.push_back(task);
+			no_race.unlock();
+			while (!has_res)
+				cd.wait(mut);
+		}
 	}
 }
 
@@ -1004,11 +1101,9 @@ bool TaskConditionVariable::wait_for(std::unique_lock<MutexUnify>& mut, size_t m
 	return wait_until(mut, std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(milliseconds));
 }
 ValueItem* _tcv_wait_until(ValueItem* args, uint32_t len) {
-	auto res = ((TaskConditionVariable*)args->val)->wait_until(*(std::unique_lock<MutexUnify>*)args[1].val, std::chrono::high_resolution_clock::time_point(std::chrono::high_resolution_clock::duration((int64_t)args[2]))) ? new ValueItem(true) : nullptr;
-    std::unique_lock ul(*(std::mutex*)args[5].val);
-	(*(bool*)args[4].val)=true;
-	((std::condition_variable*)args[3].val)->notify_all();
-	return res;
+	(*(std::pair<bool,bool>*)args[4].val)={true,!loc.curr_task->time_end_flag};
+	((std::condition_variable_any*)args[3].val)->notify_all();
+	return nullptr;
 }
 typed_lgr<FuncEnviropment> tcv_wait_until(new FuncEnviropment(_tcv_wait_until, false));
 bool TaskConditionVariable::wait_until(std::unique_lock<MutexUnify>& mut, std::chrono::high_resolution_clock::time_point time_point) {
@@ -1024,15 +1119,24 @@ bool TaskConditionVariable::wait_until(std::unique_lock<MutexUnify>& mut, std::c
 			return false;
 	}
 	else {
-		std::condition_variable cd;
-		bool has_res = false;
-		std::mutex mt;
-    	std::unique_lock<std::mutex> ul(mt);
-		ValueItem tmp{ ValueItem(this, VType::undefined_ptr),ValueItem(&mut, VType::undefined_ptr), ValueItem(&cd, VType::undefined_ptr), ValueItem(&has_res, VType::undefined_ptr), ValueItem(&mt, VType::undefined_ptr), time_point.time_since_epoch().count()};
+		std::condition_variable_any cd;
+		std::pair<bool,bool> has_res{false,false};
+		ValueItem tmp{ ValueItem(this, VType::undefined_ptr),ValueItem(&mut, VType::undefined_ptr), ValueItem(&cd, VType::undefined_ptr), ValueItem(&has_res, VType::undefined_ptr), time_point.time_since_epoch().count()};
 		typed_lgr task = new Task(tcv_wait_until, tmp);
-		Task::start(task);
-		cd.wait_until(ul,time_point,[&has_res](){return has_res;});
-		return (bool)Task::await_results(task)[0];
+		resume_task.push_back(task);
+		if (mut.mutex()->nmut == &no_race) {
+			resume_task.push_back(task);
+			while (!has_res.first)
+				cd.wait(mut);
+		}
+		else {
+			no_race.lock();
+			resume_task.push_back(task);
+			no_race.unlock();
+			while (!has_res.first)
+				cd.wait(mut);
+		}
+		return has_res.second;
 	}
 	return true;
 }
@@ -1043,14 +1147,23 @@ void TaskConditionVariable::notify_all() {
 		std::lock_guard guard(no_race);
 		std::swap(revive_tasks, resume_task);
 	}
-	std::lock_guard guard(glob.task_thread_safety);
-	for (auto& it : revive_tasks) {
-		std::lock_guard guard_loc(it->no_race);
-		if (!it->time_end_flag) {
-			it->awaked = true;
-			glob.tasks.push(it);
+	bool to_yield = false;
+	{
+		std::lock_guard guard(glob.task_thread_safety);
+		for (auto& it : revive_tasks) {
+			std::lock_guard guard_loc(it->no_race);
+			if (!it->time_end_flag) {
+				it->awaked = true;
+				glob.tasks.push(it);
+			}
+		}
+		if (Task::max_running_tasks && loc.is_task_thread) {
+			if (Task::max_running_tasks <= glob.in_run_tasks && loc.curr_task && !loc.curr_task->end_of_life)
+				to_yield = true;
 		}
 	}
+	if (to_yield)
+		Task::yield();
 }
 void TaskConditionVariable::notify_one() {
 	typed_lgr<struct Task> tsk;
@@ -1071,13 +1184,20 @@ void TaskConditionVariable::notify_one() {
 		if (resume_task.empty())
 			return;
 	}
+	bool to_yield = false;
 	std::lock_guard guard_loc(tsk->no_race, std::adopt_lock);
 	{
 		std::lock_guard guard(glob.task_thread_safety);
 		resume_task.back()->awaked = true;
+		if (Task::max_running_tasks && loc.is_task_thread) {
+			if (Task::max_running_tasks <= glob.in_run_tasks && loc.curr_task && !loc.curr_task->end_of_life)
+				to_yield = true;
+		}
 		glob.tasks.push(resume_task.front());
 	}
 	glob.tasks_notifier.notify_one();
+	if(to_yield)
+		Task::yield();
 }
 #pragma endregion
 
@@ -1679,6 +1799,7 @@ bool EventSystem::sync_call(std::list<typed_lgr<FuncEnviropment>>& list, ValueIt
 				}
 			}
 		}
+		return false;
 }
 
 void EventSystem::operator+=(const typed_lgr<FuncEnviropment>& func) {
