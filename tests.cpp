@@ -21,6 +21,7 @@
 #include <typeinfo>
 #include <Windows.h>
 #include "run_time/CASM.hpp"
+#include "run_time/tasks_util/light_stack.hpp"
 struct test_struct {
 	uint64_t a, b;
 };
@@ -80,9 +81,12 @@ void cout_test() {
 	Task::sleep(1000);
 }
 void sleep_test() {
+	//light_stack::dump_current_out();
 	auto started = std::chrono::high_resolution_clock::now();
 	Task::sleep(1000);
 	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count() << std::endl;
+	
+	//light_stack::dump_current_out();
 }
 struct test_lgr {
 	bool depth_safety() const {
@@ -216,7 +220,7 @@ void ex_handle_test() {
 }
 void interface_test() {
 	FuncEviroBuilder build;
-	build.set_constant(0, "/helloWorld.bin");
+	build.set_constant(0, "D:\\helloWorld.bin");
 	build.arg_set(0);
 	build.call("# parallel concurent_file", 1, false);
 	build.set_constant(0, { 123ui16, 212ui16, 4213ui16 });
@@ -229,17 +233,15 @@ void interface_test() {
 }
 
 
-
 typedef void (*functs)(...);
-int main() {
-	initStandardFunctions();
-	Task::max_running_tasks = 4000;
-	Task::max_planned_tasks = 0;
-	Task::create_executor(1);
+
+
+ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
+	light_stack::dump_current_out();
+
 	ex_handle_test();
 	interface_test();
 	Task::create_executor(1);
-
 	//Task::sleep(1000);
 	//Task::create_executor(10);
 	//Task::sleep(1000);
@@ -297,17 +299,6 @@ int main() {
 	//	callFunction("start", false);
 
 
-	FuncEnviropment::AddNative(TestCall, "test");
-	FuncEnviropment::AddNative(ThrowCall, "throwcall");
-	FuncEnviropment::AddNative(SOVER, "stack_owerflower");
-
-
-	FuncEnviropment::AddNative(gvfdasf, "1");
-	FuncEnviropment::AddNative(sdagfsgsfdg, "2");
-	FuncEnviropment::AddNative(fvbzxcbxcv, "3");
-	FuncEnviropment::AddNative(a3tgr4at, "4");
-	FuncEnviropment::AddNative(cout_test, "cout_test");
-	FuncEnviropment::AddNative(sleep_test, "sleep_test");
 
 	{
 		FuncEviroBuilder build;
@@ -343,20 +334,74 @@ int main() {
 
 
 	for (size_t i = 0; i < 10000; i++) {
-		//tasks.push_back(new Task(FuncEnviropment::enviropment("start"), noting));
-		//tasks.push_back(new Task(FuncEnviropment::enviropment("1"), noting));
+		tasks.push_back(new Task(FuncEnviropment::enviropment("start"), noting));
+		tasks.push_back(new Task(FuncEnviropment::enviropment("1"), noting));
 		tasks.push_back(new Task(env, noting));
 	}
 
 	Task::await_multiple(tasks);
+	tasks.clear();
 	for (size_t i = 0; i < 10000; i++)
-		Task::start(new Task(env, noting));
-	Task::await_end_tasks(true);
+		tasks.push_back(new Task(env, noting));
+	Task::await_multiple(tasks);
+	tasks.clear();
 	for (size_t i = 0; i < 10000; i++)
-		Task::start(new Task(env, noting));
-	Task::await_end_tasks(true);
-	Task::sleep(100000000000);
+		tasks.push_back(new Task(env, noting));
+	Task::await_multiple(tasks);
+	tasks.clear();
 
 	console::resetBgColor();
-	return e;
+	return new ValueItem(e);
+}
+
+ValueItem* empty_fun(ValueItem* args, uint32_t argc) {
+
+	std::this_thread::sleep_for(std::chrono::seconds(1));
+	Task::yield();
+	return nullptr;
+}
+int main(){
+	light_stack::dump_current_out();
+
+	initStandardFunctions();
+	FuncEnviropment::AddNative(TestCall, "test", false);
+	FuncEnviropment::AddNative(ThrowCall, "throwcall", false);
+	FuncEnviropment::AddNative(SOVER, "stack_owerflower", false);
+
+
+	FuncEnviropment::AddNative(gvfdasf, "1", false);
+	FuncEnviropment::AddNative(sdagfsgsfdg, "2", false);
+	FuncEnviropment::AddNative(fvbzxcbxcv, "3", false);
+	FuncEnviropment::AddNative(a3tgr4at, "4", false);
+	FuncEnviropment::AddNative(cout_test, "cout_test", false);
+	FuncEnviropment::AddNative(sleep_test, "sleep_test", false);
+	enable_thread_naming = true;
+	Task::max_running_tasks = 1000;
+	Task::max_planned_tasks = 0;
+
+	Task::create_executor(5);
+
+	ValueItem noting;
+	typed_lgr<FuncEnviropment> main_env = new FuncEnviropment(attacha_main, false);
+	typed_lgr<FuncEnviropment> empty_env = new FuncEnviropment(empty_fun, false);
+
+
+	typed_lgr<Task> empty_task = new Task(empty_env, noting);
+	Task::start(empty_task);
+	Task::await_end_tasks(false);
+
+	//attacha_main(nullptr, 0);
+
+	typed_lgr<Task> main_task = new Task(main_env, noting);
+	Task::start(main_task);
+	Task::await_end_tasks(false);
+	ValueItem* res = Task::get_result(main_task);
+	if (res != nullptr)
+		{
+			int int_res = (int)*res;
+			delete res;
+			return int_res;
+		}
+	else
+		return 0;
 }

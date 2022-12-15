@@ -17,7 +17,7 @@ namespace string_help {
         }
         return elems;
     }
-    template <typename T> std::string n2hexstr(T w, size_t hex_len = sizeof(T) << 1) {
+    template <typename T> std::string hexstr(T w, size_t hex_len = sizeof(T) << 1) {
         static const char* digits = "0123456789ABCDEF";
         std::string rc(hex_len, '0');
         if constexpr(std::is_same_v<T,void*> || std::is_same_v<T, const void*>)
@@ -26,6 +26,14 @@ namespace string_help {
         else
             for (size_t i = 0, j = (hex_len - 1) * 4; i < hex_len; ++i, j -= 4)
                 rc[i] = digits[(w >> j) & 0x0f];
+        return rc;
+    }
+    template <typename T> std::string hexsstr(T w, size_t hex_len = sizeof(T) << 1) {
+        std::string rc(hexstr(w, hex_len));
+        while(rc[0]=='0')
+            rc.erase(rc.begin());
+        if(rc.empty())
+            return "0";
         return rc;
     }
 }

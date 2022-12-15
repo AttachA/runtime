@@ -398,7 +398,7 @@ namespace parallel {
 					++vals;
 					++vals;
 					uint32_t i = 1;
-					while (len--) {
+					while (--len) {
 						faarr[i++] = ___funs_ConcurentFile_write(
 							class_,
 							*vals,
@@ -435,7 +435,7 @@ namespace parallel {
 					++vals;
 					++vals;
 					uint32_t i = 1;
-					while (len--) {
+					while (--len) {
 						faarr[i++] = ___funs_ConcurentFile_write(
 							class_,
 							*vals,
@@ -555,7 +555,7 @@ namespace parallel {
 					++vals;
 					++vals;
 					uint32_t i = 1;
-					while (len--) {
+					while (--len) {
 						faarr[i++] = ___funs_ConcurentFile_write(
 							class_,
 							*vals,
@@ -591,7 +591,7 @@ namespace parallel {
 					++vals;
 					++vals;
 					uint32_t i = 1;
-					while (len--) {
+					while (--len) {
 						faarr[i++] = __funs_ConcurentFile_write_long_simple(class_, *vals);
 						++vals;
 					}
@@ -679,71 +679,51 @@ namespace parallel {
 		}
 		throw InvalidOperation("That function used only in proxy class");
 	}
+
+	ValueItem __funs_EventSystem_get_values0(ValueItem* vals, uint32_t len) {
+		ValueItem values;
+		if (len > 2) {
+			size_t size = len - 1;
+			ValueItem* args = new ValueItem[size]{};
+			for (uint32_t i = 0; i < size; i++)
+				args[i] = vals[i + 1];
+			values = ValueItem(args, size, true);
+		}
+		return values;
+	}
 	ValueItem* funs_EventSystem_notify(ValueItem* vals, uint32_t len) {
 		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [function ptr] [optional is_async] and [optional enum Priorithy]");
+			throw InvalidArguments("That function recuive [class ptr] [any]...");
 		if (vals->meta.vtype == VType::proxy) {
-			auto fun = vals[1].funPtr();
-			ValueItem values;
-			if (len > 2) {
-				ValueItem* args = new ValueItem[len - 2]{};
-				uint32_t args_len = 0;
-				for (uint32_t i = 2; i < len; i++)
-					args[args_len++] = vals[i];
-				values = ValueItem(args, args_len, true);
-			}
-			return new ValueItem(getClass<EventSystem>(vals)->notify(values));
+			auto compacted = __funs_EventSystem_get_values0(vals, len);
+			return new ValueItem(getClass<EventSystem>(vals)->notify(compacted));
 		}
 		throw InvalidOperation("That function used only in proxy class");
 	}
 	ValueItem* funs_EventSystem_sync_notify(ValueItem* vals, uint32_t len) {
 		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [function ptr] [optional is_async] and [optional enum Priorithy]");
+			throw InvalidArguments("That function recuive [class ptr] [any]...");
 		if (vals->meta.vtype == VType::proxy) {
-			auto fun = vals[1].funPtr();
-			ValueItem values;
-			if (len > 2) {
-				ValueItem* args = new ValueItem[len - 2]{};
-				uint32_t args_len = 0;
-				for (uint32_t i = 2; i < len; i++)
-					args[args_len++] = vals[i];
-				values = ValueItem(args, args_len, true);
-			}
-			return new ValueItem(getClass<EventSystem>(vals)->sync_notify(values));
+			auto compacted = __funs_EventSystem_get_values0(vals, len);
+			return new ValueItem(getClass<EventSystem>(vals)->sync_notify(compacted));
 		}
 		throw InvalidOperation("That function used only in proxy class");
 	}
 	ValueItem* funs_EventSystem_await_notify(ValueItem* vals, uint32_t len) {
 		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [function ptr] [optional is_async] and [optional enum Priorithy]");
+			throw InvalidArguments("That function recuive [class ptr] [any]...");
 		if (vals->meta.vtype == VType::proxy) {
-			auto fun = vals[1].funPtr();
-			ValueItem values;
-			if (len > 2) {
-				ValueItem* args = new ValueItem[len - 2]{};
-				uint32_t args_len = 0;
-				for (uint32_t i = 2; i < len; i++)
-					args[args_len++] = vals[i];
-				values = ValueItem(args, args_len, true);
-			}
-			return new ValueItem(getClass<EventSystem>(vals)->await_notify(values));
+			auto compacted = __funs_EventSystem_get_values0(vals, len);
+			return new ValueItem(getClass<EventSystem>(vals)->await_notify(compacted));
 		}
 		throw InvalidOperation("That function used only in proxy class");
 	}
 	ValueItem* funs_EventSystem_async_notify(ValueItem* vals, uint32_t len) {
 		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [function ptr] [optional is_async] and [optional enum Priorithy]");
+			throw InvalidArguments("That function recuive [class ptr] [any]...");
 		if (vals->meta.vtype == VType::proxy) {
-			auto fun = vals[1].funPtr();
-			ValueItem values;
-			if (len > 2) {
-				ValueItem* args = new ValueItem[len - 2]{};
-				uint32_t args_len = 0;
-				for (uint32_t i = 2; i < len; i++)
-					args[args_len++] = vals[i];
-				values = ValueItem(args, args_len, true);
-			}
-			return new ValueItem(getClass<EventSystem>(vals)->async_notify(values));
+			auto compacted = __funs_EventSystem_get_values0(vals, len);
+			return new ValueItem(getClass<EventSystem>(vals)->async_notify(compacted));
 		}
 		throw InvalidOperation("That function used only in proxy class");
 	}

@@ -24,7 +24,7 @@ namespace run_time {
 	inline T* readRawArray(const std::vector<uint8_t>& data, size_t data_len, size_t& i,size_t len) {
 		T* res = new T[len];
 		for (uint32_t j = 0; j < len; j++)
-			res[i] = readData<T>(data, data_len, i);
+			res[j] = readData<T>(data, data_len, i);
 		return res;
 	}
 	inline uint32_t readLen(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {

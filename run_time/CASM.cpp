@@ -92,9 +92,7 @@ struct NativeSymbolResolver {
 		SymCleanup(GetCurrentProcess());
 	}
 
-	StackTraceItem GetName(void* frame)
-	{
-
+	StackTraceItem GetName(void* frame) {
 		unsigned char buffer[sizeof(SYMBOL_INFO) + 128];
 		PSYMBOL_INFO symbol64 = reinterpret_cast<SYMBOL_INFO*>(buffer);
 		memset(symbol64, 0, sizeof(SYMBOL_INFO) + 128);
@@ -103,11 +101,7 @@ struct NativeSymbolResolver {
 
 		DWORD64 displacement = 0;
 		BOOL result = SymFromAddr(GetCurrentProcess(), (DWORD64)frame, &displacement, symbol64);
-
-		DWORD err = GetLastError();
-
-		if (result)
-		{
+		if (result) {
 			IMAGEHLP_LINE64 line64;
 			DWORD displacement = 0;
 			memset(&line64, 0, sizeof(IMAGEHLP_LINE64));
@@ -121,17 +115,14 @@ struct NativeSymbolResolver {
 		return { "UNDEFINED","UNDEFINED", SIZE_MAX };
 	}
 };
-uint32_t CaptureStackTrace(uint32_t max_frames, void** out_frames) {
+
+uint32_t CaptureStackTrace___(uint32_t max_frames, void** out_frames, CONTEXT& context) {
 	memset(out_frames, 0, sizeof(void*) * max_frames);
 
 	// RtlCaptureStackBackTrace doesn't support RtlAddFunctionTable..
 	//return RtlCaptureStackBackTrace(0, max_frames, out_frames, nullptr);
 	
 	//if you wanna port to x32 use RtlCaptureStackBackTrace
-
-	CONTEXT context;
-	RtlCaptureContext(&context);
-	
 	UNWIND_HISTORY_TABLE history;
 	memset(&history, 0, sizeof(UNWIND_HISTORY_TABLE));
 	
@@ -159,8 +150,20 @@ uint32_t CaptureStackTrace(uint32_t max_frames, void** out_frames) {
 		out_frames[frame] = (void*)context.Rip;
 	}
 	return frame;
-
 }
+
+uint32_t CaptureStackTrace(uint32_t max_frames, void** out_frames) {
+	CONTEXT context;
+	RtlCaptureContext(&context);
+	return CaptureStackTrace___(max_frames, out_frames, context);
+}
+uint32_t CaptureStackTrace(uint32_t max_frames, void** out_frames, void* rip_frame) {
+	CONTEXT context{0};
+	context.Rip = (DWORD64)rip_frame;
+	return CaptureStackTrace___(max_frames, out_frames, context);
+}
+
+
 size_t JITPCToLine(uint8_t* pc, const frame_info* info) {
 	//int PCIndex = int(pc - ((uint8_t*)(info->start)));
 	//if (info->LineInfo.Size() == 1) return info->LineInfo[0].LineNumber;
@@ -181,14 +184,14 @@ size_t JITPCToLine(uint8_t* pc, const frame_info* info) {
 
 //convert FrameResult struct to native unwindInfo
 std::vector<uint16_t> convert(FrameResult& frame) {
-	std::vector<uint16_t> info(sizeof(UWINFO_head)>>1);
+	auto& codes = frame.prolog;
+
+	std::vector<uint16_t> info((sizeof(UWINFO_head) >> 1));
+	info.reserve(codes.size() + codes.size() & 1);
+
 	frame.head.Flags = frame.use_handle ? UNW_FLAG_EHANDLER : 0;
 	*(UWINFO_head*)(info.data()) = frame.head;
 
-	//info.push_back(frame.head.Version | (frame.use_handle << 3) | (frame.head.SizeOfProlog << 8));
-	//info.push_back(frame.head.CountOfUnwindCodes | (frame.head.FrameRegister << 8) | (frame.head.FrameOffset << 12));
-	
-	auto& codes = frame.prolog;
 	for (size_t i = codes.size(); i > 0; i--)
 		info.push_back(codes[i - 1]);
 
@@ -312,7 +315,10 @@ size_t JITPCToLine(uint8_t* pc, const frame_info* info) {
 uint32_t CaptureStackTrace(uint32_t max_frames, void** out_frames) {
 	if(max_frames != (int32_t)max_frames)
 		return 0;
-	return (uint32_t)backtrace(out_frames, (int)max_frames);
+	return (uint32_t)backtrace(out_frames, (int32_t)max_frames);
+}
+uint32_t CaptureStackTrace(uint32_t max_frames, void** out_frames, void* rip) {
+	return 0;
 }
 
 
@@ -347,7 +353,7 @@ std::vector<StackTraceItem> FrameResult::JitCaptureStackTrace(uint32_t framesToS
 	if (max_frames + 1 == 0)
 		throw std::bad_array_new_length();
 	max_frames += 1;
-	std::unique_ptr<void*> frames_buffer; frames_buffer.reset(new void* [max_frames]);
+	std::unique_ptr<void*,std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
 	void** frame = frames_buffer.get();
 	uint32_t numframes = CaptureStackTrace(max_frames, frame);
 
@@ -368,9 +374,46 @@ std::vector<void*>* FrameResult::JitCaptureStackChainTrace(uint32_t framesToSkip
 	if (max_frames + 1 == 0)
 		throw std::bad_array_new_length();
 	max_frames += 1;
-	std::unique_ptr<void*> frames_buffer; frames_buffer.reset(new void* [max_frames]);
+	std::unique_ptr<void*,std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
 	void** frame = frames_buffer.get();
 	uint32_t numframes = CaptureStackTrace(max_frames, frame);
+	if (framesToSkip >= numframes)
+		return nullptr;
+	else 
+		return new std::vector<void*>( frame + framesToSkip, frame + numframes);
+}
+
+std::vector<StackTraceItem> FrameResult::JitCaptureExternStackTrace(void* rip, uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
+#ifdef _WIN64
+	std::lock_guard lg(DbgHelp_lock);//in windiws NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+#endif
+	if (max_frames + 1 == 0)
+		throw std::bad_array_new_length();
+	max_frames += 1;
+	std::unique_ptr<void*,std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
+	void** frame = frames_buffer.get();
+	uint32_t numframes = CaptureStackTrace(max_frames, frame, rip);
+
+	std::unique_ptr<NativeSymbolResolver> nativeSymbols;
+	if (includeNativeFrames)
+		nativeSymbols.reset(new NativeSymbolResolver());
+
+	std::vector<StackTraceItem> stack_trace;
+	for (uint32_t i = framesToSkip + 1; i < numframes; i++)
+		stack_trace.push_back(JitGetStackFrameName(nativeSymbols.get(), frame[i]));
+	return stack_trace;
+}
+
+std::vector<void*>* FrameResult::JitCaptureExternStackChainTrace(void* rip, uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
+#ifdef _WIN64
+	std::lock_guard lg(DbgHelp_lock);//in windiws NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+#endif
+	if (max_frames + 1 == 0)
+		throw std::bad_array_new_length();
+	max_frames += 1;
+	std::unique_ptr<void*,std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
+	void** frame = frames_buffer.get();
+	uint32_t numframes = CaptureStackTrace(max_frames, frame, rip);
 	if (framesToSkip >= numframes)
 		return nullptr;
 	else 

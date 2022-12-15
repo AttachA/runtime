@@ -23,8 +23,10 @@ size_t page_size = []() {
 #include "library/string_help.hpp"
 #include <filesystem>
 #include "run_time/FuncEnviropment.hpp"
+#include "run_time/tasks.hpp"
 
-unsigned long fault_reserved_stack_size = 524288;
+unsigned long fault_reserved_stack_size = 0;// 524288;
+unsigned long fault_reserved_pages = fault_reserved_stack_size / page_size + (fault_reserved_stack_size % page_size ? 1 : 0);
 thread_local unsigned long stack_size_tmp = 0;
 thread_local bool need_stack_restore = false;
 bool enable_thread_naming = true;
@@ -75,10 +77,18 @@ LONG NTAPI win_exception_handler(LPEXCEPTION_POINTERS e) {
 			||
 			e->ExceptionRecord->ExceptionInformation[0] == 1 //thread attempted to write to an inaccessible address
 		) {
-			if (e->ExceptionRecord->ExceptionInformation[1] < UINT16_MAX)
-				throw NullPointerException("Thread attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in null pointer region. 0x" + string_help::n2hexstr(e->ExceptionRecord->ExceptionInformation[1]));
-			else 
-				throw SegmentationFaultException("Thread attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in non mapped region. 0x" + string_help::n2hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+			if(Task::is_task()){
+				if (e->ExceptionRecord->ExceptionInformation[1] < UINT16_MAX)
+					throw NullPointerException("Task 0x" + string_help::hexsstr(Task::task_id()) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in null pointer region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+				else 
+					throw SegmentationFaultException("Task 0x" + string_help::hexsstr(Task::task_id()) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in non mapped region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+		
+			}else{
+				if (e->ExceptionRecord->ExceptionInformation[1] < UINT16_MAX)
+					throw NullPointerException("Thread " + string_help::hexsstr(std::hash<std::thread::id>()(std::this_thread::get_id())) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in null pointer region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+				else 
+					throw SegmentationFaultException("Thread " + string_help::hexsstr(std::hash<std::thread::id>()(std::this_thread::get_id())) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in non mapped region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+			}
 		}
 		else 
 			return EXCEPTION_CONTINUE_SEARCH;//8 - thread attempted to execute to an inaccessible address
@@ -108,7 +118,7 @@ LONG NTAPI win_exception_handler(LPEXCEPTION_POINTERS e) {
 			e->ContextRecord->Rip++;
 #else
 			e->ContextRecord->Eip++;
-#endif    
+#endif
 			break;
 		}
 		break;
@@ -237,7 +247,6 @@ LONG WINAPI win_fault_handler(LPEXCEPTION_POINTERS e) {
 		}
 	}
 	else {
-
 		ValueItem noting;
 		ex_fault.sync_notify(noting);
 		switch (default_fault_action) {

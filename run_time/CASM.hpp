@@ -7,6 +7,7 @@
 #pragma once
 #include <asmjit/asmjit.h>
 #include <vector>
+#include <cassert>
 #include "library/exceptions.hpp"
 using asmjit::CodeHolder;
 using asmjit::Error;
@@ -155,9 +156,29 @@ constexpr creg128 vec15 = asmjit::x86::xmm15;
 #ifdef CASM_X64
 #define CASM_REDZONE_SIZE 0x20
 
+#define CASM_DEBUG
+#ifdef CASM_DEBUG
+#define casm_stack_align_check_v size_t stack_align_check = 8//call opcode use 8 bytes
+#define casm_stack_align_check_dynamic assert(false && "In debug mode dynamic stack allocation disabled")
+#define casm_stack_align_check_add(add) stack_align_check += add
+#define casm_stack_align_check_rem(rem) stack_align_check -= rem
+#define casm_stack_align_check_flush stack_align_check = 8
+#define casm_stack_align_check_align if(stack_align_check & 15){stack_align_check &= -16; stack_align_check+=16;}
+#define casm_stack_align_check assert((stack_align_check & 15) && "Align check failed")
+#else
+#define casm_value_align_check_v
+#define casm_stack_align_check_dynamic
+#define casm_stack_align_check_add(add)
+#define casm_stack_align_check_rem(rem)
+#define casm_stack_align_check_flush
+#define casm_stack_align_check_align
+#define casm_stack_align_check
+#endif
+
 extern void* __casm_test_handle;
 class CASM {
 	asmjit::x86::Assembler a;
+	casm_stack_align_check_v;
 public:
 	bool resr_used = false;
 	CASM(asmjit::CodeHolder& holder) :a(&holder) {}
@@ -201,25 +222,32 @@ public:
 	void stackAlloc(size_t bytes_count) {
 		a.mov(resr, stack_ptr);
 		a.sub(stack_ptr, bytes_count);
+		casm_stack_align_check_add(bytes_count);
 	}
 	void stackAlloc(creg64 bytes_count) {
 		a.mov(resr, stack_ptr);
 		a.sub(stack_ptr, bytes_count);
+		casm_stack_align_check_dynamic;
 	}
 	void stackIncrease(size_t bytes_count) {
 		a.sub(stack_ptr, bytes_count);
+		casm_stack_align_check_add(bytes_count);
 	}
 	void stackIncrease(creg64 bytes_count) {
 		a.sub(stack_ptr, bytes_count);
+		casm_stack_align_check_dynamic;
 	}
 	void stackReduce(size_t bytes_count) {
 		a.add(stack_ptr, bytes_count);
+		casm_stack_align_check_rem(bytes_count);
 	}
 	void stackReduce(creg64 bytes_count) {
 		a.add(stack_ptr, bytes_count);
+		casm_stack_align_check_dynamic;
 	}
 	void stackAlign() {
 		a.and_(stack_ptr,-16);
+		casm_stack_align_check_align;
 	}
 
 
@@ -282,6 +310,7 @@ public:
 			a.push(resr);
 
 		a.mov(resr, v);
+		casm_stack_align_check;
 		a.vmovq(res, resr);
 
 		if (resr_used)
@@ -414,12 +443,15 @@ public:
 	}
 
 	void push(const asmjit::Imm& val) {
+		casm_stack_align_check_add(8);
 		a.push(val);
 	}
 	void push(creg val) {
+		casm_stack_align_check_add(val.size());
 		a.push(val);
 	}
 	void pop(creg res) {
+		casm_stack_align_check_rem(res.size());
 		a.pop(res);
 	}
 	void pop() {
@@ -428,6 +460,7 @@ public:
 
 	template<class FUNC>
 	void call(FUNC fun) {
+		casm_stack_align_check;
 		a.call((*(void**)(&fun)));
 	}
 
@@ -467,9 +500,11 @@ public:
 	}
 
 	void push_flags() {
+		casm_stack_align_check_add(8);
 		a.pushf();
 	}
 	void pop_flags() {
+		casm_stack_align_check_rem(8);
 		a.popf();
 	}
 	void load_flag8h() {
@@ -691,6 +726,8 @@ struct FrameResult {
 	static bool deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime);
 	static std::vector<void*>* JitCaptureStackChainTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
 	static std::vector<StackTraceItem> JitCaptureStackTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
+	std::vector<StackTraceItem> JitCaptureExternStackTrace(void* rip, uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
+	std::vector<void*>* JitCaptureExternStackChainTrace(void* rip, uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
 };
 
 
@@ -699,31 +736,41 @@ class BuildCall {
 	CASM& csm;
 	size_t arg_c = 0;
 	size_t pushed = 0;
-	bool red_zone_inited = false;
+	size_t red_zone_inited = 0;
 #ifdef _WIN64
-	void callStart() {
+#define callStart()
+	//void callStart() {
 		//in vc++ x64 cdecl and vectorcal are different TO-DO implement them, 
 		//if (!arg_c) {
 		//	if (!red_zone_inited)
 		//		csm.stackIncrease(CASM_REDZONE_SIZE);//function visual c++ abi
 		//	red_zone_inited = true;
 		//}
-	}
+	//}
 #else
 #define callStart()
 #endif // _WIN64
 public:
-	BuildCall(CASM& a, bool red_zone_inited = false) : csm(a), red_zone_inited(red_zone_inited) {}
+	BuildCall(CASM& a, bool red_zone_inited = false) : csm(a)/*, red_zone_inited(red_zone_inited)*/ {}
 	~BuildCall() noexcept(false) {
 		if (arg_c)
 			throw InvalidOperation("Build call is incomplete, need finalization");
 	}
-	void redZoneAlreadyInited() {
-		red_zone_inited = true;
+	void needAlign() {
+		if(!pushed)
+			csm.stackAlign();
+	}
+	void redZoneAlreadyInited(size_t red_zone_size) {
+		if(red_zone_inited)
+			throw InvalidOperation("Red zone already inited");
+		red_zone_inited = red_zone_size;
 	}
 	void iniRedzone() {
 		callStart();
-		red_zone_inited = true;
+		if (!red_zone_inited) {
+			csm.stackIncrease(CASM_REDZONE_SIZE);
+			red_zone_inited = CASM_REDZONE_SIZE;
+		}else throw InvalidOperation("Red zone already inited");
 	}
 	void addArg(creg64 reg) {
 		callStart();
@@ -861,7 +908,7 @@ public:
 			pushed += 8;
 		}
 	}
-	void addArg(const asmjit::Imm& val) {
+	void addArg(const asmjit::Imm& val,uint8_t val_size = 8) {
 		callStart();
 		switch (arg_c++) {
 		case 0:
@@ -886,9 +933,22 @@ public:
 #endif
 		default:
 			csm.push(val);
-			pushed += val.size();
+			pushed += val_size;
 		}
 	}
+	inline void addArg(bool val) { addArg(val, 1); }
+	inline void addArg(int8_t val) { addArg(val, 1); }
+	inline void addArg(uint8_t val) { addArg(val, 1); }
+	inline void addArg(int16_t val) { addArg(val, 2); }
+	inline void addArg(uint16_t val) { addArg(val, 2); }
+	inline void addArg(int32_t val) { addArg(val, 4); }
+	inline void addArg(uint32_t val) { addArg(val, 4); }
+	inline void addArg(int64_t val) { addArg(val, 8); }
+	inline void addArg(uint64_t val) { addArg(val, 8); }
+	inline void addArg(float val) { addArg(val, 4); }
+	inline void addArg(double val) { addArg(val, 8); }
+	inline void addArg(void* val) { addArg(val, 8); }
+
 	void lea(creg64 reg, int32_t off, bool allow_use_resr = true) {
 		callStart();
 		switch (arg_c++) {
@@ -1006,16 +1066,16 @@ public:
 	template<class F>
 	void finalize(F func) {
 		//vector call calle impl
-		if(CASM_REDZONE_SIZE > pushed){
+		if (CASM_REDZONE_SIZE > pushed) {
 			csm.stackIncrease(CASM_REDZONE_SIZE - pushed);
-			csm.call(func);
-			csm.stackReduce(CASM_REDZONE_SIZE);
-		}else{
-			//vector call and cdecl calle impl
-			csm.call(func);
-			if (pushed) 
-				csm.stackReduce(pushed);
 		}
+		csm.call(func);
+		if (CASM_REDZONE_SIZE > pushed)
+			csm.stackReduce(CASM_REDZONE_SIZE);
+		else if(pushed > CASM_REDZONE_SIZE)
+			csm.stackReduce(pushed);
+		else
+			csm.stackReduce(CASM_REDZONE_SIZE - pushed);
 		pushed = 0;
 		arg_c = 0;
 	}
@@ -1049,6 +1109,10 @@ class BuildProlog {
 public:
 	BuildProlog(CASM& a) : csm(a) {}
 	~BuildProlog() {
+		pushes.clear();
+		stack_alloc.clear();
+		set_frame.clear();
+		save_to_stack.clear();
 		if (frame_inited)
 			return; 
 		_______dbgOut("Frame not initalized!");

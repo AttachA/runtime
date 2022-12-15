@@ -30,7 +30,7 @@ std::tuple<std::vector<uint8_t>,uint16_t,bool,bool> build(list_array<ValueItem>&
 	std::vector<uint8_t> fn_code;
 	list_array<ValueItem>* arg_reg = nullptr;
 	size_t code_len = code.size();
-	RFLAGS flags;
+	RFLAGS flags{0};
 	uint16_t fn_code_val_count = 0;
 	bool fn_code_can_be_unloaded = true;
 	while (true) {

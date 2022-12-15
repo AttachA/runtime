@@ -1711,6 +1711,12 @@ void __attacha_handle(void//not implemented
 
 #endif
 
+void* prepareStack(void** stack, size_t size) {
+	while (size)
+		stack[size--] = nullptr;
+	return stack;
+}
+
 void FuncEnviropment::RuntimeCompile() {
 	if (curr_func != nullptr)
 		FrameResult::deinit(frame, curr_func, jrt);
@@ -2335,9 +2341,12 @@ void FuncEnviropment::RuntimeCompile() {
 				b.addArg(ValueMeta(VType::saarr, false, true, len).encoded);
 				b.addArg(cmd.is_gc_mode);
 				b.finalize(preSetValue);
-				a.lea(argr0, stack_ptr, 0 /*-CASM_REDZONE_SIZE*/);
+				a.lea(resr, stack_ptr, -CASM_REDZONE_SIZE);
 				a.stackIncrease(len * sizeof(ValueItem));
-				a.mov(resr, 0, 8, argr0);
+				b.addArg(resr);
+				b.addArg(len*2);
+				b.finalize(prepareStack);
+				a.movEnviro(value_index, resr);
 				break;
 			}
 			case Opcode::remove: {
@@ -3063,6 +3072,7 @@ void FuncEnviropment::RuntimeCompile() {
 				break;
 			}
 			case Opcode::explicit_await: {
+				a.stackAlign();
 				BuildCall b(a, true);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(&ValueItem::getAsync);

@@ -37,6 +37,7 @@ enum class BreakPointActionByDefault {
 
 
 extern unsigned long fault_reserved_stack_size;
+extern unsigned long fault_reserved_pages;
 extern FaultActionByDefault default_fault_action;
 extern BreakPointActionByDefault break_point_action;
 extern bool enable_thread_naming;

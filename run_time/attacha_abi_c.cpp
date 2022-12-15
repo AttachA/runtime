@@ -2114,10 +2114,15 @@ namespace exception_abi {
 	}
 	//for dynamic catch block
 	jump_point switch_jump_handle_except(void** val, list_array<jump_handle_except>* handlers) {
-		if(!handlers)
+		if (!handlers) {
 			continue_unwind(val);
-		if (!handlers->size())
+			std::unreachable();
+		}
+
+		if (!handlers->size()) {
 			continue_unwind(val);
+			std::unreachable();
+		}
 
 		auto& ex = *((std::exception_ptr*)getSpecificValueLink(val, VType::except_value));
 		if (handlers->size() != 1) {
@@ -2298,7 +2303,7 @@ ValueItem::ValueItem(const std::initializer_list<ValueItem>& args) : val(0) {
 	uint32_t len = (uint32_t)args.size();
 	meta = ValueMeta(VType::faarr, false, true, len);
 	if (args.size()) {
-		ValueItem* res = new ValueItem[args.size()];
+		ValueItem* res = new ValueItem[len];
 		const ValueItem* copy = args.begin();
 		for(uint32_t i = 0;i< len;i++)
 			res[i] = std::move(copy[i]);

@@ -172,6 +172,7 @@ struct Task {
 	static bool yield_iterate(typed_lgr<Task>& lgr_task);
 	static ValueItem* get_result(typed_lgr<Task>& lgr_task, size_t yield_res = 0);
 	static ValueItem* get_result(typed_lgr<Task>&& lgr_task, size_t yield_res = 0);
+	static bool has_result(typed_lgr<Task>& lgr_task, size_t yield_res = 0);
 	static void await_task(typed_lgr<Task>& lgr_task, bool in_place = false);
 	static void await_multiple(list_array<typed_lgr<Task>>& tasks, bool pre_started = false);
 	static void await_multiple(typed_lgr<Task>* tasks, size_t len, bool pre_started = false);
@@ -181,6 +182,7 @@ struct Task {
 	static size_t task_id();
 	static void check_cancelation();
 	static void self_cancel();
+	static bool is_task();
 };
 class TaskSemaphore {
 	std::list<typed_lgr<Task>> resume_task;
