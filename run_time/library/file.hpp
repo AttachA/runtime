@@ -8,7 +8,6 @@ namespace file {
 		ValueItem* createProxy_EnbtFile(ValueItem*, uint32_t);
 		ValueItem* createProxy_JsonFile(ValueItem*, uint32_t);
 		ValueItem* createProxy_YamlFile(ValueItem*, uint32_t);
-		ValueItem* createProxy_XmlFile(ValueItem*, uint32_t);
 	}
 	namespace log {
 		namespace constructor {
@@ -23,4 +22,9 @@ namespace file {
 	ValueItem* readEnbts(ValueItem*, uint32_t); //uarr<any>
 	ValueItem* readJson(ValueItem*, uint32_t); //any
 	ValueItem* readYaml(ValueItem*, uint32_t); //any
+
+	ValueItem* readEnbtToken(ValueItem*, uint32_t); //any, args: (string path / RawFile), string enbt token adress
+	ValueItem* readEnbtToken(ValueItem*, uint32_t); //any
+
+	void init();
 }

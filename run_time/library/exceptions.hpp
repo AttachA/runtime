@@ -87,6 +87,14 @@ public:
 		return "InvalidUnlock";
 	}
 };
+class InvalidInput : public AttachARuntimeException {
+public:
+	InvalidInput(const std::string& msq) : AttachARuntimeException(msq) {}
+	InvalidInput(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+	const char* name() const override {
+		return "InvalidInput";
+	}
+};
 class NotImplementedException : public virtual AttachARuntimeException {
 public:
 	NotImplementedException() : AttachARuntimeException("Entered to non implemented region") {}

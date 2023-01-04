@@ -5,7 +5,7 @@
 #include <cmath>
 #include <exception>
 #include "../../run_time.hpp"
-#include <iostream>
+#include "../library/console.hpp"
 #include <assert.h>
 #include <exception>
 typedef boost::context::stack_context stack_context;
@@ -47,22 +47,23 @@ bool set_lock_pages_priv( HANDLE hProcess, BOOL bEnable ) {
     return true;
 }
 
+size_t large_page_size = GetLargePageMinimum();
 
 light_stack::light_stack(std::size_t size) BOOST_NOEXCEPT_OR_NOTHROW : size(size) {}
 
 stack_context light_stack::allocate() {
     // calculate how many pages are required
-    const size_t guard_page_size = (size_t(fault_reserved_pages) + 1) * traits_type::page_size();
-    const std::size_t pages = (size + guard_page_size + traits_type::page_size() - 1) / traits_type::page_size();
+    const size_t guard_page_size = (size_t(fault_reserved_pages) + 1) * page_size;
+    const std::size_t pages = (size + guard_page_size + page_size - 1) / page_size;
     // add one page at bottom that will be used as guard-page
-    const std::size_t size__ = (pages + 1) * traits_type::page_size();
+    const std::size_t size__ = (pages + 1) * page_size;
 
     void* vp = ::VirtualAlloc(0, size__, MEM_RESERVE, PAGE_READWRITE);
     if (!vp) 
         throw std::bad_alloc();
 
     // needs at least 3 pages to fully construct the coroutine and switch to it
-    const auto init_commit_size = traits_type::page_size() * 3;
+    const auto init_commit_size = page_size * 3;
     auto pPtr = static_cast<PBYTE>(vp) + size__;
     pPtr -= init_commit_size;
     if (!VirtualAlloc(pPtr, init_commit_size, MEM_COMMIT, PAGE_READWRITE)) 
@@ -108,8 +109,8 @@ hex_fmt_t<T> fmt_hex(T x) {
 
 const char* fmt_state(DWORD state) {
     switch (state) {
-    case MEM_COMMIT: return "COMMIT ";
-    case MEM_FREE: return "FREE   ";
+    case MEM_COMMIT: return "COMMIT";
+    case MEM_FREE: return "FREE";
     case MEM_RESERVE: return "RESERVE";
     default: return "unknown";
     }
@@ -146,11 +147,8 @@ std::string fmt_protect(DWORD prot) {
 }
 
 
-void dump_stack(bool* pPtr) {
-    std::cout << "####### Stack Dump Start #######\n";
-
-    const auto page_size = boost::context::stack_traits::page_size();
-
+std::string dump_stack(bool* pPtr) {
+    std::stringstream res;
     // Get the stack last page.
     MEMORY_BASIC_INFORMATION stMemBasicInfo;
     BOOST_VERIFY(VirtualQuery(pPtr, &stMemBasicInfo, sizeof(stMemBasicInfo)));
@@ -158,8 +156,7 @@ void dump_stack(bool* pPtr) {
     do {
         BOOST_VERIFY(VirtualQuery(pPos, &stMemBasicInfo, sizeof(stMemBasicInfo)));
         BOOST_VERIFY(stMemBasicInfo.RegionSize);
-
-        std::cout << "Range: " << fmt_hex((SIZE_T)pPos)
+        res << "Range: " << fmt_hex((SIZE_T)pPos)
             << " - " << fmt_hex((SIZE_T)pPos + stMemBasicInfo.RegionSize)
             << " Protect: " << fmt_protect(stMemBasicInfo.Protect)
             << " State: " << fmt_state(stMemBasicInfo.State)
@@ -167,55 +164,293 @@ void dump_stack(bool* pPtr) {
             << std::dec
             << " Pages: " << stMemBasicInfo.RegionSize / page_size
             << std::endl;
-
         pPos += stMemBasicInfo.RegionSize;
     } while (pPos < pPtr);
-    std::cout << "####### Stack Dump Finish #######" << std::endl;
+    return res.str();
 }
 
+
+
+struct allocation_details{
+    DWORD prot;
+    DWORD state;
+    size_t length;
+    bool* base;
+    bool* page;
+    allocation_details(size_t page_ptr, size_t base_ptr, size_t len, DWORD prot, DWORD state) : page((bool*)page_ptr),base((bool*)page_ptr), length(len), state(state), prot(prot)  {}
+    allocation_details(const MEMORY_BASIC_INFORMATION& mbi) : allocation_details((size_t)mbi.BaseAddress,(size_t)mbi.AllocationBase, mbi.RegionSize,mbi.Protect, mbi.State)  {}
+};
 
 BOOST_NOINLINE bool* GetStackPointer() {
     return (bool*)_AddressOfReturnAddress() + 8;
 }
-void dump_stack() {
-    bool* pPtr = GetStackPointer();
-    dump_stack(pPtr);
+
+struct stack_snapshot {
+    stack_snapshot(bool* pPtr) {
+        // Get the stack last page.
+        MEMORY_BASIC_INFORMATION stMemBasicInfo;
+        if(!(VirtualQuery(pPtr, &stMemBasicInfo, sizeof(stMemBasicInfo)))){
+            valid = false;
+            return;
+        }
+        bool* pPos = (bool*)stMemBasicInfo.AllocationBase;
+        allocations.reserve(3);
+        do {
+            BOOST_VERIFY(VirtualQuery(pPos, &stMemBasicInfo, sizeof(stMemBasicInfo)));
+            BOOST_VERIFY(stMemBasicInfo.RegionSize);
+            allocations.push_back(allocation_details(stMemBasicInfo));
+            pPos += stMemBasicInfo.RegionSize;
+        } while (pPos < pPtr);
+        allocations.shrink_to_fit();
+        for (auto& a : allocations) {
+            if (a.state == MEM_RESERVE) {
+                reserved = &a;
+            }
+            else if (a.prot & PAGE_GUARD) {
+                guard = &a;
+            }
+            else if (a.state == MEM_COMMIT) {
+                committed = &a;
+            }
+        }
+
+    }
+    stack_snapshot() : stack_snapshot(GetStackPointer()) {}
+    std::vector<allocation_details> allocations;
+    allocation_details* reserved = nullptr;
+    allocation_details* guard = nullptr;
+    allocation_details* committed = nullptr;
+    bool valid = true;
+};
+
+enum stack_item{
+    reserved,
+    guard,
+    committed
+};
+template<stack_item item>
+allocation_details get_stack_detail(bool* pPtr){
+    MEMORY_BASIC_INFORMATION stMemBasicInfo;
+    BOOST_VERIFY(VirtualQuery(GetStackPointer(), &stMemBasicInfo, sizeof(stMemBasicInfo)));
+    bool* start = (bool*)stMemBasicInfo.AllocationBase;
+    BOOST_VERIFY(VirtualQuery(start, &stMemBasicInfo, sizeof( stMemBasicInfo )));//begin of allocation// usually MEM reserve
+    start += stMemBasicInfo.RegionSize;
+    if constexpr(item == stack_item::reserved){
+        if(stMemBasicInfo.State == MEM_RESERVE)
+            return stMemBasicInfo;
+    } else {
+        if(stMemBasicInfo.State == MEM_RESERVE){
+            BOOST_VERIFY(VirtualQuery((bool*)start, &stMemBasicInfo, sizeof(stMemBasicInfo)));//after reserve usually guard page
+            start += stMemBasicInfo.RegionSize;
+        }
+
+        if constexpr(item == stack_item::guard){
+            if(stMemBasicInfo.Protect & PAGE_GUARD)
+                return stMemBasicInfo;
+        } else {
+            if(stMemBasicInfo.Protect & PAGE_GUARD){
+                BOOST_VERIFY(VirtualQuery((bool*)start, &stMemBasicInfo, sizeof(stMemBasicInfo)));//after guard page usually MEM commit
+                start += stMemBasicInfo.RegionSize;
+            }
+            
+            if(stMemBasicInfo.State == MEM_COMMIT)
+                return stMemBasicInfo;
+        }
+    }
+    return allocation_details(0,0,0,0,0);
+}
+std::string dump_stack() {
+    return dump_stack(GetStackPointer());
 }
 
-size_t light_stack::shrink_current(size_t bytes_treeshold){return 0;}
-    //try increase stack to use them without slow page_faults
-    size_t light_stack::prepare(size_t bytes_to_use){return 0;}
+//shit code, TO-DO fix it
+bool light_stack::shrink_current(size_t bytes_treeshold){
+    bool* pPtr = GetStackPointer();
+    stack_snapshot snapshot(pPtr);
+    
+    size_t unused = snapshot.committed->length - size_t((snapshot.committed->base + snapshot.committed->length) - pPtr);
+    if(unused <= bytes_treeshold)
+        return false;
+    size_t to_free = (unused - bytes_treeshold) / page_size * page_size;
+    if(!to_free)
+        return false;
 
-    //returns 
-    // farr[
-    //     farr[undefined_ptr stack_begin_from, undefined_ptr stack_end_at, ui64 used_memory]
-    //     farr[undefined_ptr from, undefined_ptr to, str desk, bool fault_prot]
-    //     ...
-    // ]
-    ValueItem* light_stack::dump_current(){return 0;}
-    //default formated string
-    std::string light_stack::dump_current_str(){return "";}
-    //console
-    void light_stack::dump_current_out(){
-        dump_stack();
+    size_t guard_page_size = snapshot.guard ? snapshot.guard->length : 0;
+    if(to_free < guard_page_size) {
+        DWORD old_options;
+        BOOST_VERIFY(VirtualProtect(snapshot.guard->base - to_free, guard_page_size, PAGE_GUARD, &old_options));
+        BOOST_VERIFY(VirtualFree(snapshot.guard->base, to_free, MEM_DECOMMIT));
+    }else if(guard_page_size){
+        if(!VirtualFree(snapshot.guard->base, to_free + guard_page_size, MEM_DECOMMIT))
+            return false;
+        VirtualAlloc(snapshot.guard->base + to_free, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD);
+    }else{
+        if(!VirtualFree(snapshot.committed->base + snapshot.committed->length, to_free, MEM_DECOMMIT))
+            return false;
+    }
+    return true;
+}
+
+bool light_stack::prepare(){
+    bool* pPtr = GetStackPointer(); 
+    MEMORY_BASIC_INFORMATION stMemBasicInfo;
+    BOOST_VERIFY(VirtualQuery(pPtr, &stMemBasicInfo, sizeof(stMemBasicInfo)));
+    bool* start = (bool*)stMemBasicInfo.AllocationBase;
+    bool* guard = nullptr;
+    size_t guard_page_size = 0;
+
+    
+    BOOST_VERIFY(VirtualQuery(start, &stMemBasicInfo, sizeof(stMemBasicInfo)));
+    BOOST_VERIFY(stMemBasicInfo.RegionSize);
+    
+    if(stMemBasicInfo.State != MEM_RESERVE || stMemBasicInfo.Protect & PAGE_GUARD)
+        return false;
+
+    size_t free_space = stMemBasicInfo.RegionSize;
+    
+    BOOST_VERIFY(VirtualQuery(start + free_space, &stMemBasicInfo, sizeof(stMemBasicInfo)));
+    BOOST_VERIFY(stMemBasicInfo.RegionSize);
+
+    if(stMemBasicInfo.Protect & PAGE_GUARD){
+        guard = start + free_space;
+        guard_page_size = stMemBasicInfo.RegionSize;
     }
 
-    //returns 
-    // farr[
-    //     farr[undefined_ptr stack_begin_from, undefined_ptr stack_end_at, ui64 used_memory]
-    //     farr[undefined_ptr from, undefined_ptr to, str desk, bool fault_prot]
-    //     ...
-    // ]
-    ValueItem* light_stack::dump(void*){return 0;}
-    //default formated string
-    std::string light_stack::dump_str(void*){return "";}
-    //console
-    void light_stack::dump_out(void* ptr){
-        dump_stack((bool*)ptr);
+    if(guard){
+        //BOOST_VERIFY(VirtualFree(guard, guard_page_size, MEM_DECOMMIT ));
+        DWORD old_options;
+        BOOST_VERIFY(VirtualProtect(guard, guard_page_size, PAGE_READWRITE, &old_options));
+        size_t to_alloc = free_space - guard_page_size;
+        while(to_alloc){
+            if(!VirtualAlloc(guard - to_alloc, page_size , MEM_COMMIT, PAGE_READWRITE))
+                return false;
+            to_alloc -= page_size;
+        }
+        BOOST_VERIFY(VirtualAlloc(start, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD));
     }
+    else{
+        VirtualAlloc(start, free_space, MEM_COMMIT, PAGE_READWRITE);
+    }
+    return true;
+}
+
+bool light_stack::prepare(size_t bytes_to_use){
+    bool* pPtr = GetStackPointer(); 
+    MEMORY_BASIC_INFORMATION stMemBasicInfo;
+    BOOST_VERIFY(VirtualQuery(pPtr, &stMemBasicInfo, sizeof(stMemBasicInfo)));
+    bool* start = (bool*)stMemBasicInfo.AllocationBase;
+    bool* guard = nullptr;
+    size_t guard_page_size = 0;
+
+    
+    BOOST_VERIFY(VirtualQuery(start, &stMemBasicInfo, sizeof(stMemBasicInfo)));
+    BOOST_VERIFY(stMemBasicInfo.RegionSize);
+
+    size_t free_space;
+
+    if(stMemBasicInfo.State != MEM_RESERVE || stMemBasicInfo.Protect & PAGE_GUARD)
+        free_space = 0;
+    else
+        free_space = stMemBasicInfo.RegionSize;
 
 
-    size_t light_stack::current_can_be_used(){return 0;}
-    size_t light_stack::current_size(){return 0;}
-    size_t light_stack::full_current_size(){return 0;}
-    bool light_stack::is_supported(){return 0;}
+    BOOST_VERIFY(VirtualQuery(start + free_space, &stMemBasicInfo, sizeof(stMemBasicInfo)));
+    BOOST_VERIFY(stMemBasicInfo.RegionSize);
+
+
+    size_t used = (size_t)pPtr;
+    if(stMemBasicInfo.Protect & PAGE_GUARD){
+        guard = start + free_space;
+        guard_page_size = stMemBasicInfo.RegionSize;
+        used -= (size_t)guard + guard_page_size;
+    }
+    else
+        used -= (size_t)start + free_space;
+    
+    if(used > bytes_to_use)
+        return true;
+    else
+        bytes_to_use -= used;
+
+    if(free_space < bytes_to_use)
+        return false;
+
+    bytes_to_use = (bytes_to_use + page_size - 1) & ~(page_size - 1);
+
+
+    if(guard){
+        //this will work, but no, im not know why
+        //BOOST_VERIFY(VirtualFree(guard, guard_page_size, MEM_DECOMMIT ));
+        //BOOST_VERIFY(VirtualAlloc(guard, bytes_to_use, MEM_COMMIT, PAGE_READWRITE));
+        //BOOST_VERIFY(VirtualAlloc(guard - bytes_to_use, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD));
+
+        //then im made this shit:
+        DWORD old_options;
+        BOOST_VERIFY(VirtualProtect(guard, guard_page_size, PAGE_READWRITE, &old_options));
+        
+        size_t to_alloc = bytes_to_use - guard_page_size;
+        while(to_alloc){
+            if(!VirtualAlloc(guard - to_alloc, page_size , MEM_COMMIT, PAGE_READWRITE))
+                return false;
+            to_alloc -= page_size;
+        }
+        BOOST_VERIFY(VirtualAlloc(guard - bytes_to_use, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD));
+    }
+    else
+        VirtualAlloc(start + free_space, bytes_to_use, MEM_COMMIT, PAGE_READWRITE);
+    return true;
+}
+
+
+ValueItem* light_stack::dump_current(){
+    return dump(GetStackPointer());
+}
+std::string light_stack::dump_current_str(){
+    return dump_stack();
+}
+void light_stack::dump_current_out(){
+    ValueItem item("####### Stack Dump Start #######\n" + dump_stack() + "####### Stack Dump End #######\n");
+    console::print(&item, 1);
+}
+
+ValueItem* light_stack::dump(void* ptr){
+    list_array<ValueItem> stack;
+    stack_snapshot snap((bool*)ptr);
+    for(auto& a : snap.allocations){
+        list_array<ValueItem> item;
+        item.push_back(new ValueItem(a.base));
+        item.push_back(new ValueItem(a.base + a.length));
+        item.push_back(new ValueItem(a.length));
+        item.push_back(new ValueItem(fmt_protect(a.prot) + " " + fmt_state(a.state)));
+        item.push_back(new ValueItem(bool(a.prot & PAGE_GUARD)));
+        stack.push_back(new ValueItem(std::move(item)));
+    }
+    return new ValueItem(std::move(stack));
+}
+//default formated string
+std::string light_stack::dump_str(void*){
+    return "";
+}
+//console
+void light_stack::dump_out(void* ptr){
+    ValueItem item("####### Stack Dump Start #######\n" + dump_stack((bool*)ptr) + "####### Stack Dump End #######\n");
+    console::print(&item, 1);
+}
+size_t light_stack::allocated_size(){
+    return get_stack_detail<stack_item::committed>(GetStackPointer()).length;
+}
+size_t light_stack::free_size(){
+    return get_stack_detail<stack_item::reserved>(GetStackPointer()).length;
+}
+size_t light_stack::used_size(){
+    bool* pPtr = GetStackPointer();
+    auto detail = get_stack_detail<stack_item::committed>(pPtr);
+    return size_t((detail.base + detail.length) - pPtr);
+}
+size_t light_stack::unused_size(){
+    bool* pPtr = GetStackPointer();
+    auto detail = get_stack_detail<stack_item::committed>(pPtr);
+    return detail.length - size_t((detail.base + detail.length) - pPtr);
+}
+
+bool light_stack::is_supported(){return true;}

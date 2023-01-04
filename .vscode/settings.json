@@ -90,7 +90,12 @@
         "execution": "cpp",
         "memory_resource": "cpp",
         "numeric": "cpp",
-        "shared_mutex": "cpp"
+        "shared_mutex": "cpp",
+        "*.rh": "cpp",
+        "valarray": "cpp",
+        "*.ipp": "cpp",
+        "csignal": "cpp",
+        "cwctype": "cpp"
     },
     
     "cmake.configureSettings": {
@@ -98,5 +103,6 @@
         "VCPKG_TARGET_TRIPLET": "x64-windows-static"
     },
     "C/C++ Include Guard.Auto Update Include Guard": true,
-    "C/C++ Include Guard.Macro Type": "Filepath"
+    "C/C++ Include Guard.Macro Type": "Filepath",
+    "C_Cpp.errorSquiggles": "enabled"
 }

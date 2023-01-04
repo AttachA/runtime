@@ -13,10 +13,23 @@ namespace parallel {
 
 		ValueItem* createProxy_EventSystem(ValueItem*, uint32_t);
 		ValueItem* createProxy_TaskLimiter(ValueItem*, uint32_t);
+
+		//args: [func, (fault handler), (timeout), (used_task_local)], sarr,farr[args....]
+		ValueItem* createProxy_TaskQuery(ValueItem*, uint32_t);
+
 		//ValueItem* createProxy_ValueMonitor(ValueItem*, uint32_t);
 		//ValueItem* createProxy_ValueChangeMonitor(ValueItem*, uint32_t);
 	}
 
-	//typed_lgr<FuncEnviropment>*
+	//typed_lgr<FuncEnviropment>*, any...
 	ValueItem* createThread(ValueItem*, uint32_t);
+
+	//returns function result that what reached by native thread
+	ValueItem* createThreadAndWait(ValueItem*, uint32_t);
+
+	//returns task that wait native thread and return function result
+	ValueItem* createAsyncThread(ValueItem*, uint32_t);
+
+	//returns task, args: [func, (fault handler), (timeout), (used_task_local)], sarr,farr[args....]
+	ValueItem* createTask(ValueItem*, uint32_t);
 }

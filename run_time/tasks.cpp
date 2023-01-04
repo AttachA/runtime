@@ -41,8 +41,7 @@ typed_lgr<Task> create_native_thread_bridge(bool& checker, std::condition_variab
 	ValueItem tmp{ ValueItem(&checker, VType::undefined_ptr), ValueItem(std::addressof(cd), VType::undefined_ptr) };
 	return new Task(notify_native_thread, tmp);
 }
-
-
+#pragma region MutexUnify
 void MutexUnify::lock() {
 	switch (type) {
 	case MutexUnifyType::nmut:
@@ -192,9 +191,10 @@ MutexUnify& MutexUnify::operator=(nullptr_t) {
 MutexUnify::operator bool() {
 	return type != MutexUnifyType::noting;
 }
+#pragma endregion
 
 
-
+#pragma region MultiplyMutex
 MultiplyMutex::MultiplyMutex(const std::initializer_list<MutexUnify>& muts):mu(muts) {}
 void MultiplyMutex::lock() {
 		for (auto& mut : mu)
@@ -262,7 +262,7 @@ void MultiplyMutex::unlock() {
 	for (auto& mut : mu.reverse())
 		mut.unlock();
 }
-	
+#pragma endregion
 
 
 size_t Task::max_running_tasks = 0;
@@ -281,6 +281,9 @@ bool TaskCancellation::_in_landig() {
 void forceCancelCancellation(TaskCancellation& cancel_token) {
 	cancel_token.in_landing = true;
 }
+
+
+#pragma region TaskResult
 TaskResult::~TaskResult() {
 	if (context) {
 		size_t i = 0;
@@ -352,7 +355,7 @@ TaskResult::TaskResult(TaskResult&& move) noexcept {
 	end_of_life = move.end_of_life;
 	move.end_of_life = true;
 }
-
+#pragma endregion
 struct timing {
 	std::chrono::high_resolution_clock::time_point wait_timepoint; 
 	typed_lgr<Task> awake_task; 
@@ -580,7 +583,7 @@ void taskExecutor(bool end_in_task_out = false) {
 				--glob.executors;
 				return;
 			}
-			glob.tasks_notifier.wait_for(guard,std::chrono::milliseconds(1000));
+			glob.tasks_notifier.wait(guard);
 		}
 		loc.is_task_thread = true;
 		if (loadTask())
@@ -712,21 +715,14 @@ void makeTimeWait(std::chrono::high_resolution_clock::time_point t) {
 }
 
 #pragma region Task
-Task::Task(typed_lgr<class FuncEnviropment> call_func, ValueItem& arguments, bool used_task_local, typed_lgr<class FuncEnviropment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
+Task::Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& arguments, bool used_task_local, typed_lgr<class FuncEnviropment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
 	ex_handle = exception_handler;
 	func = call_func;
-	if (arguments.meta.vtype == VType::async_res)
-		arguments.getAsync();
-	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr) {
-		if (!arguments.meta.use_gc)
-			args = arguments;
-		else
-			args = ValueItem((ValueItem*)arguments.getSourcePtr(), arguments.meta.val_len);
-	}
-	else {
-		if (arguments.meta.vtype != VType::noting)
-			args = ValueItem(&arguments, 1);
-	}
+	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
+		args = ValueItem((ValueItem*)const_cast<ValueItem&>(arguments).getSourcePtr(), arguments.meta.val_len);
+	else if (arguments.meta.vtype != VType::noting)
+		args = ValueItem{arguments};
+	
 	timeout = task_timeout;
 	if (used_task_local)
 		_task_local = new ValueEnvironment();
@@ -738,7 +734,26 @@ Task::Task(typed_lgr<class FuncEnviropment> call_func, ValueItem& arguments, boo
 			glob.can_planned_new_notifier.wait(l);
 	}
 	++glob.planned_tasks;
+}
+Task::Task(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_task_local, typed_lgr<class FuncEnviropment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
+	ex_handle = exception_handler;
+	func = call_func;
+	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
+		args = ValueItem((ValueItem*)const_cast<ValueItem&>(arguments).getSourcePtr(), arguments.meta.val_len);
+	else if (arguments.meta.vtype != VType::noting)
+		args = ValueItem{ arguments };
 
+	timeout = task_timeout;
+	if (used_task_local)
+		_task_local = new ValueEnvironment();
+
+	if (Task::max_planned_tasks) {
+		MutexUnify uni(glob.task_thread_safety);
+		std::unique_lock l(uni);
+		while (glob.planned_tasks >= Task::max_planned_tasks)
+			glob.can_planned_new_notifier.wait(l);
+	}
+	++glob.planned_tasks;
 }
 Task::Task(Task&& mov) noexcept : fres(std::move(mov.fres)) {
 	ex_handle = mov.ex_handle;
@@ -813,7 +828,10 @@ void Task::start(const typed_lgr<Task>& tsk) {
 	std::lock_guard guard(glob.task_thread_safety);
 	if (lgr_task->started && !lgr_task->is_yield_mode)
 		return;
-	glob.cold_tasks.push(lgr_task);
+	if (Task::max_running_tasks > glob.in_run_tasks || !Task::max_running_tasks)
+		glob.tasks.push(lgr_task);
+	else
+		glob.cold_tasks.push(lgr_task);
 	glob.tasks_notifier.notify_one();
 	lgr_task->started = true;
 }
@@ -929,12 +947,10 @@ void Task::self_cancel() {
 class ValueEnvironment* Task::task_local() {
 	if (!loc.is_task_thread)
 		return nullptr;
-	else if (loc.curr_task->_task_local) {
+	else if (loc.curr_task->_task_local) 
 		return loc.curr_task->_task_local;
-	}
-	else {
+	else
 		return loc.curr_task->_task_local = new ValueEnvironment();
-	}
 }
 size_t Task::task_id() {
 	if (!loc.is_task_thread)
@@ -999,7 +1015,7 @@ void TaskMutex::lock() {
 		bool has_res = false;
 		typed_lgr<Task> task; 
 		while (current_task) {
-			typed_lgr task = create_native_thread_bridge(has_res, cd);
+			task = create_native_thread_bridge(has_res, cd);
 			resume_task.push_back(task);
 			while (!has_res)
 				cd.wait(ul);
@@ -1761,8 +1777,6 @@ void ConcurentFile::close(typed_lgr<ConcurentFile>& file) {
 }
 #pragma endregion
 
-
-
 #pragma region EventSystem
 bool EventSystem::removeOne(std::list<typed_lgr<FuncEnviropment>>& list, const typed_lgr<FuncEnviropment>& func) {
 	auto iter = list.begin();
@@ -1993,3 +2007,133 @@ typed_lgr<Task> EventSystem::async_notify(ValueItem& args) {
 	return res;
 }
 #pragma endregion
+
+#pragma region TaskQuery
+struct TaskQueryHandle{
+	TaskQuery* tq;
+	size_t at_execution_max;
+	size_t now_at_execution = 0;
+	TaskMutex no_race;
+	bool destructed = false;
+	TaskConditionVariable end_of_query;
+};
+
+TaskQuery::TaskQuery(size_t at_execution_max){	
+	is_running = false;
+	handle = new TaskQueryHandle{this, at_execution_max};
+}
+
+void __TaskQuery_add_task_leave(TaskQueryHandle* tqh, TaskQuery* tq){
+	std::lock_guard lock(tqh->no_race);
+	if(tqh->destructed){
+		if(tqh->at_execution_max == 0)
+			delete tqh;
+	}
+	else if(!tq->tasks.empty() && tq->is_running){
+		tq->handle->now_at_execution--;
+		while (tq->handle->now_at_execution <= tq->handle->at_execution_max) {
+			tq->handle->now_at_execution++;
+			auto awake_task = tq->tasks.front();
+			tq->tasks.pop_front();
+			Task::start(awake_task);
+		}
+	}
+	else {
+		tq->handle->now_at_execution--;
+		
+		if(tq->handle->now_at_execution == 0 && tq->tasks.empty())
+			tq->handle->end_of_query.notify_all();
+	}
+}
+ValueItem* __TaskQuery_add_task(ValueItem* args, uint32_t len){
+	TaskQueryHandle* tqh = (TaskQueryHandle*)args[0].val;
+	TaskQuery* tq = tqh->tq;
+	typed_lgr<FuncEnviropment>& call_func = *(typed_lgr<FuncEnviropment>*)args[1].val;
+	ValueItem& arguments = *(ValueItem*)args[2].val;
+
+	ValueItem* res = nullptr;
+	try{
+		res = FuncEnviropment::sync_call(call_func,(ValueItem*)arguments.getSourcePtr(),arguments.meta.val_len);
+	}
+	catch(...){
+		__TaskQuery_add_task_leave(tqh, tq);
+		throw;
+	}
+	__TaskQuery_add_task_leave(tqh, tq);
+	return res;
+}
+typed_lgr<FuncEnviropment> _TaskQuery_add_task(new FuncEnviropment(__TaskQuery_add_task,false));
+typed_lgr<Task> TaskQuery::add_task(typed_lgr<class FuncEnviropment> call_func, ValueItem& arguments, bool used_task_local, typed_lgr<class FuncEnviropment> exception_handler, std::chrono::high_resolution_clock::time_point timeout) {
+	ValueItem copy;
+	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
+		copy = ValueItem((ValueItem*)arguments.getSourcePtr(), arguments.meta.val_len);
+	else
+		copy = std::initializer_list{ arguments };
+
+	typed_lgr<Task> res = new Task(_TaskQuery_add_task, ValueItem{(void*)handle, new typed_lgr<class FuncEnviropment>(call_func), copy }, used_task_local, exception_handler, timeout);
+	std::lock_guard lock(handle->no_race);
+	if(is_running && handle->now_at_execution <= handle->at_execution_max){
+		Task::start(res);
+		handle->now_at_execution++;
+	}
+	else tasks.push_back(res);
+
+	return res;
+}
+void TaskQuery::enable(){
+	std::lock_guard lock(handle->no_race);
+	is_running = true;
+	while(handle->now_at_execution < handle->at_execution_max && !tasks.empty()){
+		auto awake_task = tasks.front();
+		tasks.pop_front();
+		Task::start(awake_task);
+		handle->now_at_execution++;
+	}
+}
+void TaskQuery::disable(){
+	std::lock_guard lock(handle->no_race);
+	is_running = false;
+}
+bool TaskQuery::in_query(typed_lgr<Task> task){
+	if(task->started)
+		return false;//started task can't be in query
+	std::lock_guard lock(handle->no_race);
+	return std::find(tasks.begin(), tasks.end(), task) != tasks.end();
+}
+void TaskQuery::set_max_at_execution(size_t val){
+	std::lock_guard lock(handle->no_race);
+	handle->at_execution_max = val;
+}
+size_t TaskQuery::get_max_at_execution(){
+	std::lock_guard lock(handle->no_race);
+	return handle->at_execution_max;
+}
+
+
+void TaskQuery::wait(){
+	MutexUnify unify(handle->no_race);
+	std::unique_lock lock(unify);
+	while(handle->now_at_execution != 0 && !tasks.empty())
+		handle->end_of_query.wait(lock);
+}
+bool TaskQuery::wait_for(size_t milliseconds){
+	return wait_until(std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(milliseconds));
+}
+bool TaskQuery::wait_until(std::chrono::high_resolution_clock::time_point time_point){
+	MutexUnify unify(handle->no_race);
+	std::unique_lock lock(unify);
+	while(handle->now_at_execution != 0 && !tasks.empty()){
+		if(!handle->end_of_query.wait_until(lock,time_point))
+			return false;
+	}
+	return true;
+}
+TaskQuery::~TaskQuery(){
+	std::lock_guard lock(handle->no_race);
+	handle->destructed = true;
+	if(handle->now_at_execution == 0)
+		delete handle;
+}
+
+#pragma endregion
+

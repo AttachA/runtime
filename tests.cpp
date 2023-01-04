@@ -235,6 +235,20 @@ void interface_test() {
 
 typedef void (*functs)(...);
 
+void task_query_test(){
+	typed_lgr<FuncEnviropment> env = FuncEnviropment::enviropment("sleep_test");
+	TaskQuery query(300);
+	ValueItem noting;
+	//for (size_t i = 0; i < 10000; i++) {
+	//	query.add_task(FuncEnviropment::enviropment("start"), noting);
+	//	query.add_task(FuncEnviropment::enviropment("1"), noting);
+	//	query.add_task(env, noting);
+	//}
+	query.enable();
+	query.wait();
+}
+
+
 
 ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	light_stack::dump_current_out();
@@ -275,7 +289,7 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 
 
 	build.arg_set(1);
-	build.call("console setTextColor");
+	build.call("console set_text_color");
 
 	build.arr_set(1, 0, 0, false, ArrCheckMode::no_check, VType::faarr);
 	build.set_constant(2, 12ui8);
@@ -293,6 +307,8 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	build.ret();
 	build.loadFunc("start");
 	callFunction("start", false);
+
+	task_query_test();
 
 
 	//for (size_t i = 0; i < 1000000; i++)
@@ -360,9 +376,30 @@ ValueItem* empty_fun(ValueItem* args, uint32_t argc) {
 	Task::yield();
 	return nullptr;
 }
+void test_stack(){
+	std::cout <<light_stack::used_size() << std::endl;
+	alloca(100000);
+	std::cout <<light_stack::used_size() << std::endl;
+}
 int main(){
-	light_stack::dump_current_out();
+	test_stack();
+	light_stack::shrink_current();
+	std::cout <<light_stack::used_size() << std::endl;
 
+	std::cout << 1 << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	light_stack::dump_current_out();
+	std::cout << light_stack::prepare(4096*100) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	light_stack::dump_current_out();
+	std::cout << light_stack::shrink_current(4096*20) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	light_stack::dump_current_out();
+	std::cout << light_stack::prepare() << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	light_stack::dump_current_out();
+	std::cout << light_stack::shrink_current(4096*20) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	light_stack::dump_current_out();
+	std::cout << light_stack::prepare() << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	light_stack::dump_current_out();
+	std::cout << light_stack::shrink_current(0) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	light_stack::dump_current_out();
 	initStandardFunctions();
 	FuncEnviropment::AddNative(TestCall, "test", false);
 	FuncEnviropment::AddNative(ThrowCall, "throwcall", false);
@@ -376,7 +413,7 @@ int main(){
 	FuncEnviropment::AddNative(cout_test, "cout_test", false);
 	FuncEnviropment::AddNative(sleep_test, "sleep_test", false);
 	enable_thread_naming = true;
-	Task::max_running_tasks = 1000;
+	Task::max_running_tasks = 0;
 	Task::max_planned_tasks = 0;
 
 	Task::create_executor(5);

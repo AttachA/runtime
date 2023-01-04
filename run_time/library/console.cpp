@@ -121,7 +121,7 @@ namespace console {
 		void notUnderlinedText() {
 			print("\033[24m");
 		}
-		void notBlinkText() {
+		void hideBlinkText() {
 			print("\033[25m");
 		}
 
@@ -164,18 +164,6 @@ namespace console {
 			std::string str;
 			char c;
 			while ((c = getchar()) != EOF) {
-				switch (c) {
-				case '\n':
-				case '\b':
-				case '\t':
-				case '\r':
-				case ' ':
-					continue;
-				default:
-					str += c;
-				}
-			}
-			while ((c = getchar()) != EOF) {
 				switch (c)
 				{
 				case '\n':
@@ -203,7 +191,7 @@ namespace console {
 				}
 				str += c;
 			}
-			return new ValueItem(new std::string(std::move(str)), ValueMeta(VType::string, false, true));
+			return new ValueItem(new std::string(std::move(str)), VType::string, false);
 		}
 		ValueItem* readInput(ValueItem* args, uint32_t len) {
 			was_r_mode();
@@ -212,7 +200,7 @@ namespace console {
 			while ((c = getchar()) != EOF)
 				str += c;
 			
-			return new ValueItem(new std::string(std::move(str)), ValueMeta(VType::string, false, true));
+			return new ValueItem(new std::string(std::move(str)), VType::string, false);
 
 		}
 		ValueItem* readValue(ValueItem* args, uint32_t len) {
@@ -233,6 +221,56 @@ namespace console {
 				}
 			}
 			return new ValueItem(ABI_IMPL::SBcast(str));
+		}
+		ValueItem* readInt(ValueItem* args, uint32_t len){
+			was_r_mode();
+			bool first = true;
+			bool minus = false;
+			uint64_t old_num = 0;
+			uint64_t num = 0;
+			char c;
+			while ((c = getchar()) != EOF){
+				if(first){
+					if(c == '-')
+						minus = true;
+					else if(c != '+')
+						throw InvalidInput("Invalid input, expected a number");
+					
+					first = false;
+					continue;
+				}
+				if(c >= '0' && c <= '9'){
+					num *= 10;
+					num += c - '0';
+					if(num < old_num)
+						throw InvalidInput("Invalid input, too large number");
+					old_num = num;
+				}
+			}
+
+			ValueItem res;
+			if(minus) {
+				if(num == (int8_t)num)
+					res = ValueItem(-(int8_t)num);
+				else if(num == (int16_t)num)
+					res = ValueItem(-(int16_t)num);
+				else if(num == (int32_t)num)
+					res = ValueItem(-(int32_t)num);
+				else if(num == (int64_t)num)
+					res = ValueItem(-(int64_t)num);
+				else 
+					throw InvalidInput("Invalid input, too large number");
+			}else{
+				if(num == (uint8_t)num)
+					res = ValueItem((uint8_t)num);
+				else if(num == (uint16_t)num)
+					res = ValueItem((uint16_t)num);
+				else if(num == (uint32_t)num)
+					res = ValueItem((uint32_t)num);
+				else if(num == (uint64_t)num)
+					res = ValueItem((uint64_t)num);
+			}
+			return new ValueItem(res);
 		}
 	}
 }

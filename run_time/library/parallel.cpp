@@ -7,6 +7,7 @@ namespace parallel {
 	ProxyClassDefine define_ConcurentFile;
 	ProxyClassDefine define_EventSystem;
 	ProxyClassDefine define_TaskLimiter;
+	ProxyClassDefine define_TaskQuery;
 	ProxyClassDefine define_ValueMonitor;
 	ProxyClassDefine define_ValueChangeMonitor;
 
@@ -817,6 +818,94 @@ namespace parallel {
 		define_TaskLimiter.funs["is_locked"] = { new FuncEnviropment(funs_TaskLimiter_is_locked,false),false,ClassAccess::pub };
 	}
 #pragma endregion
+#pragma region TaskQuery
+	ValueItem* funs_TaskQuery_add_task(ValueItem* vals, uint32_t len) {
+		if (len < 2)
+			throw InvalidArguments("That function recuive [class ptr] [[function], optional [fault function], optional [timeout], optional [use task local]], optional [any args]");
+		if (vals->meta.vtype == VType::proxy) {
+			ValueItem& val = vals[1];
+			typed_lgr<FuncEnviropment> func;
+			typed_lgr<FuncEnviropment> fault_func;
+			std::chrono::steady_clock::time_point timeout = std::chrono::steady_clock::time_point::min();
+			bool used_task_local = false;
+			val.getAsync();
+			if(val.meta.vtype == VType::faarr || val.meta.vtype == VType::saarr) {
+				auto arr = (ValueItem*)val.getSourcePtr();
+				if (arr->meta.vtype == VType::function)
+					func = *arr->funPtr();
+				else
+					throw InvalidArguments("That function recuive [class ptr] [[function], optional [fault function], optional [timeout], optional [use task local]], optional [any args]");
+
+				if(val.meta.val_len > 1 && arr[1].meta.vtype == VType::function) 
+					fault_func = *arr[1].funPtr();
+				if(val.meta.val_len > 2 && arr[1].meta.vtype == VType::time_point)
+					timeout = (std::chrono::steady_clock::time_point)arr[2];
+				if(val.meta.val_len > 3)
+					used_task_local = (bool)arr[3];
+			}
+			ValueItem args = (len == 3) ? vals[2] : ValueItem();
+			return new ValueItem(new typed_lgr(getClass<TaskQuery>(vals)->add_task(func, args,used_task_local,fault_func, timeout)), VType::async_res, true);
+		}
+		throw InvalidOperation("That function used only in proxy class");
+	}
+
+	ValueItem* funs_TaskQuery_enable(ValueItem* vals, uint32_t len) {
+		if (len == 1)
+			if (vals->meta.vtype == VType::proxy){
+				getClass<TaskQuery>(vals)->enable();
+				return nullptr;
+			}
+		throw InvalidOperation("That function used only in proxy class");
+	}
+	ValueItem* funs_TaskQuery_disable(ValueItem* vals, uint32_t len) {
+		if (len == 1)
+			if (vals->meta.vtype == VType::proxy){
+				getClass<TaskQuery>(vals)->disable();
+				return nullptr;
+			}
+		throw InvalidOperation("That function used only in proxy class");
+	}
+	ValueItem* funs_TaskQuery_in_query(ValueItem* vals, uint32_t len) {
+		if (len == 2)
+			if (vals->meta.vtype == VType::proxy){
+				if(vals[1].meta.vtype != VType::async_res)
+					throw InvalidArguments("That function recuive [class ptr] and [async result (task)]");
+				return new ValueItem(getClass<TaskQuery>(vals)->in_query(*(typed_lgr<Task>*)vals[1].getSourcePtr()));
+			}
+		throw InvalidOperation("That function used only in proxy class");
+	}
+	ValueItem* funs_TaskQuery_set_max_at_execution(ValueItem* vals, uint32_t len) {
+		if (len == 2)
+			if (vals->meta.vtype == VType::proxy){
+				getClass<TaskQuery>(vals)->set_max_at_execution((size_t)vals[1]);
+				return nullptr;
+			}
+		throw InvalidOperation("That function used only in proxy class");
+	}
+	ValueItem* funs_TaskQuery_get_max_at_execution(ValueItem* vals, uint32_t len) {
+		if (len == 1)
+			if (vals->meta.vtype == VType::proxy){
+				getClass<TaskQuery>(vals)->get_max_at_execution();
+				return nullptr;
+			}
+		throw InvalidOperation("That function used only in proxy class");
+	}
+
+	void init_TaskQuery() {
+		define_TaskQuery.copy = AttachA::Interface::special::proxyCopy<TaskQuery, true>;
+		define_TaskQuery.destructor = AttachA::Interface::special::proxyDestruct<TaskQuery, true>;
+		define_TaskQuery.name = "task_query";
+		define_TaskQuery.funs["add_task"] = { new FuncEnviropment(funs_TaskQuery_add_task,false),false,ClassAccess::pub };
+		define_TaskQuery.funs["enable"] = { new FuncEnviropment(funs_TaskQuery_enable,false),false,ClassAccess::pub };
+		define_TaskQuery.funs["disable"] = { new FuncEnviropment(funs_TaskQuery_disable,false),false,ClassAccess::pub };
+		define_TaskQuery.funs["in_query"] = { new FuncEnviropment(funs_TaskQuery_in_query,false),false,ClassAccess::pub };
+		define_TaskQuery.funs["set_max_at_execution"] = { new FuncEnviropment(funs_TaskQuery_set_max_at_execution,false),false,ClassAccess::pub };
+		define_TaskQuery.funs["get_max_at_execution"] = { new FuncEnviropment(funs_TaskQuery_get_max_at_execution,false),false,ClassAccess::pub };
+	}
+#pragma endregion
+
+
+
 	void init() {
 		init_ConditionVariable();
 		init_Mutex();
@@ -824,6 +913,7 @@ namespace parallel {
 		init_ConcurentFile();
 		init_EventSystem();
 		init_TaskLimiter();
+		init_TaskQuery();
 	}
 
 
@@ -856,6 +946,11 @@ namespace parallel {
 		ValueItem* createProxy_TaskLimiter(ValueItem* val, uint32_t len) {
 			return new ValueItem(new ProxyClass(new typed_lgr(new TaskLimiter()), &define_TaskLimiter), VType::proxy);
 		}
+
+		ValueItem* createProxy_TaskQuery(ValueItem* val, uint32_t len){
+			return new ValueItem(new ProxyClass(new typed_lgr(new TaskQuery(len ? (size_t)*val : 0)), &define_TaskQuery), VType::proxy);
+		}
+
 		//ProxyClass createProxy_ValueMonitor() {
 		//
 		//}
@@ -863,6 +958,7 @@ namespace parallel {
 		//
 		//}
 	}
+	
 	ValueItem* createThread(ValueItem* vals, uint32_t len) {
 		if (!len)
 			throw InvalidArguments("Excepted at least one value in arguments, excepted arguments: [function] [optional any...]");
@@ -876,11 +972,11 @@ namespace parallel {
 			while (len--)
 				copyArgs[i++] = *vals++;
 			std::thread([](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
-				auto tmp = FuncEnviropment::sync_call(func, nullptr, 0);
+				auto tmp = FuncEnviropment::sync_call(func, args, len);
 				if (tmp)
 					delete tmp;
 				delete[] args;
-			}, *vals->funPtr(), copyArgs, i).detach();
+			}, func, copyArgs, i).detach();
 		}
 		else {
 			std::thread([](typed_lgr<FuncEnviropment> func) {
@@ -890,5 +986,189 @@ namespace parallel {
 			}, *vals->funPtr()).detach();
 		}
 		return nullptr;
+	}
+	ValueItem* createThreadAndWait(ValueItem* vals, uint32_t len) {
+		if (!len)
+			throw InvalidArguments("Excepted at least one value in arguments, excepted arguments: [function] [optional any...]");
+
+		TaskConditionVariable cv;
+		TaskMutex mtx;
+		MutexUnify unif(mtx);
+		std::unique_lock ul(unif);
+		bool end = false;
+		ValueItem* res = nullptr;
+		typed_lgr<FuncEnviropment> func = *vals->funPtr();
+		if (len != 1) {
+			std::thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
+				try{
+					auto tmp = FuncEnviropment::sync_call(func, args, len);
+					std::unique_lock ul(mtx);
+					res = tmp;
+					end = true;
+					cv.notify_all();
+				}catch(...){
+					std::unique_lock ul(mtx);
+					try{
+						res = new ValueItem(std::current_exception());
+					}catch(...){
+						end = true;
+						cv.notify_all();
+					}
+					end = true;
+					cv.notify_all();
+				}
+			}, func, vals, len).detach();
+
+		}
+		else {
+			std::thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnviropment> func) {
+				try{
+					auto tmp = FuncEnviropment::sync_call(func, nullptr, 0);
+					std::unique_lock ul(mtx);
+					res = tmp;
+					end = true;
+					cv.notify_all();
+				}catch(...){
+					std::unique_lock ul(mtx);
+					try{
+						res = new ValueItem(std::current_exception());
+					}catch(...){
+						end = true;
+						cv.notify_all();
+					}
+					end = true;
+					cv.notify_all();
+				}
+			}, func).detach();
+		}
+		while(!end)
+			cv.wait(ul);
+		return res;
+	}
+
+	struct _createAsyncThread_awaiter_struct {
+		TaskConditionVariable cv;
+		TaskMutex mtx;
+		MutexUnify unif;
+		bool end = false;
+		ValueItem* res = nullptr;
+		_createAsyncThread_awaiter_struct(){
+			unif = MutexUnify(mtx);
+		}
+		~_createAsyncThread_awaiter_struct(){
+			if(!end){
+				std::unique_lock ul(mtx);
+				end = true;
+				cv.notify_all();
+			}
+		}
+	};
+	
+	ValueItem* _createAsyncThread__Awaiter(ValueItem* val, uint32_t len){
+		_createAsyncThread_awaiter_struct* awaiter = (_createAsyncThread_awaiter_struct*)val->getSourcePtr();
+		std::unique_lock<MutexUnify> ul(awaiter->unif);
+		try{
+			while(!awaiter->end)
+				awaiter->cv.wait(ul);
+		}catch(...){
+			ul.unlock();
+			delete awaiter;
+			throw;
+		}
+		ul.unlock();
+		delete awaiter;
+		return awaiter->res;
+	}
+	typed_lgr<FuncEnviropment> __createAsyncThread__Awaiter = new FuncEnviropment(_createAsyncThread__Awaiter, false);
+
+
+	ValueItem* createAsyncThread(ValueItem* vals, uint32_t len){
+		if (!len)
+			throw InvalidArguments("Excepted at least one value in arguments, excepted arguments: [function] [optional any...]");
+		typed_lgr<FuncEnviropment> func = *vals->funPtr();
+		_createAsyncThread_awaiter_struct* awaiter = nullptr;
+		try{
+			awaiter = new _createAsyncThread_awaiter_struct();
+
+			if (len != 1) {
+				ValueItem* copyArgs = new ValueItem[len - 1];
+				vals++;
+				len--;
+				uint32_t i = 0;
+				while (len--)
+					copyArgs[i++] = *vals++;
+
+				std::thread([awaiter](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
+					try{
+						auto tmp = FuncEnviropment::sync_call(func, args, len);
+						std::unique_lock ul(awaiter->mtx);
+						awaiter->res = tmp;
+						awaiter->end = true;
+						awaiter->cv.notify_all();
+					}catch(...){
+						std::unique_lock ul(awaiter->mtx);
+						try{
+							awaiter->res = new ValueItem(std::current_exception());
+						}catch(...){
+							awaiter->end = true;
+							awaiter->cv.notify_all();
+						}
+						awaiter->end = true;
+						awaiter->cv.notify_all();
+					}
+				}, func, vals, len).detach();
+
+			}
+			else {
+				std::thread([awaiter](typed_lgr<FuncEnviropment> func) {
+					try{
+						auto tmp = FuncEnviropment::sync_call(func, nullptr, 0);
+						std::unique_lock ul(awaiter->mtx);
+						awaiter->res = tmp;
+						awaiter->end = true;
+						awaiter->cv.notify_all();
+					}catch(...){
+						std::unique_lock ul(awaiter->mtx);
+						try{
+							awaiter->res = new ValueItem(std::current_exception());
+						}catch(...){
+							awaiter->end = true;
+							awaiter->cv.notify_all();
+						}
+						awaiter->end = true;
+						awaiter->cv.notify_all();
+					}
+				}, func).detach();
+			}
+		}
+		catch(...) {
+			if(awaiter)
+				delete awaiter;
+			throw;
+		}
+		ValueItem awaiter_args(awaiter);
+		return new ValueItem(new typed_lgr(new Task(__createAsyncThread__Awaiter, awaiter_args)), VType::async_res, true);
+	}
+
+	ValueItem* createTask(ValueItem* vals, uint32_t len){
+		typed_lgr<FuncEnviropment> func;
+		typed_lgr<FuncEnviropment> fault_func;
+		std::chrono::steady_clock::time_point timeout = std::chrono::steady_clock::time_point::min();
+		bool used_task_local = false;
+		auto arr = (ValueItem*)vals->getSourcePtr();
+		if (arr->meta.vtype == VType::function)
+			func = *arr->funPtr();
+		else
+			throw InvalidArguments("That function recuive [[function], optional [fault function], optional [timeout], optional [use task local]], optional [any args]");
+
+		if(arr->meta.val_len > 1 && arr[1].meta.vtype == VType::function) 
+			fault_func = *arr[1].funPtr();
+		if(arr->meta.val_len > 2 && arr[2].meta.vtype == VType::time_point)
+			timeout = (std::chrono::steady_clock::time_point)arr[2];
+		if(arr->meta.val_len > 3)
+			used_task_local = (bool)arr[3];
+			
+		ValueItem args = (len == 3) ? vals[2] : ValueItem();
+		return new ValueItem(new typed_lgr(new Task(func, args, used_task_local, fault_func, timeout)), VType::async_res, true);
 	}
 }

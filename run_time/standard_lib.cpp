@@ -861,7 +861,7 @@ ValueItem* math_pow(ValueItem* args, uint32_t args_len) {
 
 extern "C" void initStandardFunctions() {
 #pragma region Console
-	FuncEnviropment::AddNative(console::printLine, "console printLine", false);
+	FuncEnviropment::AddNative(console::printLine, "console print_line", false);
 	FuncEnviropment::AddNative(console::print, "console print", false);
 	{
 		DynamicCall::FunctionTemplate templ;
@@ -869,32 +869,33 @@ extern "C" void initStandardFunctions() {
 		templ.arguments.push_back(DynamicCall::FunctionTemplate::ValueT::getFromType<const char*>());
 		FuncEnviropment::AddNative((DynamicCall::PROC)printf, templ, "console printf", false);
 	}
-	FuncEnviropment::AddNative(console::resetModifiers, "console resetModifiers", false);
-	FuncEnviropment::AddNative(console::boldText, "console boldText", false);
-	FuncEnviropment::AddNative(console::italicText, "console italicText", false);
-	FuncEnviropment::AddNative(console::underlineText, "console underlineText", false);
-	FuncEnviropment::AddNative(console::slowBlink, "console slowBlink", false);
-	FuncEnviropment::AddNative(console::rapidBlink, "console rapidBlink", false);
-	FuncEnviropment::AddNative(console::invertColors, "console invertColors", false);
-	FuncEnviropment::AddNative(console::notBoldText, "console notBoldText", false);
-	FuncEnviropment::AddNative(console::notUnderlinedText, "console notUnderlinedText", false);
-	FuncEnviropment::AddNative(console::notBlinkText, "console notBlinkText", false);
+	FuncEnviropment::AddNative(console::resetModifiers, "console reset_modifiers", false);
+	FuncEnviropment::AddNative(console::boldText, "console bold_text", false);
+	FuncEnviropment::AddNative(console::italicText, "console italic_text", false);
+	FuncEnviropment::AddNative(console::underlineText, "console underline_text", false);
+	FuncEnviropment::AddNative(console::slowBlink, "console slow_blink", false);
+	FuncEnviropment::AddNative(console::rapidBlink, "console rapid_blink", false);
+	FuncEnviropment::AddNative(console::invertColors, "console invert_colors", false);
+	FuncEnviropment::AddNative(console::notBoldText, "console not_bold_text", false);
+	FuncEnviropment::AddNative(console::notUnderlinedText, "console not_underlined_text", false);
+	FuncEnviropment::AddNative(console::hideBlinkText, "console hide_blink_text", false);
 
-	FuncEnviropment::AddNative(console::resetTextColor, "console resetTextColor", false);
-	FuncEnviropment::AddNative(console::resetBgColor, "console resetBgColor", false);
-	FuncEnviropment::AddNative(console::setTextColor, "console setTextColor", false);
-	FuncEnviropment::AddNative(console::setBgColor, "console setBgColor", false);
-	FuncEnviropment::AddNative(console::setPos, "console setPos", false);
-	FuncEnviropment::AddNative(console::saveCurPos, "console saveCurPos", false);
-	FuncEnviropment::AddNative(console::loadCurPos, "console loadCurPos", false);
-	FuncEnviropment::AddNative(console::setLine, "console setLine", false);
-	FuncEnviropment::AddNative(console::showCursor, "console showCursor", false);
-	FuncEnviropment::AddNative(console::hideCursor, "console hideCursor", false);
+	FuncEnviropment::AddNative(console::resetTextColor, "console reset_text_color", false);
+	FuncEnviropment::AddNative(console::resetBgColor, "console reset_bg_color", false);
+	FuncEnviropment::AddNative(console::setTextColor, "console set_text_color", false);
+	FuncEnviropment::AddNative(console::setBgColor, "console set_bg_color", false);
+	FuncEnviropment::AddNative(console::setPos, "console set_pos", false);
+	FuncEnviropment::AddNative(console::saveCurPos, "console save_cur_pos", false);
+	FuncEnviropment::AddNative(console::loadCurPos, "console load_cur_pos", false);
+	FuncEnviropment::AddNative(console::setLine, "console set_line", false);
+	FuncEnviropment::AddNative(console::showCursor, "console show_cursor", false);
+	FuncEnviropment::AddNative(console::hideCursor, "console hide_cursor", false);
 
-	FuncEnviropment::AddNative(console::readWord, "console readWord", false);
-	FuncEnviropment::AddNative(console::readLine, "console readLine", false);
-	FuncEnviropment::AddNative(console::readInput, "console readInput", false);
-	FuncEnviropment::AddNative(console::readValue, "console readValue", false);
+	FuncEnviropment::AddNative(console::readWord, "console read_word", false);
+	FuncEnviropment::AddNative(console::readLine, "console read_line", false);
+	FuncEnviropment::AddNative(console::readInput, "console read_input", false);
+	FuncEnviropment::AddNative(console::readValue, "console read_value", false);
+	FuncEnviropment::AddNative(console::readInt, "console read_int", false);
 #pragma endregion
 #pragma region Math
 	FuncEnviropment::AddNative(math_abs, "math abs", false);
@@ -960,6 +961,8 @@ extern "C" void initStandardFunctions() {
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_EventSystem, "# parallel event_system", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskLimiter, "# parallel task_limiter", false);
 	FuncEnviropment::AddNative(parallel::createThread, "parallel create_thread", false);
+	FuncEnviropment::AddNative(parallel::createThreadAndWait, "parallel create_thread_and_wait", false);
+	FuncEnviropment::AddNative(parallel::createAsyncThread, "parallel create_async_thread", false);
 #pragma endregion
 #pragma region Chanel
 	FuncEnviropment::AddNative(chanel::constructor::createProxy_Chanel, "# chanel chanel", false);

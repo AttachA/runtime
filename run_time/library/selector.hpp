@@ -64,6 +64,7 @@ namespace selector {
 					return false;
 				}
 			};
+			return new LocalSelector(select);
 		}
 		SelectorInfo<T>* clone() override {
 			return new LASelectrorInfo<T>(select);

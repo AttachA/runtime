@@ -1,10 +1,12 @@
 {
-    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg/master/scripts/vcpkg.schema.json",
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
     "name": "attach-a",
     "version": "0.1.0",
     "dependencies": [
         "boost-context",
         "boost-preprocessor",
+        "boost-lockfree", 
+        "boost-uuid", 
         "asmjit"
     ]
 }

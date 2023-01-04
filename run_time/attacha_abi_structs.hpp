@@ -7,6 +7,7 @@
 #pragma once
 #include <cstdint>
 #include <unordered_map>
+#include <chrono>
 #include "../library/list_array.hpp"
 #include "library/exceptions.hpp"
 #include "link_garbage_remover.hpp"
@@ -224,15 +225,20 @@ ENUM_t(VType, uint8_t,
 	(undefined_ptr)
 	(except_value)//default from except call
 	(faarr)//fixed any array
-	(saarr)//sack fixed any array //only local, cannont returned, cannont be used with lgr, cannont be passed as arguments
-	(class_)
-	(morph)
-	(proxy)
+	(saarr)//stack fixed any array //only local, cannont returned, cannont be used with lgr, cannont be passed as arguments
+	
+	//class, morph, proxy, struct_ is too like types but has diferent memory management
+	(class_)//class_ is regular attacha class, values can be dynamicaly defined and undefined at runtime
+	(morph)//morph is same as class_ but functions can also be defined at runtime
+	(proxy)//proxy is just proxy to another value, and values can be changed by getters and setters, and proxy functions, regulary can be recuived from library
+	//(struct_)//struct_ is same as class_ but values placed in one memory block, can be used as C union or C struct, and defined functions can be used as C++ methods
+
 	(type_identifier)
 	(function)
 	(class_define)//used to construct class_ or morph values,
 	(map)//unordered_map<any,any>
 	(set)//unordered_set<any>
+	(time_point)//std::chrono::steady_clock::time_point
 )
 union ValueMeta {
 	size_t encoded;
@@ -256,6 +262,7 @@ struct ProxyClass;
 struct ValueItem {
 	void* val = nullptr;
 	ValueMeta meta;
+	ValueItem(nullptr_t);
 	ValueItem(bool val);
 	ValueItem(int8_t val);
 	ValueItem(uint8_t val);
@@ -272,6 +279,7 @@ struct ValueItem {
 	ValueItem(const list_array<ValueItem>& val);
 	ValueItem(list_array<ValueItem>&& val);
 	ValueItem(ValueItem* vals, uint32_t len);
+	ValueItem(void* undefined_ptr);
 
 	ValueItem(const int8_t* vals, uint32_t len);
 	ValueItem(const uint8_t* vals, uint32_t len);
@@ -298,6 +306,7 @@ struct ValueItem {
 	ValueItem(const std::initializer_list<double>& args) : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX) {};
 	ValueItem(const std::initializer_list<ValueItem>& args);
 	ValueItem(const std::exception_ptr&);
+	ValueItem(const std::chrono::steady_clock::time_point&);
 	ValueItem() {
 		val = nullptr;
 		meta.encoded = 0;
@@ -358,10 +367,12 @@ struct ValueItem {
 	explicit operator MorphValue& ();
 	explicit operator ProxyClass& ();
 	explicit operator std::exception_ptr();
+	explicit operator std::chrono::steady_clock::time_point();
 
 	ValueItem* operator()(ValueItem* arguments, uint32_t arguments_size);
 	void getAsync();
 	void*& getSourcePtr();
+	const void*& getSourcePtr() const;
 	typed_lgr<class FuncEnviropment>* funPtr();
 };
 typedef ValueItem* (*Enviropment)(void** enviro, ValueItem* args, uint32_t len);

@@ -2215,6 +2215,8 @@ ValueItem::ValueItem(const ValueItem& copy) : val(0) {
 	val = copyValue(tmp.val, tmp.meta);
 	meta = copy.meta;
 }
+
+ValueItem::ValueItem(nullptr_t) : val(0), meta(0) {}
 ValueItem::ValueItem(bool val) : val(0) {
 	*this = ABI_IMPL::BVcast((uint8_t)val);
 }
@@ -2262,6 +2264,11 @@ ValueItem::ValueItem(list_array<ValueItem>&& val) : val(new list_array<ValueItem
 }
 ValueItem::ValueItem(ValueItem* vals, uint32_t len) : val(0) {
 	*this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len));
+}
+
+ValueItem::ValueItem(void* undefined_ptr) {
+	val = undefined_ptr;
+	meta = VType::undefined_ptr;
 }
 ValueItem::ValueItem(const int8_t* vals, uint32_t len) {
 	*this = ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len));
@@ -2314,6 +2321,9 @@ ValueItem::ValueItem(const std::exception_ptr& ex) {
 	val = new std::exception_ptr(ex);
 	meta = VType::except_value;
 }
+ValueItem::ValueItem(const std::chrono::steady_clock::time_point& time):ValueItem(time.time_since_epoch().count()) {}
+
+
 ValueItem::ValueItem(VType type) {
 	meta = type;
 	switch (type) {
@@ -2331,6 +2341,7 @@ ValueItem::ValueItem(VType type) {
 	case VType::ui64:
 	case VType::flo:
 	case VType::doub:
+	case VType::time_point:
 		val = nullptr;
 		break;
 	case VType::raw_arr_i8:
@@ -2584,12 +2595,18 @@ ValueItem::operator std::exception_ptr() {
 		}
 	}
 }
+ValueItem::operator std::chrono::steady_clock::time_point(){
+	return std::chrono::steady_clock::time_point(std::chrono::duration_cast<std::chrono::steady_clock::time_point::duration>(std::chrono::nanoseconds((std::chrono::steady_clock::rep)*this)));
+}
+
+
 ValueItem* ValueItem::operator()(ValueItem* args,uint32_t len) {
 	if (meta.vtype == VType::function)
 		return FuncEnviropment::sync_call((*(class typed_lgr<class FuncEnviropment>*)getValue(val, meta)),args,len);
 	else
 		return new ValueItem(*this);
 }
+
 
 void ValueItem::getAsync() {
 	if(val)
@@ -2599,6 +2616,9 @@ void ValueItem::getAsync() {
 
 void*& ValueItem::getSourcePtr() {
 	return getValue(val, meta);
+}
+const void*& ValueItem::getSourcePtr() const{
+	return const_cast<const void*&>(getValue(*const_cast<void**>(&val), const_cast<ValueMeta&>(meta)));
 }
 typed_lgr<FuncEnviropment>* ValueItem::funPtr() {
 	if (meta.vtype == VType::function)

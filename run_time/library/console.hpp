@@ -24,7 +24,7 @@ namespace console {
 		void invertColors();
 		void notBoldText();
 		void notUnderlinedText();
-		void notBlinkText();
+		void hideBlinkText();
 
 		void resetTextColor();
 		void resetBgColor();
@@ -43,5 +43,6 @@ namespace console {
 		ValueItem* readLine(ValueItem* args, uint32_t len);//return string, no arguments
 		ValueItem* readInput(ValueItem* args, uint32_t len);//return string, no arguments
 		ValueItem* readValue(ValueItem* args, uint32_t len);//return any value, no arguments
+		ValueItem* readInt(ValueItem* args, uint32_t len);//return int(any size), no arguments
 	}
 }

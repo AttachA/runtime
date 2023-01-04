@@ -149,7 +149,8 @@ struct Task {
 	bool is_yield_mode : 1 = false;
 	bool end_of_life : 1 = false;
 	bool make_cancel : 1 = false;
-	Task(typed_lgr<class FuncEnviropment> call_func, ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	Task(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 	Task(Task&& mov) noexcept;
 	~Task();
 
@@ -277,6 +278,25 @@ public:
 	bool is_locked();
 };
 
+
+class TaskQuery{
+	std::list<typed_lgr<Task>> tasks;
+	class TaskQueryHandle* handle;
+	bool is_running;
+	friend void __TaskQuery_add_task_leave(class TaskQueryHandle* tqh, TaskQuery* tq);
+public:
+	TaskQuery(size_t at_execution_max = 0);
+	~TaskQuery();
+	typed_lgr<Task> add_task(typed_lgr<class FuncEnviropment> call_func, ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	void enable();
+	void disable();
+	bool in_query(typed_lgr<Task> task);
+	void set_max_at_execution(size_t val);
+	size_t get_max_at_execution();
+	void wait();
+	bool wait_for(size_t milliseconds);
+	bool wait_until(std::chrono::high_resolution_clock::time_point time_point);
+};
 
 
 #pragma pop_macro("min")
