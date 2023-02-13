@@ -130,7 +130,7 @@ public:
 			return localWrapper(indx, arguments, arguments_size, run_async);
 		}
 		catch (...) {
-			return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+			return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
 		}
 	}
 
@@ -177,7 +177,7 @@ public:
 			return callFunc(func_name, arguments, run_async, arguments_size);
 		}
 		catch (...) {
-			return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+			return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
 		}
 	}
 

@@ -12,8 +12,7 @@ std::unordered_map<std::string, typed_lgr<FuncEnviropment>> FuncEnviropment::env
 ValueItem* FuncEnviropment::async_call(typed_lgr<FuncEnviropment> f, ValueItem* args, uint32_t args_len) {
 	ValueItem* res = new ValueItem();
 	res->meta = ValueMeta(VType::async_res, false, false).encoded;
-	ValueItem temp(args, ValueMeta(VType::saarr, false, true, args_len), true);
-	res->val = new typed_lgr(new Task(f, temp));
+	res->val = new typed_lgr(new Task(f, ValueItem(args, ValueMeta(VType::saarr, false, true, args_len), no_copy)));
 	Task::start(*(typed_lgr<Task>*)res->val);
 	return res;
 }
@@ -93,7 +92,7 @@ ValueItem* FuncEnviropment::syncWrapper_catch(ValueItem* args, uint32_t argument
 		return syncWrapper(args, arguments_size);
 	}
 	catch (...) {
-		return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+		return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
 	}
 }
 
@@ -457,49 +456,49 @@ ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(ValueItem* arguments, ui
 	if (nat_templ.result.is_void())
 		return nullptr;
 	if (nat_templ.result.ptype == DynamicCall::FunctionTemplate::ValueT::PlaceType::as_ptr)
-		return new ValueItem(res, ValueMeta(VType::undefined_ptr, false, true));
+		return new ValueItem(res, VType::undefined_ptr);
 	switch (nat_templ.result.vtype) {
 	case DynamicCall::FunctionTemplate::ValueT::ValueType::integer:
 		switch (nat_templ.result.vsize) {
 		case 1:
-			return new ValueItem(res, ValueMeta(VType::ui8, false, true));
+			return new ValueItem(res, VType::ui8);
 		case 2:
-			return new ValueItem(res, ValueMeta(VType::ui16, false, true));
+			return new ValueItem(res, VType::ui16);
 		case 4:
-			return new ValueItem(res, ValueMeta(VType::ui32, false, true));
+			return new ValueItem(res, VType::ui32);
 		case 8:
-			return new ValueItem(res, ValueMeta(VType::ui64, false, true));
+			return new ValueItem(res, VType::ui64);
 		default:
 			throw InvalidCast("Invalid type for convert");
 		}
 	case DynamicCall::FunctionTemplate::ValueT::ValueType::signed_integer:
 		switch (nat_templ.result.vsize) {
 		case 1:
-			return new ValueItem(res, ValueMeta(VType::i8, false, true));
+			return new ValueItem(res, VType::i8);
 		case 2:
-			return new ValueItem(res, ValueMeta(VType::i16, false, true));
+			return new ValueItem(res, VType::i16);
 		case 4:
-			return new ValueItem(res, ValueMeta(VType::i32, false, true));
+			return new ValueItem(res, VType::i32);
 		case 8:
-			return new ValueItem(res, ValueMeta(VType::i64, false, true));
+			return new ValueItem(res, VType::i64);
 		default:
 			throw InvalidCast("Invalid type for convert");
 		}
 	case DynamicCall::FunctionTemplate::ValueT::ValueType::floating:
 		switch (nat_templ.result.vsize) {
 		case 1:
-			return new ValueItem(res, ValueMeta(VType::ui8, false, true));
+			return new ValueItem(res, VType::ui8);
 		case 2:
-			return new ValueItem(res, ValueMeta(VType::ui16, false, true));
+			return new ValueItem(res, VType::ui16);
 		case 4:
-			return new ValueItem(res, ValueMeta(VType::flo, false, true));
+			return new ValueItem(res, VType::flo);
 		case 8:
-			return new ValueItem(res, ValueMeta(VType::doub, false, true));
+			return new ValueItem(res, VType::doub);
 		default:
 			throw InvalidCast("Invalid type for convert");
 		}
 	case DynamicCall::FunctionTemplate::ValueT::ValueType::pointer:
-		return new ValueItem(res, ValueMeta(VType::undefined_ptr, false, true));
+		return new ValueItem(res, VType::undefined_ptr);
 	case DynamicCall::FunctionTemplate::ValueT::ValueType::_class:
 	default:
 		throw NotImplementedException();
@@ -511,7 +510,7 @@ ValueItem* FuncEnviropment::native_proxy_catch(ValueItem* args, uint32_t argumen
 		return NativeProxy_DynamicToStatic(args, arguments_size);
 	}
 	catch (...) {
-		return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+		return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
 	}
 }
 ValueItem* FuncEnviropment::initAndCall_catch(ValueItem* args, uint32_t arguments_size) {
@@ -519,7 +518,7 @@ ValueItem* FuncEnviropment::initAndCall_catch(ValueItem* args, uint32_t argument
 		return initAndCall(args, arguments_size);
 	}
 	catch (...) {
-		return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+		return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
 	}
 }
 
@@ -596,7 +595,7 @@ ValueItem* AttachACXXCatchCall(AttachACXX fn, ValueItem* args, uint32_t args_len
 		return fn(args, args_len);
 	}
 	catch (...) {
-		return new ValueItem(new std::exception_ptr(std::current_exception()), ValueMeta(VType::except_value, false, true), true);
+		return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
 	}
 }
 template<bool use_result = true, bool do_cleanup = true>
@@ -847,7 +846,7 @@ void* valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueI
 	if constexpr (async_mode)
 		args_tmp.push_front(*class_ptr);
 	else
-		args_tmp.push_front(ValueItem(class_ptr->val, class_ptr->meta, true, true));
+		args_tmp.push_front(ValueItem(class_ptr->val, class_ptr->meta, as_refrence));
 	class_ptr->getAsync();
 	if constexpr (ex_catch) {
 		try {
@@ -858,7 +857,7 @@ void* valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueI
 		}
 		catch (...) {
 			try {
-				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, true);
+				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
 			}
 			catch (const std::bad_alloc&) {
 				throw EnviropmentRuinException();
@@ -938,7 +937,7 @@ void* staticValueItemDynamicCall(const std::string& name, ValueItem* class_ptr, 
 		}
 		catch (...) {
 			try {
-				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, true);
+				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
 			}
 			catch (const std::bad_alloc&) {
 				throw EnviropmentRuinException();
@@ -2225,14 +2224,14 @@ void FuncEnviropment::RuntimeCompile() {
 					if (!meta.use_gc)
 						a.mov(resr, 0, 1, readData<uint8_t>(data, data_len, i));
 					else
-						values.push_back(ValueItem(new lgr(new uint8_t(readData<uint8_t>(data, data_len, i))), meta, true));
+						values.push_back(ValueItem(new lgr(new uint8_t(readData<uint8_t>(data, data_len, i))), meta, no_copy));
 					break;
 				case VType::i16:
 				case VType::ui16:
 					if (!meta.use_gc)
 						a.mov(resr, 0, 2, readData<uint16_t>(data, data_len, i));
 					else
-						values.push_back(ValueItem(new lgr(new uint16_t(readData<uint16_t>(data, data_len, i))), meta, true));
+						values.push_back(ValueItem(new lgr(new uint16_t(readData<uint16_t>(data, data_len, i))), meta, no_copy));
 					break;
 				case VType::i32:
 				case VType::ui32:
@@ -2240,7 +2239,7 @@ void FuncEnviropment::RuntimeCompile() {
 					if (!meta.use_gc)
 						a.mov(resr, 0, 4, readData<uint32_t>(data, data_len, i));
 					else
-						values.push_back(ValueItem(new lgr(new uint32_t(readData<uint32_t>(data, data_len, i))), meta, true));
+						values.push_back(ValueItem(new lgr(new uint32_t(readData<uint32_t>(data, data_len, i))), meta, no_copy));
 					break;
 				case VType::i64:
 				case VType::ui64:
@@ -2249,24 +2248,24 @@ void FuncEnviropment::RuntimeCompile() {
 					if (!meta.use_gc)
 						a.mov(resr, 0, 8, readData<uint64_t>(data, data_len, i));
 					else
-						values.push_back(ValueItem(new lgr(new uint64_t(readData<uint64_t>(data, data_len, i))), meta, true));
+						values.push_back(ValueItem(new lgr(new uint64_t(readData<uint64_t>(data, data_len, i))), meta, no_copy));
 					break;
 				case VType::raw_arr_i8:
 				case VType::raw_arr_ui8: {
 					optional_len = readLen(data, data_len, i);
 					if (!meta.use_gc)
-						values.push_back(ValueItem(readRawArray<int8_t>(data, data_len, i, optional_len), meta, true));
+						values.push_back(ValueItem(readRawArray<int8_t>(data, data_len, i, optional_len), meta, no_copy));
 					else
-						values.push_back(ValueItem(new lgr(readRawArray<int8_t>(data, data_len, i, optional_len)), meta, true));
+						values.push_back(ValueItem(new lgr(readRawArray<int8_t>(data, data_len, i, optional_len)), meta, no_copy));
 					break;
 				}
 				case VType::raw_arr_i16:
 				case VType::raw_arr_ui16: {
 					optional_len = readLen(data, data_len, i);
 					if (!meta.use_gc)
-						values.push_back(ValueItem(readRawArray<int16_t>(data, data_len, i, optional_len), meta, true));
+						values.push_back(ValueItem(readRawArray<int16_t>(data, data_len, i, optional_len), meta, no_copy));
 					else
-						values.push_back(ValueItem(new lgr(readRawArray<int16_t>(data, data_len, i, optional_len)), meta, true));
+						values.push_back(ValueItem(new lgr(readRawArray<int16_t>(data, data_len, i, optional_len)), meta, no_copy));
 					break;
 				}
 				case VType::raw_arr_i32:
@@ -2274,9 +2273,9 @@ void FuncEnviropment::RuntimeCompile() {
 				case VType::raw_arr_flo: {
 					optional_len = readLen(data, data_len, i);
 					if (!meta.use_gc)
-						values.push_back(ValueItem(readRawArray<int32_t>(data, data_len, i, optional_len), meta, true));
+						values.push_back(ValueItem(readRawArray<int32_t>(data, data_len, i, optional_len), meta, no_copy));
 					else
-						values.push_back(ValueItem(new lgr(readRawArray<int32_t>(data, data_len, i, optional_len)), meta, true));
+						values.push_back(ValueItem(new lgr(readRawArray<int32_t>(data, data_len, i, optional_len)), meta, no_copy));
 					break;
 				}
 				case VType::raw_arr_i64:
@@ -2284,33 +2283,33 @@ void FuncEnviropment::RuntimeCompile() {
 				case VType::raw_arr_doub: {
 					optional_len = readLen(data, data_len, i);
 					if (!meta.use_gc)
-						values.push_back(ValueItem(readRawArray<int64_t>(data, data_len, i, optional_len), meta, true));
+						values.push_back(ValueItem(readRawArray<int64_t>(data, data_len, i, optional_len), meta, no_copy));
 					else
-						values.push_back(ValueItem(new lgr(readRawArray<int64_t>(data, data_len, i, optional_len)), meta, true));
+						values.push_back(ValueItem(new lgr(readRawArray<int64_t>(data, data_len, i, optional_len)), meta, no_copy));
 					break;
 				}
 				case VType::uarr: {
 					if (!meta.use_gc)
 						values.push_back(ValueItem(readAnyUarr(data, data_len, i)));
 					else
-						values.push_back(ValueItem(new lgr(new list_array<ValueItem>(readAnyUarr(data, data_len, i))), meta));
+						values.push_back(ValueItem(new lgr(new list_array<ValueItem>(readAnyUarr(data, data_len, i))), meta, no_copy));
 					break;
 				}
 				case VType::string: {
 					if (!meta.use_gc)
 						values.push_back(readString(data, data_len, i));
 					else
-						values.push_back(ValueItem(new lgr(new std::string(readString(data, data_len, i))), meta));
+						values.push_back(ValueItem(new lgr(new std::string(readString(data, data_len, i))), meta, no_copy));
 					break;
 				}
 				case VType::faarr: {
 					optional_len = readLen(data, data_len, i);
 					if (!meta.use_gc) {
 						meta.val_len = optional_len;
-						values.push_back(ValueItem(readRawAny(data, data_len, i, optional_len), meta));
+						values.push_back(ValueItem(readRawAny(data, data_len, i, optional_len), meta, no_copy));
 					}
 					else
-						values.push_back(ValueItem(new lgr(readRawAny(data, data_len, i, optional_len)), meta));
+						values.push_back(ValueItem(new lgr(readRawAny(data, data_len, i, optional_len)), meta, no_copy));
 					break;
 				}
 				default:

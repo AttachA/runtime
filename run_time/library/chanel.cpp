@@ -165,12 +165,11 @@ namespace chanel {
 	typed_lgr<AutoNotifyChanel> Chanel::auto_notify(typed_lgr<Task>& val){
 		AutoNotifyChanel* res = new AutoNotifyChanel();
 		{
-			std::lock_guard guard(val->fres.no_race);
+			std::lock_guard guard(val->no_race);
 			res->handle_from = val->fres.results.size();
 		}
 		res->chanel = this;
-		ValueItem args(res, VType::undefined_ptr, true);
-		res->notifier_task = new Task(auto_notify_task,args);
+		res->notifier_task = new Task(auto_notify_task,ValueItem(res, VType::undefined_ptr));
 		res->handle_task = val;
 		Task::start(res->notifier_task);
 
@@ -182,8 +181,7 @@ namespace chanel {
 	typed_lgr<AutoNotifyChanel> Chanel::auto_notify_continue(typed_lgr<Task>& val){
 		AutoNotifyChanel* res = new AutoNotifyChanel();
 		res->chanel = this;
-		ValueItem args(res, VType::undefined_ptr, true);
-		res->notifier_task = new Task(auto_notify_task,args);
+		res->notifier_task = new Task(auto_notify_task,ValueItem(res, VType::undefined_ptr));
 		res->handle_task = val;
 		Task::start(res->notifier_task);
 
@@ -195,8 +193,7 @@ namespace chanel {
 	typed_lgr<AutoNotifyChanel> Chanel::auto_notify_skip(typed_lgr<Task>& val, size_t start_from){
 		AutoNotifyChanel* res = new AutoNotifyChanel();
 		res->chanel = this;
-		ValueItem args(res, VType::undefined_ptr, true);
-		res->notifier_task = new Task(auto_notify_task,args);
+		res->notifier_task = new Task(auto_notify_task,ValueItem(res, VType::undefined_ptr));
 		res->handle_task = val;
 		res->handle_from = start_from;
 		Task::start(res->notifier_task);
@@ -284,7 +281,7 @@ namespace chanel {
 			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_continue(task)), &define_AutoNotifyChanel));
 		}
 		case VType::function: {
-			auto func = *(typed_lgr<FuncEnviropment>*)vals[1].getSourcePtr();
+			auto& func = *vals[1].funPtr();
 			ValueItem noting;
 			typed_lgr task = new Task(func, noting);
 			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_continue(task)), &define_AutoNotifyChanel));
@@ -303,7 +300,7 @@ namespace chanel {
 			return new ValueItem(new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_skip(task,start_from)), &define_AutoNotifyChanel));
 		}
 		case VType::function: {
-			auto func = *(typed_lgr<FuncEnviropment>*)vals[1].getSourcePtr();
+			auto& func = *vals[1].funPtr();
 			ValueItem noting;
 			typed_lgr task = new Task(func, noting);
 			return new ValueItem(new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_skip(task,start_from)), &define_AutoNotifyChanel));

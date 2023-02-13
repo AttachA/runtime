@@ -43,18 +43,27 @@ namespace internal {
 
 
 
-        //returns stack trace, args: none
+        //returns [{file_path, fun_name, line},...], args: framesToSkip, include_native, max_frames
         ValueItem* trace(ValueItem*, uint32_t);
+        //returns [rip,...], args: framesToSkip, include_native, max_frames
+        ValueItem* trace_frames(ValueItem*, uint32_t);
+        //returns {file_path, fun_name, line}, args: frame,(optional include_native)
+        ValueItem* resolve_frame(ValueItem*, uint32_t);
     }
 
     namespace run_time{
+        //not recomended to use, use only for debug
         ValueItem* gc_pause(ValueItem*, uint32_t);
         ValueItem* gc_resume(ValueItem*, uint32_t);
+
+        //gc can ignore this hint
         ValueItem* gc_hinit_collect(ValueItem*, uint32_t);
 
         namespace native{
             namespace construct{
-                ValueItem* createProxy_(ValueItem*, uint32_t);
+                ValueItem* createProxy_NativeValue(ValueItem*, uint32_t);// used in NativeTemplate
+                ValueItem* createProxy_NativeTemplate(ValueItem*, uint32_t);// used in NativeLib
+                ValueItem* createProxy_NativeLib(ValueItem*, uint32_t);// args: str lib path(resolved by os), do not use functions from this instance when destructor called
             }
         }
     }
@@ -68,7 +77,7 @@ namespace internal {
             ValueItem* createProxy_CallBuilder(ValueItem*, uint32_t);//typed_lgr<FunctionHolder> fh;
             ValueItem* createProxy_AbstractedBuilder(ValueItem*, uint32_t);//typed_lgr<FunctionHolder> fh;
 
-            //ValueItem* createProxy_Register(ValueItem*, uint32_t); can be get from PrologBuilder by create_register("name")
+            ValueItem* createProxy_Register(ValueItem*, uint32_t);
             // names different for different calling conventions and different platforms:
             // x64 windows: https://learn.microsoft.com/en-us/cpp/build/x64-calling-convention
             //      resr(rax), argr0(rcx), argr1(rdx), argr2(r8), argr3(r9), mut0(r10),

@@ -54,6 +54,8 @@ ENUM_t(MutexUnifyType, uint8_t,
 	(umut)
 	(mmut)
 );
+#pragma pack (push)
+#pragma pack (1)
 struct MutexUnify {
 	union {
 		std::mutex* nmut = nullptr;
@@ -97,7 +99,6 @@ struct MultiplyMutex {
 	bool try_lock_until(std::chrono::high_resolution_clock::time_point time_point);
 	void unlock();
 };
-
 class TaskConditionVariable {
 	std::list<typed_lgr<struct Task>> resume_task;
 	std::mutex no_race;
@@ -112,21 +113,19 @@ public:
 };
 struct TaskResult {
 	TaskConditionVariable result_notify;
-	TaskMutex no_race;
 	list_array<ValueItem> results;
 	void* context = nullptr;
 	bool end_of_life = false;
-	ValueItem* getResult(size_t res_num);
-	void awaitEnd();
-	void yieldResult(ValueItem* res, bool release = true);
-	void yieldResult(ValueItem&& res);
-	void finalResult(ValueItem* res);
-	void finalResult(ValueItem&& res);
+	ValueItem* getResult(size_t res_num, std::unique_lock<MutexUnify>& l);
+	void awaitEnd(std::unique_lock<MutexUnify>& l);
+	void yieldResult(ValueItem* res, std::unique_lock<MutexUnify>& l, bool release = true);
+	void yieldResult(ValueItem&& res, std::unique_lock<MutexUnify>& l);
+	void finalResult(ValueItem* res, std::unique_lock<MutexUnify>& l);
+	void finalResult(ValueItem&& res, std::unique_lock<MutexUnify>& l);
 	TaskResult();
 	TaskResult(TaskResult&& move) noexcept;
 	~TaskResult();
 };
-
 struct Task {
 	static size_t max_running_tasks;
 	static size_t max_planned_tasks;
@@ -141,7 +140,7 @@ struct Task {
 	MutexUnify relock_1;
 	MutexUnify relock_2;
 	class ValueEnvironment* _task_local = nullptr;
-	size_t sleep_check = 0;
+	//size_t sleep_check = 0;
 	std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min();
 	bool time_end_flag : 1 = false;
 	bool awaked : 1 = false;
@@ -175,8 +174,8 @@ struct Task {
 	static ValueItem* get_result(typed_lgr<Task>&& lgr_task, size_t yield_res = 0);
 	static bool has_result(typed_lgr<Task>& lgr_task, size_t yield_res = 0);
 	static void await_task(typed_lgr<Task>& lgr_task, bool in_place = false);
-	static void await_multiple(list_array<typed_lgr<Task>>& tasks, bool pre_started = false);
-	static void await_multiple(typed_lgr<Task>* tasks, size_t len, bool pre_started = false);
+	static void await_multiple(list_array<typed_lgr<Task>>& tasks, bool pre_started = false, bool release = false);
+	static void await_multiple(typed_lgr<Task>* tasks, size_t len, bool pre_started = false, bool release = false);
 	static list_array<ValueItem> await_results(typed_lgr<Task>& task);
 	static list_array<ValueItem> await_results(list_array<typed_lgr<Task>>& tasks);
 	static class ValueEnvironment* task_local();
@@ -184,7 +183,13 @@ struct Task {
 	static void check_cancelation();
 	static void self_cancel();
 	static bool is_task();
+
+
+	//clean unused memory, used for debug pruproses, ie memory leak
+	//not recomended use in production
+	static void clean_up();
 };
+#pragma pack (pop)
 class TaskSemaphore {
 	std::list<typed_lgr<Task>> resume_task;
 	std::timed_mutex no_race;
@@ -297,6 +302,36 @@ public:
 	bool wait_for(size_t milliseconds);
 	bool wait_until(std::chrono::high_resolution_clock::time_point time_point);
 };
+
+class TcpNetworkTask {
+	struct async_handle* handle;
+public:
+	enum class HandleType{
+		in_place,
+		task
+	};
+	//constructor set the function to call when a new connection is made
+	//function will return another function to call when data is received
+	//if the function returns nullptr, the connection will be closed
+	TcpNetworkTask(typed_lgr<class FuncEnviropment>, short port, bool blocking_mode = false, HandleType type = HandleType::task, size_t acceptors = 10);
+	//start handling
+	static void start(typed_lgr<TcpNetworkTask>&);
+	//stop getting new connections, and continue handling connected
+	static void pause(typed_lgr<TcpNetworkTask>&);
+	//resume getting new connections
+	static void resume(typed_lgr<TcpNetworkTask>&);
+	//stop and close all connections
+	static void stop(typed_lgr<TcpNetworkTask>&);
+	//check if the server is running
+	static bool is_running(typed_lgr<TcpNetworkTask>&);
+	//start handling, and use the current thread to handle connections
+	static void mainline(typed_lgr<TcpNetworkTask>&);
+	//same as constructor
+	static void set_on_connect(typed_lgr<TcpNetworkTask>&, typed_lgr<class FuncEnviropment> func);
+	//return status of the server, will be checked after constructor
+	static bool is_corrupted(typed_lgr<TcpNetworkTask>&);
+};
+
 
 
 #pragma pop_macro("min")
