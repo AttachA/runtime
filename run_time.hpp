@@ -19,6 +19,10 @@ extern size_t page_size;
 
 extern EventSystem unhandled_exception;
 extern EventSystem ex_fault;
+extern EventSystem errors;
+
+#define DISABLE_RUNTIME_INFO
+extern EventSystem info;
 
 enum class FaultActionByDefault {
 	make_dump,

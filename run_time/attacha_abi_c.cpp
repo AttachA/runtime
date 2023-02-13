@@ -340,7 +340,8 @@ void getAsyncResult(void*& value, ValueMeta& meta) {
 }
 void* copyValue(void*& val, ValueMeta& meta) {
 	getAsyncResult(val, meta);
-
+	if(meta.as_ref)
+		return val;
 	void* actual_val = val;
 	if (meta.use_gc)
 		actual_val = ((lgr*)val)->getPtr();
@@ -1218,13 +1219,13 @@ namespace ABI_IMPL {
 		if (str == "null")
 			return ValueItem();
 		else if (str.starts_with("0x"))
-			return ValueItem((void*)std::stoull(str, nullptr, 16),ValueMeta(VType::undefined_ptr,false,true));
+			return ValueItem((void*)std::stoull(str, nullptr, 16),VType::undefined_ptr);
 		else if (str.starts_with('[')) {
 			//TO-DO
-			return ValueItem(new std::string(str), ValueMeta(VType::string, false, true));
+			return ValueItem(new std::string(str), VType::string);
 		}else if(str.starts_with("*[")) {
 			//TO-DO
-			return ValueItem(new std::string(str), ValueMeta(VType::string, false, true));
+			return ValueItem(new std::string(str), VType::string);
 		}
 		else {
 			try {
@@ -1234,35 +1235,35 @@ namespace ABI_IMPL {
 							try {
 								try {
 									int32_t res = std::stoi(str);
-									return ValueItem(*(void**)&res, ValueMeta(VType::i32, false, true));
+									return ValueItem(*(void**)&res, VType::i32);
 								}
 								catch (...) {
 									uint32_t res = std::stoul(str);
-									return ValueItem(*(void**)&res, ValueMeta(VType::ui32, false, true));
+									return ValueItem(*(void**)&res, VType::ui32);
 								}
 							}
 							catch (...) {
 								int64_t res = std::stoll(str);
-								return ValueItem(*(void**)&res, ValueMeta(VType::i64, false, true));
+								return ValueItem(*(void**)&res, VType::i64);
 							}
 						}
 						catch (...) {
 							uint64_t res = std::stoull(str);
-							return ValueItem(*(void**)&res, ValueMeta(VType::ui64, false, true));
+							return ValueItem(*(void**)&res, VType::ui64);
 						}
 					}
 					catch (...) {
 						float res = std::stof(str);
-						return ValueItem(*(void**)&res, ValueMeta(VType::flo, false, true));
+						return ValueItem(*(void**)&res, VType::flo);
 					}
 				}
 				catch (...) {
 					double res = std::stod(str);
-					return ValueItem(*(void**)&res, ValueMeta(VType::doub, false, true));
+					return ValueItem(*(void**)&res, VType::doub);
 				}
 			}
 			catch (...) {
-				return ValueItem(new std::string(str), ValueMeta(VType::string, false, true));
+				return ValueItem(new std::string(str), VType::string);
 			}
 		}
 	}
@@ -1271,91 +1272,91 @@ namespace ABI_IMPL {
 		universalRemove(set_val);
 		if constexpr (std::is_same_v<T, int8_t*>) {
 			*reinterpret_cast<int8_t**>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i8, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::i8;
 		}
 		else if constexpr (std::is_same_v<T, uint8_t*>) {
 			*reinterpret_cast<uint8_t**>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui8, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) =VType::ui8;
 		}
 		else if constexpr (std::is_same_v<T, int16_t*>) {
 			*reinterpret_cast<int16_t**>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i16, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::i16;
 		}
 		else if constexpr (std::is_same_v<T, uint16_t*>) {
 			*reinterpret_cast<uint16_t**>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui16, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::ui16;
 		}
 		else if constexpr (std::is_same_v<T, int32_t*>) {
 			*reinterpret_cast<int32_t**>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i32, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::i32;
 		}
 		else if constexpr (std::is_same_v<T, uint32_t*>) {
 			*reinterpret_cast<uint32_t**>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui32, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::ui32;
 		}
 		else if constexpr (std::is_same_v<T, int64_t**>) {
 			*reinterpret_cast<int64_t**>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i64, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::i64;
 		}
 		else if constexpr (std::is_same_v<T, uint64_t*>) {
 			*reinterpret_cast<uint64_t**>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui64, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::ui64;
 		}
 		else if constexpr (std::is_same_v < T, bool> ) {
 			*reinterpret_cast<bool*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::boolean, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::boolean;
 		}
 		else if constexpr (std::is_same_v<T, int8_t>) {
 			*reinterpret_cast<int8_t*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i8, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::i8;
 		}
 		else if constexpr (std::is_same_v<T, uint8_t>) {
 			*reinterpret_cast<uint8_t*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui8, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::ui8;
 		}
 		else if constexpr (std::is_same_v<T, int16_t>) {
 			*reinterpret_cast<int16_t*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i16, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::i16;
 		}
 		else if constexpr (std::is_same_v<T, uint16_t>) {
 			*reinterpret_cast<uint16_t*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui16, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::ui16;
 		}
 		else if constexpr (std::is_same_v<T, int32_t>) {
 			*reinterpret_cast<int32_t*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i32, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::i32;
 		}
 		else if constexpr (std::is_same_v<T, uint32_t>) {
 			*reinterpret_cast<uint32_t*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui32, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::ui32;
 		}
 		else if constexpr (std::is_same_v<T, int64_t>) {
 			*reinterpret_cast<int64_t*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::i64, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::i64;
 		}
 		else if constexpr (std::is_same_v<T, uint64_t>) {
 			*reinterpret_cast<uint64_t*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::ui64, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::ui64;
 		}
 		else if constexpr (std::is_same_v<T, float>) {
 			*reinterpret_cast<float*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::flo, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::flo;
 		}
 		else if constexpr (std::is_same_v<T, double>) {
 			*reinterpret_cast<double*>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::doub, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::doub;
 		}
 		else if constexpr (std::is_same_v<T, std::string>) {
 			*reinterpret_cast<std::string**>(set_val) = new std::string(val);
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::string, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::string;
 		}
 		else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 			*reinterpret_cast<list_array<ValueItem>**>(set_val) = new list_array<ValueItem >(val);
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::uarr, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::uarr;
 		}
 		else if constexpr (std::is_same_v<T, void*>) {
 			*reinterpret_cast<void**>(set_val) = val;
-			*reinterpret_cast<ValueMeta*>(set_val + 1) = ValueMeta(VType::undefined_ptr, false, true);
+			*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::undefined_ptr;
 		}
 		else
 			throw NotImplementedException();
@@ -1981,7 +1982,7 @@ void asValue(void** val, VType type) {
 			catch (AException&) {
 				universalRemove(val);
 				*val = new std::exception_ptr(std::current_exception());
-				meta = ValueMeta(VType::except_value, false, true);
+				meta = VType::except_value;
 			}
 		}
 		break;
@@ -2054,7 +2055,7 @@ void setBoolValue(bool boolean,void** value) {
 		return;
 	default:
 		universalRemove(value);
-		meta = ValueMeta(VType::boolean, false, true);
+		meta = VType::boolean;
 		*value = (void*)1;
 	}
 }
@@ -2205,15 +2206,24 @@ ValueItem::ValueItem(const void* vall, ValueMeta vmeta) : val(0) {
 	val = copyValue(tmp, vmeta);
 	meta = vmeta;
 }
-ValueItem::ValueItem(void* vall, ValueMeta vmeta, bool,bool as_ref) {
+ValueItem::ValueItem(void* vall, ValueMeta vmeta, no_copy_t) {
 	val = vall;
 	meta = vmeta;
-	meta.as_ref = as_ref;
+}
+ValueItem::ValueItem(void* vall, ValueMeta vmeta, as_refrence_t) {
+	val = vall;
+	meta = vmeta;
+	meta.as_ref = true;
 }
 ValueItem::ValueItem(const ValueItem& copy) : val(0) {
 	ValueItem& tmp = (ValueItem&)copy;
 	val = copyValue(tmp.val, tmp.meta);
 	meta = copy.meta;
+}
+ValueItem::ValueItem(ValueItem& ref, as_refrence_t){
+	val = ref.val;
+	meta = ref.meta;
+	meta.as_ref = true;
 }
 
 ValueItem::ValueItem(nullptr_t) : val(0), meta(0) {}
@@ -2264,6 +2274,9 @@ ValueItem::ValueItem(list_array<ValueItem>&& val) : val(new list_array<ValueItem
 }
 ValueItem::ValueItem(ValueItem* vals, uint32_t len) : val(0) {
 	*this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len));
+}
+ValueItem::ValueItem(ValueItem* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len), no_copy);
 }
 
 ValueItem::ValueItem(void* undefined_ptr) {
@@ -2322,7 +2335,10 @@ ValueItem::ValueItem(const std::exception_ptr& ex) {
 	meta = VType::except_value;
 }
 ValueItem::ValueItem(const std::chrono::steady_clock::time_point& time):ValueItem(time.time_since_epoch().count()) {}
-
+ValueItem::ValueItem(typed_lgr<class FuncEnviropment>& fun){
+	val = new typed_lgr(fun);
+	meta = VType::function;
+}
 
 ValueItem::ValueItem(VType type) {
 	meta = type;
@@ -2525,7 +2541,7 @@ ValueItem ValueItem::operator |(const ValueItem& op) const {
 
 
 ValueItem::operator bool() {
-	return (bool)ABI_IMPL::Vcast<uint8_t>(val, meta);
+	return ABI_IMPL::Vcast<bool>(val, meta);
 }
 ValueItem::operator int8_t() {
 	return ABI_IMPL::Vcast<int8_t>(val, meta);
@@ -2843,6 +2859,15 @@ ProxyClass::ProxyClass() {
 	class_ptr = nullptr;
 	declare_ty = nullptr;
 }
+
+ProxyClass::ProxyClass(ProxyClass& other){
+	if (other.declare_ty)
+		if(other.declare_ty->copy)
+			class_ptr = other.declare_ty->copy(other.class_ptr);
+		else
+			throw NotImplementedException();
+	declare_ty = other.declare_ty;
+}
 ProxyClass::ProxyClass(void* val) {
 	class_ptr = val;
 	declare_ty = nullptr;
@@ -2853,7 +2878,8 @@ ProxyClass::ProxyClass(void* val, ProxyClassDefine* def) {
 }
 ProxyClass::~ProxyClass() {
 	if (declare_ty)
-		declare_ty->destructor(class_ptr);
+		if(declare_ty->destructor)
+			declare_ty->destructor(class_ptr);
 }
 
 typed_lgr<class FuncEnviropment> ProxyClass::callFnPtr(const std::string& str, ClassAccess access) {

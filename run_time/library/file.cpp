@@ -103,7 +103,7 @@ struct RawFile {
         }
         char* res = new char[size];
         file.read(res, size);
-        return ValueItem(res, ValueMeta(VType::raw_arr_ui8,false,true, size), true);
+        return ValueItem(res, ValueMeta(VType::raw_arr_ui8,false,true, size), no_copy);
     }
 
     void write(const uint8_t* data, size_t size){

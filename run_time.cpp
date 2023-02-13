@@ -59,6 +59,8 @@ int _thread_id() {
 
 EventSystem unhandled_exception;
 EventSystem ex_fault;
+EventSystem errors;
+EventSystem info;
 #if _DEBUG
 FaultActionByDefault default_fault_action = FaultActionByDefault::invite_to_debugger;
 BreakPointActionByDefault break_point_action = BreakPointActionByDefault::invite_to_debugger;
@@ -320,8 +322,11 @@ size_t NativeLib::get_pure_func(const char* func_name) {
 NativeLib::~NativeLib() {
 	for (auto&[_, it] : envs)
 		it->ForceUnload();
-	if (hGetProcIDDLL)
+	envs = {};
+	if (hGetProcIDDLL){
 		FreeLibrary((HMODULE)hGetProcIDDLL);
+		hGetProcIDDLL = nullptr;
+	}
 }
 
 

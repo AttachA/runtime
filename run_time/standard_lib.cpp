@@ -51,7 +51,7 @@ ValueItem* math_abs(T* args, uint32_t args_len) {
 		else
 			res[i] = (T)std::abs((double)args[i]);
 	}
-	return new ValueItem(res, type, true);
+	return new ValueItem(res, type, no_copy);
 }
 ValueItem* math_abs(ValueItem* args, uint32_t args_len) {
 	if (args) {
@@ -62,7 +62,7 @@ ValueItem* math_abs(ValueItem* args, uint32_t args_len) {
 				for (auto& it : *tmp) {
 					it = math_abs_impl(it);
 				}
-				return new ValueItem(tmp, VType::uarr,true);
+				return new ValueItem(tmp, VType::uarr, no_copy);
 			}
 			case VType::faarr:
 			case VType::saarr:
@@ -507,7 +507,7 @@ ValueItem* math_transform_fn(ValueItem* args, uint32_t args_len) {
 				res->reserve_push_back(args_r.size());
 				for (auto& it : args_r)
 					res->push_back(math_transform_impl<ffn, dfn>(it));
-				return new ValueItem(res, VType::uarr, true);
+				return new ValueItem(res, VType::uarr, no_copy);
 			}
 			case VType::faarr:
 			case VType::saarr:
@@ -982,7 +982,7 @@ ValueItem* cmath_frexp(ValueItem* args, uint32_t args_len) {
 	int res1;
 	rs[0] = std::frexp(doub, &res1);
 	rs[1] = res1;
-	return new ValueItem(rs, 2, true);
+	return new ValueItem(rs, 2, no_copy);
 }
 ValueItem* cmath_modf(ValueItem* args, uint32_t args_len) {
 	double doub;
@@ -994,7 +994,7 @@ ValueItem* cmath_modf(ValueItem* args, uint32_t args_len) {
 	double res1;
 	rs[0] = std::modf(doub, &res1);
 	rs[1] = res1;
-	return new ValueItem(rs, 2, true);
+	return new ValueItem(rs, 2, no_copy);
 }
 ValueItem* cmath_remquo(ValueItem* args, uint32_t args_len) {
 	double doub0;
@@ -1011,7 +1011,7 @@ ValueItem* cmath_remquo(ValueItem* args, uint32_t args_len) {
 	int res1;
 	rs[0] = std::remquo(doub0, doub1, &res1);
 	rs[1] = res1;
-	return new ValueItem(rs, 2, true);
+	return new ValueItem(rs, 2, no_copy);
 }
 ValueItem* cmath_nexttoward(ValueItem* args, uint32_t args_len) {
 	float doub0;

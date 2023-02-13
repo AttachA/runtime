@@ -10,6 +10,9 @@
 #include <exception>
 typedef boost::context::stack_context stack_context;
 
+//TO-DO store all stack allocations in buffer, too slow creating task due that
+
+
 
 BOOST_NOINLINE PBYTE get_current_stack_pointer() {
     return (PBYTE)_AddressOfReturnAddress() + 8;

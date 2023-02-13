@@ -36,7 +36,7 @@ public:
 		std::rethrow_exception(inner_exception);
 	}
 	std::exception_ptr get_iner_exception() const  {
-
+		return inner_exception;
 	}
 };
 class InvalidCast : public virtual AttachARuntimeException {
@@ -239,7 +239,14 @@ public:
 		return "NullPointerException";
 	}
 };
-
+class NoMemoryException : public AttachARuntimeException {
+public:
+	NoMemoryException() : AttachARuntimeException("No memory") {}
+	NoMemoryException(std::exception_ptr inner_exception) : AttachARuntimeException("No memory", inner_exception) {}
+	const char* name() const override {
+		return "NoMemoryException";
+	}
+};
 
 class AttachedLangException : public AttachARuntimeException {
 public:
@@ -247,6 +254,22 @@ public:
 	AttachedLangException(std::exception_ptr inner_exception) : AttachARuntimeException("Caught unconvertable external attached langue exception", inner_exception) {}
 	const char* name() const override {
 		return "AttachedLangException";
+	}
+};
+class DeprecatedException : public AttachARuntimeException {
+public:
+	DeprecatedException() : AttachARuntimeException("This function deprecated") {}
+	DeprecatedException(std::exception_ptr inner_exception) : AttachARuntimeException("This function deprecated", inner_exception) {}
+	const char* name() const override {
+		return "DeprecatedException";
+	}
+};
+class SystemException : public AttachARuntimeException {
+public:
+	SystemException(uint32_t error_code) : AttachARuntimeException("System error: " + std::to_string(error_code)) {}
+	SystemException(uint32_t error_code, std::exception_ptr inner_exception) : AttachARuntimeException("System error: "+ std::to_string(error_code), inner_exception) {}
+	const char* name() const override {
+		return "SystemException";
 	}
 };
 #pragma endregion

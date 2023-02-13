@@ -259,6 +259,12 @@ union ValueMeta {
 struct ClassValue;
 struct MorphValue;
 struct ProxyClass;
+
+struct as_refrence_t {};
+constexpr inline as_refrence_t as_refrence = {};
+
+struct no_copy_t {};
+constexpr inline no_copy_t no_copy = {};
 struct ValueItem {
 	void* val = nullptr;
 	ValueMeta meta;
@@ -279,6 +285,7 @@ struct ValueItem {
 	ValueItem(const list_array<ValueItem>& val);
 	ValueItem(list_array<ValueItem>&& val);
 	ValueItem(ValueItem* vals, uint32_t len);
+	ValueItem(ValueItem* vals, uint32_t len, no_copy_t);
 	ValueItem(void* undefined_ptr);
 
 	ValueItem(const int8_t* vals, uint32_t len);
@@ -307,6 +314,7 @@ struct ValueItem {
 	ValueItem(const std::initializer_list<ValueItem>& args);
 	ValueItem(const std::exception_ptr&);
 	ValueItem(const std::chrono::steady_clock::time_point&);
+	ValueItem(typed_lgr<class FuncEnviropment>&);
 	ValueItem() {
 		val = nullptr;
 		meta.encoded = 0;
@@ -317,10 +325,12 @@ struct ValueItem {
 		move.val = nullptr;
 	}
 	ValueItem(const void* vall, ValueMeta meta);
-	ValueItem(void* vall, ValueMeta meta, bool no_copy, bool as_ref = false);
+	ValueItem(void* vall, ValueMeta meta, as_refrence_t);
+	ValueItem(void* vall, ValueMeta meta, no_copy_t);
 	ValueItem(VType);
 	ValueItem(ValueMeta);
 	ValueItem(const ValueItem&);
+	ValueItem(ValueItem& ref, as_refrence_t);
 	ValueItem& operator=(const ValueItem& copy);
 	ValueItem& operator=(ValueItem&& copy) noexcept;
 	~ValueItem();
@@ -449,6 +459,7 @@ struct ProxyClass {
 	ProxyClassDefine* declare_ty;
 	void* class_ptr;
 	ProxyClass();
+	ProxyClass(ProxyClass& other);
 	ProxyClass(void* val);
 	ProxyClass(void* val, ProxyClassDefine* def);
 	~ProxyClass();

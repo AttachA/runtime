@@ -150,7 +150,7 @@ namespace ABI_IMPL {
 			return ValueItem((void*)(0ull + val), VType::ui16);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int32_t>)
 			return ValueItem((void*)(0ll + val), VType::i32);
-		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int32_t>)
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, uint32_t>)
 			return ValueItem((void*)(0ull + val), VType::ui32);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int64_t>)
 			return ValueItem((void*)val, VType::i64);
@@ -176,6 +176,8 @@ namespace ABI_IMPL {
 			return ValueItem(new typed_lgr<class FuncEnviropment>(val), VType::function);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueItem>)
 			return val;
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, void*>)
+			return val;
 		else {
 			static_assert(
 				(
@@ -187,7 +189,9 @@ namespace ABI_IMPL {
 					std::is_same_v<std::remove_cvref_t<T>, MorphValue> ||
 					std::is_same_v<std::remove_cvref_t<T>, ProxyClass> ||
 					std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
-					std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>>
+					std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>> ||
+					std::is_same_v<std::remove_cvref_t<T>, bool> ||
+					std::is_same_v<std::remove_cvref_t<T>, void*>
 					),
 				"Invalid type for convert"
 				);
@@ -693,7 +697,7 @@ namespace ABI_IMPL {
 					return val;
 				}
 				else {
-					ValueItem tmp(val, meta, true);
+					ValueItem tmp(val, meta, no_copy);
 					ValueItem* res = ((ClassValue&)val).callFnPtr("()", ClassAccess::pub)->syncWrapper(&tmp,1);
 					tmp.val = 0;
 					ValueItem m(std::move(*res));
@@ -709,7 +713,7 @@ namespace ABI_IMPL {
 					return val;
 				}
 				else {
-					ValueItem tmp(val, meta, true);
+					ValueItem tmp(val, meta, no_copy);
 					ValueItem* res = ((MorphValue&)val).callFnPtr("()", ClassAccess::pub)->syncWrapper(&tmp,1);
 					tmp.val = 0;
 					ValueItem m(std::move(*res));
@@ -725,7 +729,7 @@ namespace ABI_IMPL {
 					return val;
 				}
 				else {
-					ValueItem tmp(val, meta, true);
+					ValueItem tmp(val, meta, no_copy);
 					ValueItem* res = ((ProxyClass&)val).callFnPtr("()", ClassAccess::pub)->syncWrapper(&tmp,1);
 					ValueItem m(std::move(*res));
 					delete res;
@@ -811,7 +815,7 @@ namespace exception_abi {
 		}
 		catch (...) {
 			try {
-				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, true);
+				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
 			}
 			catch (const std::bad_alloc& ex) {
 				throw EnviropmentRuinException();

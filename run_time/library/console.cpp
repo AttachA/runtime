@@ -68,199 +68,199 @@ namespace console {
 
 
 
-	extern "C" {
-		ValueItem* printLine(ValueItem* args, uint32_t len) {
+
+	ValueItem* printLine(ValueItem* args, uint32_t len) {
+		was_w_mode();
+		if (args == nullptr)
+			fwrite("\n", 1, 1, _stdout);
+		else {
+			while (len--) {
+				auto& it = *args++;
+				std::string tmp = ABI_IMPL::Scast(it.val, it.meta) + '\n';
+				fwrite(tmp.c_str(), 1, tmp.size(), _stdout);
+			}
+		}
+		return nullptr;
+	}
+	ValueItem* print(ValueItem* args, uint32_t len) {
+		if (args != nullptr) {
 			was_w_mode();
-			if (args == nullptr)
-				fwrite("\n", 1, 1, _stdout);
-			else {
-				while (len--) {
-					auto& it = *args++;
-					std::string tmp = ABI_IMPL::Scast(it.val, it.meta) + '\n';
-					fwrite(tmp.c_str(), 1, tmp.size(), _stdout);
-				}
+			while (len--) {
+				auto& it = *args++;
+				std::string tmp = ABI_IMPL::Scast(it.val, it.meta);
+				fwrite(tmp.c_str(), 1, tmp.size(), _stdout);
 			}
-			return nullptr;
 		}
-		ValueItem* print(ValueItem* args, uint32_t len) {
-			if (args != nullptr) {
-				was_w_mode();
-				while (len--) {
-					auto& it = *args++;
-					std::string tmp = ABI_IMPL::Scast(it.val, it.meta);
-					fwrite(tmp.c_str(), 1, tmp.size(), _stdout);
-				}
-			}
-			return nullptr;
-		}
+		return nullptr;
+	}
 
-		void resetModifiers() {
-			print("\033[0m");
-		}
-		void boldText() {
-			print("\033[1m");
-		}
-		void italicText() {
-			print("\033[3m");
-		}
-		void underlineText() {
-			print("\033[4m");
-		}
-		void slowBlink() {
-			print("\033[5m");
-		}
-		void rapidBlink() {
-			print("\033[6m");
-		}
-		void invertColors() {
-			print("\033[7m");
-		}
-		void notBoldText() {
-			print("\033[22m");
-		}
-		void notUnderlinedText() {
-			print("\033[24m");
-		}
-		void hideBlinkText() {
-			print("\033[25m");
-		}
+	void resetModifiers() {
+		print("\033[0m");
+	}
+	void boldText() {
+		print("\033[1m");
+	}
+	void italicText() {
+		print("\033[3m");
+	}
+	void underlineText() {
+		print("\033[4m");
+	}
+	void slowBlink() {
+		print("\033[5m");
+	}
+	void rapidBlink() {
+		print("\033[6m");
+	}
+	void invertColors() {
+		print("\033[7m");
+	}
+	void notBoldText() {
+		print("\033[22m");
+	}
+	void notUnderlinedText() {
+		print("\033[24m");
+	}
+	void hideBlinkText() {
+		print("\033[25m");
+	}
 
-		void resetTextColor() {
-			print("\033[39m");
-		}
-		void resetBgColor() {
-			print("\033[49m");
-		}
-		void setTextColor(uint8_t r, uint8_t g, uint8_t b) {
-			printf("\033[38;2;%d;%d;%dm", r, g, b);
-		}
-		void setBgColor(uint8_t r, uint8_t g, uint8_t b) {
-			printf("\033[48;2;%d;%d;%dm", r, g, b);
-		}
-		void setPos(uint16_t row, uint16_t col) {
-			printf("\033[%d;%dH", row + 1, col+1);
-		}
-		void saveCurPos() {
-			print("\033[s");
-		}
-		void loadCurPos() {
-			print("\033[u");
-		}
-		void setLine(uint32_t y) {
-			if (y == 0)
-				print("\033[999999D");
-			else
-				printf("\033[999999D\033[%dC",y);
-		}
-		void showCursor() {
-			print("\033[?25h");
-		}
-		void hideCursor() {
-			print("\033[?25l");
-		}
+	void resetTextColor() {
+		print("\033[39m");
+	}
+	void resetBgColor() {
+		print("\033[49m");
+	}
+	void setTextColor(uint8_t r, uint8_t g, uint8_t b) {
+		printf("\033[38;2;%d;%d;%dm", r, g, b);
+	}
+	void setBgColor(uint8_t r, uint8_t g, uint8_t b) {
+		printf("\033[48;2;%d;%d;%dm", r, g, b);
+	}
+	void setPos(uint16_t row, uint16_t col) {
+		printf("\033[%d;%dH", row + 1, col+1);
+	}
+	void saveCurPos() {
+		print("\033[s");
+	}
+	void loadCurPos() {
+		print("\033[u");
+	}
+	void setLine(uint32_t y) {
+		if (y == 0)
+			print("\033[999999D");
+		else
+			printf("\033[999999D\033[%dC",y);
+	}
+	void showCursor() {
+		print("\033[?25h");
+	}
+	void hideCursor() {
+		print("\033[?25l");
+	}
 
-		ValueItem* readWord(ValueItem* args, uint32_t len) {
-			was_r_mode();
-			std::string str;
-			char c;
-			while ((c = getchar()) != EOF) {
-				switch (c)
-				{
-				case '\n':
-				case '\b':
-				case '\t':
-				case '\r':
-				case ' ':
-					goto end;
-				default:
-					str += c;
-				}
-			}
-		end:
-			return new ValueItem(ABI_IMPL::SBcast(str));
-		}
-		ValueItem* readLine(ValueItem* args, uint32_t len) {
-			was_r_mode();
-			std::string str;
-			char c;
-			bool do_continue = true;
-			while (do_continue) {
-				switch (c = getchar()) {
-				case EOF: case '\n':
-					do_continue = false;
-				}
+	ValueItem* readWord(ValueItem* args, uint32_t len) {
+		was_r_mode();
+		std::string str;
+		char c;
+		while ((c = getchar()) != EOF) {
+			switch (c)
+			{
+			case '\n':
+			case '\b':
+			case '\t':
+			case '\r':
+			case ' ':
+				goto end;
+			default:
 				str += c;
 			}
-			return new ValueItem(new std::string(std::move(str)), VType::string, false);
 		}
-		ValueItem* readInput(ValueItem* args, uint32_t len) {
-			was_r_mode();
-			std::string str;
-			char c;
-			while ((c = getchar()) != EOF)
+	end:
+		return new ValueItem(ABI_IMPL::SBcast(str));
+	}
+	ValueItem* readLine(ValueItem* args, uint32_t len) {
+		was_r_mode();
+		std::string str;
+		char c;
+		bool do_continue = true;
+		while (do_continue) {
+			switch (c = getchar()) {
+			case EOF: case '\n':
+				do_continue = false;
+			}
+			str += c;
+		}
+		return new ValueItem(new std::string(std::move(str)), VType::string, no_copy);
+	}
+	ValueItem* readInput(ValueItem* args, uint32_t len) {
+		was_r_mode();
+		std::string str;
+		char c;
+		while ((c = getchar()) != EOF)
+			str += c;
+		
+		return new ValueItem(new std::string(std::move(str)), VType::string, no_copy);
+
+	}
+	ValueItem* readValue(ValueItem* args, uint32_t len) {
+		was_r_mode();
+		std::string str;
+		char c;
+		while ((c = getchar()) != EOF) {
+			switch (c)
+			{
+			case '\n':
+			case '\b':
+			case '\t':
+			case '\r':
+			case ' ':
+				break;
+			default:
 				str += c;
-			
-			return new ValueItem(new std::string(std::move(str)), VType::string, false);
-
-		}
-		ValueItem* readValue(ValueItem* args, uint32_t len) {
-			was_r_mode();
-			std::string str;
-			char c;
-			while ((c = getchar()) != EOF) {
-				switch (c)
-				{
-				case '\n':
-				case '\b':
-				case '\t':
-				case '\r':
-				case ' ':
-					break;
-				default:
-					str += c;
-				}
 			}
-			return new ValueItem(ABI_IMPL::SBcast(str));
 		}
-		ValueItem* readInt(ValueItem* args, uint32_t len){
-			was_r_mode();
-			bool first = true;
-			bool minus = false;
-			uint64_t old_num = 0;
-			uint64_t num = 0;
-			char c;
-			while ((c = getchar()) != EOF){
-				if(first){
-					if(c == '-')
-						minus = true;
-					else if(c != '+')
-						throw InvalidInput("Invalid input, expected a number");
-					
-					first = false;
-					continue;
-				}
-				if(c >= '0' && c <= '9'){
-					num *= 10;
-					num += c - '0';
-					if(num < old_num)
-						throw InvalidInput("Invalid input, too large number");
-					old_num = num;
-				}
+		return new ValueItem(ABI_IMPL::SBcast(str));
+	}
+	ValueItem* readInt(ValueItem* args, uint32_t len){
+		was_r_mode();
+		bool first = true;
+		bool minus = false;
+		uint64_t old_num = 0;
+		uint64_t num = 0;
+		char c;
+		while ((c = getchar()) != EOF){
+			if(first){
+				if(c == '-')
+					minus = true;
+				else if(c != '+')
+					throw InvalidInput("Invalid input, expected a number");
+				
+				first = false;
+				continue;
 			}
-
-			ValueItem res;
-			if(minus) {
-				if(num == (int8_t)num)
-					res = ValueItem(-(int8_t)num);
-				else if(num == (int16_t)num)
-					res = ValueItem(-(int16_t)num);
-				else if(num == (int32_t)num)
-					res = ValueItem(-(int32_t)num);
-				else if(num == (int64_t)num)
-					res = ValueItem(-(int64_t)num);
-				else 
+			if(c >= '0' && c <= '9'){
+				num *= 10;
+				num += c - '0';
+				if(num < old_num)
 					throw InvalidInput("Invalid input, too large number");
-			}else{
+				old_num = num;
+			}
+		}
+
+		ValueItem res;
+		if(minus) {
+			if(num == (int8_t)num)
+				res = ValueItem(-(int8_t)num);
+			else if(num == (int16_t)num)
+				res = ValueItem(-(int16_t)num);
+			else if(num == (int32_t)num)
+				res = ValueItem(-(int32_t)num);
+			else if(num == (int64_t)num)
+				res = ValueItem(-(int64_t)num);
+			else 
+				throw InvalidInput("Invalid input, too large number");
+		}else{
 				if(num == (uint8_t)num)
 					res = ValueItem((uint8_t)num);
 				else if(num == (uint16_t)num)
@@ -270,8 +270,7 @@ namespace console {
 				else if(num == (uint64_t)num)
 					res = ValueItem((uint64_t)num);
 			}
-			return new ValueItem(res);
-		}
+		return new ValueItem(res);
 	}
 }
 

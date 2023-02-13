@@ -688,7 +688,7 @@ namespace parallel {
 			ValueItem* args = new ValueItem[size]{};
 			for (uint32_t i = 0; i < size; i++)
 				args[i] = vals[i + 1];
-			values = ValueItem(args, size, true);
+			values = ValueItem(args, size, no_copy);
 		}
 		return values;
 	}
@@ -844,7 +844,7 @@ namespace parallel {
 					used_task_local = (bool)arr[3];
 			}
 			ValueItem args = (len == 3) ? vals[2] : ValueItem();
-			return new ValueItem(new typed_lgr(getClass<TaskQuery>(vals)->add_task(func, args,used_task_local,fault_func, timeout)), VType::async_res, true);
+			return new ValueItem(new typed_lgr(getClass<TaskQuery>(vals)->add_task(func, args,used_task_local,fault_func, timeout)), VType::async_res, no_copy);
 		}
 		throw InvalidOperation("That function used only in proxy class");
 	}
@@ -1147,7 +1147,7 @@ namespace parallel {
 			throw;
 		}
 		ValueItem awaiter_args(awaiter);
-		return new ValueItem(new typed_lgr(new Task(__createAsyncThread__Awaiter, awaiter_args)), VType::async_res, true);
+		return new ValueItem(new typed_lgr(new Task(__createAsyncThread__Awaiter, awaiter_args)), VType::async_res, no_copy);
 	}
 
 	ValueItem* createTask(ValueItem* vals, uint32_t len){
@@ -1169,6 +1169,6 @@ namespace parallel {
 			used_task_local = (bool)arr[3];
 			
 		ValueItem args = (len == 3) ? vals[2] : ValueItem();
-		return new ValueItem(new typed_lgr(new Task(func, args, used_task_local, fault_func, timeout)), VType::async_res, true);
+		return new ValueItem(new typed_lgr(new Task(func, args, used_task_local, fault_func, timeout)), VType::async_res, no_copy);
 	}
 }

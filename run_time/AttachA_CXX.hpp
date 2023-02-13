@@ -42,7 +42,7 @@ namespace AttachA {
 
 	namespace Interface {
 		inline ValueItem makeCall(ClassAccess access, ClassValue& c, const std::string& fun_name) {
-			ValueItem arg(&c, VType::class_, true, true);
+			ValueItem arg(&c, VType::class_, as_refrence);
 			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&arg, 1);
 			if (res == nullptr)
 				return {};
@@ -52,7 +52,7 @@ namespace AttachA {
 		}
 		template<class ...Types>
 		ValueItem makeCall(ClassAccess access, ClassValue& c, const std::string& fun_name, const Types&... types) {
-			ValueItem args[] = { ValueItem(&c,VType::morph, true, true), ABI_IMPL::BVcast(types)... };
+			ValueItem args[] = { ValueItem(&c,VType::class_, as_refrence), ABI_IMPL::BVcast(types)... };
 			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
 			if (res == nullptr)
 				return {};
@@ -61,7 +61,7 @@ namespace AttachA {
 			return m;
 		}
 		inline ValueItem makeCall(ClassAccess access, MorphValue& c, const std::string& fun_name) {
-			ValueItem args(&c, VType::morph, true, true);
+			ValueItem args(&c, VType::morph, as_refrence);
 			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&args, 1);
 			ValueItem m(std::move(*res));
 			delete res;
@@ -69,7 +69,7 @@ namespace AttachA {
 		}
 		template<class ...Types>
 		ValueItem makeCall(ClassAccess access, MorphValue& c, const std::string& fun_name, const Types&... types) {
-			ValueItem args[] = { ValueItem(&c,VType::morph, true, true), ABI_IMPL::BVcast(types)... };
+			ValueItem args[] = { ValueItem(&c,VType::morph, as_refrence), ABI_IMPL::BVcast(types)... };
 			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
 			if (res == nullptr)
 				return {};
@@ -78,7 +78,7 @@ namespace AttachA {
 			return m;
 		}
 		inline ValueItem makeCall(ClassAccess access, ProxyClass& c, const std::string& fun_name) {
-			ValueItem arg(&c, VType::proxy, true, true);
+			ValueItem arg(&c, VType::proxy, as_refrence);
 			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&arg, 1);
 			ValueItem m(std::move(*res));
 			delete res;
@@ -86,7 +86,7 @@ namespace AttachA {
 		}
 		template<class ...Types>
 		ValueItem makeCall(ClassAccess access, ProxyClass& c, const std::string& fun_name, const Types&... types) {
-			ValueItem args[] = { ValueItem(&c,VType::proxy, true, true), ABI_IMPL::BVcast(types)... };
+			ValueItem args[] = { ValueItem(&c,VType::proxy, as_refrence), ABI_IMPL::BVcast(types)... };
 			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
 			if (res == nullptr)
 				return {};
@@ -118,7 +118,7 @@ namespace AttachA {
 		}
 		template<class ...Types>
 		ValueItem makeCall(ClassAccess access, ValueItem& c, const std::string& fun_name, const Types&... types) {
-			ValueItem args[] = { ValueItem(c.val, c.meta, true, true) , ABI_IMPL::BVcast(types)... };
+			ValueItem args[] = { ValueItem(c.val, c.meta, as_refrence) , ABI_IMPL::BVcast(types)... };
 			ValueItem* res;
 			switch (c.meta.vtype) {
 			case VType::class_:
@@ -143,7 +143,7 @@ namespace AttachA {
 
 		inline ValueItem makeCall(ClassAccess access, ClassValue& c, const std::string& fun_name, ValueItem* args, uint32_t len) {
 			list_array<ValueItem> args_tmp(args, args + len, len);
-			args_tmp.push_front(ValueItem(&c, VType::class_, true, true));
+			args_tmp.push_front(ValueItem(&c, VType::class_, as_refrence));
 			ValueItem* res = ((ClassValue&)c).callFnPtr(fun_name, access)->syncWrapper(args_tmp.data(), len + 1);
 			if (res == nullptr)
 				return {};
@@ -153,7 +153,7 @@ namespace AttachA {
 		}
 		inline ValueItem makeCall(ClassAccess access, MorphValue& c, const std::string& fun_name, ValueItem* args, uint32_t len) {
 			list_array<ValueItem> args_tmp(args, args + len, len);
-			args_tmp.push_front(ValueItem(&c, VType::morph, true, true));
+			args_tmp.push_front(ValueItem(&c, VType::morph, as_refrence));
 			ValueItem* res = ((MorphValue&)c).callFnPtr(fun_name, access)->syncWrapper(args_tmp.data(), len + 1);
 			if (res == nullptr)
 				return {};
@@ -163,7 +163,7 @@ namespace AttachA {
 		}
 		inline ValueItem makeCall(ClassAccess access, ProxyClass& c, const std::string& fun_name, ValueItem* args, uint32_t len) {
 			list_array<ValueItem> args_tmp(args, args + len, len);
-			args_tmp.push_front(ValueItem(&c, VType::proxy, true, true));
+			args_tmp.push_front(ValueItem(&c, VType::proxy, as_refrence));
 			ValueItem* res = ((ProxyClass&)c).callFnPtr(fun_name, access)->syncWrapper(args_tmp.data(), len + 1);
 			if (res == nullptr)
 				return {};
@@ -173,7 +173,7 @@ namespace AttachA {
 		}
 		inline ValueItem makeCall(ClassAccess access, ValueItem& c, const std::string& fun_name, ValueItem* args, uint32_t len) {
 			list_array<ValueItem> args_tmp(args, args + len, len);
-			args_tmp.push_front(ValueItem(c.val, c.meta, true, true));
+			args_tmp.push_front(ValueItem(c.val, c.meta, as_refrence));
 			ValueItem* res;
 			switch (c.meta.vtype) {
 			case VType::class_:

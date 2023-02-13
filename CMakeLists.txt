@@ -4,7 +4,6 @@ set(CMAKE_CXX_STANDARD 23)
 #enable_testing()
 #add_subdirectory(tests)
 
-
 if(MSVC)
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
@@ -24,7 +23,7 @@ FILE(GLOB SRCFILES
         run_time/library/*.cpp
         run_time/tasks_util/*.cpp
         library/*.cpp
-        *.cpp
+        *.cpp 
 )
 add_executable(AttachA ${SRCFILES})
 set_property(TARGET AttachA PROPERTY
@@ -38,3 +37,7 @@ target_link_libraries(AttachA
   PRIVATE
     ${Boost_LIBRARIES}
     asmjit::asmjit)
+
+IF(MSVC)
+  SET(CMAKE_CXX_FLAGS "/EHsc")
+ENDIF(MSVC)
