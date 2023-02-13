@@ -368,7 +368,7 @@ std::vector<StackTraceItem> FrameResult::JitCaptureStackTrace(uint32_t framesToS
 	return stack_trace;
 }
 
-std::vector<void*>* FrameResult::JitCaptureStackChainTrace(uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
+std::vector<void*> FrameResult::JitCaptureStackChainTrace(uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
 #ifdef _WIN64
 	std::lock_guard lg(DbgHelp_lock);//in windiws NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
@@ -379,9 +379,9 @@ std::vector<void*>* FrameResult::JitCaptureStackChainTrace(uint32_t framesToSkip
 	void** frame = frames_buffer.get();
 	uint32_t numframes = CaptureStackTrace(max_frames, frame);
 	if (framesToSkip >= numframes)
-		return nullptr;
+		return {};
 	else 
-		return new std::vector<void*>( frame + framesToSkip, frame + numframes);
+		return std::vector<void*>( frame + framesToSkip, frame + numframes);
 }
 
 std::vector<StackTraceItem> FrameResult::JitCaptureExternStackTrace(void* rip, uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
@@ -405,7 +405,7 @@ std::vector<StackTraceItem> FrameResult::JitCaptureExternStackTrace(void* rip, u
 	return stack_trace;
 }
 
-std::vector<void*>* FrameResult::JitCaptureExternStackChainTrace(void* rip, uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
+std::vector<void*> FrameResult::JitCaptureExternStackChainTrace(void* rip, uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
 #ifdef _WIN64
 	std::lock_guard lg(DbgHelp_lock);//in windiws NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
@@ -416,7 +416,16 @@ std::vector<void*>* FrameResult::JitCaptureExternStackChainTrace(void* rip, uint
 	void** frame = frames_buffer.get();
 	uint32_t numframes = CaptureStackTrace(max_frames, frame, rip);
 	if (framesToSkip >= numframes)
-		return nullptr;
+		return {};
 	else 
-		return new std::vector<void*>( frame + framesToSkip, frame + numframes);
+		return std::vector<void*>(frame + framesToSkip, frame + numframes);
+}
+StackTraceItem FrameResult::JitResolveFrame(void* rip, bool include_native){
+	if(include_native){
+			
+		std::lock_guard lg(DbgHelp_lock);
+		std::unique_ptr<NativeSymbolResolver> nativeSymbols;
+		nativeSymbols.reset(new NativeSymbolResolver());
+		return JitGetStackFrameName(nativeSymbols.get(), rip);
+	}else return JitGetStackFrameName(nullptr, rip);
 }

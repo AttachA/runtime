@@ -174,7 +174,12 @@ constexpr creg128 vec15 = asmjit::x86::xmm15;
 #define casm_stack_align_check_align
 #define casm_stack_align_check
 #endif
-
+struct _CASM_SCOPE_INFO{
+	size_t start_offset = 0;
+	size_t end_offset = 0;
+	void* uwind_fun;
+	
+};
 extern void* __casm_test_handle;
 class CASM {
 	asmjit::x86::Assembler a;
@@ -724,10 +729,11 @@ struct FrameResult {
 	//return uwind_info_ptr
 	void* init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name="AttachA unnamed_symbol", const char* file_path ="");
 	static bool deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime);
-	static std::vector<void*>* JitCaptureStackChainTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
+	static std::vector<void*> JitCaptureStackChainTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
 	static std::vector<StackTraceItem> JitCaptureStackTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
-	std::vector<StackTraceItem> JitCaptureExternStackTrace(void* rip, uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
-	std::vector<void*>* JitCaptureExternStackChainTrace(void* rip, uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
+	static std::vector<StackTraceItem> JitCaptureExternStackTrace(void* rip, uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
+	static std::vector<void*> JitCaptureExternStackChainTrace(void* rip, uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
+	static StackTraceItem JitResolveFrame(void* rip, bool include_native = true);
 };
 
 
@@ -1271,6 +1277,9 @@ public:
 	}
 };
 
+class ScopeManager{
+	CASM& csm;
+};
 
 
 #elif defined(__aarch64__) || defined(_M_ARM64)
