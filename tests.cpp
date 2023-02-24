@@ -209,13 +209,15 @@ void __ex_handle_test() {
 
 void ex_handle_test() {
 	FuncEnviropment::AddNative(__ex_handle_test, "__ex_handle_test", false);
-	FuncEviroBuilder build;
-	build.call_and_ret("__ex_handle_test");
-	try {
-		build.prepareFunc()->syncWrapper(nullptr,0);
-	}
-	catch (...) {
-		std::cout << "Cathced" << std::endl;
+	{
+		FuncEviroBuilder build;
+		build.call_and_ret("__ex_handle_test");
+		try {
+			build.prepareFunc()->syncWrapper(nullptr,0);
+		}
+		catch (...) {
+			std::cout << "Passed ex_handle_test 0" << std::endl;
+		}
 	}
 }
 void interface_test() {
@@ -386,20 +388,20 @@ int main(){
 	light_stack::shrink_current();
 	std::cout <<light_stack::used_size() << std::endl;
 
-	std::cout << 1 << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
-	light_stack::dump_current_out();
-	std::cout << light_stack::prepare(4096*100) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
-	light_stack::dump_current_out();
-	std::cout << light_stack::shrink_current(4096*20) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
-	light_stack::dump_current_out();
-	std::cout << light_stack::prepare() << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
-	light_stack::dump_current_out();
-	std::cout << light_stack::shrink_current(4096*20) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
-	light_stack::dump_current_out();
-	std::cout << light_stack::prepare() << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
-	light_stack::dump_current_out();
-	std::cout << light_stack::shrink_current(0) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
-	light_stack::dump_current_out();
+	//std::cout << 1 << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	//light_stack::dump_current_out();
+	//std::cout << light_stack::prepare(4096*100) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	//light_stack::dump_current_out();
+	//std::cout << light_stack::shrink_current(4096*20) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	//light_stack::dump_current_out();
+	//std::cout << light_stack::prepare() << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	//light_stack::dump_current_out();
+	//std::cout << light_stack::shrink_current(4096*20) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	//light_stack::dump_current_out();
+	//std::cout << light_stack::prepare() << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	//light_stack::dump_current_out();
+	//std::cout << light_stack::shrink_current(0) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
+	//light_stack::dump_current_out();
 	initStandardFunctions();
 	FuncEnviropment::AddNative(TestCall, "test", false);
 	FuncEnviropment::AddNative(ThrowCall, "throwcall", false);
@@ -423,9 +425,9 @@ int main(){
 	typed_lgr<FuncEnviropment> empty_env = new FuncEnviropment(empty_fun, false);
 
 
-	typed_lgr<Task> empty_task = new Task(empty_env, noting);
-	Task::start(empty_task);
-	Task::await_end_tasks(false);
+	//typed_lgr<Task> empty_task = new Task(empty_env, noting);
+	//Task::start(empty_task);
+	//Task::await_end_tasks(false);
 
 	//attacha_main(nullptr, 0);
 

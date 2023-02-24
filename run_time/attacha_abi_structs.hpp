@@ -58,7 +58,17 @@ ENUM_t(Opcode,uint8_t,
 	(set_structure_value)
 	(get_structure_value)
 	(explicit_await)
-	(generator_get)
+
+
+	(generator_get)//TO-DO: implement
+
+	(exception_try)
+	(exception_catch)
+	(exception_finally)
+	(exception_convert)
+
+	(value_life_start)
+	(value_life_end)
 )
 
 
@@ -385,8 +395,7 @@ struct ValueItem {
 	const void*& getSourcePtr() const;
 	typed_lgr<class FuncEnviropment>* funPtr();
 };
-typedef ValueItem* (*Enviropment)(void** enviro, ValueItem* args, uint32_t len);
-typedef ValueItem* (*AttachACXX)(ValueItem* arguments, uint32_t len);
+typedef ValueItem* (*Enviropment)(ValueItem* args, uint32_t len);
 
 
 
