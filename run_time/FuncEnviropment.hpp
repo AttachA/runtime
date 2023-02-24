@@ -16,10 +16,10 @@ public:
 	enum class FuncType : uint32_t {
 		own,
 		native,
-		native_own_abi,
 		python,
 		csharp,
 		java,
+		______,
 		_______,
 		force_unloaded
 	};
@@ -75,18 +75,14 @@ public:
 		need_compile = false;
 		can_be_unloaded = _can_be_unloaded;
 	}
-	FuncEnviropment(AttachACXX proc, bool _can_be_unloaded) {
-		_type = FuncType::native_own_abi;
+	FuncEnviropment(Enviropment proc, bool _can_be_unloaded) {
+		_type = FuncType::own;
 		curr_func = (Enviropment)proc;
 		need_compile = false;
 		can_be_unloaded = _can_be_unloaded;
 	}
 
 	ValueItem* NativeProxy_DynamicToStatic(ValueItem*, uint32_t arguments_size);
-	ValueItem* initAndCall(ValueItem*, uint32_t arguments_size);
-
-	ValueItem* native_proxy_catch(ValueItem*, uint32_t arguments_size);
-	ValueItem* initAndCall_catch(ValueItem*, uint32_t arguments_size);
 	FuncEnviropment() {
 		need_compile = false;
 		_type = FuncType::own;
@@ -125,17 +121,8 @@ public:
 		else
 			return local_funcs[indx]->syncWrapper(arguments, arguments_size);
 	}
-	ValueItem* localWrapper_catch(size_t indx, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
-		try {
-			return localWrapper(indx, arguments, arguments_size, run_async);
-		}
-		catch (...) {
-			return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
-		}
-	}
 
 	ValueItem* syncWrapper(ValueItem* arguments, uint32_t arguments_size);
-	ValueItem* syncWrapper_catch(ValueItem* arguments, uint32_t arguments_size);
 
 	static void fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code) {
 		auto& tmp = enviropments[func_name];
@@ -171,14 +158,6 @@ public:
 				return enviropments[func_name]->syncWrapper(arguments, arguments_size);
 		}
 		throw NotImplementedException();
-	}
-	static ValueItem* callFunc_catch(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
-		try {
-			return callFunc(func_name, arguments, run_async, arguments_size);
-		}
-		catch (...) {
-			return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
-		}
 	}
 
 #pragma region c++ add native
@@ -217,7 +196,7 @@ public:
 		AddNative((DynamicCall::PROC)function, templ, symbol_name, can_be_unloaded);
 	}
 
-	static void AddNative(AttachACXX function, const std::string& symbol_name, bool can_be_unloaded = true) {
+	static void AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded = true) {
 		if (enviropments.contains(symbol_name))
 			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
 		enviropments[symbol_name] = typed_lgr(new FuncEnviropment(function, can_be_unloaded));

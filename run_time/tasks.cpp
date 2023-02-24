@@ -2178,8 +2178,8 @@ bool TaskQuery::wait_until(std::chrono::high_resolution_clock::time_point time_p
 	return true;
 }
 TaskQuery::~TaskQuery(){
-	std::lock_guard lock(handle->no_race);
 	handle->destructed = true;
+	wait();
 	if(handle->now_at_execution == 0)
 		delete handle;
 }

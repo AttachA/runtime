@@ -181,7 +181,24 @@ size_t JITPCToLine(uint8_t* pc, const frame_info* info) {
 
 
 
-
+template<typename Vec, typename T>
+void pushInVectorAsValue(std::vector<Vec>& vec, T value) {
+	size_t _add = sizeof(T) / sizeof(Vec);
+	size_t add = _add ? _add : sizeof(Vec) / sizeof(T);
+	size_t source_pos = vec.size() * sizeof(Vec);
+	vec.resize(vec.size() + add);
+	*(T*)(((char*)vec.data()) + source_pos) = value;
+}
+template<typename Vec, typename T>
+void pushInVectorAsArray(std::vector<Vec>& vec, T* value, size_t size) {
+	size_t _add = sizeof(T) / sizeof(Vec) * size;
+	size_t add = _add ? _add : sizeof(Vec) / sizeof(T) * size;
+	size_t source_pos = vec.size() * sizeof(Vec);
+	vec.resize(vec.size() + add);
+	T* ptr = (T*)(((char*)vec.data()) + source_pos);
+	for(size_t i = 0; i < size; i++)
+		ptr[i] = value[i];
+}
 
 //convert FrameResult struct to native unwindInfo
 std::vector<uint16_t> convert(FrameResult& frame) {
@@ -200,11 +217,45 @@ std::vector<uint16_t> convert(FrameResult& frame) {
 		info.push_back(0);
 
 	if (frame.use_handle) {
-		info.resize(info.size() + 4);
-		*(DWORD*)(info.data() + info.size() - 4) = frame.exHandleOff;
+		pushInVectorAsValue(info, frame.exHandleOff);
+		std::vector<uint8_t> handler_info;
+		for(size_t i = frame.scope_actions.size(); i > 0; i--){
+			auto& action = frame.scope_actions[i - 1];
+			handler_info.push_back((uint8_t)action.action);
+			pushInVectorAsValue(handler_info, action.function_begin_off);
+			pushInVectorAsValue(handler_info, action.function_end_off);
+			switch (action.action) {
+			case ScopeAction::Action::destruct_stack:
+				pushInVectorAsValue(handler_info, action.destruct);
+				pushInVectorAsValue(handler_info, action.stack_offset);
+				break;
+			case ScopeAction::Action::destruct_register:
+				pushInVectorAsValue(handler_info, action.destruct_register);
+				pushInVectorAsValue(handler_info, action.register_value);
+				break;
+			case ScopeAction::Action::filter:
+				pushInVectorAsValue(handler_info, action.filter);
+				pushInVectorAsValue(handler_info, action.filter_data_len);
+				pushInVectorAsArray(handler_info, (char*)action.filter_data, action.filter_data_len);
+				break;
+			case ScopeAction::Action::converter:
+				pushInVectorAsValue(handler_info, action.converter);
+				pushInVectorAsValue(handler_info, action.converter_data_len);
+				pushInVectorAsArray(handler_info, (char*)action.converter_data, action.converter_data_len);
+				break;
+			default:
+				break;
+			}
+		}
+		pushInVectorAsValue(handler_info, ScopeAction::Action::not_action);
+		if(handler_info.size() & 1){
+			handler_info.push_back(0xFFFF);
+			pushInVectorAsArray(info, handler_info.data(), handler_info.size());
+		}else{
+			pushInVectorAsArray(info, handler_info.data(), handler_info.size());
+			info.push_back(0xFFFF);
+		}
 	}
-	info.resize(info.size() + 8);
-	*(uint64_t*)(info.data() + info.size() - 8) = 0xFFFFFFFFFFFFFFFF;
 	return info;
 }
 

@@ -20,4 +20,5 @@ struct CXXExInfo {
 };
 void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex);
 void getCxxExInfoFromNative(CXXExInfo& res, void*);
+void getCxxExInfoFromNative1(CXXExInfo& res, void*);
 bool hasClassInEx(CXXExInfo& cxx, const char* class_nam);

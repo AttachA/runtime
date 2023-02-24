@@ -35,25 +35,28 @@ namespace except_abi {
 
 
 
-	CXXExInfo exceptCXXDetails(LPEXCEPTION_POINTERS e) {
-		const ExThrowInfo* throwInfo = (const ExThrowInfo*)e->ExceptionRecord->ExceptionInformation[2];
-		const ExCatchableTypeArray* cArray = (const ExCatchableTypeArray*)(e->ExceptionRecord->ExceptionInformation[3] + throwInfo->catchable_type_array);
+	CXXExInfo exceptCXXDetails(LPEXCEPTION_RECORD e) {
+		const ExThrowInfo* throwInfo = (const ExThrowInfo*)e->ExceptionInformation[2];
+		const ExCatchableTypeArray* cArray = (const ExCatchableTypeArray*)(e->ExceptionInformation[3] + throwInfo->catchable_type_array);
 		CXXExInfo ex;
-		ex.ex_ptr = (const void*)e->ExceptionRecord->ExceptionInformation[1];
+		ex.ex_ptr = (const void*)e->ExceptionInformation[1];
 		uint32_t count = cArray->catchable_types;
 		while (count--)
 		{
-			const ExCatchableType* ss = (const ExCatchableType*)(e->ExceptionRecord->ExceptionInformation[3] + cArray->array_of_catchable_types(0));
+			const ExCatchableType* ss = (const ExCatchableType*)(e->ExceptionInformation[3] + cArray->array_of_catchable_types(0));
 			CXXExInfo::Tys tys
 			{
-				(const std::type_info*)(e->ExceptionRecord->ExceptionInformation[3] + ss->type_info),
-				(const void*)(e->ExceptionRecord->ExceptionInformation[3] + ss->copy_function)
+				(const std::type_info*)(e->ExceptionInformation[3] + ss->type_info),
+				(const void*)(e->ExceptionInformation[3] + ss->copy_function)
 			};
 			ex.ty_arr.push_back(tys);
 		}
 		ex.ty_arr.shrink_to_fit();
-		ex.cleanup_fn = (const void*)(e->ExceptionRecord->ExceptionInformation[3] + throwInfo->clean_up);
+		ex.cleanup_fn = (const void*)(e->ExceptionInformation[3] + throwInfo->clean_up);
 		return ex;
+	}
+	CXXExInfo exceptCXXDetails(LPEXCEPTION_POINTERS e) {
+		return exceptCXXDetails(e->ExceptionRecord);
 	}
 
 	static void ex_rethrow(const std::exception_ptr& ex) { std::rethrow_exception(ex); }
@@ -73,6 +76,9 @@ void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex) {
 }
 void getCxxExInfoFromNative(CXXExInfo& res, void* ex_ptr) {
 	res = except_abi::exceptCXXDetails((LPEXCEPTION_POINTERS)ex_ptr);
+}
+void getCxxExInfoFromNative1(CXXExInfo& res, void* ex_ptr) {
+	res = except_abi::exceptCXXDetails((LPEXCEPTION_RECORD)ex_ptr);
 }
 bool hasClassInEx(CXXExInfo& cxx, const char* class_nam) {
 	std::string str = std::string("class ") + class_nam;

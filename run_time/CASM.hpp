@@ -8,7 +8,9 @@
 #include <asmjit/asmjit.h>
 #include <vector>
 #include <cassert>
+#include <unordered_map>
 #include "library/exceptions.hpp"
+#include "cxxException.hpp"
 using asmjit::CodeHolder;
 using asmjit::Error;
 using asmjit::Label;
@@ -48,9 +50,10 @@ constexpr creg64 argr1 = asmjit::x86::rdx;
 constexpr creg64 argr2 = asmjit::x86::r8;
 constexpr creg64 argr3 = asmjit::x86::r9;
 
-constexpr creg64 arg_ptr = asmjit::x86::r13;
-constexpr creg32 arg_len_32 = asmjit::x86::r11d;
 constexpr creg64 enviro_ptr = asmjit::x86::r12;
+constexpr creg64 arg_ptr = asmjit::x86::r13;
+constexpr creg32 arg_len_32 = asmjit::x86::r14d;
+constexpr creg64 arg_len = asmjit::x86::r14;
 
 
 constexpr creg64 stack_ptr = asmjit::x86::rsp;
@@ -164,7 +167,7 @@ constexpr creg128 vec15 = asmjit::x86::xmm15;
 #define casm_stack_align_check_rem(rem) stack_align_check -= rem
 #define casm_stack_align_check_flush stack_align_check = 8
 #define casm_stack_align_check_align if(stack_align_check & 15){stack_align_check &= -16; stack_align_check+=16;}
-#define casm_stack_align_check assert((stack_align_check & 15) && "Align check failed")
+#define casm_stack_align_check assert(!(stack_align_check & 15) && "Align check failed")
 #else
 #define casm_value_align_check_v
 #define casm_stack_align_check_dynamic
@@ -174,13 +177,6 @@ constexpr creg128 vec15 = asmjit::x86::xmm15;
 #define casm_stack_align_check_align
 #define casm_stack_align_check
 #endif
-struct _CASM_SCOPE_INFO{
-	size_t start_offset = 0;
-	size_t end_offset = 0;
-	void* uwind_fun;
-	
-};
-extern void* __casm_test_handle;
 class CASM {
 	asmjit::x86::Assembler a;
 	casm_stack_align_check_v;
@@ -223,7 +219,9 @@ public:
 	static uint32_t enviroMetaOffset(uint16_t off) {
 		return ((int32_t(off) << 1) | 1) * 8;
 	}
-
+	static size_t alignStackBytes(size_t bytes_count) {
+		return (bytes_count + 15) & -16;
+	}
 	void stackAlloc(size_t bytes_count) {
 		a.mov(resr, stack_ptr);
 		a.sub(stack_ptr, bytes_count);
@@ -463,6 +461,11 @@ public:
 		stackReduce(8);
 	}
 
+	template<class FUNC = asmjit::Label>
+	void call(asmjit::Label label) {
+		casm_stack_align_check;
+		a.call(label);
+	}
 	template<class FUNC>
 	void call(FUNC fun) {
 		casm_stack_align_check;
@@ -720,8 +723,82 @@ struct StackTraceItem {
 	size_t line;
 	constexpr static size_t nline = -1;
 };
+
+struct ScopeAction{
+	enum class Action : uint8_t{
+		destruct_stack,
+		destruct_register,
+		filter,
+		converter,
+
+		not_action = (uint8_t)-1
+	} action : 8;
+	union{
+		void(*destruct)(void**);
+		void(*destruct_register)(void*);
+		//exception names
+		bool(*filter)(CXXExInfo& info, void** handle_adress, void* filter_data, size_t len);
+		//current exception in args
+		void(*converter)(void*, size_t len);
+	};
+	union{
+		uint64_t stack_offset : 52;
+		uint32_t register_value;
+	};
+	union{
+		void* filter_data = 0;
+		void* converter_data;
+	};
+	union{
+		size_t filter_data_len = 0;
+		size_t converter_data_len;
+	};
+
+
+
+	size_t function_begin_off;
+	size_t function_end_off;
+
+
+	ScopeAction(){}
+	ScopeAction(const ScopeAction& copy) {
+		*this = copy;
+	}
+	ScopeAction(ScopeAction&& move) {
+		*this = std::move(move);
+	}
+	ScopeAction& operator=(const ScopeAction& copy) {
+		action = copy.action;
+		destruct = copy.destruct;
+		stack_offset = copy.stack_offset;
+		filter_data = copy.filter_data;
+		filter_data_len = copy.filter_data_len;
+		function_begin_off = copy.function_begin_off;
+		function_end_off = copy.function_end_off;
+		return *this;
+	}
+	ScopeAction& operator=(ScopeAction&& move) {
+		action = move.action;
+		destruct = move.destruct;
+		stack_offset = move.stack_offset;
+		filter_data = move.filter_data;
+		filter_data_len = move.filter_data_len;
+		function_begin_off = move.function_begin_off;
+		function_end_off = move.function_end_off;
+
+		move.action = Action::destruct_stack;
+		move.destruct = nullptr;
+		move.stack_offset = 0;
+		move.filter_data = nullptr;
+		move.filter_data_len = 0;
+		move.function_begin_off = 0;
+		move.function_end_off = 0;
+		return *this;
+	}
+};
 struct FrameResult {
 	std::vector<uint16_t> prolog;
+	std::vector<ScopeAction> scope_actions;
 	UWINFO_head head;
 	uint32_t exHandleOff = 0;
 	bool use_handle = false;
@@ -737,46 +814,44 @@ struct FrameResult {
 };
 
 
-#include <unordered_map>
 class BuildCall {
 	CASM& csm;
 	size_t arg_c = 0;
 	size_t pushed = 0;
-	size_t red_zone_inited = 0;
+	size_t total_arguments = 0;
+	bool aligned = false;
 #ifdef _WIN64
-#define callStart()
-	//void callStart() {
-		//in vc++ x64 cdecl and vectorcal are different TO-DO implement them, 
-		//if (!arg_c) {
-		//	if (!red_zone_inited)
-		//		csm.stackIncrease(CASM_REDZONE_SIZE);//function visual c++ abi
-		//	red_zone_inited = true;
-		//}
-	//}
+//#define callStart()
+	void callStart() {
+		if (!aligned) {
+			if (total_arguments & 1 && total_arguments > 4) {
+				csm.push(0);
+				pushed += 8;
+			}
+			aligned = true;
+		}
+		if (total_arguments == 0) {
+			if (arg_c == 4)
+				throw CompileTimeException("Fail add argument, too much aguments");
+		}else if (arg_c == total_arguments)
+			throw CompileTimeException("Fail add argument, too much aguments");
+	}
 #else
 #define callStart()
 #endif // _WIN64
 public:
-	BuildCall(CASM& a, bool red_zone_inited = false) : csm(a)/*, red_zone_inited(red_zone_inited)*/ {}
+	BuildCall(CASM& a, size_t arguments) : csm(a), total_arguments(arguments){}
 	~BuildCall() noexcept(false) {
 		if (arg_c)
 			throw InvalidOperation("Build call is incomplete, need finalization");
 	}
+	void setArguments(size_t arguments) {
+		if (!aligned)
+			total_arguments = arguments;
+	}
 	void needAlign() {
 		if(!pushed)
 			csm.stackAlign();
-	}
-	void redZoneAlreadyInited(size_t red_zone_size) {
-		if(red_zone_inited)
-			throw InvalidOperation("Red zone already inited");
-		red_zone_inited = red_zone_size;
-	}
-	void iniRedzone() {
-		callStart();
-		if (!red_zone_inited) {
-			csm.stackIncrease(CASM_REDZONE_SIZE);
-			red_zone_inited = CASM_REDZONE_SIZE;
-		}else throw InvalidOperation("Red zone already inited");
 	}
 	void addArg(creg64 reg) {
 		callStart();
@@ -942,16 +1017,16 @@ public:
 			pushed += val_size;
 		}
 	}
-	inline void addArg(bool val) { addArg(val, 1); }
-	inline void addArg(int8_t val) { addArg(val, 1); }
-	inline void addArg(uint8_t val) { addArg(val, 1); }
-	inline void addArg(int16_t val) { addArg(val, 2); }
-	inline void addArg(uint16_t val) { addArg(val, 2); }
-	inline void addArg(int32_t val) { addArg(val, 4); }
-	inline void addArg(uint32_t val) { addArg(val, 4); }
+	inline void addArg(bool val) { addArg(val, 8); }
+	inline void addArg(int8_t val) { addArg(val, 8); }
+	inline void addArg(uint8_t val) { addArg(val, 8); }
+	inline void addArg(int16_t val) { addArg(val, 8); }
+	inline void addArg(uint16_t val) { addArg(val, 8); }
+	inline void addArg(int32_t val) { addArg(val, 8); }
+	inline void addArg(uint32_t val) { addArg(val, 8); }
 	inline void addArg(int64_t val) { addArg(val, 8); }
 	inline void addArg(uint64_t val) { addArg(val, 8); }
-	inline void addArg(float val) { addArg(val, 4); }
+	inline void addArg(float val) { addArg(val, 8); }
 	inline void addArg(double val) { addArg(val, 8); }
 	inline void addArg(void* val) { addArg(val, 8); }
 
@@ -1072,18 +1147,12 @@ public:
 	template<class F>
 	void finalize(F func) {
 		//vector call calle impl
-		if (CASM_REDZONE_SIZE > pushed) {
-			csm.stackIncrease(CASM_REDZONE_SIZE - pushed);
-		}
+		csm.stackIncrease(CASM_REDZONE_SIZE);
 		csm.call(func);
-		if (CASM_REDZONE_SIZE > pushed)
-			csm.stackReduce(CASM_REDZONE_SIZE);
-		else if(pushed > CASM_REDZONE_SIZE)
-			csm.stackReduce(pushed);
-		else
-			csm.stackReduce(CASM_REDZONE_SIZE - pushed);
+		csm.stackReduce(CASM_REDZONE_SIZE + pushed);
 		pushed = 0;
 		arg_c = 0;
+		aligned = false;
 	}
 };
 
@@ -1236,6 +1305,49 @@ public:
 		if (res.head.CountOfUnwindCodes & 1)
 			res.prolog.push_back(0);
 	}
+	inline size_t offset(){
+		return csm.offset();
+	}
+
+
+	ScopeAction* create_destruct(void(*func)(void**), uint64_t stack_offset = 0) {
+		ScopeAction action;
+		action.action = ScopeAction::Action::destruct_stack;
+		action.destruct = func;
+		action.stack_offset = stack_offset;
+		res.scope_actions.push_back(action);
+		return &res.scope_actions.back();
+	}
+	ScopeAction* create_destruct(void(*func)(void*), creg64 reg) {
+		ScopeAction action;
+		action.action = ScopeAction::Action::destruct_register;
+		action.destruct_register = func;
+		action.register_value = reg.id();
+		res.scope_actions.push_back(action);
+		return &res.scope_actions.back();
+	}
+	ScopeAction* create_filter(bool(*func)(CXXExInfo&, void**, void*, size_t)) {
+		ScopeAction action;
+		action.action = ScopeAction::Action::filter;
+		action.filter = func;
+		res.scope_actions.push_back(action);
+		return &res.scope_actions.back();
+	}
+	ScopeAction* create_converter(void(*func)(void*, size_t)) {
+		ScopeAction action;
+		action.action = ScopeAction::Action::converter;
+		action.converter = func;
+		res.scope_actions.push_back(action);
+		return &res.scope_actions.back();
+	}
+
+
+	inline void setScopeBegin(ScopeAction* action) {
+		action->function_begin_off = csm.offset();
+	}
+	inline void setScopeEnd(ScopeAction* action) {
+		action->function_end_off = csm.offset();
+	}
 	FrameResult& finalize_epilog() {
 		while (cur_op--) {
 			if (pushes.size()) {
@@ -1273,12 +1385,86 @@ public:
 			throw CompileTimeException("fail build prolog");
 		}
 		csm.ret();
+		for(auto& i : res.scope_actions)
+			if (i.function_end_off == 0)
+				throw CompileTimeException("scope not finalized");
 		return res;
 	}
 };
 
 class ScopeManager{
-	CASM& csm;
+	BuildProlog& csm;
+	struct ExceptionScopes {
+		std::vector<ScopeAction*> actions;
+		size_t begin_off;
+	};
+	std::unordered_map<size_t, ExceptionScopes> scope_actions;
+	std::unordered_map<size_t, ScopeAction*> value_lifetime;
+
+	size_t ex_scopes=0;
+	size_t value_lifetime_scopes=0;
+public:
+	ScopeManager(BuildProlog& csm) :csm(csm) {}
+	~ScopeManager() noexcept(false) {
+		for (auto& i : scope_actions) 
+			for(auto& j : i.second.actions)
+				if (j->function_end_off == 0)
+					throw CompileTimeException("scope not finalized");
+		
+		for(auto& i : value_lifetime)
+			if (i.second->function_end_off == 0)
+				throw CompileTimeException("scope not finalized");
+	}
+	size_t createExceptionScope() {
+		size_t id = ex_scopes++;
+		scope_actions[id] = ExceptionScopes({}, csm.offset());
+		return id;
+	}
+	void setExceptionHandle(size_t id, bool(*filter_fun)(CXXExInfo&, void**, void*, size_t)){
+		auto it = scope_actions.find(id);
+		if (it == scope_actions.end())
+			throw CompileTimeException("invalid exception scope");
+		ScopeAction* action = csm.create_filter(filter_fun);
+		action->function_begin_off = it->second.begin_off;
+		it->second.actions.push_back(action);
+	}
+	void setExceptionConverter(size_t id, void(*converter_fun)(void*, size_t len)) {
+		auto it = scope_actions.find(id);
+		if (it == scope_actions.end())
+			throw CompileTimeException("invalid exception scope");
+		ScopeAction* action = csm.create_converter(converter_fun);
+		action->function_begin_off = it->second.begin_off;
+		it->second.actions.push_back(action);
+	}
+	size_t createValueLifetimeScope(void(*destructor)(void**), size_t stack_off) {
+		ScopeAction* action = csm.create_destruct(destructor, stack_off);
+		csm.setScopeBegin(action);
+		size_t id = value_lifetime_scopes++;
+		value_lifetime[id++] = action;
+		return id;
+	}
+	size_t createValueLifetimeScope(void(*destructor)(void*), creg64 reg) {
+		ScopeAction* action = csm.create_destruct(destructor, reg);
+		csm.setScopeBegin(action);
+		size_t id = value_lifetime_scopes++;
+		value_lifetime[id] = action;
+		return id;
+	}
+	void endValueLifetime(size_t id) {
+		auto it = value_lifetime.find(id);
+		if (it == value_lifetime.end())
+			throw CompileTimeException("invalid value lifetime scope");
+		csm.setScopeEnd(it->second);
+		value_lifetime.erase(it);
+	}
+	void endExceptionScope(size_t id) {
+		auto it = scope_actions.find(id);
+		if (it == scope_actions.end())
+			throw CompileTimeException("invalid exception scope");
+		for(auto& i : it->second.actions)
+			csm.setScopeEnd(i);
+		scope_actions.erase(it);
+	}
 };
 
 

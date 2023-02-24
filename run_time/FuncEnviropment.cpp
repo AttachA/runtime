@@ -17,43 +17,6 @@ ValueItem* FuncEnviropment::async_call(typed_lgr<FuncEnviropment> f, ValueItem* 
 	return res;
 }
 
-struct EnviroHold {
-	void** envir;
-	uint16_t _vals;
-	EnviroHold(void** env, uint16_t vals) :envir(env), _vals(vals) {
-		if (vals)
-			memset(envir, 0, sizeof(void*) * (size_t(vals) << 1));
-	}
-	~EnviroHold() {
-		if (_vals) {
-			uint32_t max_vals = uint32_t(_vals) << 1;
-			for (uint32_t i = 0; i < max_vals; i += 2)
-				universalRemove(envir + i);
-		}
-	}
-};
-ValueItem* FuncEnviropment::initAndCall(ValueItem* arguments, uint32_t arguments_size) {
-	ValueItem* res = nullptr;
-	try {
-		EnviroHold env(
-			(
-				max_values ?
-				(void**)alloca(sizeof(void*) * (size_t(max_values) << 1)) :
-				nullptr
-				)
-			, max_values
-		);
-		res = curr_func(env.envir, arguments, arguments_size);
-	}
-	catch (const StackOverflowException&) {
-		if (!need_restore_stack_fault())
-			throw;
-	}
-	if (restore_stack_fault())
-		throw StackOverflowException();
-	return res;
-}
-
 ValueItem* FuncEnviropment::syncWrapper(ValueItem* args, uint32_t arguments_size) {
 	if(_type == FuncEnviropment::FuncType::force_unloaded)
 		throw InvalidFunction("Function is force unloaded");
@@ -62,14 +25,12 @@ ValueItem* FuncEnviropment::syncWrapper(ValueItem* args, uint32_t arguments_size
 	if (need_compile)
 		funcComp();
 	switch (_type) {
-	case FuncEnviropment::FuncType::own:
-		return initAndCall(args, arguments_size);
 	case FuncEnviropment::FuncType::native:
 		return NativeProxy_DynamicToStatic(args, arguments_size);
-	case FuncEnviropment::FuncType::native_own_abi: {
+	case FuncEnviropment::FuncType::own:{
 		ValueItem* res;
 		try {
-			res = ((AttachACXX)curr_func)(args, arguments_size);
+			res = ((Enviropment)curr_func)(args, arguments_size);
 		}
 		catch (...) {
 			if (!need_restore_stack_fault()) 
@@ -85,14 +46,6 @@ ValueItem* FuncEnviropment::syncWrapper(ValueItem* args, uint32_t arguments_size
 	case FuncEnviropment::FuncType::java:
 	default:
 		throw NotImplementedException();
-	}
-}
-ValueItem* FuncEnviropment::syncWrapper_catch(ValueItem* args, uint32_t arguments_size) {
-	try {
-		return syncWrapper(args, arguments_size);
-	}
-	catch (...) {
-		return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
 	}
 }
 
@@ -505,23 +458,6 @@ ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(ValueItem* arguments, ui
 	}
 }
 
-ValueItem* FuncEnviropment::native_proxy_catch(ValueItem* args, uint32_t arguments_size) {
-	try {
-		return NativeProxy_DynamicToStatic(args, arguments_size);
-	}
-	catch (...) {
-		return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
-	}
-}
-ValueItem* FuncEnviropment::initAndCall_catch(ValueItem* args, uint32_t arguments_size) {
-	try {
-		return initAndCall(args, arguments_size);
-	}
-	catch (...) {
-		return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
-	}
-}
-
 
 using namespace run_time;
 asmjit::JitRuntime jrt;
@@ -541,7 +477,7 @@ void inlineReleaseUnused(CASM& a, creg64 reg) {
 	auto lab = a.newLabel();
 	a.test(reg, reg);
 	a.jmp_zero(lab);
-	BuildCall b(a, true);
+	BuildCall b(a, 1);
 	b.addArg(reg);
 	b.finalize(defaultDestructor<ValueItem>);
 	a.label_bind(lab);
@@ -590,19 +526,11 @@ list_array<std::pair<uint64_t, Label>> prepareJumpList(CASM& a, const std::vecto
 	}
 	return {};
 }
-ValueItem* AttachACXXCatchCall(AttachACXX fn, ValueItem* args, uint32_t args_len) {
-	try {
-		return fn(args, args_len);
-	}
-	catch (...) {
-		return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
-	}
-}
 template<bool use_result = true, bool do_cleanup = true>
 void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
-	BuildCall b(a, true);
+	BuildCall b(a, 0);
 	if (flags.in_memory) {
 		uint16_t value_index = readData<uint16_t>(data, data_len, i);
 		b.leaEnviro(value_index);
@@ -612,10 +540,7 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_
 		b.addArg(arg_ptr);
 		b.addArg(arg_len_32);
 		b.addArg(flags.async_mode);
-		if (flags.except_catch)
-			b.finalize(&FuncEnviropment::callFunc_catch);
-		else
-			b.finalize(&FuncEnviropment::callFunc);
+		b.finalize(&FuncEnviropment::callFunc);
 	}
 	else {
 		std::string fnn = readString(data, data_len, i);
@@ -626,21 +551,14 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_
 			b.addArg(arg_ptr);
 			b.addArg(arg_len_32);
 			b.addArg(flags.async_mode);
-			if (flags.except_catch)
-				b.finalize(&FuncEnviropment::callFunc_catch);
-			else
-				b.finalize(&FuncEnviropment::callFunc);
+			b.finalize(&FuncEnviropment::callFunc);
 		}
 		else {
 			switch (fn->type()) {
 			case FuncEnviropment::FuncType::own: {
-				b.addArg(fn.getPtr());
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				if (flags.except_catch)
-					b.finalize(&FuncEnviropment::initAndCall_catch);
-				else
-					b.finalize(&FuncEnviropment::initAndCall);
+				b.finalize(fn->get_func_ptr());
 				break;
 			}
 			case FuncEnviropment::FuncType::native: {
@@ -656,34 +574,14 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_
 				b.addArg(fn.getPtr());
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				if (flags.except_catch)
-					b.finalize(&FuncEnviropment::native_proxy_catch);
-				else
-					b.finalize(&FuncEnviropment::NativeProxy_DynamicToStatic);
-				break;
-			}
-			case FuncEnviropment::FuncType::native_own_abi: {
-				if (flags.except_catch) {
-					b.addArg(fn->get_func_ptr());
-					b.addArg(arg_ptr);
-					b.addArg(arg_len_32);
-					b.finalize(AttachACXXCatchCall);
-				}
-				else {
-					b.addArg(arg_ptr);
-					b.addArg(arg_len_32);
-					b.finalize(fn->get_func_ptr());
-				}
+				b.finalize(&FuncEnviropment::NativeProxy_DynamicToStatic);
 				break;
 			}
 			default: {
 				b.addArg(fn.getPtr());
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				if (flags.except_catch)
-					b.finalize(&FuncEnviropment::syncWrapper_catch);
-				else
-					b.finalize(&FuncEnviropment::syncWrapper);
+				b.finalize(&FuncEnviropment::syncWrapper);
 				break;
 			}
 			}
@@ -704,23 +602,32 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_
 		if (!flags.use_result)
 			inlineReleaseUnused(a, resr);
 }
+
+void _compilerFabric_call_local_any(CASM& a, FuncEnviropment* env,bool async_mode, uint32_t function_index) {
+	BuildCall b(a, 5);
+	b.addArg(env);
+	b.addArg(function_index);
+	b.addArg(arg_ptr);
+	b.addArg(arg_len_32);
+	b.addArg(async_mode);
+	b.finalize(&FuncEnviropment::localWrapper);
+}
 template<bool use_result = true, bool do_cleanup = true>
 void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, FuncEnviropment* env) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
-	BuildCall b(a, true);
+	BuildCall b(a, 0);
 	if (flags.in_memory) {
 		b.leaEnviro(readData<uint16_t>(data, data_len, i));
 		b.finalize(getSize);
+		b.setArguments(5);
 		b.addArg(env);
 		b.addArg(resr);
 		b.addArg(arg_ptr);
 		b.addArg(arg_len_32);
 		b.addArg(flags.async_mode);
-		if (flags.except_catch)
-			b.finalize(&FuncEnviropment::localWrapper_catch);
-		else
-			b.finalize(&FuncEnviropment::localWrapper);
+		b.finalize(&FuncEnviropment::localWrapper);
+		b.setArguments(0);
 	}
 	else {
 		uint32_t fnn = readData<uint32_t>(data, data_len, i);
@@ -728,27 +635,19 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 			throw CompileTimeException("Not found local function");
 		}
 		if (flags.async_mode) {
-			b.addArg(env);
-			b.addArg(resr);
-			b.addArg(arg_ptr);
-			b.addArg(arg_len_32);
-			b.addArg(flags.async_mode);
-			if (flags.except_catch)
-				b.finalize(&FuncEnviropment::localWrapper_catch);
-			else
-				b.finalize(&FuncEnviropment::localWrapper);
+			_compilerFabric_call_local_any(a, env, true, fnn);
 		}
 		else {
 			typed_lgr<FuncEnviropment> fn = env->localFn(fnn);
 			switch (fn->type()) {
 			case FuncEnviropment::FuncType::own: {
-				b.addArg(fn.getPtr());
+				if(!fn->get_func_ptr()){
+					_compilerFabric_call_local_any(a, env, true, fnn);
+					break;
+				}
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				if (flags.except_catch)
-					b.finalize(&FuncEnviropment::initAndCall_catch);
-				else
-					b.finalize(&FuncEnviropment::initAndCall);
+				b.finalize(fn->get_func_ptr());
 				break;
 			}
 			case FuncEnviropment::FuncType::native: {
@@ -764,33 +663,14 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 				b.addArg(fn.getPtr());
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				if (flags.except_catch)
-					b.finalize(&FuncEnviropment::native_proxy_catch);
-				else
-					b.finalize(&FuncEnviropment::NativeProxy_DynamicToStatic);
-				break;
-			}
-			case FuncEnviropment::FuncType::native_own_abi: {
-				if (flags.except_catch) {
-					b.addArg(fn->get_func_ptr());
-					b.addArg(arg_ptr);
-					b.addArg(arg_len_32);
-					b.finalize(AttachACXXCatchCall);
-				}
-				else {
-					b.addArg(arg_ptr);
-					b.finalize(fn->get_func_ptr());
-				}
+				b.finalize(&FuncEnviropment::NativeProxy_DynamicToStatic);
 				break;
 			}
 			default: {
 				b.addArg(fn.getPtr());
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				if (flags.except_catch)
-					b.finalize(&FuncEnviropment::syncWrapper_catch);
-				else
-					b.finalize(&FuncEnviropment::syncWrapper);
+				b.finalize(&FuncEnviropment::syncWrapper);
 				break;
 			}
 			}
@@ -814,7 +694,7 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 
 
 template<bool async_call>
-void* _valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ClassAccess access, ValueItem* args, uint32_t len) {
+ValueItem* _valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ClassAccess access, ValueItem* args, uint32_t len) {
 	switch (class_ptr->meta.vtype) {
 	case VType::class_:
 		if constexpr (async_call)
@@ -838,75 +718,47 @@ void* _valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, Class
 		throw NotImplementedException();
 	}
 }
-template<bool ex_catch, bool async_mode>
-void* valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueItem* args, uint32_t len, ClassAccess access) {
+template<bool async_mode>
+ValueItem* valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueItem* args, uint32_t len, ClassAccess access) {
 	if (!class_ptr)
 		throw NullPointerException();
 	list_array<ValueItem> args_tmp(args, args + len, len);
-	if constexpr (async_mode)
-		args_tmp.push_front(*class_ptr);
-	else
-		args_tmp.push_front(ValueItem(class_ptr->val, class_ptr->meta, as_refrence));
 	class_ptr->getAsync();
-	if constexpr (ex_catch) {
-		try {
-			if (async_mode)
-				return _valueItemDynamicCall<true>(name, class_ptr, access, args_tmp.data(), len + 1);
-			else
-				return _valueItemDynamicCall<false>(name, class_ptr, access, args_tmp.data(), len + 1);
-		}
-		catch (...) {
-			try {
-				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
-			}
-			catch (const std::bad_alloc&) {
-				throw EnviropmentRuinException();
-			}
-		}
-	}
-	else if (async_mode)
-		return _valueItemDynamicCall<true>(name, class_ptr, access, args_tmp.data(), len + 1);
-	else
-		return _valueItemDynamicCall<false>(name, class_ptr, access, args_tmp.data(), len + 1);
+	args_tmp.push_front(*class_ptr);
+	return _valueItemDynamicCall<async_mode>(name, class_ptr, access, args_tmp.data(), len + 1);
 }
 
 template<bool use_result = true, bool do_cleanup = true>
 void compilerFabric_value_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
-	BuildCall b(a, true);
+	BuildCall b(a, 0);
 	if (flags.in_memory) {
 		uint16_t value_index = readData<uint16_t>(data, data_len, i);
 		b.leaEnviro(value_index);
 		b.addArg(VType::string);
 		b.finalize(getSpecificValue);
+		b.setArguments(5);
 		b.addArg(resr);
 	}
 	else {
 		std::string fnn = readString(data, data_len, i);
 		values.push_back(fnn);
+		b.setArguments(5);
 		b.addArg((std::string*)values.back().val);
 	}
-	//fn_nam
 
 	uint16_t class_ptr = readData<uint16_t>(data, data_len, i);
 	b.leaEnviro(class_ptr);
 	b.addArg(arg_ptr);
 	b.addArg(arg_len_32);
 	b.addArg((uint8_t)readData<ClassAccess>(data, data_len, i));
-	if (flags.except_catch) {
-		if (flags.async_mode)
-			b.finalize(valueItemDynamicCall<true, true>);
-		else
-			b.finalize(valueItemDynamicCall<true, false>);
-	}
-	else {
-		if (flags.async_mode)
-			b.finalize(valueItemDynamicCall<false, true>);
-		else
-			b.finalize(valueItemDynamicCall<false, false>);
-	}
+	if (flags.async_mode)
+		b.finalize(valueItemDynamicCall<true>);
+	else
+		b.finalize(valueItemDynamicCall<false>);
 
+	b.setArguments(0);
 	if constexpr (use_result) {
 		if (flags.use_result) {
 			b.leaEnviro(readData<uint16_t>(data, data_len, i));
@@ -923,28 +775,12 @@ void compilerFabric_value_call(CASM& a, const std::vector<uint8_t>& data, size_t
 			inlineReleaseUnused(a, resr);
 }
 
-template<bool ex_catch, bool async_mode>
+template<bool async_mode>
 void* staticValueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueItem* args, uint32_t len, ClassAccess access) {
 	if (!class_ptr)
 		throw NullPointerException();
 	class_ptr->getAsync();
-	if constexpr (ex_catch) {
-		try {
-			if (async_mode)
-				return _valueItemDynamicCall<true>(name, class_ptr, access, args, len);
-			else
-				return _valueItemDynamicCall<false>(name, class_ptr, access, args, len);
-		}
-		catch (...) {
-			try {
-				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
-			}
-			catch (const std::bad_alloc&) {
-				throw EnviropmentRuinException();
-			}
-		}
-	}
-	else if (async_mode)
+	if (async_mode)
 		return _valueItemDynamicCall<true>(name, class_ptr, access, args, len);
 	else
 		return _valueItemDynamicCall<false>(name, class_ptr, access, args, len);
@@ -954,17 +790,19 @@ template<bool use_result = true, bool do_cleanup = true>
 void compilerFabric_static_value_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
-	BuildCall b(a, true);
+	BuildCall b(a, 0);
 	if (flags.in_memory) {
 		uint16_t value_index = readData<uint16_t>(data, data_len, i);
 		b.leaEnviro(value_index);
 		b.addArg(VType::string);
 		b.finalize(getSpecificValue);
+		b.setArguments(5);
 		b.addArg(resr);
 	}
 	else {
 		std::string fnn = readString(data, data_len, i);
 		values.push_back(fnn);
+		b.setArguments(5);
 		b.addArg((std::string*)values.back().val);
 	}
 	//fn_nam
@@ -974,19 +812,14 @@ void compilerFabric_static_value_call(CASM& a, const std::vector<uint8_t>& data,
 	b.addArg(arg_ptr);
 	b.addArg(arg_len_32);
 	b.addArg((uint8_t)readData<ClassAccess>(data, data_len, i));
-	if (flags.except_catch) {
-		if (flags.async_mode)
-			b.finalize(staticValueItemDynamicCall<true, true>);
-		else
-			b.finalize(staticValueItemDynamicCall<true, false>);
-	}
-	else {
-		if (flags.async_mode)
-			b.finalize(staticValueItemDynamicCall<false, true>);
-		else
-			b.finalize(staticValueItemDynamicCall<false, false>);
-	}
 
+	if (flags.async_mode)
+		b.finalize(staticValueItemDynamicCall<true>);
+	else
+		b.finalize(staticValueItemDynamicCall<false>);
+	
+	
+	b.setArguments(0);
 	if constexpr (use_result) {
 		if (flags.use_result) {
 			b.leaEnviro(readData<uint16_t>(data, data_len, i));
@@ -1687,19 +1520,159 @@ void getInterfaceValue(ClassAccess access, ValueItem* val, const std::string* va
 }
 #ifdef _WIN64
 #include <dbgeng.h>
+
+
+
+
+template<typename T>
+T readFromArrayAsValue(uint8_t*& arr) {
+	T& val = *(T*)arr;
+	arr += sizeof(T);
+	return val;
+}
+template<typename T>
+T* readFromArrayAsArray(uint8_t*& arr, size_t& size) {
+	size = readFromArrayAsValue<size_t>(arr);
+	T* ret = new T[size];
+	for (size_t i = 0; i < size; i++)
+		ret[i] = readFromArrayAsValue<T>(arr);
+	return ret;
+}
+template<typename T>
+void skipArray(uint8_t*& arr) {
+	size_t size = readFromArrayAsValue<size_t>(arr);
+	arr += sizeof(T) * size;
+}
 EXCEPTION_DISPOSITION __attacha_handle(
 	IN PEXCEPTION_RECORD ExceptionRecord,
 	IN ULONG64 EstablisherFrame,
 	IN OUT PCONTEXT ContextRecord,
 	IN OUT PDISPATCHER_CONTEXT DispatcherContext
 ) {
+	auto function_start = (uint8_t*)DispatcherContext->ImageBase;
+	void* addr = (void*)DispatcherContext->ControlPc;
+	uint8_t* data = (uint8_t*)DispatcherContext->HandlerData;
+	bool execute = false;
+	while(true){
+		ScopeAction::Action action = (ScopeAction::Action)*data++;
+		if (action == ScopeAction::Action::not_action)
+			return ExceptionContinueSearch;
+		size_t start_offset = readFromArrayAsValue<size_t>(data);
+		size_t end_offset = readFromArrayAsValue<size_t>(data);
+		if (addr >= (void*)(function_start + start_offset) && addr < (void*)(function_start + end_offset)) 
+			execute = true;
+		switch(action) {
+			case ScopeAction::Action::destruct_stack: {
+				char* stack = (char*)ContextRecord->Rbp;
+				auto destruct = readFromArrayAsValue<void(*)(void*&)>(data);
+				stack += readFromArrayAsValue<uint64_t>(data);
+				if(execute)
+					destruct(*(void**)stack);
+				break;
+			}
+			case ScopeAction::Action::destruct_register: {
+				auto destruct = readFromArrayAsValue<void(*)(void*&)>(data);
+				if(!execute){
+					readFromArrayAsValue<uint32_t>(data);
+					execute = false;
+					continue;
+				}
+				switch (readFromArrayAsValue<uint32_t>(data))
+				{
+				case asmjit::x86::Gp::kIdAx:
+					destruct(*(void**)ContextRecord->Rax);
+					break;
+				case asmjit::x86::Gp::kIdBx:
+					destruct(*(void**)ContextRecord->Rbx);
+					break;
+				case asmjit::x86::Gp::kIdCx:
+					destruct(*(void**)ContextRecord->Rcx);
+					break;
+				case asmjit::x86::Gp::kIdDx:
+					destruct(*(void**)ContextRecord->Rdx);
+					break;
+				case asmjit::x86::Gp::kIdDi:
+					destruct(*(void**)ContextRecord->Rdi);
+					break;
+				case asmjit::x86::Gp::kIdSi:
+					destruct(*(void**)ContextRecord->Rsi);
+					break;
+				case asmjit::x86::Gp::kIdR8:
+					destruct(*(void**)ContextRecord->R8);
+					break;
+				case asmjit::x86::Gp::kIdR9:
+					destruct(*(void**)ContextRecord->R9);
+					break;
+				case asmjit::x86::Gp::kIdR10:
+					destruct(*(void**)ContextRecord->R10);
+					break;
+				case asmjit::x86::Gp::kIdR11:
+					destruct(*(void**)ContextRecord->R11);
+					break;
+				case asmjit::x86::Gp::kIdR12:
+					destruct(*(void**)ContextRecord->R12);
+					break;
+				case asmjit::x86::Gp::kIdR13:
+					destruct(*(void**)ContextRecord->R13);
+					break;
+				case asmjit::x86::Gp::kIdR14:
+					destruct(*(void**)ContextRecord->R14);
+					break;
+				case asmjit::x86::Gp::kIdR15:
+					destruct(*(void**)ContextRecord->R15);
+					break;
+				default:
+					{
+						ValueItem it {"Invalid register id"};
+						errors.async_notify(it);
+					}
+					return ExceptionContinueSearch;
+				}
+			}
+			case ScopeAction::Action::filter: {
+				auto filter = readFromArrayAsValue<bool(*)(CXXExInfo&, void*&, void*, size_t)>(data);
+				if(!execute){
+					skipArray<char>(data);
+					execute = false;
+					continue;
+				}
+				size_t size = 0;
+				std::unique_ptr<char[]> stack;
+				stack.reset(readFromArrayAsArray<char>(data, size));
+
+				CXXExInfo info;
+				getCxxExInfoFromNative1(info,ExceptionRecord);
+				void* continue_from = nullptr;
+				if (filter(info,continue_from, stack.get(), size)){
+					ContextRecord->Rip = (uint64_t)continue_from;
+					return ExceptionCollidedUnwind;
+				}
+				else
+					return ExceptionContinueSearch;
+				break;
+			}
+			case ScopeAction::Action::converter: {
+				auto convert = readFromArrayAsValue<void(*)(void*,size_t)>(data);
+				size_t size = 0;
+				std::unique_ptr<char[]> stack;
+				stack.reset(readFromArrayAsArray<char>(data, size));
+				convert(stack.get(), size);
+				ValueItem args{"Exception converter will not return"};
+				errors.async_notify(args);
+				return ExceptionContinueSearch;
+				break;
+			}
+			case ScopeAction::Action::not_action:
+				return ExceptionContinueSearch;
+			default:
+				throw BadOperationException();
+		}
+	}
 
 
 
 
-
-
-	printf("hello!");
+	//printf("hello!");
 	return ExceptionContinueSearch;
 }
 #else
@@ -1712,8 +1685,22 @@ void __attacha_handle(void//not implemented
 
 void* prepareStack(void** stack, size_t size) {
 	while (size)
-		stack[size--] = nullptr;
+		stack[--size] = nullptr;
 	return stack;
+}
+
+template<typename T>
+void valueDestruct(void*& val){
+	if (val != nullptr) {
+		((T*)val)->~T();
+		val = nullptr;
+	}
+}
+void valueDestructDyn(void** val){
+	if (val != nullptr) {
+		((ValueItem*)val)->~ValueItem();
+		val = nullptr;
+	}
 }
 
 void FuncEnviropment::RuntimeCompile() {
@@ -1723,24 +1710,32 @@ void FuncEnviropment::RuntimeCompile() {
 	CodeHolder code;
 	code.init(jrt.environment());
 	CASM a(code);
+	auto self_function = a.newLabel();
 
 	BuildProlog bprolog(a);
 	bprolog.pushReg(frame_ptr);
-	bprolog.pushReg(enviro_ptr);
-	if (max_values)
-		bprolog.pushReg(arg_ptr);
+	if(max_values)
+		bprolog.pushReg(enviro_ptr);
+	bprolog.pushReg(arg_ptr);
+	bprolog.pushReg(arg_len);
 	bprolog.alignPush();
 	bprolog.stackAlloc(0x20);//function vc++ abi
 	bprolog.setFrame();
 	bprolog.end_prolog();
 	a.stackAlign();
 
-	a.mov(enviro_ptr, argr0);
-	if (max_values)
-		a.mov(arg_ptr, argr1);
-	else
-		a.xor_(arg_ptr, arg_ptr);
 
+	a.mov(arg_ptr, argr0);
+	a.mov(arg_len_32, argr1_32);
+	
+	a.mov(enviro_ptr, stack_ptr);
+	a.stackIncrease(CASM::alignStackBytes(max_values<<1));
+	ScopeManager scope(bprolog);
+	for(size_t i=0;i<max_values;i++){
+		a.movEnviro(i, 0);
+		scope.createValueLifetimeScope(valueDestructDyn, i<<1);
+	}
+	
 	Label prolog = a.newLabel();
 	size_t to_be_skiped = 0;
 	list_array<std::pair<uint64_t, Label>> jump_list = prepareJumpList(a, cross_code, cross_code.size(), to_be_skiped);
@@ -1761,7 +1756,7 @@ void FuncEnviropment::RuntimeCompile() {
 				meta.as_ref = false;
 				{
 					if (needAlloc(meta)) {
-						BuildCall v(a, true);
+						BuildCall v(a, 3);
 						v.leaEnviro(value_index);
 						v.addArg(meta.encoded);
 						v.addArg(cmd.is_gc_mode);
@@ -1791,7 +1786,7 @@ void FuncEnviropment::RuntimeCompile() {
 					break;
 				case VType::string: {
 					values.push_back(readString(data, data_len, i));
-					BuildCall b(a, true);
+					BuildCall b(a, 3);
 					b.addArg(resr);
 					b.addArg(values.back().val);
 					b.addArg(meta.encoded);
@@ -1805,7 +1800,7 @@ void FuncEnviropment::RuntimeCompile() {
 			}
 			case Opcode::remove:
 				if (needAlloc(readData<ValueMeta>(data, data_len, i))) {
-					BuildCall b(a, true);
+					BuildCall b(a, 1);
 					b.leaEnviro(readData<uint16_t>(data, data_len, i));
 					b.finalize(universalRemove);
 				}
@@ -1821,7 +1816,7 @@ void FuncEnviropment::RuntimeCompile() {
 			case Opcode::throw_ex: {
 				bool in_memory = readData<bool>(data, data_len, i);
 				if (in_memory) {
-					BuildCall b(a, true);
+					BuildCall b(a, 2);
 					b.addArg(readData<uint16_t>(data, data_len, i));
 					b.addArg(readData<uint16_t>(data, data_len, i));
 					b.finalize(throwStatEx);
@@ -1831,7 +1826,7 @@ void FuncEnviropment::RuntimeCompile() {
 					values[ex_typ] = readString(data, data_len, i);
 					auto ex_desc = string_index_seter++;
 					values[ex_desc] = readString(data, data_len, i);
-					BuildCall b(a, true);
+					BuildCall b(a, 2);
 					b.addArg(values[ex_typ].val);
 					b.addArg(values[ex_desc].val);
 					b.finalize(throwEx);
@@ -1840,7 +1835,7 @@ void FuncEnviropment::RuntimeCompile() {
 			}
 			case Opcode::arr_op: {
 				uint16_t arr = readData<uint16_t>(data, data_len, i);
-				BuildCall b(a, true);
+				BuildCall b(a, 0);
 				auto flags = readData<OpArrFlags>(data, data_len, i);
 				switch (readData<OpcodeArray>(data, data_len, i)) {
 				case OpcodeArray::set: {
@@ -1939,23 +1934,28 @@ void FuncEnviropment::RuntimeCompile() {
 						b.leaEnviro(val3);
 						b.finalize(getSize);
 						a.push(resr);
+						a.push(0);//align
 
 						b.leaEnviro(val2);
 						b.finalize(getSize);
+						a.pop();//align
 						a.push(resr);
 
 						b.leaEnviro(val1);
 						b.finalize(getSize);
+
+
+						b.setArguments(5);
 						b.movEnviro(arr);
 						b.addArg(resr);//1
 						b.leaEnviro(arr1);
-
 						a.pop(resr);
 						b.addArg(resr);//2
 						a.pop(resr);
 						b.addArg(resr);//3
 					}
 					else {
+						b.setArguments(5);
 						b.movEnviro(arr);
 						b.addArg(readData<uint64_t>(data, data_len, i));//1
 						b.leaEnviro(arr1);
@@ -2052,10 +2052,11 @@ void FuncEnviropment::RuntimeCompile() {
 						b.leaEnviro(readData<uint16_t>(data, data_len, i));
 						b.finalize(getSize);
 
-						a.pop(argr1);
+						a.pop(argr2);
 
+						b.leaEnviro(arr);
 						b.addArg(set_to);
-						b.addArg(argr1);
+						b.addArg(argr2);
 						b.addArg(resr);
 					}
 					else {
@@ -2076,10 +2077,11 @@ void FuncEnviropment::RuntimeCompile() {
 						b.leaEnviro(readData<uint16_t>(data, data_len, i));
 						b.finalize(getSize);
 
-						a.pop(argr1);
+						a.pop(argr2);
 
+						b.leaEnviro(arr);
 						b.addArg(set_to);
-						b.addArg(argr1);
+						b.addArg(argr2);
 						b.addArg(resr);
 					}
 					else {
@@ -2162,22 +2164,18 @@ void FuncEnviropment::RuntimeCompile() {
 					b.finalize(&list_array<ValueItem>::reserve_push_front);
 					break;
 				}
-
 				case OpcodeArray::commit: {
-					BuildCall b(a, true);
 					b.movEnviro(arr);
 					b.finalize(&list_array<ValueItem>::commit);
 					break;
 				}
 				case OpcodeArray::decommit: {
-					BuildCall b(a, true);
 					b.movEnviro(arr);
 					b.addArg(readData<uint64_t>(data, data_len, i));
 					b.finalize(&list_array<ValueItem>::decommit);
 					break;
 				}
 				case OpcodeArray::remove_reserved: {
-					BuildCall b(a, true);
 					b.movEnviro(arr);
 					b.finalize(&list_array<ValueItem>::shrink_to_fit);
 					break;
@@ -2211,7 +2209,7 @@ void FuncEnviropment::RuntimeCompile() {
 				meta.as_ref = false;
 				uint16_t optional_len = 0;
 				{
-					BuildCall v(a, true);
+					BuildCall v(a, 3);
 					v.leaEnviro(value_index);
 					v.addArg(meta.encoded);
 					v.addArg(cmd.is_gc_mode);
@@ -2317,7 +2315,7 @@ void FuncEnviropment::RuntimeCompile() {
 				}
 
 				if (needAlloc(meta)) {
-					BuildCall b(a, true);
+					BuildCall b(a, 3);
 					b.addArg(resr);
 					b.addArg(values.back().val);
 					b.addArg(meta.encoded);
@@ -2335,83 +2333,86 @@ void FuncEnviropment::RuntimeCompile() {
 			case Opcode::set_saar: {
 				uint16_t value_index = readData<uint16_t>(data, data_len, i);
 				uint32_t len = readData<uint32_t>(data, data_len, i);
-				BuildCall b(a, true);
+				BuildCall b(a, 0);
+				
 				b.leaEnviro(value_index);
-				b.addArg(ValueMeta(VType::saarr, false, true, len).encoded);
-				b.addArg(cmd.is_gc_mode);
-				b.finalize(preSetValue);
-				a.lea(resr, stack_ptr, -CASM_REDZONE_SIZE);
+				b.finalize(valueDestructDyn);
+				ValueMeta set_meta(VType::saarr, false, true, len);
+				a.mov(resr, set_meta.encoded);
+				a.movEnviroMeta(value_index, resr);
+
 				a.stackIncrease(len * sizeof(ValueItem));
-				b.addArg(resr);
+				b.addArg(stack_ptr);
 				b.addArg(len*2);
 				b.finalize(prepareStack);
 				a.movEnviro(value_index, resr);
+				
 				break;
 			}
 			case Opcode::remove: {
-				BuildCall b(a, true);
+				BuildCall b(a, 1);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(universalRemove);
 				break;
 			}
 			case Opcode::sum: {
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(DynSum);
 				break;
 			}
 			case Opcode::minus: {
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(DynMinus);
 				break;
 			}
 			case Opcode::div: {
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(DynDiv);
 				break;
 			}
 			case Opcode::rest: {
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(DynRest);
 				break;
 			}
 			case Opcode::mul: {
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(DynMul);
 				break;
 			}
 			case Opcode::bit_xor: {
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(DynBitXor);
 				break;
 			}
 			case Opcode::bit_or: {
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(DynBitOr);
 				break;
 			}
 			case Opcode::bit_and: {
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(DynBitAnd);
 				break;
 			}
 			case Opcode::bit_not: {
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(DynBitNot);
 				break;
@@ -2426,7 +2427,7 @@ void FuncEnviropment::RuntimeCompile() {
 				a.push_flags();
 				a.pop(argr0_16);
 
-				BuildCall b(a, true);
+				BuildCall b(a, 3);
 				b.skip();
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
@@ -2475,7 +2476,7 @@ void FuncEnviropment::RuntimeCompile() {
 				break;
 			}
 			case Opcode::arg_set: {
-				BuildCall b(a, true);
+				BuildCall b(a, 1);
 				uint16_t item = readData<uint16_t>(data, data_len, i);
 				b.leaEnviro(item);
 				b.finalize(AsArg);
@@ -2492,14 +2493,10 @@ void FuncEnviropment::RuntimeCompile() {
 				flags.encoded = readData<uint8_t>(data, data_len, i);
 				if (flags.async_mode)
 					throw CompileTimeException("Fail compile async 'call_self', for asynchonly call self use 'call' command");
-				BuildCall b(a, true);
-				b.addArg(this);
+				BuildCall b(a, 0);
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				if (flags.except_catch)
-					b.finalize(&FuncEnviropment::initAndCall_catch);
-				else
-					b.finalize(&FuncEnviropment::initAndCall);
+				b.finalize(self_function);
 
 				if (flags.use_result) {
 					b.leaEnviro(readData<uint16_t>(data, data_len, i));
@@ -2525,14 +2522,11 @@ void FuncEnviropment::RuntimeCompile() {
 				flags.encoded = readData<uint8_t>(data, data_len, i);
 				if (flags.async_mode)
 					throw CompileTimeException("Fail compile async 'call_self', for asynchonly call self use 'call' command");
-				BuildCall b(a, true);
+				BuildCall b(a, 3);
 				b.addArg(this);
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				if (flags.except_catch)
-					b.finalize(&FuncEnviropment::initAndCall_catch);
-				else
-					b.finalize(&FuncEnviropment::initAndCall);
+				b.finalize(self_function);
 				do_jump_to_ret = true;
 				break;
 			}
@@ -2542,7 +2536,7 @@ void FuncEnviropment::RuntimeCompile() {
 				break;
 			}
 			case Opcode::ret: {
-				BuildCall b(a, true);
+				BuildCall b(a, 1);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(buildRes);
 				do_jump_to_ret = true;
@@ -2557,7 +2551,7 @@ void FuncEnviropment::RuntimeCompile() {
 				uint16_t from = readData<uint16_t>(data, data_len, i);
 				uint16_t to = readData<uint16_t>(data, data_len, i);
 				if (from != to) {
-					BuildCall b(a, true);
+					BuildCall b(a, 0);
 					b.leaEnviro(to);
 					b.finalize(universalRemove);
 					b.movEnviro(from);
@@ -2573,9 +2567,10 @@ void FuncEnviropment::RuntimeCompile() {
 				uint16_t from = readData<uint16_t>(data, data_len, i);
 				uint16_t to = readData<uint16_t>(data, data_len, i);
 				if (from != to) {
-					BuildCall b(a, true);
+					BuildCall b(a, 1);
 					b.leaEnviro(to);
 					b.finalize(universalRemove);
+
 					a.movEnviro(resr, from);
 					a.movEnviro(to, resr);
 					a.movEnviroMeta(resr, from);
@@ -2586,7 +2581,7 @@ void FuncEnviropment::RuntimeCompile() {
 			}
 			case Opcode::arr_op: {
 				uint16_t arr = readData<uint16_t>(data, data_len, i);
-				BuildCall b(a, true);
+				BuildCall b(a, 0);
 				b.leaEnviro(arr);
 				b.finalize(AsArr);
 				auto flags = readData<OpArrFlags>(data, data_len, i);
@@ -2799,10 +2794,11 @@ void FuncEnviropment::RuntimeCompile() {
 						b.leaEnviro(readData<uint16_t>(data, data_len, i));
 						b.finalize(getSize);
 
-						a.pop(argr1);
+						a.pop(argr2);
 
+						b.leaEnviro(arr);
 						b.addArg(set_to);
-						b.addArg(argr1);
+						b.addArg(argr2);
 						b.addArg(resr);
 					}
 					else {
@@ -2823,10 +2819,11 @@ void FuncEnviropment::RuntimeCompile() {
 						b.leaEnviro(readData<uint16_t>(data, data_len, i));
 						b.finalize(getSize);
 
-						a.pop(argr1);
+						a.pop(argr2);
 
+						b.leaEnviro(arr);
 						b.addArg(set_to);
-						b.addArg(argr1);
+						b.addArg(argr2);
 						b.addArg(resr);
 					}
 					else {
@@ -2911,20 +2908,17 @@ void FuncEnviropment::RuntimeCompile() {
 				}
 
 				case OpcodeArray::commit: {
-					BuildCall b(a, true);
 					b.movEnviro(arr);
 					b.finalize(&list_array<ValueItem>::commit);
 					break;
 				}
 				case OpcodeArray::decommit: {
-					BuildCall b(a, true);
 					b.movEnviro(arr);
 					b.addArg(readData<uint64_t>(data, data_len, i));
 					b.finalize(&list_array<ValueItem>::decommit);
 					break;
 				}
 				case OpcodeArray::remove_reserved: {
-					BuildCall b(a, true);
 					b.movEnviro(arr);
 					b.finalize(&list_array<ValueItem>::shrink_to_fit);
 					break;
@@ -2952,7 +2946,7 @@ void FuncEnviropment::RuntimeCompile() {
 			case Opcode::throw_ex: {
 				bool in_memory = readData<bool>(data, data_len, i);
 				if (in_memory) {
-					BuildCall b(a, true);
+					BuildCall b(a, 2);
 					b.leaEnviro(readData<uint16_t>(data, data_len, i));
 					b.leaEnviro(readData<uint16_t>(data, data_len, i));
 					b.finalize(throwDirEx);
@@ -2962,7 +2956,7 @@ void FuncEnviropment::RuntimeCompile() {
 					values[ex_typ] = readString(data, data_len, i);
 					auto ex_desc = string_index_seter++;
 					values[ex_desc] = readString(data, data_len, i);
-					BuildCall b(a, true);
+					BuildCall b(a, 2);
 					b.addArg(values[ex_typ].val);
 					b.addArg(values[ex_desc].val);
 					b.finalize(throwEx);
@@ -2970,7 +2964,7 @@ void FuncEnviropment::RuntimeCompile() {
 				break;
 			}
 			case Opcode::as: {
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.addArg(readData<VType>(data, data_len, i));
 				b.finalize(asValue);
@@ -2983,7 +2977,7 @@ void FuncEnviropment::RuntimeCompile() {
 				break;
 			}
 			case Opcode::store_bool: {
-				BuildCall b(a, true);
+				BuildCall b(a, 1);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(isTrueValue);
 				a.load_flag8h();
@@ -2996,7 +2990,7 @@ void FuncEnviropment::RuntimeCompile() {
 				a.load_flag8h();
 				a.and_(resr_8h, RFLAGS::bit::zero);
 				a.store_flag8h();
-				BuildCall b(a, true);
+				BuildCall b(a, 2);
 				b.addArg(resr_8h);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(setBoolValue);
@@ -3027,7 +3021,7 @@ void FuncEnviropment::RuntimeCompile() {
 				break;
 			}
 			case Opcode::set_structure_value: {
-				BuildCall b(a, true);
+				BuildCall b(a, 0);
 				if (readData<bool>(data, data_len, i)) {
 					uint16_t value_index = readData<uint16_t>(data, data_len, i);
 					b.leaEnviro(value_index);
@@ -3049,7 +3043,7 @@ void FuncEnviropment::RuntimeCompile() {
 				break;
 			}
 			case Opcode::get_structure_value: {
-				BuildCall b(a, true);
+				BuildCall b(a, 0);
 				if (readData<bool>(data, data_len, i)) {
 					uint16_t value_index = readData<uint16_t>(data, data_len, i);
 					b.leaEnviro(value_index);
@@ -3072,7 +3066,7 @@ void FuncEnviropment::RuntimeCompile() {
 			}
 			case Opcode::explicit_await: {
 				a.stackAlign();
-				BuildCall b(a, true);
+				BuildCall b(a, 1);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(&ValueItem::getAsync);
 				break;
@@ -3100,6 +3094,18 @@ void FuncEnviropment::RuntimeCompile() {
 	};
 	compilerFabric(a, jump_list, to_be_skiped);
 	a.label_bind(prolog);
+	a.push(resr);
+	a.push(0);
+	{
+		BuildCall b(a, 1);
+		for(size_t i=0;i<max_values;i++){
+			b.leaEnviro(i);
+			b.finalize(valueDestructDyn);
+			scope.endValueLifetime(i);
+		}
+	}
+	a.pop();
+	a.pop(resr);
 	auto& tmp = bprolog.finalize_epilog();
 
 	tmp.use_handle = true;
