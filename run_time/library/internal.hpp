@@ -17,7 +17,7 @@ namespace internal {
         //reduce stack size, returns bool, args: shrink treeshold(optional)
         ValueItem* shrink(ValueItem*, uint32_t);
         //grow stack size, returns bool, args: grow count
-        ValueItem* grow(ValueItem*, uint32_t);
+        ValueItem* prepare(ValueItem*, uint32_t);
         //make sure stack size is enough and increase if too small, returns bool, args: grow count
         ValueItem* reserve(ValueItem*, uint32_t);
 

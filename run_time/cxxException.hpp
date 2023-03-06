@@ -17,6 +17,7 @@ struct CXXExInfo {
 	list_array<Tys> ty_arr;
 	const void* cleanup_fn = nullptr;
 	const void* ex_ptr = nullptr;
+	uint32_t native_id = 0;
 };
 void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex);
 void getCxxExInfoFromNative(CXXExInfo& res, void*);

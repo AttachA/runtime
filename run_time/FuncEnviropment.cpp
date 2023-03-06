@@ -7,7 +7,6 @@
 #include "tasks.hpp"
 #include <iostream>
 #include "attacha_abi.hpp"
-std::unordered_map<std::string, typed_lgr<FuncEnviropment>> FuncEnviropment::enviropments;
 
 ValueItem* FuncEnviropment::async_call(typed_lgr<FuncEnviropment> f, ValueItem* args, uint32_t args_len) {
 	ValueItem* res = new ValueItem();
@@ -461,6 +460,9 @@ ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(ValueItem* arguments, ui
 
 using namespace run_time;
 asmjit::JitRuntime jrt;
+std::unordered_map<std::string, typed_lgr<FuncEnviropment>> enviropments;
+TaskMutex enviropments_lock;
+
 
 FuncEnviropment::~FuncEnviropment() {
 	std::lock_guard lguard(compile_lock);
@@ -1543,6 +1545,7 @@ void skipArray(uint8_t*& arr) {
 	size_t size = readFromArrayAsValue<size_t>(arr);
 	arr += sizeof(T) * size;
 }
+
 EXCEPTION_DISPOSITION __attacha_handle(
 	IN PEXCEPTION_RECORD ExceptionRecord,
 	IN ULONG64 EstablisherFrame,
@@ -1630,7 +1633,7 @@ EXCEPTION_DISPOSITION __attacha_handle(
 				}
 			}
 			case ScopeAction::Action::filter: {
-				auto filter = readFromArrayAsValue<bool(*)(CXXExInfo&, void*&, void*, size_t)>(data);
+				auto filter = readFromArrayAsValue<bool(*)(CXXExInfo&, void*&, void*, size_t, void*)>(data);
 				if(!execute){
 					skipArray<char>(data);
 					execute = false;
@@ -1643,7 +1646,7 @@ EXCEPTION_DISPOSITION __attacha_handle(
 				CXXExInfo info;
 				getCxxExInfoFromNative1(info,ExceptionRecord);
 				void* continue_from = nullptr;
-				if (filter(info,continue_from, stack.get(), size)){
+				if (filter(info,continue_from, stack.get(), size, (void*)ContextRecord->Rsp)){
 					ContextRecord->Rip = (uint64_t)continue_from;
 					return ExceptionCollidedUnwind;
 				}
@@ -1652,11 +1655,11 @@ EXCEPTION_DISPOSITION __attacha_handle(
 				break;
 			}
 			case ScopeAction::Action::converter: {
-				auto convert = readFromArrayAsValue<void(*)(void*,size_t)>(data);
+				auto convert = readFromArrayAsValue<void(*)(void*,size_t, void* rsp)>(data);
 				size_t size = 0;
 				std::unique_ptr<char[]> stack;
 				stack.reset(readFromArrayAsArray<char>(data, size));
-				convert(stack.get(), size);
+				convert(stack.get(), size, (void*)ContextRecord->Rsp);
 				ValueItem args{"Exception converter will not return"};
 				errors.async_notify(args);
 				return ExceptionContinueSearch;
@@ -1675,6 +1678,101 @@ EXCEPTION_DISPOSITION __attacha_handle(
 	//printf("hello!");
 	return ExceptionContinueSearch;
 }
+bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* rsp) {
+	uint8_t* data_info = (uint8_t*)data;
+	list_array<std::string> exceptions;
+	switch (*data_info++) {
+		case 0: {
+			uint64_t handle_count = readFromArrayAsValue<uint64_t>(data_info);
+			exceptions.reserve_push_back(handle_count);
+			for (size_t i = 0; i < handle_count; i++) {
+				std::string string;
+				size_t len = 0;
+				char* str = readFromArrayAsArray<char>(data_info, len);
+				string.assign(str, len);
+				delete[] str;
+				exceptions.push_back(string);
+			}	
+			break;
+		}
+		case 1: {
+			uint16_t value = readFromArrayAsValue<uint16_t>(data_info);
+			ValueItem* item = (ValueItem*)rsp + (uint32_t(value)<<1);
+			exceptions.push_back((std::string)*item);
+			break;
+		}
+		case 2: {
+			uint64_t handle_count = readFromArrayAsValue<uint64_t>(data_info);
+			exceptions.reserve_push_back(handle_count);
+			for (size_t i = 0; i < handle_count; i++) {
+				uint16_t value = readFromArrayAsValue<uint16_t>(data_info);
+				ValueItem* item = (ValueItem*)rsp + (uint32_t(value)<<1);
+				exceptions.push_back((std::string)*item);
+			}
+			break;
+		}
+		case 3: {
+			uint64_t handle_count = readFromArrayAsValue<uint64_t>(data_info);
+			exceptions.reserve_push_back(handle_count);
+			for (size_t i = 0; i < handle_count; i++) {
+				bool is_dynamic = readFromArrayAsValue<bool>(data_info);
+				if (!is_dynamic) {
+					std::string string;
+					size_t len = 0;
+					char* str = readFromArrayAsArray<char>(data_info, len);
+					string.assign(str, len);
+					delete[] str;
+					exceptions.push_back(string);
+				}
+				else {
+					uint16_t value = readFromArrayAsValue<uint16_t>(data_info);
+					ValueItem* item = (ValueItem*)rsp + (uint32_t(value)<<1);
+					exceptions.push_back((std::string)*item);
+				}
+			}
+			break;
+		}
+		default:
+			throw BadOperationException();
+	}
+
+	if(info.ex_ptr == nullptr) {
+		switch (info.native_id) {
+		case EXCEPTION_ACCESS_VIOLATION:
+			return exceptions.contains("AccessViolation");
+		case EXCEPTION_STACK_OVERFLOW:
+			return exceptions.contains("StackOverflow");
+		case EXCEPTION_INT_DIVIDE_BY_ZERO:
+		case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+			return exceptions.contains("DivideByZero");
+		case EXCEPTION_INT_OVERFLOW:
+		case EXCEPTION_FLT_OVERFLOW:
+		case EXCEPTION_FLT_STACK_CHECK:
+		case EXCEPTION_FLT_UNDERFLOW:
+			return exceptions.contains("NumericOverflow");
+		case EXCEPTION_BREAKPOINT: 
+			return exceptions.contains("Breakpoint");
+		case EXCEPTION_ILLEGAL_INSTRUCTION:
+			return exceptions.contains("IllegalInstruction");
+		case EXCEPTION_PRIV_INSTRUCTION:
+			return exceptions.contains("PrivilegedInstruction");
+		default:
+			return exceptions.contains("NativeException");
+		}
+	} else {
+		return exceptions.contains_one([&info](const std::string& str) {
+			return info.ty_arr.contains_one([&str](const CXXExInfo::Tys& ty) {
+				return str == ty.ty_info->name();
+			});
+		});
+	}
+}
+bool _attacha_converter(void* data, size_t size, void* rsp){
+	uint8_t* data_info = (uint8_t*)data;
+	return false;
+}
+
+
 #else
 void __attacha_handle(void//not implemented
 ) {
@@ -1702,54 +1800,73 @@ void valueDestructDyn(void** val){
 		val = nullptr;
 	}
 }
-
-void FuncEnviropment::RuntimeCompile() {
-	if (curr_func != nullptr)
-		FrameResult::deinit(frame, curr_func, jrt);
-	values.clear();
-	CodeHolder code;
-	code.init(jrt.environment());
-	CASM a(code);
-	auto self_function = a.newLabel();
-
-	BuildProlog bprolog(a);
-	bprolog.pushReg(frame_ptr);
-	if(max_values)
-		bprolog.pushReg(enviro_ptr);
-	bprolog.pushReg(arg_ptr);
-	bprolog.pushReg(arg_len);
-	bprolog.alignPush();
-	bprolog.stackAlloc(0x20);//function vc++ abi
-	bprolog.setFrame();
-	bprolog.end_prolog();
-	a.stackAlign();
-
-
-	a.mov(arg_ptr, argr0);
-	a.mov(arg_len_32, argr1_32);
-	
-	a.mov(enviro_ptr, stack_ptr);
-	a.stackIncrease(CASM::alignStackBytes(max_values<<1));
-	ScopeManager scope(bprolog);
-	for(size_t i=0;i<max_values;i++){
-		a.movEnviro(i, 0);
-		scope.createValueLifetimeScope(valueDestructDyn, i<<1);
+struct ScopeManagerMap{
+	std::unordered_map<uint64_t, size_t> handle_id_map;
+	std::unordered_map<uint64_t, size_t> value_hold_id_map;
+	ScopeManager& manager;
+	ScopeManagerMap(ScopeManager& manager) :manager(manager) {}
+	size_t mapHandle(uint64_t id){
+		auto it = handle_id_map.find(id);
+		if (it == handle_id_map.end())
+			return handle_id_map[id] = manager.createExceptionScope();
+		else
+			return it->second;
 	}
-	
-	Label prolog = a.newLabel();
-	size_t to_be_skiped = 0;
-	list_array<std::pair<uint64_t, Label>> jump_list = prepareJumpList(a, cross_code, cross_code.size(), to_be_skiped);
+	size_t mapValueHold(uint64_t id, void(*destruct)(void**), uint16_t off){
+		auto it = value_hold_id_map.find(id);
+		if (it == value_hold_id_map.end())
+			return value_hold_id_map[id] = manager.createValueLifetimeScope(destruct, (size_t)off<<1);
+		else
+			return it->second;
+	}
+	size_t try_mapHandle(uint64_t id){
+		auto it = handle_id_map.find(id);
+		if (it == handle_id_map.end())
+			return -1;
+		else
+			return it->second;
+	}
+	size_t try_mapValueHold(uint64_t id, void(*destruct)(void**), uint16_t off){
+		auto it = value_hold_id_map.find(id);
+		if (it == value_hold_id_map.end())
+			return -1;
+		else
+			return it->second;
+	}
+};
 
-	auto compilerFabric = [&](CASM& a, list_array<std::pair<uint64_t, Label>>& j_list, size_t skip) {
-		std::vector<uint8_t>& data = cross_code;
-		size_t data_len = data.size();
-		size_t string_index_seter = 0;
-		size_t i = skip;
-		size_t instructuion = 0;
-		bool do_jump_to_ret = false;
+struct CompilerFabric{
+	Command cmd;
+	CASM& a;
+	ScopeManager& scope;
+	ScopeManagerMap& scope_map;
+	Label& prolog;
+	Label& self_function;
+	std::vector<uint8_t>& data;
+	size_t data_len;
+	size_t i;
+	list_array<std::pair<uint64_t, Label>> jump_list;
+	list_array<ValueItem>& values;
+	bool do_jump_to_ret = false;
+	bool in_debug;
+	FuncEnviropment* build_func;
 
-		auto static_fabric = [&](Command cmd) {
-			switch (cmd.code) {
+	CompilerFabric(
+		CASM& a,
+		ScopeManager& scope,
+		ScopeManagerMap& scope_map,
+		Label& prolog,
+		Label& self_function,
+		std::vector<uint8_t>& data,
+		size_t data_len,
+		size_t start_from,
+		list_array<std::pair<uint64_t, Label>>& jump_list,
+		list_array<ValueItem>& values,
+		bool in_debug,
+		FuncEnviropment* build_func
+		) : a(a), scope(scope), scope_map(scope_map), prolog(prolog), self_function(self_function), data(data), data_len(data_len), i(start_from), jump_list(jump_list), values(values), in_debug(in_debug), build_func(build_func) {}
+	void static_build(){
+		switch (cmd.code) {
 			case Opcode::set: {
 				uint16_t value_index = readData<uint16_t>(data, data_len, i);
 				ValueMeta meta = readData<ValueMeta>(data, data_len, i);
@@ -1822,13 +1939,13 @@ void FuncEnviropment::RuntimeCompile() {
 					b.finalize(throwStatEx);
 				}
 				else {
-					auto ex_typ = string_index_seter++;
-					values[ex_typ] = readString(data, data_len, i);
-					auto ex_desc = string_index_seter++;
-					values[ex_desc] = readString(data, data_len, i);
+					values.push_back(readString(data, data_len, i));
+					auto& ex_typ = values.back();
+					values.push_back(readString(data, data_len, i));
+					auto& ex_desc = values.back();
 					BuildCall b(a, 2);
-					b.addArg(values[ex_typ].val);
-					b.addArg(values[ex_desc].val);
+					b.addArg(ex_typ.val);
+					b.addArg(ex_desc.val);
 					b.finalize(throwEx);
 				}
 				break;
@@ -2195,11 +2312,10 @@ void FuncEnviropment::RuntimeCompile() {
 			}
 			default:
 				throw CompileTimeException("Invalid opcode");
-			}
-		};
-
-		auto dynamic_fablric = [&](Command cmd) {
-			switch (cmd.code) {
+		}
+	}
+	void dynamic_build(){
+		switch (cmd.code) {
 			case Opcode::noting:
 				a.noting();
 				break;
@@ -2438,8 +2554,8 @@ void FuncEnviropment::RuntimeCompile() {
 			}
 			case Opcode::jump: {
 				uint64_t to_find = readData<uint64_t>(data, data_len, i);
-				auto found = std::find_if(j_list.begin(), j_list.end(), [i](std::pair<uint64_t, Label>& it) { return it.first == i;  });
-				if (found == j_list.end())
+				auto found = std::find_if(jump_list.begin(), jump_list.end(), [to_find](std::pair<uint64_t, Label>& it) { return it.first == to_find;  });
+				if (found == jump_list.end())
 					throw InvalidFunction("Invalid function header, not found jump position");
 				switch (readData<JumpCondition>(data, data_len, i))
 				{
@@ -2509,7 +2625,7 @@ void FuncEnviropment::RuntimeCompile() {
 				break;
 			}
 			case Opcode::call_local: {
-				compilerFabric_call_local<true>(a, data, data_len, i, this);
+				compilerFabric_call_local<true>(a, data, data_len, i, build_func);
 				break;
 			}
 			case Opcode::call_and_ret: {
@@ -2531,7 +2647,7 @@ void FuncEnviropment::RuntimeCompile() {
 				break;
 			}
 			case Opcode::call_local_and_ret: {
-				compilerFabric_call_local<false, false>(a, data, data_len, i, this);
+				compilerFabric_call_local<false, false>(a, data, data_len, i, build_func);
 				do_jump_to_ret = true;
 				break;
 			}
@@ -2952,13 +3068,13 @@ void FuncEnviropment::RuntimeCompile() {
 					b.finalize(throwDirEx);
 				}
 				else {
-					auto ex_typ = string_index_seter++;
-					values[ex_typ] = readString(data, data_len, i);
-					auto ex_desc = string_index_seter++;
-					values[ex_desc] = readString(data, data_len, i);
+					values.push_back(readString(data, data_len, i));
+					auto& ex_typ = values.back();
+					values.push_back(readString(data, data_len, i));
+					auto& ex_desc = values.back();
 					BuildCall b(a, 2);
-					b.addArg(values[ex_typ].val);
-					b.addArg(values[ex_desc].val);
+					b.addArg(ex_typ.val);
+					b.addArg(ex_desc.val);
 					b.finalize(throwEx);
 				}
 				break;
@@ -3065,7 +3181,6 @@ void FuncEnviropment::RuntimeCompile() {
 				break;
 			}
 			case Opcode::explicit_await: {
-				a.stackAlign();
 				BuildCall b(a, 1);
 				b.leaEnviro(readData<uint16_t>(data, data_len, i));
 				b.finalize(&ValueItem::getAsync);
@@ -3073,26 +3188,115 @@ void FuncEnviropment::RuntimeCompile() {
 			}
 			case Opcode::generator_get:
 				throw NotImplementedException();
+				
+			case Opcode::handle_begin:
+				scope_map.mapHandle(readData<uint64_t>(data, data_len, i));
+				break;
+			case Opcode::handle_catch:{
+				size_t handle = scope_map.try_mapHandle(readData<uint64_t>(data, data_len, i));
+				if (handle == -1)
+					throw CompileTimeException("Undefined handle");
+				ScopeAction* scope_action = scope.setExceptionHandle(handle, _attacha_filter);
+				//switch (readData<char>(data, data_len, i)) {
+				//case 0:
+				//	{
+				//		struct _filter_data {
+				//			typed_lgr<FuncEnviropment> catch
+				//			std::string message;
+				//		};
+				//	}
+				//	break;
+//
+				//}
+				
+				//char* data = new char[10];
+
+
+				//data[0] =0;
+				//scope_action->filter_data = data;
+				//scope_action->filter_data_len = 10;
+				//scope_action->cleanup_filter_data = [](ScopeAction* data) {
+				//	delete[] (char*)data->filter_data;
+				//	data->filter_data = nullptr;
+				//};
+
+				break;
+			}
+			case Opcode::handle_finally:
+			case Opcode::handle_convert:
+
+			case Opcode::value_hold:
+
+			case Opcode::value_unhold:
 			default:
 				throw CompileTimeException("Invalid opcode");
-			}
-		};
+		}
+	}
 
-
-
+	void build(){
 		for (; i < data_len; ) {
-			for (auto& it : j_list)
+			for (auto& it : jump_list)
 				if (it.first == i)
 					a.label_bind(it.second);
 
 			if (do_jump_to_ret)
 				a.jmp(prolog);
 			do_jump_to_ret = false;
-			Command cmd(data[i++]);
-			!cmd.static_mode ? dynamic_fablric(cmd) : static_fabric(cmd);
+			cmd = Command(data[i++]);
+			!cmd.static_mode ? dynamic_build() : static_build();
 		}
-	};
-	compilerFabric(a, jump_list, to_be_skiped);
+	}
+};
+
+void FuncEnviropment::RuntimeCompile() {
+	if (curr_func != nullptr)
+		FrameResult::deinit(frame, curr_func, jrt);
+	values.clear();
+	CodeHolder code;
+	code.init(jrt.environment());
+	CASM a(code);
+	Label self_function = a.newLabel();
+	a.label_bind(self_function);
+
+	//OS dependent prolog begin
+	BuildProlog bprolog(a);
+	bprolog.pushReg(frame_ptr);
+	if(max_values)
+		bprolog.pushReg(enviro_ptr);
+	bprolog.pushReg(arg_ptr);
+	bprolog.pushReg(arg_len);
+	bprolog.alignPush();
+	bprolog.stackAlloc(0x20);//c++ abi
+	bprolog.setFrame();
+	bprolog.end_prolog();
+	//OS dependent prolog end 
+
+	//Init enviropment
+	a.mov(arg_ptr, argr0);
+	a.mov(arg_len_32, argr1_32);
+	
+	a.mov(enviro_ptr, stack_ptr);
+	a.stackIncrease(CASM::alignStackBytes(max_values<<1));
+	a.stackAlign();
+
+
+	//Clean enviropment
+	ScopeManager scope(bprolog);
+	ScopeManagerMap scope_map(scope);
+	for(size_t i=0;i<max_values;i++){
+		a.movEnviro(i, 0);
+		a.movEnviroMeta(i, 0);
+		scope.createValueLifetimeScope(valueDestructDyn, i<<1);
+	}
+	
+	Label prolog = a.newLabel();
+	size_t to_be_skiped = 0;
+	list_array<std::pair<uint64_t, Label>> jump_list = prepareJumpList(a, cross_code, cross_code.size(), to_be_skiped);
+	CompilerFabric fabric(a,scope,scope_map,prolog, self_function, cross_code, cross_code.size(), to_be_skiped, jump_list, values, in_debug, this);
+	fabric.build();
+
+
+
 	a.label_bind(prolog);
 	a.push(resr);
 	a.push(0);
@@ -3106,17 +3310,116 @@ void FuncEnviropment::RuntimeCompile() {
 	}
 	a.pop();
 	a.pop(resr);
-	auto& tmp = bprolog.finalize_epilog();
 
+
+
+
+	
+	auto& tmp = bprolog.finalize_epilog();
 	tmp.use_handle = true;
 	tmp.exHandleOff = a.offset() <= UINT32_MAX ? (uint32_t)a.offset() : throw CompileTimeException("Too big function");
 	a.jmp(__attacha_handle);
-
 	curr_func = (Enviropment)tmp.init(frame, a.code(), jrt, "attach_a_symbol");
 }
+std::string FuncEnviropment::to_string(){
+	 for(auto& it : enviropments)
+		if(it.second.getPtr() == this)
+			return "fn(" + it.first + ")@" + (std::ostringstream() << curr_func).str();
+	if(curr_func)
+		return "fn(" + FrameResult::JitResolveFrame(curr_func,true).fn_name + ")@" + (std::ostringstream() << curr_func).str();
+	else{
+		return "fn(unknown)@0";
+	}
+}
+
+void FuncEnviropment::fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code) {
+	auto& tmp = enviropments[func_name];
+	if (tmp) {
+		if (!tmp->can_be_unloaded)
+			throw HotPathException("Path fail cause this symbol is cannon't be unloaded for path");
+		tmp->force_unload = true;
+	}
+	uint16_t max_vals = new_cross_code[1];
+	max_vals <<= 8;
+	max_vals |= new_cross_code[0];
+	tmp = typed_lgr(new FuncEnviropment{ { new_cross_code.begin() + 2, new_cross_code.end()}, max_vals, true });
+	
+}
+void FuncEnviropment::fastHotPath(const std::string& func_name, typed_lgr<FuncEnviropment>& new_enviro) {
+	auto& tmp = enviropments[func_name];
+	if (tmp) {
+		if (!tmp->can_be_unloaded)
+			throw HotPathException("Path fail cause this symbol is cannon't be unloaded for path");
+		tmp->force_unload = true;
+	}
+	tmp = new_enviro;
+}
+typed_lgr<FuncEnviropment>  FuncEnviropment::enviropment(const std::string& func_name) {
+	return enviropments[func_name];
+}
+ValueItem* FuncEnviropment::callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
+	if (enviropments.contains(func_name)) {
+		if (run_async)
+			return async_call(enviropments[func_name], arguments, arguments_size);
+		else
+			return enviropments[func_name]->syncWrapper(arguments, arguments_size);
+	}
+	throw NotImplementedException();
+}
+void FuncEnviropment::AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded) {
+	if (enviropments.contains(symbol_name))
+		throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
+	enviropments[symbol_name] = typed_lgr(new FuncEnviropment(function, can_be_unloaded));
+}
+
+void FuncEnviropment::AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded) {
+	if (enviropments.contains(symbol_name))
+		throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
+	enviropments[symbol_name] = typed_lgr(new FuncEnviropment(proc, templ, can_be_unloaded));
+}
+
+bool FuncEnviropment::Exists(const std::string& symbol_name) {
+	return enviropments.contains(symbol_name);
+}
+void FuncEnviropment::Load(typed_lgr<FuncEnviropment> fn, const std::string& symbol_name) {
+	if (enviropments.contains(symbol_name))
+		throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
+	enviropments[symbol_name] = fn;
+}
+void FuncEnviropment::Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded) {
+	if (enviropments.contains(symbol_name))
+		throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
+	if (func_templ.size() < 2)
+		throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them emplty");
+	uint16_t max_vals = func_templ[1];
+	max_vals <<= 8;
+	max_vals |= func_templ[0];
+	enviropments[symbol_name] = typed_lgr(new FuncEnviropment{ { func_templ.begin() + 2, func_templ.end()}, max_vals, can_be_unloaded });
+}
+void FuncEnviropment::Unload(const std::string& func_name) {
+	std::lock_guard guard(enviropments_lock);
+	if (enviropments.contains(func_name))
+		if (enviropments[func_name]->can_be_unloaded)
+			enviropments.erase(func_name);
+		else
+			throw SymbolException("Fail unload symbol: \"" + func_name + "\" cause them cannont be unloaded");
+}
+void FuncEnviropment::ForceUnload(const std::string& func_name) {
+	if (enviropments.contains(func_name)) {
+		enviropments[func_name]->force_unload = true;
+		enviropments.erase(func_name);
+	}
+}
+
+
+
+
 
 extern "C" void callFunction(const char* symbol_name, bool run_async) {
 	ValueItem* res = FuncEnviropment::callFunc(symbol_name, nullptr, 0, run_async);
 	if (res)
 		delete res;
 }
+
+
+

@@ -36,9 +36,13 @@ namespace except_abi {
 
 
 	CXXExInfo exceptCXXDetails(LPEXCEPTION_RECORD e) {
+		CXXExInfo ex;
+		if(e->ExceptionCode!=0xe06d7363) {
+			ex.native_id = e->ExceptionCode;
+			return ex;
+		}
 		const ExThrowInfo* throwInfo = (const ExThrowInfo*)e->ExceptionInformation[2];
 		const ExCatchableTypeArray* cArray = (const ExCatchableTypeArray*)(e->ExceptionInformation[3] + throwInfo->catchable_type_array);
-		CXXExInfo ex;
 		ex.ex_ptr = (const void*)e->ExceptionInformation[1];
 		uint32_t count = cArray->catchable_types;
 		while (count--)

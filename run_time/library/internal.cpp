@@ -37,7 +37,13 @@ namespace internal {
             throw InvalidArguments("This function requires 0 or 1 argument");
         }
         //grow stack size, returns bool, args: grow count
-        ValueItem* prepare(ValueItem* vals, uint32_t len);
+        ValueItem* prepare(ValueItem* vals, uint32_t len){
+            if(len == 1)
+                return new ValueItem(light_stack::prepare((size_t)vals[0]));
+            else if(len == 0)
+                return new ValueItem(light_stack::prepare());
+            throw InvalidArguments("This function requires 0 or 1 argument");
+        }
         //make sure stack size is enough and increase if too small, returns bool, args: grow count
         ValueItem* reserve(ValueItem* vals, uint32_t len){
             if(len == 1)
@@ -86,7 +92,7 @@ namespace internal {
             auto res = FrameResult::JitCaptureStackTrace(framesToSkip, include_native, max_frames);
             auto res2 = new ValueItem[res.size()];
             for (size_t i = 0; i < res.size(); i++)
-                res2[i] = new ValueItem{res[i].file_path, res[i].fn_name, res[i].line};
+                res2[i] = ValueItem{res[i].file_path, res[i].fn_name, (uint64_t)res[i].line};
             return new ValueItem(res2, ValueMeta(VType::faarr, false, true, res.size()));
         }
         ValueItem* trace_frames(ValueItem* vals, uint32_t len){
@@ -102,7 +108,7 @@ namespace internal {
             auto res = FrameResult::JitCaptureStackChainTrace(framesToSkip, include_native, max_frames);
             auto res2 = new ValueItem[res.size()];
             for (size_t i = 0; i < res.size(); i++)
-                res2[i] = new ValueItem(res[i]);
+                res2[i] = res[i];
             return new ValueItem(res2, ValueMeta(VType::faarr, false, true, res.size()));
         }
         ValueItem* resolve_frame(ValueItem* vals, uint32_t len){

@@ -64,6 +64,7 @@ namespace console {
 		if (rw_switcher != RW_CONS::W) 
 			fflush(_stdin);
 		fwrite(chars, 1, N, _stdout);
+		fflush(_stdout);
 	};
 
 
@@ -78,6 +79,7 @@ namespace console {
 				auto& it = *args++;
 				std::string tmp = ABI_IMPL::Scast(it.val, it.meta) + '\n';
 				fwrite(tmp.c_str(), 1, tmp.size(), _stdout);
+				fflush(_stdout);
 			}
 		}
 		return nullptr;
@@ -89,6 +91,7 @@ namespace console {
 				auto& it = *args++;
 				std::string tmp = ABI_IMPL::Scast(it.val, it.meta);
 				fwrite(tmp.c_str(), 1, tmp.size(), _stdout);
+				fflush(_stdout);
 			}
 		}
 		return nullptr;

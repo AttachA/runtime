@@ -1,4 +1,3 @@
-#pragma once
 #include <boost/preprocessor.hpp> 
 #include <string>
 #define X_DEFINE_ENUM_WITH_STRING_CONVERSIONS_TOSTRING_CASE(r, data, elem)    \

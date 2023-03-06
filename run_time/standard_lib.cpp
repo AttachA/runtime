@@ -1,6 +1,7 @@
 #include "library/console.hpp"
 #include "library/parallel.hpp"
 #include "library/chanel.hpp"
+#include "library/internal.hpp"
 #include "AttachA_CXX.hpp"
 #include <cmath>
 #include <math.h>
@@ -529,7 +530,7 @@ ValueItem* math_transform_fn(ValueItem* args, uint32_t args_len) {
 #pragma endregion
 
 
-
+#pragma region _math_stuffs_
 uint64_t math_factorial_impl__FAST_FACTOR(uint64_t m) {
 	switch (m) {
 	case 0:return 0;
@@ -858,7 +859,7 @@ ValueItem* math_pow(ValueItem* args, uint32_t args_len) {
 	return nullptr;
 }
 
-
+#pragma endregion
 extern "C" void initStandardFunctions() {
 #pragma region Console
 	FuncEnviropment::AddNative(console::printLine, "console print_line", false);
@@ -968,6 +969,35 @@ extern "C" void initStandardFunctions() {
 	FuncEnviropment::AddNative(chanel::constructor::createProxy_Chanel, "# chanel chanel", false);
 	FuncEnviropment::AddNative(chanel::constructor::createProxy_ChanelHandler, "# chanel chanel_handler", false);
 #pragma endregion
+#pragma region Internal
+	internal::init();
+	FuncEnviropment::AddNative(internal::memory::dump, "internal memory dump", false);
+
+	FuncEnviropment::AddNative(internal::run_time::gc_hinit_collect, "internal run_time gc_hinit_collect", false);
+	FuncEnviropment::AddNative(internal::run_time::gc_pause, "internal run_time gc_pause", false);
+	FuncEnviropment::AddNative(internal::run_time::gc_resume, "internal run_time gc_resume", false);
+
+	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeLib, "# internal run_time native_lib", false);
+	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeValue, "# internal run_time native_value", false);
+	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeTemplate, "# internal run_time native_template", false);
+
+	FuncEnviropment::AddNative(internal::stack::dump, "internal stack dump", false);
+
+	FuncEnviropment::AddNative(internal::stack::bs_supported, "internal stack bs_supported", false);
+	FuncEnviropment::AddNative(internal::stack::allocated_size, "internal stack allocated_size", false);
+	FuncEnviropment::AddNative(internal::stack::free_size, "internal stack free_size", false);
+	FuncEnviropment::AddNative(internal::stack::prepare, "internal stack prepare", false);
+	FuncEnviropment::AddNative(internal::stack::reserve, "internal stack reserve", false);
+	FuncEnviropment::AddNative(internal::stack::shrink, "internal stack shrink", false);
+	FuncEnviropment::AddNative(internal::stack::unused_size, "internal stack unused_size", false);
+	FuncEnviropment::AddNative(internal::stack::used_size, "internal stack used_size", false);
+
+	FuncEnviropment::AddNative(internal::stack::trace, "internal stack trace", false);
+	FuncEnviropment::AddNative(internal::stack::trace_frames, "internal stack trace_frames", false);
+	FuncEnviropment::AddNative(internal::stack::resolve_frame, "internal stack resolve_frame", false);
+
+#pragma endregion
+
 }
 
 

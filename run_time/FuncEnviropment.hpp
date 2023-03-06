@@ -24,8 +24,6 @@ public:
 		force_unloaded
 	};
 private:
-	static std::unordered_map<std::string, typed_lgr<FuncEnviropment>> enviropments;
-	static TaskMutex enviropments_lock;
 	TaskMutex compile_lock;
 	std::unordered_map<list_array<ValueItem>, ValueItem> cache_map;
 	DynamicCall::FunctionTemplate nat_templ;
@@ -124,41 +122,10 @@ public:
 
 	ValueItem* syncWrapper(ValueItem* arguments, uint32_t arguments_size);
 
-	static void fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code) {
-		auto& tmp = enviropments[func_name];
-		if (tmp) {
-			if (!tmp->can_be_unloaded)
-				throw HotPathException("Path fail cause this symbol is cannon't be unloaded for path");
-			tmp->force_unload = true;
-		}
-
-		uint16_t max_vals = new_cross_code[1];
-		max_vals <<= 8;
-		max_vals |= new_cross_code[0];
-		tmp = typed_lgr(new FuncEnviropment{ { new_cross_code.begin() + 2, new_cross_code.end()}, max_vals, true });
-		
-	}
-	static void fastHotPath(const std::string& func_name, typed_lgr<FuncEnviropment>& new_enviro) {
-		auto& tmp = enviropments[func_name];
-		if (tmp) {
-			if (!tmp->can_be_unloaded)
-				throw HotPathException("Path fail cause this symbol is cannon't be unloaded for path");
-			tmp->force_unload = true;
-		}
-		tmp = new_enviro;
-	}
-	static typed_lgr<FuncEnviropment> enviropment(const std::string& func_name) {
-		return enviropments[func_name];
-	}
-	static ValueItem* callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
-		if (enviropments.contains(func_name)) {
-			if (run_async)
-				return async_call(enviropments[func_name], arguments, arguments_size);
-			else
-				return enviropments[func_name]->syncWrapper(arguments, arguments_size);
-		}
-		throw NotImplementedException();
-	}
+	static void fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code);
+	static void fastHotPath(const std::string& func_name, typed_lgr<FuncEnviropment>& new_enviro);
+	static typed_lgr<FuncEnviropment> enviropment(const std::string& func_name);
+	static ValueItem* callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async);
 
 #pragma region c++ add native
 #include<tuple>
@@ -196,50 +163,15 @@ public:
 		AddNative((DynamicCall::PROC)function, templ, symbol_name, can_be_unloaded);
 	}
 
-	static void AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded = true) {
-		if (enviropments.contains(symbol_name))
-			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
-		enviropments[symbol_name] = typed_lgr(new FuncEnviropment(function, can_be_unloaded));
-	}
+	static void AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded = true);
 #pragma endregion
-	static void AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded = true) {
-		if (enviropments.contains(symbol_name))
-			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
-		enviropments[symbol_name] = typed_lgr(new FuncEnviropment(proc, templ, can_be_unloaded));
-	}
+	static void AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded = true);
 
-	static bool Exists(const std::string& symbol_name) {
-		return enviropments.contains(symbol_name);
-	}
-	static void Load(typed_lgr<FuncEnviropment> fn, const std::string& symbol_name) {
-		if (enviropments.contains(symbol_name))
-			throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
-		enviropments[symbol_name] = fn;
-	}
-	static void Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded = true) {
-		if (enviropments.contains(symbol_name))
-			throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
-		if (func_templ.size() < 2)
-			throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them emplty");
-		uint16_t max_vals = func_templ[1];
-		max_vals <<= 8;
-		max_vals |= func_templ[0];
-		enviropments[symbol_name] = typed_lgr(new FuncEnviropment{ { func_templ.begin() + 2, func_templ.end()}, max_vals, can_be_unloaded });
-	}
-	static void Unload(const std::string& func_name) {
-		std::lock_guard guard(enviropments_lock);
-		if (enviropments.contains(func_name))
-			if (enviropments[func_name]->can_be_unloaded)
-				enviropments.erase(func_name);
-			else
-				throw SymbolException("Fail unload symbol: \"" + func_name + "\" cause them cannont be unloaded");
-	}
-	static void ForceUnload(const std::string& func_name) {
-		if (enviropments.contains(func_name)) {
-			enviropments[func_name]->force_unload = true;
-			enviropments.erase(func_name);
-		}
-	}
+	static bool Exists(const std::string& symbol_name);
+	static void Load(typed_lgr<FuncEnviropment> fn, const std::string& symbol_name) ;
+	static void Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded = true);
+	static void Unload(const std::string& func_name);
+	static void ForceUnload(const std::string& func_name);
 	void ForceUnload() {
 		force_unload = true;
 	}
@@ -263,6 +195,7 @@ public:
 	void* get_func_ptr() {
 		return (void*)curr_func;
 	}
+	std::string to_string();
 };
 
 extern "C" void callFunction(const char* symbol_name, bool run_async);

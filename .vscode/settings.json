@@ -96,7 +96,9 @@
         "*.ipp": "cpp",
         "csignal": "cpp",
         "cwctype": "cpp",
-        "coroutine": "cpp"
+        "coroutine": "cpp",
+        "ranges": "cpp",
+        "span": "cpp"
     },
     
     "cmake.configureSettings": {

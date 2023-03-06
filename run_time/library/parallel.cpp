@@ -922,33 +922,33 @@ namespace parallel {
 
 	namespace constructor {
 		ValueItem* createProxy_ConditionVariable(ValueItem*, uint32_t) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new TaskConditionVariable()), &define_ConditionVariable), VType::proxy);
+			return new ValueItem(new ProxyClass(new typed_lgr(new TaskConditionVariable()), &define_ConditionVariable), VType::proxy, no_copy);
 		}
 		ValueItem* createProxy_Mutex(ValueItem*, uint32_t) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new TaskMutex()), &define_ConditionVariable), VType::proxy);
+			return new ValueItem(new ProxyClass(new typed_lgr(new TaskMutex()), &define_ConditionVariable), VType::proxy, no_copy);
 		}
 		ValueItem* createProxy_Semaphore(ValueItem*, uint32_t) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new TaskSemaphore()), &define_Semaphore), VType::proxy);
+			return new ValueItem(new ProxyClass(new typed_lgr(new TaskSemaphore()), &define_Semaphore), VType::proxy, no_copy);
 		}
 
 		ValueItem* createProxy_ConcurentFile(ValueItem* val, uint32_t len) {
 			if (len) {
-				return new ValueItem(new ProxyClass(new typed_lgr(new ConcurentFile(((std::string)*val).c_str())), &define_ConcurentFile), VType::proxy);
+				return new ValueItem(new ProxyClass(new typed_lgr(new ConcurentFile(((std::string)*val).c_str())), &define_ConcurentFile), VType::proxy, no_copy);
 			}
 			else
 				throw InvalidArguments("Invalid arguments, argumets [string]");
 		}
 
 		ValueItem* createProxy_EventSystem(ValueItem* val, uint32_t len) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new EventSystem()), &define_EventSystem), VType::proxy);
+			return new ValueItem(new ProxyClass(new typed_lgr(new EventSystem()), &define_EventSystem), VType::proxy, no_copy);
 		}
 
 		ValueItem* createProxy_TaskLimiter(ValueItem* val, uint32_t len) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new TaskLimiter()), &define_TaskLimiter), VType::proxy);
+			return new ValueItem(new ProxyClass(new typed_lgr(new TaskLimiter()), &define_TaskLimiter), VType::proxy, no_copy);
 		}
 
 		ValueItem* createProxy_TaskQuery(ValueItem* val, uint32_t len){
-			return new ValueItem(new ProxyClass(new typed_lgr(new TaskQuery(len ? (size_t)*val : 0)), &define_TaskQuery), VType::proxy);
+			return new ValueItem(new ProxyClass(new typed_lgr(new TaskQuery(len ? (size_t)*val : 0)), &define_TaskQuery), VType::proxy, no_copy);
 		}
 
 		//ProxyClass createProxy_ValueMonitor() {

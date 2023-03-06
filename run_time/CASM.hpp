@@ -737,9 +737,9 @@ struct ScopeAction{
 		void(*destruct)(void**);
 		void(*destruct_register)(void*);
 		//exception names
-		bool(*filter)(CXXExInfo& info, void** handle_adress, void* filter_data, size_t len);
+		bool(*filter)(CXXExInfo& info, void** handle_adress, void* filter_data, size_t len, void* rsp);
 		//current exception in args
-		void(*converter)(void*, size_t len);
+		void(*converter)(void*, size_t len, void* rsp);
 	};
 	union{
 		uint64_t stack_offset : 52;
@@ -753,7 +753,7 @@ struct ScopeAction{
 		size_t filter_data_len = 0;
 		size_t converter_data_len;
 	};
-
+	void (*cleanup_filter_data)(ScopeAction*) = nullptr;
 
 
 	size_t function_begin_off;
@@ -795,6 +795,12 @@ struct ScopeAction{
 		move.function_end_off = 0;
 		return *this;
 	}
+	~ScopeAction(){
+		if(cleanup_filter_data)
+			cleanup_filter_data(this);
+	}
+
+
 };
 struct FrameResult {
 	std::vector<uint16_t> prolog;
@@ -1326,21 +1332,26 @@ public:
 		res.scope_actions.push_back(action);
 		return &res.scope_actions.back();
 	}
-	ScopeAction* create_filter(bool(*func)(CXXExInfo&, void**, void*, size_t)) {
+	ScopeAction* create_filter(bool(*func)(CXXExInfo&, void**, void*, size_t, void*)) {
 		ScopeAction action;
 		action.action = ScopeAction::Action::filter;
 		action.filter = func;
 		res.scope_actions.push_back(action);
 		return &res.scope_actions.back();
 	}
-	ScopeAction* create_converter(void(*func)(void*, size_t)) {
+	ScopeAction* create_converter(void(*func)(void*, size_t, void* rsp)) {
 		ScopeAction action;
 		action.action = ScopeAction::Action::converter;
 		action.converter = func;
 		res.scope_actions.push_back(action);
 		return &res.scope_actions.back();
 	}
-
+	ScopeAction* create_null_action() {
+		ScopeAction action;
+		action.action = ScopeAction::Action::not_action;
+		res.scope_actions.push_back(action);
+		return &res.scope_actions.back();
+	}
 
 	inline void setScopeBegin(ScopeAction* action) {
 		action->function_begin_off = csm.offset();
@@ -1420,21 +1431,23 @@ public:
 		scope_actions[id] = ExceptionScopes({}, csm.offset());
 		return id;
 	}
-	void setExceptionHandle(size_t id, bool(*filter_fun)(CXXExInfo&, void**, void*, size_t)){
+	ScopeAction* setExceptionHandle(size_t id, bool(*filter_fun)(CXXExInfo&, void**, void*, size_t, void* rsp)){
 		auto it = scope_actions.find(id);
 		if (it == scope_actions.end())
 			throw CompileTimeException("invalid exception scope");
 		ScopeAction* action = csm.create_filter(filter_fun);
 		action->function_begin_off = it->second.begin_off;
 		it->second.actions.push_back(action);
+		return action;
 	}
-	void setExceptionConverter(size_t id, void(*converter_fun)(void*, size_t len)) {
+	ScopeAction* setExceptionConverter(size_t id, void(*converter_fun)(void*, size_t len, void* rsp)) {
 		auto it = scope_actions.find(id);
 		if (it == scope_actions.end())
 			throw CompileTimeException("invalid exception scope");
 		ScopeAction* action = csm.create_converter(converter_fun);
 		action->function_begin_off = it->second.begin_off;
 		it->second.actions.push_back(action);
+		return action;
 	}
 	size_t createValueLifetimeScope(void(*destructor)(void**), size_t stack_off) {
 		ScopeAction* action = csm.create_destruct(destructor, stack_off);

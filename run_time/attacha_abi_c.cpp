@@ -329,13 +329,13 @@ void getAsyncResult(void*& value, ValueMeta& meta) {
 		try {
 			auto res = getAsyncValueItem(meta.use_gc ? ((lgr*)value)->getPtr() : value);
 			*vaal = std::move(*res);
+			if (res)
+				delete res;
 		}
 		catch (...) {
 			if (res)
 				delete res;
 		}
-		if (res)
-			delete res;
 	}
 }
 void* copyValue(void*& val, ValueMeta& meta) {
@@ -1078,121 +1078,56 @@ namespace ABI_IMPL {
 	ValueItem* _Vcast_callFN(void* ptr) {
 		return FuncEnviropment::sync_call(*(class typed_lgr<class FuncEnviropment>*)ptr, nullptr, 0);
 	}
+	
 
+	template<class T>
+	std::string raw_arr_to_string(void* arr, size_t size) {
+		std::string res = "*[";
+		for (size_t i = 0; i < size; i++) {
+			res += std::to_string(reinterpret_cast<T*>(arr)[i]);
+			if (i != size - 1) res += ", ";
+		}
+		res += "]";
+		return res;
+	}
+	
 	std::string Scast(void*& ref_val, ValueMeta& meta) {
 		void* val = getValue(ref_val, meta);
 		switch (meta.vtype) {
-		case VType::noting:
-			return "null";
-		case VType::raw_arr_i8: {
+		case VType::noting: return "noting";
+		case VType::boolean: return *(bool*)val ? "true" : "false";
+		case VType::i8: return std::to_string(*reinterpret_cast<int8_t*>(&val));
+		case VType::i16: return std::to_string(*reinterpret_cast<int16_t*>(&val));
+		case VType::i32: return std::to_string(*reinterpret_cast<int32_t*>(&val));
+		case VType::i64: return std::to_string(*reinterpret_cast<int64_t*>(&val));
+		case VType::ui8: return std::to_string(*reinterpret_cast<uint8_t*>(&val));
+		case VType::ui16: return std::to_string(*reinterpret_cast<uint16_t*>(&val));
+		case VType::ui32: return std::to_string(*reinterpret_cast<uint32_t*>(&val));
+		case VType::ui64: return std::to_string(*reinterpret_cast<uint64_t*>(&val));
+		case VType::flo: return std::to_string(*reinterpret_cast<float*>(&val));
+		case VType::doub: return std::to_string(*reinterpret_cast<double*>(&val));
+		case VType::raw_arr_i8: return raw_arr_to_string<int8_t>(val, meta.val_len);
+		case VType::raw_arr_i16: return raw_arr_to_string<int16_t>(val, meta.val_len);
+		case VType::raw_arr_i32: return raw_arr_to_string<int32_t>(val, meta.val_len);
+		case VType::raw_arr_i64: return raw_arr_to_string<int64_t>(val, meta.val_len);
+		case VType::raw_arr_ui8: return raw_arr_to_string<uint8_t>(val, meta.val_len);
+		case VType::raw_arr_ui16: return raw_arr_to_string<uint16_t>(val, meta.val_len);
+		case VType::raw_arr_ui32: return raw_arr_to_string<uint32_t>(val, meta.val_len);
+		case VType::raw_arr_ui64: return raw_arr_to_string<uint64_t>(val, meta.val_len);
+		case VType::raw_arr_flo: return raw_arr_to_string<float>(val, meta.val_len);
+		case VType::raw_arr_doub: return raw_arr_to_string<double>(val, meta.val_len);
+		case VType::faarr:
+		case VType::saarr:{
 			std::string res = "*[";
-			for (uint32_t i = 0; i < meta.val_len; i++)
-				res += std::to_string(reinterpret_cast<int8_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
+			for (uint32_t i = 0; i < meta.val_len; i++){
+				ValueItem& it = reinterpret_cast<ValueItem*>(val)[i];
+				res += Scast(it.val, it.meta) + (i + 1 < meta.val_len ? ',' : ']');
+			}
 			if (!meta.val_len)
 				res += ']';
 			return res;
 		}
-		case VType::raw_arr_i16: {
-			std::string res = "*[";
-			for (uint32_t i = 0; i < meta.val_len; i++)
-				res += std::to_string(reinterpret_cast<int16_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
-			if (!meta.val_len)
-				res += ']';
-			return res;
-		}
-		case VType::raw_arr_i32: {
-			std::string res = "*[";
-			for (uint32_t i = 0; i < meta.val_len; i++)
-				res += std::to_string(reinterpret_cast<int32_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
-			if (!meta.val_len)
-				res += ']';
-			return res;
-		}
-		case VType::raw_arr_i64: {
-			std::string res = "*[";
-			for (uint32_t i = 0; i < meta.val_len; i++)
-				res += std::to_string(reinterpret_cast<int64_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
-			if (!meta.val_len)
-				res += ']';
-			return res;
-		}
-		case VType::raw_arr_ui8: {
-			std::string res = "*[";
-			for (uint32_t i = 0; i < meta.val_len; i++)
-				res += std::to_string(reinterpret_cast<uint8_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
-			if (!meta.val_len)
-				res += ']';
-			return res;
-		}
-		case VType::raw_arr_ui16: {
-			std::string res = "*[";
-			for (uint32_t i = 0; i < meta.val_len; i++)
-				res += std::to_string(reinterpret_cast<uint16_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
-			if (!meta.val_len)
-				res += ']';
-			return res;
-		}
-		case VType::raw_arr_ui32: {
-			std::string res = "*[";
-			for (uint32_t i = 0; i < meta.val_len; i++)
-				res += std::to_string(reinterpret_cast<uint32_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
-			if (!meta.val_len)
-				res += ']';
-			return res;
-		}
-		case VType::raw_arr_ui64: {
-			std::string res = "*[";
-			for (uint32_t i = 0; i < meta.val_len; i++)
-				res += std::to_string(reinterpret_cast<uint64_t*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
-			if (!meta.val_len)
-				res += ']';
-			return res;
-		}
-		case VType::raw_arr_flo: {
-			std::string res = "*[";
-			for (uint32_t i = 0; i < meta.val_len; i++)
-				res += std::to_string(reinterpret_cast<float*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
-			if (!meta.val_len)
-				res += ']';
-			return res;
-		}
-		case VType::raw_arr_doub: {
-			std::string res = "*[";
-			for (uint32_t i = 0; i < meta.val_len; i++)
-				res += std::to_string(reinterpret_cast<double*>(val)[i]) + (i + 1 < meta.val_len ? ',' : ']');
-			if (!meta.val_len)
-				res += ']';
-			return res;
-		}
-		case VType::i8:
-			return std::to_string(reinterpret_cast<int8_t&>(val));
-		case VType::i16:
-			return std::to_string(reinterpret_cast<int16_t&>(val));
-			break;
-		case VType::i32:
-			return std::to_string(reinterpret_cast<int32_t&>(val));
-			break;
-		case VType::i64:
-			return std::to_string(reinterpret_cast<int64_t&>(val));
-			break;
-		case VType::ui8:
-			return std::to_string(reinterpret_cast<uint8_t&>(val));
-			break;
-		case VType::ui16:
-			return std::to_string(reinterpret_cast<uint16_t&>(val));
-			break;
-		case VType::ui32:
-			return std::to_string(reinterpret_cast<uint32_t&>(val));
-			break;
-		case VType::ui64:
-			return std::to_string(reinterpret_cast<uint64_t&>(val));
-			break;
-		case VType::flo:
-			return std::to_string(reinterpret_cast<float&>(val));
-			break;
-		case VType::doub:
-			return std::to_string(reinterpret_cast<double&>(val));
-			break;
+		case VType::string: return *reinterpret_cast<std::string*>(val);
 		case VType::uarr: {
 			std::string res("[");
 			bool before = false;
@@ -1205,18 +1140,48 @@ namespace ABI_IMPL {
 			res += ']';
 			return res;
 		}
-		case VType::string:
-			return *(std::string*)val;
-			break;
-		case VType::undefined_ptr:
-			return "0x" + (std::ostringstream() << val).str();
-			break;
+		case VType::undefined_ptr: return "0x" + (std::ostringstream() << val).str();
+		case VType::type_identifier: return enum_to_string(*(VType*)&val);
+		case VType::function: return reinterpret_cast<FuncEnviropment*>(val)->to_string();
+		case VType::map:{
+			std::string res("{");
+			bool before = false;
+			for (auto& it : *reinterpret_cast<std::unordered_map<ValueItem, ValueItem>*>(val)) {
+				if (before)
+					res += ',';
+				ValueItem& key = const_cast<ValueItem&>(it.first);
+				ValueItem& item = it.second;
+				res += Scast(key.val, key.meta) + ':' + Scast(item.val, item.meta);
+				before = true;
+			}
+			res += '}';
+			return res;
+		}
+		case VType::set:{
+			std::string res("(");
+			bool before = false;
+			for (auto& it : *reinterpret_cast<std::unordered_set<ValueItem>*>(val)) {
+				if (before)
+					res += ',';
+				ValueItem& item = const_cast<ValueItem&>(it);
+				res += Scast(item.val, item.meta);
+				before = true;
+			}
+			res += ')';
+			return res;
+		}
+		case VType::time_point://std::chrono::steady_clock::time_point
+		case VType::class_define:
+		case VType::class_:
+		case VType::morph:
+		case VType::proxy: 
+			throw NotImplementedException();
 		default:
 			throw InvalidCast("Fail cast undefined type");
 		}
 	}
 	ValueItem SBcast(const std::string& str) {
-		if (str == "null")
+		if (str == "noting")
 			return ValueItem();
 		else if (str.starts_with("0x"))
 			return ValueItem((void*)std::stoull(str, nullptr, 16),VType::undefined_ptr);

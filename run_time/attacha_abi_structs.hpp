@@ -62,13 +62,13 @@ ENUM_t(Opcode,uint8_t,
 
 	(generator_get)//TO-DO: implement
 
-	(exception_try)
-	(exception_catch)
-	(exception_finally)
-	(exception_convert)
+	(handle_begin)
+	(handle_catch)
+	(handle_finally)
+	(handle_convert)
 
-	(value_life_start)
-	(value_life_end)
+	(value_hold)
+	(value_unhold)
 )
 
 
@@ -128,6 +128,11 @@ ENUM(JumpCondition,
 )
 
 struct Command {
+	Command(){
+		code = Opcode::noting;
+		is_gc_mode = false;
+		static_mode = false;
+	}
 	Command(uint8_t ini) {
 		code = (Opcode)(ini & 0x3F);
 		is_gc_mode = (ini & 0x40) >> 6;
