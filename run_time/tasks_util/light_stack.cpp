@@ -8,10 +8,40 @@
 #include "../library/console.hpp"
 #include <assert.h>
 #include <exception>
+#include <boost/lockfree/queue.hpp>
 typedef boost::context::stack_context stack_context;
 
-//TO-DO store all stack allocations in buffer, too slow creating task due that
+boost::lockfree::queue<light_stack::stack_context> stack_allocations(200);
+std::atomic_size_t stack_allocations_buffer = 200;
+bool light_stack::flush_stack = false;
 
+
+
+
+stack_context create_stack(size_t size){
+    // calculate how many pages are required
+    const size_t guard_page_size = (size_t(fault_reserved_pages) + 1) * page_size;
+
+    void* vp = ::VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
+    if (!vp) 
+        throw std::bad_alloc();
+
+    // needs at least 3 pages to fully construct the coroutine and switch to it
+    const auto init_commit_size = page_size * 3;
+    auto pPtr = static_cast<PBYTE>(vp) + size;
+    pPtr -= init_commit_size;
+    if (!VirtualAlloc(pPtr, init_commit_size, MEM_COMMIT, PAGE_READWRITE)) 
+        throw std::bad_alloc();
+
+    // create guard page so the OS can catch page faults and grow our stack
+    pPtr -= guard_page_size;
+    if (!VirtualAlloc(pPtr, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD))
+        throw std::bad_alloc();
+    stack_context sctx;
+    sctx.size = size;
+    sctx.sp = static_cast<char*>(vp) + sctx.size;
+    return sctx;
+}
 
 
 BOOST_NOINLINE PBYTE get_current_stack_pointer() {
@@ -52,41 +82,40 @@ bool set_lock_pages_priv( HANDLE hProcess, BOOL bEnable ) {
 
 size_t large_page_size = GetLargePageMinimum();
 
-light_stack::light_stack(std::size_t size) BOOST_NOEXCEPT_OR_NOTHROW : size(size) {}
+light_stack::light_stack(size_t size) BOOST_NOEXCEPT_OR_NOTHROW : size(size) {}
 
 stack_context light_stack::allocate() {
-    // calculate how many pages are required
     const size_t guard_page_size = (size_t(fault_reserved_pages) + 1) * page_size;
-    const std::size_t pages = (size + guard_page_size + page_size - 1) / page_size;
+    const size_t pages = (size + guard_page_size + page_size - 1) / page_size;
     // add one page at bottom that will be used as guard-page
-    const std::size_t size__ = (pages + 1) * page_size;
+    const size_t size__ = (pages + 1) * page_size;
 
-    void* vp = ::VirtualAlloc(0, size__, MEM_RESERVE, PAGE_READWRITE);
-    if (!vp) 
-        throw std::bad_alloc();
-
-    // needs at least 3 pages to fully construct the coroutine and switch to it
-    const auto init_commit_size = page_size * 3;
-    auto pPtr = static_cast<PBYTE>(vp) + size__;
-    pPtr -= init_commit_size;
-    if (!VirtualAlloc(pPtr, init_commit_size, MEM_COMMIT, PAGE_READWRITE)) 
-        throw std::bad_alloc();
-
-    // create guard page so the OS can catch page faults and grow our stack
-    pPtr -= guard_page_size;
-    if (!VirtualAlloc(pPtr, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD))
-        throw std::bad_alloc();
-    stack_context sctx;
-    sctx.size = size__;
-    sctx.sp = static_cast<char*>(vp) + sctx.size;
-    return sctx;
+    stack_context result;
+    if (stack_allocations.pop(result)) {
+        if(!flush_stack)
+            return result;
+        else {
+            memset(static_cast<char*>(result.sp) - result.size, 0xCC, result.size);
+            return result;
+        }
+    }
+    else
+        return create_stack(size__);
 }
 
+void light_stack::set_buffer(size_t buffer_len) {
+    size_t to_allocate = stack_allocations_buffer - buffer_len;
+    if (stack_allocations_buffer < buffer_len) {
+        stack_allocations.reserve(to_allocate);
+        stack_allocations_buffer += to_allocate;
+    }
+}
 
 
 void light_stack::deallocate(stack_context& sctx ) {
     BOOST_ASSERT(sctx.sp);
-    ::VirtualFree(static_cast<char*>(sctx.sp) - sctx.size, 0, MEM_RELEASE);
+    if (!stack_allocations.push(sctx)) 
+        ::VirtualFree(static_cast<char*>(sctx.sp) - sctx.size, 0, MEM_RELEASE);
 }
 
 
