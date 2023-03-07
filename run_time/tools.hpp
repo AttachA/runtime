@@ -21,6 +21,12 @@ namespace run_time {
 		return res;
 	}
 	template<class T>
+	inline T* extractRawArray(const std::vector<uint8_t>& data, size_t data_len, size_t& i, size_t len) {
+		T* result = (T*)(data.data() + i);
+		i += len * sizeof(T);
+		return result;
+	}
+	template<class T>
 	inline T* readRawArray(const std::vector<uint8_t>& data, size_t data_len, size_t& i,size_t len) {
 		T* res = new T[len];
 		for (uint32_t j = 0; j < len; j++)

@@ -292,7 +292,7 @@ void* FrameResult::init(uint8_t*& frame,CodeHolder* code, asmjit::JitRuntime& ru
 		runtime.allocator()->release(baseaddr);
 		throw CompileTimeException("RtlAddFunctionTable failed");
 	}
-	auto& tmp = frame_symbols[frame];
+	auto& tmp = frame_symbols[baseaddr];
 	tmp.fun_size = fun_size;
 	tmp.name = symbol_name;
 	tmp.file = file_path;

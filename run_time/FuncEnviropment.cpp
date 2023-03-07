@@ -48,7 +48,6 @@ ValueItem* FuncEnviropment::syncWrapper(ValueItem* args, uint32_t arguments_size
 	}
 }
 
-
 void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, ValueMeta meta, void*& arg) {
 	if (!meta.allow_edit && meta.vtype == VType::string) {
 		switch (meta.vtype) {
@@ -463,6 +462,13 @@ asmjit::JitRuntime jrt;
 std::unordered_map<std::string, typed_lgr<FuncEnviropment>> enviropments;
 TaskMutex enviropments_lock;
 
+
+const char* try_resolve_frame(FuncEnviropment* env){
+	for(auto& it : enviropments)
+		if(it.second.getPtr() == env)
+			return it.first.data();
+	return "unresolved_attach_a_symbol";
+}
 
 FuncEnviropment::~FuncEnviropment() {
 	std::lock_guard lguard(compile_lock);
@@ -1865,6 +1871,823 @@ struct CompilerFabric{
 		bool in_debug,
 		FuncEnviropment* build_func
 		) : a(a), scope(scope), scope_map(scope_map), prolog(prolog), self_function(self_function), data(data), data_len(data_len), i(start_from), jump_list(jump_list), values(values), in_debug(in_debug), build_func(build_func) {}
+	
+#pragma region dynamic opcodes
+#pragma region set/remove/move/copy
+	void dynamic_set(){
+		uint16_t value_index = readData<uint16_t>(data, data_len, i);
+		ValueMeta meta = readData<ValueMeta>(data, data_len, i);
+		meta.as_ref = false;
+		uint16_t optional_len = 0;
+		{
+			BuildCall v(a, 3);
+			v.leaEnviro(value_index);
+			v.addArg(meta.encoded);
+			v.addArg(cmd.is_gc_mode);
+			v.finalize(preSetValue);
+		}
+		switch (meta.vtype) {
+		case VType::i8:
+		case VType::ui8:
+		case VType::type_identifier:
+			if (!meta.use_gc)
+				a.mov(resr, 0, 1, readData<uint8_t>(data, data_len, i));
+			else
+				values.push_back(ValueItem(new lgr(new uint8_t(readData<uint8_t>(data, data_len, i))), meta, no_copy));
+			break;
+		case VType::i16:
+		case VType::ui16:
+			if (!meta.use_gc)
+				a.mov(resr, 0, 2, readData<uint16_t>(data, data_len, i));
+			else
+				values.push_back(ValueItem(new lgr(new uint16_t(readData<uint16_t>(data, data_len, i))), meta, no_copy));
+			break;
+		case VType::i32:
+		case VType::ui32:
+		case VType::flo:
+			if (!meta.use_gc)
+				a.mov(resr, 0, 4, readData<uint32_t>(data, data_len, i));
+			else
+				values.push_back(ValueItem(new lgr(new uint32_t(readData<uint32_t>(data, data_len, i))), meta, no_copy));
+			break;
+		case VType::i64:
+		case VType::ui64:
+		case VType::doub:
+		case VType::undefined_ptr:
+			if (!meta.use_gc)
+				a.mov(resr, 0, 8, readData<uint64_t>(data, data_len, i));
+			else
+				values.push_back(ValueItem(new lgr(new uint64_t(readData<uint64_t>(data, data_len, i))), meta, no_copy));
+			break;
+		case VType::raw_arr_i8:
+		case VType::raw_arr_ui8: {
+			optional_len = readLen(data, data_len, i);
+			if (!meta.use_gc)
+				values.push_back(ValueItem(readRawArray<int8_t>(data, data_len, i, optional_len), meta, no_copy));
+			else
+				values.push_back(ValueItem(new lgr(readRawArray<int8_t>(data, data_len, i, optional_len)), meta, no_copy));
+			break;
+		}
+		case VType::raw_arr_i16:
+		case VType::raw_arr_ui16: {
+			optional_len = readLen(data, data_len, i);
+			if (!meta.use_gc)
+				values.push_back(ValueItem(readRawArray<int16_t>(data, data_len, i, optional_len), meta, no_copy));
+			else
+				values.push_back(ValueItem(new lgr(readRawArray<int16_t>(data, data_len, i, optional_len)), meta, no_copy));
+			break;
+		}
+		case VType::raw_arr_i32:
+		case VType::raw_arr_ui32:
+		case VType::raw_arr_flo: {
+			optional_len = readLen(data, data_len, i);
+			if (!meta.use_gc)
+				values.push_back(ValueItem(readRawArray<int32_t>(data, data_len, i, optional_len), meta, no_copy));
+			else
+				values.push_back(ValueItem(new lgr(readRawArray<int32_t>(data, data_len, i, optional_len)), meta, no_copy));
+			break;
+		}
+		case VType::raw_arr_i64:
+		case VType::raw_arr_ui64:
+		case VType::raw_arr_doub: {
+			optional_len = readLen(data, data_len, i);
+			if (!meta.use_gc)
+				values.push_back(ValueItem(readRawArray<int64_t>(data, data_len, i, optional_len), meta, no_copy));
+			else
+				values.push_back(ValueItem(new lgr(readRawArray<int64_t>(data, data_len, i, optional_len)), meta, no_copy));
+			break;
+		}
+		case VType::uarr: {
+			if (!meta.use_gc)
+				values.push_back(ValueItem(readAnyUarr(data, data_len, i)));
+			else
+				values.push_back(ValueItem(new lgr(new list_array<ValueItem>(readAnyUarr(data, data_len, i))), meta, no_copy));
+			break;
+		}
+		case VType::string: {
+			if (!meta.use_gc)
+				values.push_back(readString(data, data_len, i));
+			else
+				values.push_back(ValueItem(new lgr(new std::string(readString(data, data_len, i))), meta, no_copy));
+			break;
+		}
+		case VType::faarr: {
+			optional_len = readLen(data, data_len, i);
+			if (!meta.use_gc) {
+				meta.val_len = optional_len;
+				values.push_back(ValueItem(readRawAny(data, data_len, i, optional_len), meta, no_copy));
+			}
+			else
+				values.push_back(ValueItem(new lgr(readRawAny(data, data_len, i, optional_len)), meta, no_copy));
+			break;
+		}
+		default:
+			break;
+		}
+		if (needAlloc(meta)) {
+			BuildCall b(a, 3);
+			b.addArg(resr);
+			b.addArg(values.back().val);
+			b.addArg(meta.encoded);
+			b.finalize(setValue);
+			if (is_raw_array(meta.vtype)) {
+				a.mov(resr, uint64_t(optional_len) << 32);
+				a.or_(resr, enviro_ptr, CASM::enviroMetaOffset(value_index));
+				a.movEnviroMeta(value_index, resr);
+			}
+		}
+	}
+	void dynamic_set_saarr() {
+		uint16_t value_index = readData<uint16_t>(data, data_len, i);
+		uint32_t len = readData<uint32_t>(data, data_len, i);
+		BuildCall b(a, 0);
+		
+		b.leaEnviro(value_index);
+		b.finalize(valueDestructDyn);
+		ValueMeta set_meta(VType::saarr, false, true, len);
+		a.mov(resr, set_meta.encoded);
+		a.movEnviroMeta(value_index, resr);
+
+		a.stackIncrease(len * sizeof(ValueItem));
+		b.addArg(stack_ptr);
+		b.addArg(len*2);
+		b.finalize(prepareStack);
+		a.movEnviro(value_index, resr);
+	}
+	void dynamic_remove(){
+		BuildCall b(a, 1);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(universalRemove);
+	}
+	void dynamic_copy(){
+		uint16_t from = readData<uint16_t>(data, data_len, i);
+		uint16_t to = readData<uint16_t>(data, data_len, i);
+		if (from != to) {
+			BuildCall b(a, 0);
+			b.leaEnviro(to);
+			b.finalize(universalRemove);
+			b.movEnviro(from);
+			b.movEnviroMeta(from);
+			b.finalize(copyValue);
+			a.movEnviro(to, resr);
+			a.movEnviroMeta(resr, from);
+			a.movEnviroMeta(to, resr);
+		}
+	}
+	void dynamic_move(){
+		uint16_t from = readData<uint16_t>(data, data_len, i);
+		uint16_t to = readData<uint16_t>(data, data_len, i);
+		if (from != to) {
+			BuildCall b(a, 1);
+			b.leaEnviro(to);
+			b.finalize(universalRemove);
+
+			a.movEnviro(resr, from);
+			a.movEnviro(to, resr);
+			a.movEnviroMeta(resr, from);
+			a.movEnviroMeta(to, resr);
+			a.movEnviroMeta(from, 0);
+		}
+	}
+#pragma endregion
+#pragma region dynamic math
+	void dynamic_sum(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynSum);
+	}
+	void dynamic_minus(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynMinus);
+	}
+	void dynamic_div(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynDiv);
+	}
+	void dynamic_mul(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynMul);
+	}
+	void dynamic_rest(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynRest);
+	}
+#pragma endregion
+#pragma region dynamic bit
+	void dynamic_bit_xor(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynBitXor);
+	}
+	void dynamic_bit_or(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynBitOr);
+	}
+	void dynamic_bit_and(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynBitAnd);
+	}
+	void dynamic_bit_not(){
+		BuildCall b(a, 1);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynBitNot);
+	}
+#pragma endregion
+#pragma region dynamic logic
+	void dynamic_log_not(){
+		a.load_flag8h();
+		a.xor_(resr_8h, RFLAGS::bit::zero & RFLAGS::bit::carry);
+		a.store_flag8h();
+	}
+	void dynamic_compare(){
+		a.push_flags();
+		a.pop(argr0_16);
+
+		BuildCall b(a, 3);
+		b.addArg(argr0_16);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(compare);
+		a.push(resr_16);
+		a.pop_flags();
+	}
+	void dynamic_jump(){
+		uint64_t to_find = readData<uint64_t>(data, data_len, i);
+		auto found = std::find_if(jump_list.begin(), jump_list.end(), [to_find](std::pair<uint64_t, Label>& it) { return it.first == to_find;  });
+		if (found == jump_list.end())
+			throw InvalidFunction("Invalid function header, not found jump position");
+		switch (readData<JumpCondition>(data, data_len, i))
+		{
+		default:
+		case JumpCondition::no_condition: {
+			a.jmp(found->second);
+			break;
+		}
+		case JumpCondition::is_equal: {
+			a.jmp_eq(found->second);
+			break;
+		}
+		case JumpCondition::is_not_equal: {
+			a.jmp_not_eq(found->second);
+			break;
+		}
+		case JumpCondition::is_more: {
+			a.jmp_more(found->second);
+			break;
+		}
+		case JumpCondition::is_lower: {
+			a.jmp_lower(found->second);
+			break;
+		}
+		case JumpCondition::is_more_or_eq: {
+			a.jmp_more_or_eq(found->second);
+			break;
+		}
+		case JumpCondition::is_lower_or_eq: {
+			a.jmp_lower_or_eq(found->second);
+			break;
+		}
+		}
+	}
+#pragma endregion
+#pragma region dynamic call
+	void dunamic_arg_set(){
+		BuildCall b(a, 1);
+		uint16_t item = readData<uint16_t>(data, data_len, i);
+		b.leaEnviro(item);
+		b.finalize(AsArg);
+		a.mov(arg_ptr, resr);
+		a.getEnviroMetaSize(arg_len_32, item);
+	}
+	void dynamic_call_self(){
+		CallFlags flags;
+		flags.encoded = readData<uint8_t>(data, data_len, i);
+		if (flags.async_mode)
+			throw CompileTimeException("Fail compile async 'call_self', for asynchonly call self use 'call' command");
+		BuildCall b(a, 0);
+		b.addArg(arg_ptr);
+		b.addArg(arg_len_32);
+		b.finalize(self_function);
+
+		if (flags.use_result) {
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.addArg(resr);
+			b.finalize(getValueItem);
+		}
+		else 
+			inlineReleaseUnused(a, resr);
+	}
+	void dynamic_call_self_and_ret(){
+		CallFlags flags;
+		flags.encoded = readData<uint8_t>(data, data_len, i);
+		if (flags.async_mode)
+			throw CompileTimeException("Fail compile async 'call_self', for asynchonly call self use 'call' command");
+		BuildCall b(a, 3);
+		b.addArg(this);
+		b.addArg(arg_ptr);
+		b.addArg(arg_len_32);
+		b.finalize(self_function);
+		do_jump_to_ret = true;
+	}
+#pragma endregion
+	void dynamic_as(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.addArg(readData<VType>(data, data_len, i));
+		b.finalize(asValue);
+	}
+	void dynamic_is(){
+		a.movEnviroMeta(resr, readData<uint16_t>(data, data_len, i));
+		a.mov(argr0_8l, readData<VType>(data, data_len, i));
+		a.cmp(resr_8l, argr0_8l);
+	}
+	void dynamic_store_bool(){
+		BuildCall b(a, 1);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(isTrueValue);
+		a.load_flag8h();
+		a.shift_left(resr_8l, RFLAGS::off_left::zero);
+		a.or_(resr_8h, resr_8l);
+		a.store_flag8h();
+	}
+	void dynamic_load_bool(){
+		a.load_flag8h();
+		a.and_(resr_8h, RFLAGS::bit::zero);
+		a.store_flag8h();
+		BuildCall b(a, 2);
+		b.addArg(resr_8h);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(setBoolValue);
+	}
+
+	void dynamic_throw(){
+		bool in_memory = readData<bool>(data, data_len, i);
+		if (in_memory) {
+			BuildCall b(a, 2);
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.finalize(throwDirEx);
+		}
+		else {
+			values.push_back(readString(data, data_len, i));
+			auto& ex_typ = values.back();
+			values.push_back(readString(data, data_len, i));
+			auto& ex_desc = values.back();
+			BuildCall b(a, 2);
+			b.addArg(ex_typ.val);
+			b.addArg(ex_desc.val);
+			b.finalize(throwEx);
+		}
+	}
+	void dynamic_insert_native() {
+		uint32_t len = readData<uint32_t>(data, data_len, i);
+		auto tmp = extractRawArray<uint8_t>(data, data_len, i, len);
+		a.insertNative(tmp, len);
+	}
+	void dynamic_set_structure_value(){
+		BuildCall b(a, 0);
+		if (readData<bool>(data, data_len, i)) {
+			uint16_t value_index = readData<uint16_t>(data, data_len, i);
+			b.leaEnviro(value_index);
+			b.addArg(VType::string);
+			b.finalize(getSpecificValue);
+			b.addArg(readData<ClassAccess>(data, data_len, i));
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
+			b.addArg(resr);
+		}
+		else {
+			std::string fnn = readString(data, data_len, i);
+			values.push_back(fnn);
+			b.addArg((std::string*)values.back().val);
+			b.addArg(readData<ClassAccess>(data, data_len, i));
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
+		}
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));//value
+		b.finalize((void(*)(ClassAccess, ValueItem&, const std::string&, ValueItem&))AttachA::Interface::setValue);
+	}
+	void dynamic_get_structure_value() {
+		BuildCall b(a, 0);
+		if (readData<bool>(data, data_len, i)) {
+			uint16_t value_index = readData<uint16_t>(data, data_len, i);
+			b.leaEnviro(value_index);
+			b.addArg(VType::string);
+			b.finalize(getSpecificValue);
+			b.addArg(readData<ClassAccess>(data, data_len, i));
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
+			b.addArg(resr);
+		}
+		else {
+			std::string fnn = readString(data, data_len, i);
+			values.push_back(fnn);
+			b.addArg((std::string*)values.back().val);
+			b.addArg(readData<ClassAccess>(data, data_len, i));
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
+		}
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));//save to
+		b.finalize(getInterfaceValue);
+	}
+	void dynamic_explicit_await(){
+		BuildCall b(a, 1);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(&ValueItem::getAsync);
+	}
+	void dynamic_ret() {
+		BuildCall b(a, 1);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(buildRes);
+		do_jump_to_ret = true;
+	}
+
+	void dynamic_arr_op(){
+		uint16_t arr = readData<uint16_t>(data, data_len, i);
+		BuildCall b(a, 0);
+		b.leaEnviro(arr);
+		b.finalize(AsArr);
+		auto flags = readData<OpArrFlags>(data, data_len, i);
+		switch (readData<OpcodeArray>(data, data_len, i)) {
+		case OpcodeArray::set: {
+			if (flags.by_val_mode) {
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.leaEnviro(arr);
+				b.addArg(resr);
+			}
+			else {
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.leaEnviro(arr);
+				b.addArg(readData<uint64_t>(data, data_len, i));
+			}
+			if (flags.move_mode) {
+				switch (flags.checked)
+				{
+				case ArrCheckMode::no_check:
+					b.finalize(IndexArraySetMoveDynamic<0>);
+					break;
+				case ArrCheckMode::check:
+					b.finalize(IndexArraySetMoveDynamic<1>);
+					break;
+				case ArrCheckMode::no_throw_check:
+					b.finalize(IndexArraySetMoveDynamic<2>);
+					break;
+				default:
+					break;
+				}
+			}
+			else {
+				switch (flags.checked)
+				{
+				case ArrCheckMode::no_check:
+					b.finalize(IndexArraySetCopyDynamic<0>);
+					break;
+				case ArrCheckMode::check:
+					b.finalize(IndexArraySetCopyDynamic<1>);
+					break;
+				case ArrCheckMode::no_throw_check:
+					b.finalize(IndexArraySetCopyDynamic<2>);
+					break;
+				default:
+					break;
+				}
+			}
+			break;
+		}
+		case OpcodeArray::insert: {
+			if (flags.by_val_mode) {
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				b.leaEnviro(arr);
+				b.addArg(resr);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			}
+			else {
+				b.leaEnviro(arr);
+				b.addArg(readData<uint64_t>(data, data_len, i));
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			}
+			if (flags.move_mode)
+				b.finalize((void (list_array<ValueItem>::*)(size_t, const ValueItem&)) & list_array<ValueItem>::insert);
+			else
+				b.finalize((void (list_array<ValueItem>::*)(size_t, ValueItem&&)) & list_array<ValueItem>::insert);
+			break;
+		}
+		case OpcodeArray::push_end: {
+			b.movEnviro(arr);
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			if (flags.move_mode)
+				b.finalize((void (list_array<ValueItem>::*)(ValueItem&&)) & list_array<ValueItem>::push_back);
+			else
+				b.finalize((void (list_array<ValueItem>::*)(const ValueItem&)) & list_array<ValueItem>::push_back);
+			break;
+		}
+		case OpcodeArray::push_start: {
+			b.movEnviro(arr);
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			if (flags.move_mode)
+				b.finalize((void (list_array<ValueItem>::*)(ValueItem&&)) & list_array<ValueItem>::push_front);
+			else
+				b.finalize((void (list_array<ValueItem>::*)(const ValueItem&)) & list_array<ValueItem>::push_front);
+			break;
+		}
+		case OpcodeArray::insert_range: {
+			uint16_t arr1 = readData<uint16_t>(data, data_len, i);
+			b.leaEnviro(arr1);
+			b.finalize(AsArr);
+			if (flags.by_val_mode) {
+				uint16_t val1 = readData<uint16_t>(data, data_len, i);
+				uint16_t val2 = readData<uint16_t>(data, data_len, i);
+				uint16_t val3 = readData<uint16_t>(data, data_len, i);
+				b.leaEnviro(val3);
+				b.finalize(getSize);
+				a.push(resr);
+				b.leaEnviro(val2);
+				b.finalize(getSize);
+				a.push(resr);
+				b.leaEnviro(val1);
+				b.finalize(getSize);
+				b.movEnviro(arr);
+				b.addArg(resr);//1
+				b.leaEnviro(arr1);
+				a.pop(resr);
+				b.addArg(resr);//2
+				a.pop(resr);
+				b.addArg(resr);//3
+			}
+			else {
+				b.movEnviro(arr);
+				b.addArg(readData<uint64_t>(data, data_len, i));//1
+				b.leaEnviro(arr1);
+				b.addArg(readData<uint64_t>(data, data_len, i));//2
+				b.addArg(readData<uint64_t>(data, data_len, i));//3
+			}
+			b.finalize((void(list_array<ValueItem>::*)(size_t, const list_array<ValueItem>&, size_t, size_t)) & list_array<ValueItem>::insert);
+			break;
+		}
+		case OpcodeArray::get: {
+			if (flags.by_val_mode) {
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.leaEnviro(arr);
+				b.addArg(resr);
+			}
+			else {
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.leaEnviro(arr);
+				b.addArg(readData<uint64_t>(data, data_len, i));
+			}
+			if (flags.move_mode) {
+				switch (flags.checked)
+				{
+				case ArrCheckMode::no_check:
+					b.finalize(IndexArrayMoveDynamic<0>);
+					break;
+				case ArrCheckMode::check:
+					b.finalize(IndexArrayMoveDynamic<1>);
+					break;
+				case ArrCheckMode::no_throw_check:
+					b.finalize(IndexArrayMoveDynamic<2>);
+					break;
+				default:
+					break;
+				}
+			}
+			else {
+				switch (flags.checked)
+				{
+				case ArrCheckMode::no_check:
+					b.finalize(IndexArrayCopyDynamic<0>);
+					break;
+				case ArrCheckMode::check:
+					b.finalize(IndexArrayCopyDynamic<1>);
+					break;
+				case ArrCheckMode::no_throw_check:
+					b.finalize(IndexArrayCopyDynamic<2>);
+					break;
+				default:
+					break;
+				}
+			}
+			break;
+		}
+		case OpcodeArray::take: {
+			if (flags.by_val_mode) {
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				b.addArg(resr);
+				b.leaEnviro(arr);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			}
+			else {
+				b.addArg(readData<uint64_t>(data, data_len, i));
+				b.leaEnviro(arr);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			}
+			b.finalize(take);
+			break;
+		}
+		case OpcodeArray::take_end: {
+			b.leaEnviro(arr);
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.finalize(takeEnd);
+			break;
+		}
+		case OpcodeArray::take_start: {
+			b.leaEnviro(arr);
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.finalize(takeStart);
+			break;
+		}
+		case OpcodeArray::get_range: {
+			if (flags.by_val_mode) {
+				uint16_t set_to = readData<uint16_t>(data, data_len, i);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				a.push(resr);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				a.pop(argr2);
+				b.leaEnviro(arr);
+				b.addArg(set_to);
+				b.addArg(argr2);
+				b.addArg(resr);
+			}
+			else {
+				b.leaEnviro(arr);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.addArg(readData<uint64_t>(data, data_len, i));
+				b.addArg(readData<uint64_t>(data, data_len, i));
+			}
+			b.finalize(getRange);
+			break;
+		}
+		case OpcodeArray::take_range: {
+			if (flags.by_val_mode) {
+				uint16_t set_to = readData<uint16_t>(data, data_len, i);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				a.push(resr);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				a.pop(argr2);
+				b.leaEnviro(arr);
+				b.addArg(set_to);
+				b.addArg(argr2);
+				b.addArg(resr);
+			}
+			else {
+				b.leaEnviro(arr);
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.addArg(readData<uint64_t>(data, data_len, i));
+				b.addArg(readData<uint64_t>(data, data_len, i));
+			}
+			b.finalize(takeRange);
+			break;
+		}
+		case OpcodeArray::pop_end: {
+			b.leaEnviro(arr);
+			b.finalize(&list_array<ValueItem>::pop_back);
+			break;
+		}
+		case OpcodeArray::pop_start: {
+			b.leaEnviro(arr);
+			b.finalize(&list_array<ValueItem>::pop_front);
+			break;
+		}
+		case OpcodeArray::remove_item: {
+			b.movEnviro(arr);
+			b.addArg(readData<uint64_t>(data, data_len, i));
+			b.finalize((void(list_array<ValueItem>::*)(size_t pos)) & list_array<ValueItem>::remove);
+			break;
+		}
+		case OpcodeArray::remove_range: {
+			b.movEnviro(arr);
+			b.addArg(readData<uint64_t>(data, data_len, i));
+			b.addArg(readData<uint64_t>(data, data_len, i));
+			b.finalize((void(list_array<ValueItem>::*)(size_t, size_t)) & list_array<ValueItem>::remove);
+			break;
+		}
+		case OpcodeArray::resize: {
+			if (flags.by_val_mode) {
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				b.leaEnviro(arr);
+				b.addArg(resr);
+			}
+			else {
+				b.movEnviro(arr);
+				b.addArg(readData<uint64_t>(data, data_len, i));
+			}
+			b.finalize((void(list_array<ValueItem>::*)(size_t)) & list_array<ValueItem>::resize);
+			break;
+		}
+		case OpcodeArray::resize_default: {
+			if (flags.by_val_mode) {
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				b.leaEnviro(arr);
+				b.addArg(resr);
+			}
+			else {
+				b.movEnviro(arr);
+				b.addArg(readData<uint64_t>(data, data_len, i));
+			}
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.finalize((void(list_array<ValueItem>::*)(size_t, const ValueItem&)) & list_array<ValueItem>::resize);
+			break;
+		}
+		case OpcodeArray::reserve_push_end: {
+			b.leaEnviro(arr);
+			b.addArg(readData<uint64_t>(data, data_len, i));
+			b.finalize(&list_array<ValueItem>::reserve_push_back);
+			break;
+		}
+		case OpcodeArray::reserve_push_start: {
+			b.leaEnviro(arr);
+			if (flags.by_val_mode) {
+				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(getSize);
+				b.addArg(resr);
+			}
+			else
+				b.addArg(readData<uint64_t>(data, data_len, i));
+			b.finalize(&list_array<ValueItem>::reserve_push_front);
+			break;
+		}
+		case OpcodeArray::commit: {
+			b.movEnviro(arr);
+			b.finalize(&list_array<ValueItem>::commit);
+			break;
+		}
+		case OpcodeArray::decommit: {
+			b.movEnviro(arr);
+			b.addArg(readData<uint64_t>(data, data_len, i));
+			b.finalize(&list_array<ValueItem>::decommit);
+			break;
+		}
+		case OpcodeArray::remove_reserved: {
+			b.movEnviro(arr);
+			b.finalize(&list_array<ValueItem>::shrink_to_fit);
+			break;
+		}
+		case OpcodeArray::size: {
+			b.movEnviro(arr);
+			b.finalize(&list_array<ValueItem>::size);
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.addArg(resr);
+			b.finalize(setSize);
+			break;
+		}
+		default:
+			throw CompileTimeException("Invalid array operation");
+		}
+	}
+
+	void dynamic_handle_catch(){
+		size_t handle = scope_map.try_mapHandle(readData<uint64_t>(data, data_len, i));
+		if (handle == -1)
+			throw CompileTimeException("Undefined handle");
+		ScopeAction* scope_action = scope.setExceptionHandle(handle, _attacha_filter);
+		//switch (readData<char>(data, data_len, i)) {
+		//case 0:
+		//	{
+		//		struct _filter_data {
+		//			typed_lgr<FuncEnviropment> catch
+		//			std::string message;
+		//		};
+		//	}
+		//	break;
+		//
+		//}
+		
+		//char* data = new char[10];
+
+
+		//data[0] =0;
+		//scope_action->filter_data = data;
+		//scope_action->filter_data_len = 10;
+		//scope_action->cleanup_filter_data = [](ScopeAction* data) {
+		//	delete[] (char*)data->filter_data;
+		//	data->filter_data = nullptr;
+		//};
+	}
+#pragma endregion
+
+
 	void static_build(){
 		switch (cmd.code) {
 			case Opcode::set: {
@@ -2314,744 +3137,50 @@ struct CompilerFabric{
 				throw CompileTimeException("Invalid opcode");
 		}
 	}
+	
+
 	void dynamic_build(){
 		switch (cmd.code) {
-			case Opcode::noting:
-				a.noting();
-				break;
-			case Opcode::set: {
-				uint16_t value_index = readData<uint16_t>(data, data_len, i);
-				ValueMeta meta = readData<ValueMeta>(data, data_len, i);
-				meta.as_ref = false;
-				uint16_t optional_len = 0;
-				{
-					BuildCall v(a, 3);
-					v.leaEnviro(value_index);
-					v.addArg(meta.encoded);
-					v.addArg(cmd.is_gc_mode);
-					v.finalize(preSetValue);
-				}
-				switch (meta.vtype) {
-				case VType::i8:
-				case VType::ui8:
-				case VType::type_identifier:
-					if (!meta.use_gc)
-						a.mov(resr, 0, 1, readData<uint8_t>(data, data_len, i));
-					else
-						values.push_back(ValueItem(new lgr(new uint8_t(readData<uint8_t>(data, data_len, i))), meta, no_copy));
-					break;
-				case VType::i16:
-				case VType::ui16:
-					if (!meta.use_gc)
-						a.mov(resr, 0, 2, readData<uint16_t>(data, data_len, i));
-					else
-						values.push_back(ValueItem(new lgr(new uint16_t(readData<uint16_t>(data, data_len, i))), meta, no_copy));
-					break;
-				case VType::i32:
-				case VType::ui32:
-				case VType::flo:
-					if (!meta.use_gc)
-						a.mov(resr, 0, 4, readData<uint32_t>(data, data_len, i));
-					else
-						values.push_back(ValueItem(new lgr(new uint32_t(readData<uint32_t>(data, data_len, i))), meta, no_copy));
-					break;
-				case VType::i64:
-				case VType::ui64:
-				case VType::doub:
-				case VType::undefined_ptr:
-					if (!meta.use_gc)
-						a.mov(resr, 0, 8, readData<uint64_t>(data, data_len, i));
-					else
-						values.push_back(ValueItem(new lgr(new uint64_t(readData<uint64_t>(data, data_len, i))), meta, no_copy));
-					break;
-				case VType::raw_arr_i8:
-				case VType::raw_arr_ui8: {
-					optional_len = readLen(data, data_len, i);
-					if (!meta.use_gc)
-						values.push_back(ValueItem(readRawArray<int8_t>(data, data_len, i, optional_len), meta, no_copy));
-					else
-						values.push_back(ValueItem(new lgr(readRawArray<int8_t>(data, data_len, i, optional_len)), meta, no_copy));
-					break;
-				}
-				case VType::raw_arr_i16:
-				case VType::raw_arr_ui16: {
-					optional_len = readLen(data, data_len, i);
-					if (!meta.use_gc)
-						values.push_back(ValueItem(readRawArray<int16_t>(data, data_len, i, optional_len), meta, no_copy));
-					else
-						values.push_back(ValueItem(new lgr(readRawArray<int16_t>(data, data_len, i, optional_len)), meta, no_copy));
-					break;
-				}
-				case VType::raw_arr_i32:
-				case VType::raw_arr_ui32:
-				case VType::raw_arr_flo: {
-					optional_len = readLen(data, data_len, i);
-					if (!meta.use_gc)
-						values.push_back(ValueItem(readRawArray<int32_t>(data, data_len, i, optional_len), meta, no_copy));
-					else
-						values.push_back(ValueItem(new lgr(readRawArray<int32_t>(data, data_len, i, optional_len)), meta, no_copy));
-					break;
-				}
-				case VType::raw_arr_i64:
-				case VType::raw_arr_ui64:
-				case VType::raw_arr_doub: {
-					optional_len = readLen(data, data_len, i);
-					if (!meta.use_gc)
-						values.push_back(ValueItem(readRawArray<int64_t>(data, data_len, i, optional_len), meta, no_copy));
-					else
-						values.push_back(ValueItem(new lgr(readRawArray<int64_t>(data, data_len, i, optional_len)), meta, no_copy));
-					break;
-				}
-				case VType::uarr: {
-					if (!meta.use_gc)
-						values.push_back(ValueItem(readAnyUarr(data, data_len, i)));
-					else
-						values.push_back(ValueItem(new lgr(new list_array<ValueItem>(readAnyUarr(data, data_len, i))), meta, no_copy));
-					break;
-				}
-				case VType::string: {
-					if (!meta.use_gc)
-						values.push_back(readString(data, data_len, i));
-					else
-						values.push_back(ValueItem(new lgr(new std::string(readString(data, data_len, i))), meta, no_copy));
-					break;
-				}
-				case VType::faarr: {
-					optional_len = readLen(data, data_len, i);
-					if (!meta.use_gc) {
-						meta.val_len = optional_len;
-						values.push_back(ValueItem(readRawAny(data, data_len, i, optional_len), meta, no_copy));
-					}
-					else
-						values.push_back(ValueItem(new lgr(readRawAny(data, data_len, i, optional_len)), meta, no_copy));
-					break;
-				}
-				default:
-					break;
-				}
-
-				if (needAlloc(meta)) {
-					BuildCall b(a, 3);
-					b.addArg(resr);
-					b.addArg(values.back().val);
-					b.addArg(meta.encoded);
-					b.finalize(setValue);
-					if (is_raw_array(meta.vtype)) {
-						a.mov(resr, uint64_t(optional_len) << 32);
-						a.or_(resr, enviro_ptr, CASM::enviroMetaOffset(value_index));
-						a.movEnviroMeta(value_index, resr);
-					}
-					break;
-				}
-
-				break;
-			}
-			case Opcode::set_saar: {
-				uint16_t value_index = readData<uint16_t>(data, data_len, i);
-				uint32_t len = readData<uint32_t>(data, data_len, i);
-				BuildCall b(a, 0);
-				
-				b.leaEnviro(value_index);
-				b.finalize(valueDestructDyn);
-				ValueMeta set_meta(VType::saarr, false, true, len);
-				a.mov(resr, set_meta.encoded);
-				a.movEnviroMeta(value_index, resr);
-
-				a.stackIncrease(len * sizeof(ValueItem));
-				b.addArg(stack_ptr);
-				b.addArg(len*2);
-				b.finalize(prepareStack);
-				a.movEnviro(value_index, resr);
-				
-				break;
-			}
-			case Opcode::remove: {
-				BuildCall b(a, 1);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(universalRemove);
-				break;
-			}
-			case Opcode::sum: {
-				BuildCall b(a, 2);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(DynSum);
-				break;
-			}
-			case Opcode::minus: {
-				BuildCall b(a, 2);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(DynMinus);
-				break;
-			}
-			case Opcode::div: {
-				BuildCall b(a, 2);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(DynDiv);
-				break;
-			}
-			case Opcode::rest: {
-				BuildCall b(a, 2);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(DynRest);
-				break;
-			}
-			case Opcode::mul: {
-				BuildCall b(a, 2);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(DynMul);
-				break;
-			}
-			case Opcode::bit_xor: {
-				BuildCall b(a, 2);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(DynBitXor);
-				break;
-			}
-			case Opcode::bit_or: {
-				BuildCall b(a, 2);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(DynBitOr);
-				break;
-			}
-			case Opcode::bit_and: {
-				BuildCall b(a, 2);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(DynBitAnd);
-				break;
-			}
-			case Opcode::bit_not: {
-				BuildCall b(a, 2);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(DynBitNot);
-				break;
-			}
-			case Opcode::log_not: {
-				a.load_flag8h();
-				a.xor_(resr_8h, RFLAGS::bit::zero & RFLAGS::bit::carry);
-				a.store_flag8h();
-				break;
-			}
-			case Opcode::compare: {
-				a.push_flags();
-				a.pop(argr0_16);
-
-				BuildCall b(a, 3);
-				b.skip();
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(compare);
-				a.push(resr_16);
-				a.pop_flags();
-				break;
-			}
-			case Opcode::jump: {
-				uint64_t to_find = readData<uint64_t>(data, data_len, i);
-				auto found = std::find_if(jump_list.begin(), jump_list.end(), [to_find](std::pair<uint64_t, Label>& it) { return it.first == to_find;  });
-				if (found == jump_list.end())
-					throw InvalidFunction("Invalid function header, not found jump position");
-				switch (readData<JumpCondition>(data, data_len, i))
-				{
-				default:
-				case JumpCondition::no_condition: {
-					a.jmp(found->second);
-					break;
-				}
-				case JumpCondition::is_equal: {
-					a.jmp_eq(found->second);
-					break;
-				}
-				case JumpCondition::is_not_equal: {
-					a.jmp_not_eq(found->second);
-					break;
-				}
-				case JumpCondition::is_more: {
-					a.jmp_more(found->second);
-					break;
-				}
-				case JumpCondition::is_lower: {
-					a.jmp_lower(found->second);
-					break;
-				}
-				case JumpCondition::is_more_or_eq: {
-					a.jmp_more_or_eq(found->second);
-					break;
-				}
-				case JumpCondition::is_lower_or_eq: {
-					a.jmp_lower_or_eq(found->second);
-					break;
-				}
-				}
-				break;
-			}
-			case Opcode::arg_set: {
-				BuildCall b(a, 1);
-				uint16_t item = readData<uint16_t>(data, data_len, i);
-				b.leaEnviro(item);
-				b.finalize(AsArg);
-				a.mov(arg_ptr, resr);
-				a.getEnviroMetaSize(arg_len_32, item);
-				break;
-			}
-			case Opcode::call: {
-				compilerFabric_call<true>(a, data, data_len, i, values);
-				break;
-			}
-			case Opcode::call_self: {
-				CallFlags flags;
-				flags.encoded = readData<uint8_t>(data, data_len, i);
-				if (flags.async_mode)
-					throw CompileTimeException("Fail compile async 'call_self', for asynchonly call self use 'call' command");
-				BuildCall b(a, 0);
-				b.addArg(arg_ptr);
-				b.addArg(arg_len_32);
-				b.finalize(self_function);
-
-				if (flags.use_result) {
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					b.addArg(resr);
-					b.finalize(getValueItem);
-				}
-				else {
-					inlineReleaseUnused(a, resr);
-				}
-				break;
-			}
-			case Opcode::call_local: {
-				compilerFabric_call_local<true>(a, data, data_len, i, build_func);
-				break;
-			}
+			case Opcode::noting: a.noting(); break;
+			case Opcode::set: dynamic_set(); break;
+			case Opcode::set_saarr: dynamic_set_saarr(); break;
+			case Opcode::remove: dynamic_remove(); break;
+			case Opcode::sum: dynamic_sum(); break;
+			case Opcode::minus: dynamic_minus(); break;
+			case Opcode::div: dynamic_div(); break;
+			case Opcode::rest: dynamic_rest(); break;
+			case Opcode::mul: dynamic_mul(); break;
+			case Opcode::bit_xor: dynamic_bit_xor(); break;
+			case Opcode::bit_or: dynamic_bit_or(); break;
+			case Opcode::bit_and: dynamic_bit_and(); break;
+			case Opcode::bit_not: dynamic_bit_not(); break;
+			case Opcode::log_not: dynamic_log_not(); break;
+			case Opcode::compare: dynamic_compare(); break;
+			case Opcode::jump: dynamic_jump(); break;
+			case Opcode::arg_set: dunamic_arg_set(); break;
+			case Opcode::call: compilerFabric_call<true>(a, data, data_len, i, values); break;
+			case Opcode::call_self: dynamic_call_self(); break;
+			case Opcode::call_local: compilerFabric_call_local<true>(a, data, data_len, i, build_func);
 			case Opcode::call_and_ret: {
 				compilerFabric_call<false, false>(a, data, data_len, i, values);
 				do_jump_to_ret = true;
 				break;
 			}
-			case Opcode::call_self_and_ret: {
-				CallFlags flags;
-				flags.encoded = readData<uint8_t>(data, data_len, i);
-				if (flags.async_mode)
-					throw CompileTimeException("Fail compile async 'call_self', for asynchonly call self use 'call' command");
-				BuildCall b(a, 3);
-				b.addArg(this);
-				b.addArg(arg_ptr);
-				b.addArg(arg_len_32);
-				b.finalize(self_function);
-				do_jump_to_ret = true;
-				break;
-			}
+			case Opcode::call_self_and_ret: dynamic_call_self_and_ret(); break;
 			case Opcode::call_local_and_ret: {
 				compilerFabric_call_local<false, false>(a, data, data_len, i, build_func);
 				do_jump_to_ret = true;
 				break;
 			}
-			case Opcode::ret: {
-				BuildCall b(a, 1);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(buildRes);
-				do_jump_to_ret = true;
-				break;
-			}
+			case Opcode::ret: dynamic_ret(); break;
 			case Opcode::ret_noting: {
 				a.xor_(resr, resr);
 				do_jump_to_ret = true;
 				break;
 			}
-			case Opcode::copy: {
-				uint16_t from = readData<uint16_t>(data, data_len, i);
-				uint16_t to = readData<uint16_t>(data, data_len, i);
-				if (from != to) {
-					BuildCall b(a, 0);
-					b.leaEnviro(to);
-					b.finalize(universalRemove);
-					b.movEnviro(from);
-					b.movEnviroMeta(from);
-					b.finalize(copyValue);
-					a.movEnviro(to, resr);
-					a.movEnviroMeta(resr, from);
-					a.movEnviroMeta(to, resr);
-				}
-				break;
-			}
-			case Opcode::move: {
-				uint16_t from = readData<uint16_t>(data, data_len, i);
-				uint16_t to = readData<uint16_t>(data, data_len, i);
-				if (from != to) {
-					BuildCall b(a, 1);
-					b.leaEnviro(to);
-					b.finalize(universalRemove);
-
-					a.movEnviro(resr, from);
-					a.movEnviro(to, resr);
-					a.movEnviroMeta(resr, from);
-					a.movEnviroMeta(to, resr);
-					a.movEnviroMeta(from, 0);
-				}
-				break;
-			}
-			case Opcode::arr_op: {
-				uint16_t arr = readData<uint16_t>(data, data_len, i);
-				BuildCall b(a, 0);
-				b.leaEnviro(arr);
-				b.finalize(AsArr);
-				auto flags = readData<OpArrFlags>(data, data_len, i);
-				switch (readData<OpcodeArray>(data, data_len, i)) {
-				case OpcodeArray::set: {
-					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.leaEnviro(arr);
-						b.addArg(resr);
-					}
-					else {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.leaEnviro(arr);
-						b.addArg(readData<uint64_t>(data, data_len, i));
-					}
-					if (flags.move_mode) {
-						switch (flags.checked)
-						{
-						case ArrCheckMode::no_check:
-							b.finalize(IndexArraySetMoveDynamic<0>);
-							break;
-						case ArrCheckMode::check:
-							b.finalize(IndexArraySetMoveDynamic<1>);
-							break;
-						case ArrCheckMode::no_throw_check:
-							b.finalize(IndexArraySetMoveDynamic<2>);
-							break;
-						default:
-							break;
-						}
-					}
-					else {
-						switch (flags.checked)
-						{
-						case ArrCheckMode::no_check:
-							b.finalize(IndexArraySetCopyDynamic<0>);
-							break;
-						case ArrCheckMode::check:
-							b.finalize(IndexArraySetCopyDynamic<1>);
-							break;
-						case ArrCheckMode::no_throw_check:
-							b.finalize(IndexArraySetCopyDynamic<2>);
-							break;
-						default:
-							break;
-						}
-					}
-					break;
-				}
-				case OpcodeArray::insert: {
-					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-						b.leaEnviro(arr);
-						b.addArg(resr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					}
-					else {
-						b.leaEnviro(arr);
-						b.addArg(readData<uint64_t>(data, data_len, i));
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					}
-					if (flags.move_mode)
-						b.finalize((void (list_array<ValueItem>::*)(size_t, const ValueItem&)) & list_array<ValueItem>::insert);
-					else
-						b.finalize((void (list_array<ValueItem>::*)(size_t, ValueItem&&)) & list_array<ValueItem>::insert);
-					break;
-				}
-				case OpcodeArray::push_end: {
-					b.movEnviro(arr);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					if (flags.move_mode)
-						b.finalize((void (list_array<ValueItem>::*)(ValueItem&&)) & list_array<ValueItem>::push_back);
-					else
-						b.finalize((void (list_array<ValueItem>::*)(const ValueItem&)) & list_array<ValueItem>::push_back);
-					break;
-				}
-				case OpcodeArray::push_start: {
-					b.movEnviro(arr);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					if (flags.move_mode)
-						b.finalize((void (list_array<ValueItem>::*)(ValueItem&&)) & list_array<ValueItem>::push_front);
-					else
-						b.finalize((void (list_array<ValueItem>::*)(const ValueItem&)) & list_array<ValueItem>::push_front);
-					break;
-				}
-				case OpcodeArray::insert_range: {
-					uint16_t arr1 = readData<uint16_t>(data, data_len, i);
-					b.leaEnviro(arr1);
-					b.finalize(AsArr);
-					if (flags.by_val_mode) {
-						uint16_t val1 = readData<uint16_t>(data, data_len, i);
-						uint16_t val2 = readData<uint16_t>(data, data_len, i);
-						uint16_t val3 = readData<uint16_t>(data, data_len, i);
-
-						b.leaEnviro(val3);
-						b.finalize(getSize);
-						a.push(resr);
-
-						b.leaEnviro(val2);
-						b.finalize(getSize);
-						a.push(resr);
-
-						b.leaEnviro(val1);
-						b.finalize(getSize);
-						b.movEnviro(arr);
-						b.addArg(resr);//1
-						b.leaEnviro(arr1);
-
-						a.pop(resr);
-						b.addArg(resr);//2
-						a.pop(resr);
-						b.addArg(resr);//3
-					}
-					else {
-						b.movEnviro(arr);
-						b.addArg(readData<uint64_t>(data, data_len, i));//1
-						b.leaEnviro(arr1);
-
-						b.addArg(readData<uint64_t>(data, data_len, i));//2
-						b.addArg(readData<uint64_t>(data, data_len, i));//3
-					}
-
-					b.finalize((void(list_array<ValueItem>::*)(size_t, const list_array<ValueItem>&, size_t, size_t)) & list_array<ValueItem>::insert);
-					break;
-				}
-				case OpcodeArray::get: {
-					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.leaEnviro(arr);
-						b.addArg(resr);
-					}
-					else {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.leaEnviro(arr);
-						b.addArg(readData<uint64_t>(data, data_len, i));
-					}
-					if (flags.move_mode) {
-						switch (flags.checked)
-						{
-						case ArrCheckMode::no_check:
-							b.finalize(IndexArrayMoveDynamic<0>);
-							break;
-						case ArrCheckMode::check:
-							b.finalize(IndexArrayMoveDynamic<1>);
-							break;
-						case ArrCheckMode::no_throw_check:
-							b.finalize(IndexArrayMoveDynamic<2>);
-							break;
-						default:
-							break;
-						}
-					}
-					else {
-						switch (flags.checked)
-						{
-						case ArrCheckMode::no_check:
-							b.finalize(IndexArrayCopyDynamic<0>);
-							break;
-						case ArrCheckMode::check:
-							b.finalize(IndexArrayCopyDynamic<1>);
-							break;
-						case ArrCheckMode::no_throw_check:
-							b.finalize(IndexArrayCopyDynamic<2>);
-							break;
-						default:
-							break;
-						}
-					}
-					break;
-				}
-				case OpcodeArray::take: {
-					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-						b.addArg(resr);
-						b.leaEnviro(arr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					}
-					else {
-						b.addArg(readData<uint64_t>(data, data_len, i));
-						b.leaEnviro(arr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					}
-					b.finalize(take);
-					break;
-				}
-				case OpcodeArray::take_end: {
-					b.leaEnviro(arr);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					b.finalize(takeEnd);
-					break;
-				}
-				case OpcodeArray::take_start: {
-					b.leaEnviro(arr);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					b.finalize(takeStart);
-					break;
-				}
-				case OpcodeArray::get_range: {
-					if (flags.by_val_mode) {
-						uint16_t set_to = readData<uint16_t>(data, data_len, i);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-						a.push(resr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-
-						a.pop(argr2);
-
-						b.leaEnviro(arr);
-						b.addArg(set_to);
-						b.addArg(argr2);
-						b.addArg(resr);
-					}
-					else {
-						b.leaEnviro(arr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.addArg(readData<uint64_t>(data, data_len, i));
-						b.addArg(readData<uint64_t>(data, data_len, i));
-					}
-					b.finalize(getRange);
-					break;
-				}
-				case OpcodeArray::take_range: {
-					if (flags.by_val_mode) {
-						uint16_t set_to = readData<uint16_t>(data, data_len, i);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-						a.push(resr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-
-						a.pop(argr2);
-
-						b.leaEnviro(arr);
-						b.addArg(set_to);
-						b.addArg(argr2);
-						b.addArg(resr);
-					}
-					else {
-						b.leaEnviro(arr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.addArg(readData<uint64_t>(data, data_len, i));
-						b.addArg(readData<uint64_t>(data, data_len, i));
-					}
-					b.finalize(takeRange);
-					break;
-				}
-				case OpcodeArray::pop_end: {
-					b.leaEnviro(arr);
-					b.finalize(&list_array<ValueItem>::pop_back);
-					break;
-				}
-				case OpcodeArray::pop_start: {
-					b.leaEnviro(arr);
-					b.finalize(&list_array<ValueItem>::pop_front);
-					break;
-				}
-				case OpcodeArray::remove_item: {
-					b.movEnviro(arr);
-					b.addArg(readData<uint64_t>(data, data_len, i));
-					b.finalize((void(list_array<ValueItem>::*)(size_t pos)) & list_array<ValueItem>::remove);
-					break;
-				}
-				case OpcodeArray::remove_range: {
-					b.movEnviro(arr);
-					b.addArg(readData<uint64_t>(data, data_len, i));
-					b.addArg(readData<uint64_t>(data, data_len, i));
-					b.finalize((void(list_array<ValueItem>::*)(size_t, size_t)) & list_array<ValueItem>::remove);
-					break;
-				}
-
-				case OpcodeArray::resize: {
-					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-						b.leaEnviro(arr);
-						b.addArg(resr);
-					}
-					else {
-						b.movEnviro(arr);
-						b.addArg(readData<uint64_t>(data, data_len, i));
-					}
-					b.finalize((void(list_array<ValueItem>::*)(size_t)) & list_array<ValueItem>::resize);
-					break;
-				}
-				case OpcodeArray::resize_default: {
-					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-						b.leaEnviro(arr);
-						b.addArg(resr);
-					}
-					else {
-						b.movEnviro(arr);
-						b.addArg(readData<uint64_t>(data, data_len, i));
-					}
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					b.finalize((void(list_array<ValueItem>::*)(size_t, const ValueItem&)) & list_array<ValueItem>::resize);
-					break;
-				}
-				case OpcodeArray::reserve_push_end: {
-					b.leaEnviro(arr);
-					b.addArg(readData<uint64_t>(data, data_len, i));
-					b.finalize(&list_array<ValueItem>::reserve_push_back);
-					break;
-				}
-				case OpcodeArray::reserve_push_start: {
-					b.leaEnviro(arr);
-					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.finalize(getSize);
-						b.addArg(resr);
-					}
-					else
-						b.addArg(readData<uint64_t>(data, data_len, i));
-					b.finalize(&list_array<ValueItem>::reserve_push_front);
-					break;
-				}
-
-				case OpcodeArray::commit: {
-					b.movEnviro(arr);
-					b.finalize(&list_array<ValueItem>::commit);
-					break;
-				}
-				case OpcodeArray::decommit: {
-					b.movEnviro(arr);
-					b.addArg(readData<uint64_t>(data, data_len, i));
-					b.finalize(&list_array<ValueItem>::decommit);
-					break;
-				}
-				case OpcodeArray::remove_reserved: {
-					b.movEnviro(arr);
-					b.finalize(&list_array<ValueItem>::shrink_to_fit);
-					break;
-				}
-				case OpcodeArray::size: {
-					b.movEnviro(arr);
-					b.finalize(&list_array<ValueItem>::size);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					b.addArg(resr);
-					b.finalize(setSize);
-					break;
-				}
-				default:
-					throw CompileTimeException("Invalid array operation");
-				}
-				break;
-			}
+			case Opcode::copy: dynamic_copy(); break;
+			case Opcode::move: dynamic_move(); break;
+			case Opcode::arr_op: dynamic_arr_op(); break;
 			case Opcode::debug_break:
 				if (!in_debug)
 					break;
@@ -3059,175 +3188,39 @@ struct CompilerFabric{
 			case Opcode::force_debug_break:
 				a.int3();
 				break;
-			case Opcode::throw_ex: {
-				bool in_memory = readData<bool>(data, data_len, i);
-				if (in_memory) {
-					BuildCall b(a, 2);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
-					b.finalize(throwDirEx);
-				}
-				else {
-					values.push_back(readString(data, data_len, i));
-					auto& ex_typ = values.back();
-					values.push_back(readString(data, data_len, i));
-					auto& ex_desc = values.back();
-					BuildCall b(a, 2);
-					b.addArg(ex_typ.val);
-					b.addArg(ex_desc.val);
-					b.finalize(throwEx);
-				}
-				break;
-			}
-			case Opcode::as: {
-				BuildCall b(a, 2);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.addArg(readData<VType>(data, data_len, i));
-				b.finalize(asValue);
-				break;
-			}
-			case Opcode::is: {
-				a.movEnviroMeta(resr, readData<uint16_t>(data, data_len, i));
-				a.mov(argr0_8l, readData<VType>(data, data_len, i));
-				a.cmp(resr_8l, argr0_8l);
-				break;
-			}
-			case Opcode::store_bool: {
-				BuildCall b(a, 1);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(isTrueValue);
-				a.load_flag8h();
-				a.shift_left(resr_8l, RFLAGS::off_left::zero);
-				a.or_(resr_8h, resr_8l);
-				a.store_flag8h();
-				break;
-			}
-			case Opcode::load_bool: {
-				a.load_flag8h();
-				a.and_(resr_8h, RFLAGS::bit::zero);
-				a.store_flag8h();
-				BuildCall b(a, 2);
-				b.addArg(resr_8h);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(setBoolValue);
-				break;
-			}
-			case Opcode::inline_native: {
-				uint32_t len = readData<uint32_t>(data, data_len, i);
-				auto tmp = readRawArray<uint8_t>(data, data_len, i, len);
-				a.insertNative(tmp, len);
-				break;
-			}
-			case Opcode::call_value_function: {
-				compilerFabric_value_call<true, true>(a, data, data_len, i, values);
-				break;
-			}
+			case Opcode::throw_ex: dynamic_throw();
+			case Opcode::as: dynamic_as(); break;
+			case Opcode::is: dynamic_is(); break;
+			case Opcode::store_bool: dynamic_store_bool(); break;
+			case Opcode::load_bool: dynamic_load_bool(); break;
+			case Opcode::inline_native: dynamic_insert_native(); break;
+			case Opcode::call_value_function: compilerFabric_value_call<true, true>(a, data, data_len, i, values); break;
 			case Opcode::call_value_function_and_ret: {
 				compilerFabric_value_call<false, false>(a, data, data_len, i, values);
 				do_jump_to_ret = true;
 				break;
 			}
-			case Opcode::static_call_value_function: {
-				compilerFabric_static_value_call<true, true>(a, data, data_len, i, values);
-				break;
-			}
+			case Opcode::static_call_value_function:  compilerFabric_static_value_call<true, true>(a, data, data_len, i, values); break;
 			case Opcode::static_call_value_function_and_ret: {
 				compilerFabric_static_value_call<false, false>(a, data, data_len, i, values);
 				do_jump_to_ret = true;
 				break;
 			}
-			case Opcode::set_structure_value: {
-				BuildCall b(a, 0);
-				if (readData<bool>(data, data_len, i)) {
-					uint16_t value_index = readData<uint16_t>(data, data_len, i);
-					b.leaEnviro(value_index);
-					b.addArg(VType::string);
-					b.finalize(getSpecificValue);
-					b.addArg(readData<ClassAccess>(data, data_len, i));
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
-					b.addArg(resr);
-				}
-				else {
-					std::string fnn = readString(data, data_len, i);
-					values.push_back(fnn);
-					b.addArg((std::string*)values.back().val);
-					b.addArg(readData<ClassAccess>(data, data_len, i));
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
-				}
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));//value
-				b.finalize((void(*)(ClassAccess, ValueItem&, const std::string&, ValueItem&))AttachA::Interface::setValue);
-				break;
-			}
-			case Opcode::get_structure_value: {
-				BuildCall b(a, 0);
-				if (readData<bool>(data, data_len, i)) {
-					uint16_t value_index = readData<uint16_t>(data, data_len, i);
-					b.leaEnviro(value_index);
-					b.addArg(VType::string);
-					b.finalize(getSpecificValue);
-					b.addArg(readData<ClassAccess>(data, data_len, i));
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
-					b.addArg(resr);
-				}
-				else {
-					std::string fnn = readString(data, data_len, i);
-					values.push_back(fnn);
-					b.addArg((std::string*)values.back().val);
-					b.addArg(readData<ClassAccess>(data, data_len, i));
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
-				}
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));//save to
-				b.finalize(getInterfaceValue);
-				break;
-			}
-			case Opcode::explicit_await: {
-				BuildCall b(a, 1);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.finalize(&ValueItem::getAsync);
-				break;
-			}
-			case Opcode::generator_get:
-				throw NotImplementedException();
-				
+			case Opcode::set_structure_value: dynamic_set_structure_value(); break;
+			case Opcode::get_structure_value: dynamic_get_structure_value(); break;
+			case Opcode::explicit_await: dynamic_explicit_await(); break;
 			case Opcode::handle_begin:
 				scope_map.mapHandle(readData<uint64_t>(data, data_len, i));
 				break;
-			case Opcode::handle_catch:{
-				size_t handle = scope_map.try_mapHandle(readData<uint64_t>(data, data_len, i));
-				if (handle == -1)
-					throw CompileTimeException("Undefined handle");
-				ScopeAction* scope_action = scope.setExceptionHandle(handle, _attacha_filter);
-				//switch (readData<char>(data, data_len, i)) {
-				//case 0:
-				//	{
-				//		struct _filter_data {
-				//			typed_lgr<FuncEnviropment> catch
-				//			std::string message;
-				//		};
-				//	}
-				//	break;
-//
-				//}
-				
-				//char* data = new char[10];
-
-
-				//data[0] =0;
-				//scope_action->filter_data = data;
-				//scope_action->filter_data_len = 10;
-				//scope_action->cleanup_filter_data = [](ScopeAction* data) {
-				//	delete[] (char*)data->filter_data;
-				//	data->filter_data = nullptr;
-				//};
-
-				break;
-			}
+			case Opcode::handle_catch:dynamic_handle_catch(); break;
+			
 			case Opcode::handle_finally:
 			case Opcode::handle_convert:
-
 			case Opcode::value_hold:
-
 			case Opcode::value_unhold:
+
+			
+			case Opcode::generator_get:
 			default:
 				throw CompileTimeException("Invalid opcode");
 		}
@@ -3319,19 +3312,19 @@ void FuncEnviropment::RuntimeCompile() {
 	tmp.use_handle = true;
 	tmp.exHandleOff = a.offset() <= UINT32_MAX ? (uint32_t)a.offset() : throw CompileTimeException("Too big function");
 	a.jmp(__attacha_handle);
-	curr_func = (Enviropment)tmp.init(frame, a.code(), jrt, "attach_a_symbol");
-}
-std::string FuncEnviropment::to_string(){
-	 for(auto& it : enviropments)
-		if(it.second.getPtr() == this)
-			return "fn(" + it.first + ")@" + (std::ostringstream() << curr_func).str();
-	if(curr_func)
-		return "fn(" + FrameResult::JitResolveFrame(curr_func,true).fn_name + ")@" + (std::ostringstream() << curr_func).str();
-	else{
-		return "fn(unknown)@0";
-	}
+	
+	curr_func = (Enviropment)tmp.init(frame, a.code(), jrt, try_resolve_frame(this));
 }
 
+#pragma region FuncEnviropment
+std::string FuncEnviropment::to_string(){
+	if(!curr_func)
+		return "fn(unknown)@0";
+	for(auto& it : enviropments)
+		if(it.second.getPtr() == this)
+			return "fn(" + it.first + ")@" + (std::ostringstream() << curr_func).str();
+	return "fn(" + FrameResult::JitResolveFrame(curr_func,true).fn_name + ")@" + (std::ostringstream() << curr_func).str();
+}
 void FuncEnviropment::fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code) {
 	auto& tmp = enviropments[func_name];
 	if (tmp) {
@@ -3410,7 +3403,7 @@ void FuncEnviropment::ForceUnload(const std::string& func_name) {
 		enviropments.erase(func_name);
 	}
 }
-
+#pragma endregion
 
 
 
