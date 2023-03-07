@@ -16,7 +16,7 @@
 ENUM_t(Opcode,uint8_t,
 	(noting)
 	(set)
-	(set_saar)
+	(set_saarr)
 	(remove)
 	(sum)
 	(minus)

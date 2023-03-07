@@ -22,7 +22,7 @@ void FuncEviroBuilder::set_constant(uint16_t val, const ValueItem& cv, bool is_d
 	useVal(val);
 }
 void FuncEviroBuilder::set_stack_any_array(uint16_t val, uint32_t len) {
-	code.push_back(Command(Opcode::set_saar, false, false).toCmd());
+	code.push_back(Command(Opcode::set_saarr, false, false).toCmd());
 	builder::write(code, val);
 	builder::write(code, len);
 	useVal(val);
