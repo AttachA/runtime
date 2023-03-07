@@ -204,22 +204,27 @@ void proxyTest() {
 
 
 void __ex_handle_test() {
+	std::cout << (std::string)AttachA::cxxCall("internal stack trace") << std::endl;
 	throw 0;
 }
-
+#pragma optimize("",off)
 void ex_handle_test() {
 	FuncEnviropment::AddNative(__ex_handle_test, "__ex_handle_test", false);
+	
 	{
 		FuncEviroBuilder build;
 		build.call_and_ret("__ex_handle_test");
+		build.loadFunc("ex_handle_test");
 		try {
-			build.prepareFunc()->syncWrapper(nullptr,0);
+			callFunction("ex_handle_test", false);
 		}
 		catch (...) {
 			std::cout << "Passed ex_handle_test 0" << std::endl;
 		}
+		FuncEnviropment::ForceUnload("ex_handle_test");
 	}
 }
+#pragma optimize("",on)
 void interface_test() {
 	FuncEviroBuilder build;
 	build.set_constant(0, "D:\\helloWorld.bin");
@@ -351,17 +356,19 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	list_array<typed_lgr<Task>> tasks;
 
 
-	for (size_t i = 0; i < 10000; i++) {
-		tasks.push_back(new Task(FuncEnviropment::enviropment("start"), noting));
-		tasks.push_back(new Task(FuncEnviropment::enviropment("1"), noting));
-		tasks.push_back(new Task(env, noting));
-	}
-
-	Task::await_multiple(tasks);
-	tasks.clear();
+	//for (size_t i = 0; i < 10000; i++) {
+	//	tasks.push_back(new Task(FuncEnviropment::enviropment("start"), noting));
+	//	tasks.push_back(new Task(FuncEnviropment::enviropment("1"), noting));
+	//	tasks.push_back(new Task(env, noting));
+	//}
+	//
+	//Task::await_multiple(tasks);
+	//Task::clean_up();
+	//tasks.clear();
 	for (size_t i = 0; i < 10000; i++)
 		tasks.push_back(new Task(env, noting));
 	Task::await_multiple(tasks);
+	Task::clean_up();
 	tasks.clear();
 	for (size_t i = 0; i < 10000; i++)
 		tasks.push_back(new Task(env, noting));
@@ -414,7 +421,7 @@ int main(){
 	FuncEnviropment::AddNative(a3tgr4at, "4", false);
 	FuncEnviropment::AddNative(cout_test, "cout_test", false);
 	FuncEnviropment::AddNative(sleep_test, "sleep_test", false);
-	enable_thread_naming = true;
+	enable_thread_naming = false;
 	Task::max_running_tasks = 0;
 	Task::max_planned_tasks = 0;
 
