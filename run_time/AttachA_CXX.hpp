@@ -63,6 +63,8 @@ namespace AttachA {
 		inline ValueItem makeCall(ClassAccess access, MorphValue& c, const std::string& fun_name) {
 			ValueItem args(&c, VType::morph, as_refrence);
 			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&args, 1);
+			if (res == nullptr)
+				return {};
 			ValueItem m(std::move(*res));
 			delete res;
 			return m;
@@ -80,6 +82,8 @@ namespace AttachA {
 		inline ValueItem makeCall(ClassAccess access, ProxyClass& c, const std::string& fun_name) {
 			ValueItem arg(&c, VType::proxy, as_refrence);
 			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&arg, 1);
+			if (res == nullptr)
+				return {};
 			ValueItem m(std::move(*res));
 			delete res;
 			return m;

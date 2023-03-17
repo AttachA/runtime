@@ -138,6 +138,8 @@ namespace ABI_IMPL {
 	ValueItem SBcast(const std::string& str);
 	template<class T = int8_t>
 	ValueItem BVcast(const T& val) {
+		if constexpr (std::is_same_v<std::remove_cvref_t<T>, nullptr_t>)
+			return ValueItem();
 		if constexpr (std::is_same_v<std::remove_cvref_t<T>, bool>)
 			return ValueItem((void*)(0ull + val), VType::boolean);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, int8_t>)
@@ -190,6 +192,7 @@ namespace ABI_IMPL {
 					std::is_same_v<std::remove_cvref_t<T>, ProxyClass> ||
 					std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
 					std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>> ||
+					std::is_same_v<std::remove_cvref_t<T>, nullptr_t> ||
 					std::is_same_v<std::remove_cvref_t<T>, bool> ||
 					std::is_same_v<std::remove_cvref_t<T>, void*>
 					),
