@@ -334,11 +334,7 @@ struct ValueItem {
 		val = nullptr;
 		meta.encoded = 0;
 	}
-	ValueItem(ValueItem&& move) noexcept {
-		val = move.val;
-		meta = move.meta;
-		move.val = nullptr;
-	}
+	ValueItem(ValueItem&& move);
 	ValueItem(const void* vall, ValueMeta meta);
 	ValueItem(void* vall, ValueMeta meta, as_refrence_t);
 	ValueItem(void* vall, ValueMeta meta, no_copy_t);
@@ -347,7 +343,7 @@ struct ValueItem {
 	ValueItem(const ValueItem&);
 	ValueItem(ValueItem& ref, as_refrence_t);
 	ValueItem& operator=(const ValueItem& copy);
-	ValueItem& operator=(ValueItem&& copy) noexcept;
+	ValueItem& operator=(ValueItem&& copy);
 	~ValueItem();
 	bool operator<(const ValueItem& cmp) const;
 	bool operator>(const ValueItem& cmp) const;
@@ -485,6 +481,8 @@ struct ProxyClass {
 	ValueItem* getValue(const std::string& str);
 	void setValue(const std::string& str, ValueItem& it);
 	bool containsValue(const std::string& str);
+
+
 };
 
 

@@ -4,8 +4,6 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#define _WINSOCKAPI_
-#define WIN32_LEAN_AND_MEAN
 #include <list>
 //that included because <boost/context/protected_fixedsize_stack.hpp> use <boost/assert.hpp> but not include
 #include <boost/assert.hpp>
@@ -25,6 +23,7 @@
 #include <deque>
 #include <condition_variable>
 #include "tasks_util/light_stack.hpp"
+#include "library/parallel.hpp"
 
 
 
@@ -35,6 +34,10 @@
 #undef min
 namespace ctx = boost::context;
 constexpr size_t native_thread_flag = (SIZE_MAX ^ -1);
+ValueItem* _empty_func(ValueItem* /*ignored*/, uint32_t /*ignored*/) {
+	return nullptr;
+}
+typed_lgr<FuncEnviropment> empty_func(new FuncEnviropment(_empty_func, false));
 //first arg bool& check
 //second arg std::condition_variable_any
 ValueItem* _notify_native_thread(ValueItem* args, uint32_t /*ignored*/) {
@@ -44,11 +47,7 @@ ValueItem* _notify_native_thread(ValueItem* args, uint32_t /*ignored*/) {
 }
 typed_lgr<FuncEnviropment> notify_native_thread(new FuncEnviropment(_notify_native_thread, false));
 
-//make sure bridge task will be destructed before cd and checker
-typed_lgr<Task> create_native_thread_bridge(bool& checker, std::condition_variable_any& cd) {
-	ValueItem tmp{ ValueItem(&checker, VType::undefined_ptr), ValueItem(std::addressof(cd), VType::undefined_ptr) };
-	return new Task(notify_native_thread, tmp);
-}
+
 #pragma region MutexUnify
 void MutexUnify::lock() {
 	switch (type) {
@@ -718,9 +717,9 @@ Task::Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& argument
 	ex_handle = exception_handler;
 	func = call_func;
 	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
-		args = ValueItem((ValueItem*)const_cast<ValueItem&>(arguments).getSourcePtr(), arguments.meta.val_len);
+		args = arguments;
 	else if (arguments.meta.vtype != VType::noting)
-		args = ValueItem{arguments};
+		args = {arguments};
 	
 	timeout = task_timeout;
 	if (used_task_local)
@@ -737,10 +736,13 @@ Task::Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& argument
 Task::Task(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_task_local, typed_lgr<class FuncEnviropment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
 	ex_handle = exception_handler;
 	func = call_func;
-	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
-		args = ValueItem((ValueItem*)const_cast<ValueItem&>(arguments).getSourcePtr(), arguments.meta.val_len);
-	else if (arguments.meta.vtype != VType::noting)
-		args = ValueItem{ arguments };
+	if (arguments.meta.vtype == VType::faarr && arguments.meta.vtype == VType::saarr)
+		args = std::move(arguments);
+	else if (arguments.meta.vtype != VType::noting){
+		ValueItem *arr = new ValueItem[1];
+		arr[0] = std::move(arguments);
+		args = std::move(ValueItem(arr, 1, no_copy));
+	}
 
 	timeout = task_timeout;
 	if (used_task_local)
@@ -808,8 +810,8 @@ ValueItem* Task::get_result(typed_lgr<Task>&& lgr_task, size_t yield_res) {
 bool Task::has_result(typed_lgr<Task>& lgr_task, size_t yield_res){
 	return lgr_task->fres.results.size() > yield_res;
 }
-void Task::await_task(typed_lgr<Task>& lgr_task, bool in_place) {
-	if (!lgr_task->started)
+void Task::await_task(typed_lgr<Task>& lgr_task, bool make_start) {
+	if (!lgr_task->started && make_start)
 		Task::start(lgr_task);
 	MutexUnify uni(lgr_task->no_race);
 	std::unique_lock l(uni);
@@ -1007,6 +1009,15 @@ void Task::clean_up() {
 	glob.cold_tasks.swap(e1);
 	glob.timed_tasks.shrink_to_fit();
 }
+
+
+typed_lgr<Task> Task::dummy_task(){
+	return new Task(empty_func, ValueItem());
+}
+typed_lgr<Task> Task::cxx_native_bridge(bool& checker, std::condition_variable_any& cd){
+	return new Task(notify_native_thread, ValueItem{ ValueItem(&checker, VType::undefined_ptr), ValueItem(std::addressof(cd), VType::undefined_ptr) });
+}
+
 #pragma endregion
 #pragma optimize("",off)
 #pragma region Task: contexts swap
@@ -1062,7 +1073,7 @@ void TaskMutex::lock() {
 		bool has_res = false;
 		typed_lgr<Task> task; 
 		while (current_task) {
-			task = create_native_thread_bridge(has_res, cd);
+			task = Task::cxx_native_bridge(has_res, cd);
 			resume_task.push_back(task);
 			while (!has_res)
 				cd.wait(ul);
@@ -1116,7 +1127,7 @@ bool TaskMutex::try_lock_until(std::chrono::high_resolution_clock::time_point ti
 		std::condition_variable_any cd;
 		while (current_task) {
 			has_res = false;
-			typed_lgr task = create_native_thread_bridge(has_res, cd);
+			typed_lgr task = Task::cxx_native_bridge(has_res, cd);
 			resume_task.push_back(task);
 			while (has_res)
 				cd.wait_until(ul, time_point);
@@ -1182,7 +1193,7 @@ void TaskConditionVariable::wait(std::unique_lock<MutexUnify>& mut) {
 	else {
 		std::condition_variable_any cd;
 		bool has_res = false;
-		typed_lgr task = create_native_thread_bridge(has_res, cd);
+		typed_lgr task = Task::cxx_native_bridge(has_res, cd);
 		if (mut.mutex()->nmut == &no_race) {
 			resume_task.push_back(task);
 			while (!has_res)
@@ -1222,7 +1233,7 @@ bool TaskConditionVariable::wait_until(std::unique_lock<MutexUnify>& mut, std::c
 	else {
 		std::condition_variable_any cd;
 		bool has_res = false;
-		typed_lgr task = create_native_thread_bridge(has_res, cd);
+		typed_lgr task = Task::cxx_native_bridge(has_res, cd);
 	task_not_ended:
 		if (mut.mutex()->nmut == &no_race) {
 			resume_task.push_back(task);
@@ -2185,707 +2196,20 @@ TaskQuery::~TaskQuery(){
 }
 #pragma endregion
 
-#pragma region TcpNetworkTask
-#if defined(_WIN32) || defined(_WIN64)
-#include "tasks_util/windows_overlaped.hpp"
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <mswsock.h>
-#include <stdio.h>
-#pragma comment(lib, "Ws2_32.lib")
-#pragma comment(lib, "mswsock.lib")
 
 
 
-
-ProxyClassDefine define_ClientContext;
-void init_define_ClientContext();
-struct ClientContext {
-	OVERLAPPED overlapped;
-	TaskMutex query;
-	SOCKET socket;
-	WSABUF buffer;
-	char* data;
-    int total_bytes;
-    int sent_bytes;
-	int data_len;
-	int max_len;
-	typed_lgr<FuncEnviropment> callback;
-	bool& blocking_mode;
-	TcpNetworkTask::HandleType type;
-	std::list<std::vector<char>> data_to_send;
-	enum class Opcode{
-		ACCEPT,
-		READ,
-		WRITE
-	} opcode;
-	ValueItem client_data;
-	ClientContext(SOCKET socket, char* data, int data_len, int max_len, typed_lgr<FuncEnviropment>& callback, bool& blocking_mode,TcpNetworkTask::HandleType type):callback(callback), blocking_mode(blocking_mode), type(type){
-		this->socket = socket;
-		SecureZeroMemory(&overlapped, sizeof(OVERLAPPED));
-		this->data = data;
-		buffer.buf = data;
-		buffer.len = data_len;
-		this->data_len = data_len;
-		this->max_len = max_len;
+namespace _Task_unsafe{
+	void ctxSwap(){
+		swapCtx();
 	}
-	~ClientContext(){
-		while (!HasOverlappedIoCompleted(&overlapped))  
-			std::this_thread::yield();
-		closesocket(socket);
-		delete[] data;
+	void ctxSwapRelock(const MutexUnify& lock0){
+		swapCtxRelock(lock0);
 	}
-	void handle(DWORD dwBytesTransferred){
-		DWORD flags = 0, bytes = 0;
-		switch (opcode) {
-		case Opcode::READ:
-			sent_bytes += dwBytesTransferred;
-			{
-				std::lock_guard lock(query);
-				if(sent_bytes < total_bytes){
-
-					buffer.buf += sent_bytes;
-					buffer.len = total_bytes - sent_bytes;
-					int nBytesSent = WSASend(socket, &buffer, 1, 
-						&bytes, flags, &overlapped, NULL);
-
-					if ((SOCKET_ERROR == nBytesSent) && (WSA_IO_PENDING != WSAGetLastError())){
-						delete this;
-						return;
-					}
-				}
-				else if(!data_to_send.empty()){
-					proceed_write_query();
-				}
-				else{
-					opcode = Opcode::WRITE;
-					ZeroMemory(data, data_len);	
-					buffer.buf = data;
-					buffer.len = data_len;
-
-					int nBytesRecv = WSARecv(socket, &buffer, 1, 
-						&bytes, &flags, &overlapped, NULL);
-
-					if ((SOCKET_ERROR == nBytesRecv) && (WSA_IO_PENDING != WSAGetLastError())){
-						delete this;
-						return;
-					}
-				}
-			}
-			break;
-		case Opcode::WRITE:
-			if(!callback){
-				delete this;
-				return;
-			}
-			
-			buffer.len = dwBytesTransferred;
-			switch (type) {
-			case TcpNetworkTask::HandleType::in_place:{
-				std::lock_guard lock(query);
-				ValueItem data_income((char*)buffer.buf, ValueMeta(VType::raw_arr_ui8,false,true, dwBytesTransferred));
-				on_handle_write(data_income);
-				break;
-			}
-			case TcpNetworkTask::HandleType::task:{
-				Task::start(new Task(on_handle_write_bridge,ValueItem{ this, ValueItem((char*)buffer.buf, ValueMeta(VType::raw_arr_ui8,false,true, dwBytesTransferred)), blocking_mode }));
-			}
-				break;
-			default:
-				throw NotImplementedException();
-			}
-		default:
-			break;
-		}
+	void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1){
+		swapCtxRelock(lock0, lock1);
 	}
-
-
-	ValueItem try_read(uint32_t to_read){
-		if(to_read > max_len)
-			throw NoMemoryException();
-		DWORD flags = 0, bytes = 0;
-		char* data = new char[to_read];
-		uint32_t recuived = ::recv(socket, data, to_read, flags);
-		if(recuived == SOCKET_ERROR){
-			DWORD error = WSAGetLastError();
-			if(error == WSAEWOULDBLOCK)
-				return ValueItem();
-			else if(error == WSAECONNRESET)
-				return ValueItem();
-			else
-				throw SystemException(error);
-		}
-		else
-			return ValueItem(data, ValueMeta(VType::raw_arr_ui8,false,true,recuived), no_copy);
+	void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1, const MutexUnify& lock2){
+		swapCtxRelock(lock0, lock1, lock2);
 	}
-	ValueItem try_read(uint32_t to_read, uint32_t& err){
-		if(to_read > max_len)
-			throw NoMemoryException();
-			
-		DWORD flags = 0, bytes = 0;
-		char* data = new char[to_read];
-		uint32_t recuived = ::recv(socket, data, to_read, flags);
-		if(recuived == SOCKET_ERROR){
-			err = WSAGetLastError();
-			if(err == WSAEWOULDBLOCK){
-				err = 0;
-				return ValueItem();
-			}
-			else if(err == WSAECONNRESET)
-				return ValueItem();
-			else
-				return ValueItem();
-		}
-		else
-			return ValueItem(data, ValueMeta(VType::raw_arr_ui8,false,true,recuived), no_copy);
-	}
-
-	void write(char* write_data, uint32_t write_data_len){
-		if(write_data_len > max_len)
-			throw NoMemoryException();
-		if(write_data_len > data_len)
-			resize_buffer(write_data_len);
-		
-		data_to_send.push_back(std::vector<char>(write_data, write_data + write_data_len));
-	}
-	ValueItem get_buffer(){
-		return ValueItem(buffer.buf, ValueMeta(VType::raw_arr_ui8,false,true,buffer.len));
-	}
-	void resize_buffer(uint32_t new_size){
-		if(new_size > max_len){
-			char* new_data = new char[new_size];
-			memcpy(new_data, data, data_len);
-			delete[] data;
-			data = new_data;
-			max_len = new_size;
-		}
-	}
-	uint32_t available(){
-		DWORD value = 0;
-		int result = ::ioctlsocket(socket, FIONREAD, &value);
-		DWORD err = GetLastError();
-		if(err)
-			throw SystemException(err);
-		return (size_t)value;
-	}
-	uint32_t available(uint32_t& err){
-		DWORD value = 0;
-		int result = ::ioctlsocket(socket, FIONREAD, &value);
-		err = GetLastError();
-		return err ? 0 : (size_t)value;
-	}
-private:
-	void proceed_write_query(){
-		DWORD flags = 0, bytes = 0;
-		auto& new_data = data_to_send.front();
-		total_bytes = new_data.size();
-		sent_bytes = 0;
-		memccpy(data, new_data.data(), 0, total_bytes);
-		data_to_send.pop_front();
-		buffer.buf = data;
-		buffer.len = total_bytes;
-		int nBytesSent = WSASend(socket, &buffer, 1, 
-			&bytes, flags, &overlapped, NULL);
-		
-		if ((SOCKET_ERROR == nBytesSent) && (WSA_IO_PENDING != WSAGetLastError())){
-			delete this;
-			return;
-		}
-	}
-	static typed_lgr<FuncEnviropment> on_handle_write_bridge;
-	static ValueItem* _on_handle_write_bridge(ValueItem* args, uint32_t len){
-		std::lock_guard lock(((ClientContext*)args->val)->query);
-		((ClientContext*)args->val)->on_handle_write(args[1]);
-		return nullptr;
-	}
-	void on_handle_write(ValueItem& data_income){
-		if(define_ClientContext.name == "Unnamed")
-			init_define_ClientContext();
-		ProxyClass _self(this, &define_ClientContext);
-		ValueItem self(&_self,VType::proxy, as_refrence);
-		ValueItem res = AttachA::cxxCall(callback, self, data_income, (ValueItem(client_data, as_refrence)));
-		if(res.meta.vtype == VType::noting){
-			{
-				std::lock_guard lock(query);
-				if(!data_to_send.empty()){
-					callback = nullptr;
-					proceed_write_query();
-					return;
-				}
-			}
-		}else if( res.meta.vtype == VType::faarr){
-			if(res.meta.val_len != 2){
-				ValueItem notify("The return value of the callback function must be an array of two elements.");
-				errors.async_notify(notify);
-				delete this;
-				return;
-			}
-			ValueItem* res_arr = (ValueItem*)res.getSourcePtr();
-			ValueItem& next_callback = res_arr[0];
-			ValueItem& sent_data = res_arr[1];
-			
-			if(next_callback.meta.vtype != VType::function && next_callback.meta.vtype != VType::noting){
-				ValueItem notify("The first element of the return value of the callback function must be a function.");
-				errors.async_notify(notify);
-				delete this;
-				return;
-			}
-			if(sent_data.meta.vtype != VType::noting){
-				DWORD bytes = 0, flags = 0;
-				ZeroMemory(data, data_len);	
-				buffer.buf = data;
-				buffer.len = data_len;
-				int nBytesRecv = WSARecv(socket, &buffer, 1, &bytes, &flags, &overlapped, NULL);
-				if ((SOCKET_ERROR == nBytesRecv) && (WSA_IO_PENDING != WSAGetLastError())){
-					delete this;
-					return;
-				}
-			}
-			if(sent_data.meta.vtype != VType::raw_arr_ui8){
-				ValueItem notify("The second element of the return value of the callback function must be a ui8[].");
-				errors.async_notify(notify);
-				delete this;
-				return;
-			}
-			if(next_callback.meta.vtype == VType::noting)
-				callback = nullptr;
-			else
-				callback = *next_callback.funPtr();
-			if(sent_data.meta.val_len > data_len && sent_data.meta.val_len <= max_len){
-				delete[] data;
-				data = new char[sent_data.meta.val_len];
-				data_len = sent_data.meta.val_len;
-			}
-			else if(sent_data.meta.val_len > data_len){
-				ValueItem notify("Buffer overflow.");
-				errors.async_notify(notify);
-				delete this;
-				return;
-			}
-			memcpy(data, sent_data.getSourcePtr(), sent_data.meta.val_len);
-			buffer.buf = data;
-			buffer.len = sent_data.meta.val_len;
-			DWORD flags = 0, bytes = 0;
-
-			
-			total_bytes= buffer.len;
-			sent_bytes = 0;
-			int nBytesSent = WSASend(socket, &buffer, 1, 
-				&bytes, flags, &overlapped, NULL);
-
-				
-			opcode = Opcode::READ;
-			if ((SOCKET_ERROR == nBytesSent) && (WSA_IO_PENDING != WSAGetLastError()))
-			{
-				delete this;
-				return;
-			}
-		}else if(res.meta.vtype == VType::function){
-			std::lock_guard lock(query);
-			callback = *res.funPtr();
-			if(!data_to_send.empty())
-				proceed_write_query();
-		}else{
-			ValueItem notify("The return value of the callback function must be an array of next callback and raw_ui8_arr or a function.");
-			errors.async_notify(notify);
-			delete this;
-			return;
-		}
-	}
-};
-
-
-
-ValueItem* funs_ClientContext_try_read(ValueItem* args, uint32_t len){
-	if(len == 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		if(!is_integer(args[1].meta.vtype))
-			throw InvalidArguments("The second argument must be an integer.");
-		return new ValueItem(((ClientContext*)((ProxyClass*)args[0].val)->class_ptr)->try_read((uint32_t)args[1]));
-	}else
-		throw InvalidArguments("The number of arguments must be 2.");
 }
-ValueItem* funs_ClientContext_try_read_no_ex(ValueItem* args, uint32_t len){
-	if(len == 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		if(!is_integer(args[1].meta.vtype))
-			throw InvalidArguments("The second argument must be a integer.");
-		uint32_t err_code = 0;
-		ValueItem res = ((ClientContext*)((ProxyClass*)args[0].val)->class_ptr)->try_read((uint32_t)args[1], err_code);
-		return new ValueItem{std::move(res), err_code};
-	}else
-		throw InvalidArguments("The number of arguments must be 2.");
-}
-ValueItem* funs_ClientContext_write(ValueItem* args, uint32_t len){
-	if(len == 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		if(args[1].meta.vtype != VType::raw_arr_ui8)
-			throw InvalidArguments("The second argument must be a ui8[].");
-		((ClientContext*)((ProxyClass*)args[0].val)->class_ptr)->write((char*)args[1].getSourcePtr(), args[1].meta.val_len);
-		return nullptr;
-	}else
-		throw InvalidArguments("The number of arguments must be 2.");
-}
-ValueItem* funs_ClientContext_get_buffer(ValueItem* args, uint32_t len){
-	if(len == 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		return new ValueItem(((ClientContext*)((ProxyClass*)args[0].val)->class_ptr)->get_buffer());
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-ValueItem* funs_ClientContext_resize_buffer(ValueItem* args, uint32_t len){
-	if(len == 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		if(!is_integer(args[1].meta.vtype))
-			throw InvalidArguments("The second argument must be a integer.");
-		((ClientContext*)((ProxyClass*)args[0].val)->class_ptr)->resize_buffer((uint32_t)args[1]);
-		return nullptr;
-	}else
-		throw InvalidArguments("The number of arguments must be 2.");
-}
-ValueItem* funs_ClientContext_available(ValueItem* args, uint32_t len){
-	if(len == 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		return new ValueItem(((ClientContext*)((ProxyClass*)args[0].val)->class_ptr)->available());
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-ValueItem* funs_ClientContext_available_no_ex(ValueItem* args, uint32_t len){
-	if(len == 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		uint32_t err_code = 0;
-		uint32_t res = ((ClientContext*)((ProxyClass*)args[0].val)->class_ptr)->available(err_code);
-		return new ValueItem{res, err_code};
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-
-
-void init_define_ClientContext(){
-	define_ClientContext.name = "client_context";
-	define_ClientContext.copy = nullptr;
-	define_ClientContext.destructor = nullptr;
-	define_ClientContext.funs["try_read"] = ClassFnDefine{new FuncEnviropment(funs_ClientContext_try_read, false), false, ClassAccess::pub};
-	define_ClientContext.funs["try_read_no_ex"] = ClassFnDefine{new FuncEnviropment(funs_ClientContext_try_read_no_ex, false), false, ClassAccess::pub};
-	define_ClientContext.funs["write"] = ClassFnDefine{new FuncEnviropment(funs_ClientContext_write, false), false, ClassAccess::pub};
-	define_ClientContext.funs["get_buffer"] = ClassFnDefine{new FuncEnviropment(funs_ClientContext_get_buffer, false), false, ClassAccess::pub};
-	define_ClientContext.funs["resize_buffer"] = ClassFnDefine{new FuncEnviropment(funs_ClientContext_resize_buffer, false), false, ClassAccess::pub};
-	define_ClientContext.funs["available"] = ClassFnDefine{new FuncEnviropment(funs_ClientContext_available, false), false, ClassAccess::pub};
-	define_ClientContext.funs["available_no_ex"] = ClassFnDefine{new FuncEnviropment(funs_ClientContext_available_no_ex, false), false, ClassAccess::pub};
-}
-
-
-
-typed_lgr<FuncEnviropment> ClientContext::on_handle_write_bridge = new FuncEnviropment(ClientContext::_on_handle_write_bridge, false);
-class TcpNetworkManager : public OverlappedController {
-	TaskMutex safety;
-	typed_lgr<class FuncEnviropment> on_connect;
-	typed_lgr<class FuncEnviropment> accept_filter;
-	WSADATA wsaData;
-    sockaddr_in connectionAddress;
-	SOCKET main_socket;
-public:
-	TcpNetworkTask::HandleType default_handle_type;
-	int32_t max_len = 8192;
-	int32_t default_len = 4096;
-private:
-	bool blocking_mode = false;
-	bool allow_new_connections = false;
-	bool disabled = true;
-	bool corrupted = false;
-	size_t acceptors;
-
-	void make_acceptEx(void){
-		static const auto adress_len = sizeof(sockaddr_in) + 16;
-		auto new_sock = WSASocketA(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
-		DWORD argp = 1;//non blocking
-		ClientContext *pClientContext = new ClientContext(new_sock, new char[default_len], default_len, max_len, on_connect,blocking_mode, default_handle_type);
-		pClientContext->opcode = ClientContext::Opcode::ACCEPT;
-		int nBytesRecv = AcceptEx(main_socket, new_sock, pClientContext->buffer.buf, 0, adress_len, adress_len, NULL, &pClientContext->overlapped);
-		if ((SOCKET_ERROR == nBytesRecv) && (WSA_IO_PENDING != WSAGetLastError())){
-			delete pClientContext;
-			return;
-		}
-	}
-public:
-	TcpNetworkManager(short port, bool blocking_mode, TcpNetworkTask::HandleType type, size_t acceptors) : blocking_mode(blocking_mode), default_handle_type(type), acceptors(acceptors) {
-    	memset(&connectionAddress, 0, sizeof(sockaddr_in));
-		connectionAddress.sin_family = AF_INET;
-		connectionAddress.sin_port = htons(port);
-		WSAStartup(MAKEWORD(2, 2), &wsaData);
-		main_socket = WSASocketA(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
-		if (main_socket == INVALID_SOCKET){
-			WSACleanup();
-			corrupted = true;
-			return;
-		}
-		DWORD argp = 1;//non blocking
-		int result = setsockopt(main_socket,SOL_SOCKET,SO_REUSEADDR,(char*)&argp, sizeof(argp));
-		if (result == SOCKET_ERROR){
-			WSACleanup();
-			corrupted = true;
-			return;
-		}
-		if (ioctlsocket(main_socket, FIONBIO, &argp) == SOCKET_ERROR){
-			WSACleanup();
-			corrupted = true;
-			return;
-		}
-		if (bind(main_socket, (sockaddr*)&connectionAddress, sizeof(sockaddr_in)) == SOCKET_ERROR){
-			WSACleanup();
-			corrupted = true;
-			return;
-		}
-		register_handle((HANDLE)main_socket, this);
-	}
-	~TcpNetworkManager(){
-		shutdown();
-		WSACleanup();
-	}
-	
-	void handle(void* _data, void* overlapped, DWORD dwBytesTransferred, bool status) {
-		auto& data = *(ClientContext*)overlapped;
-
-		if(data.opcode == ClientContext::Opcode::ACCEPT){
-			make_acceptEx();
-			data.opcode = ClientContext::Opcode::WRITE;
-			if(blocking_mode){
-				std::lock_guard lock(safety);
-				if(!allow_new_connections){
-					closesocket(data.socket);
-					#ifndef DISABLE_RUNTIME_INFO
-					ValueItem notify{ std::string("Client: ") + inet_ntoa(addr.sin_addr) + std::string(" not accepted due pause(blocking)") };
-					info.async_notify(notify);
-					#endif
-					return;
-				}
-			}else{
-				if(!allow_new_connections){
-					closesocket(data.socket);
-					#ifndef DISABLE_RUNTIME_INFO
-					ValueItem notify{ std::string("Client: ") + inet_ntoa(addr.sin_addr) + std::string(" not accepted due pause(non blocking)") };
-					info.async_notify(notify);
-					#endif
-					return;
-				}
-			}
-			
-			
-			    SOCKADDR_IN* pClientAddr = NULL;
-                SOCKADDR_IN* pLocalAddr = NULL;
-                int remoteLen = sizeof(SOCKADDR_IN);
-                int localLen = sizeof(SOCKADDR_IN);
-                GetAcceptExSockaddrs(data.buffer.buf,
-                                             data.buffer.len - ((sizeof(SOCKADDR_IN) + 16) * 2),
-                                             sizeof(SOCKADDR_IN) + 16,
-                                             sizeof(SOCKADDR_IN) + 16,
-                                             (LPSOCKADDR*)&pLocalAddr,
-                                             &localLen,
-                                             (LPSOCKADDR*)&pClientAddr,
-                                             &remoteLen);
-
-                //clientIp = inet_ntoa(pClientAddr->sin_addr);
-                //clientPort = ntohs(pClientAddr->sin_port);
-			if(accept_filter){
-				if(AttachA::cxxCall(accept_filter,(void*)pLocalAddr)){
-					closesocket(data.socket);
-					#ifndef DISABLE_RUNTIME_INFO
-					ValueItem notify{ std::string("Client: ") + inet_ntoa(pClientAddr->sin_addr) + std::string(" not accepted due filter") };
-					info.async_notify(notify);
-					#endif
-					return;
-				}
-			}
-			
-			#ifndef DISABLE_RUNTIME_INFO
-			{
-				ValueItem notify{ std::string("Client connected from: ") + inet_ntoa(pClientAddr->sin_addr) };
-				info.async_notify(notify);
-			}
-			#endif
-
-			setsockopt(data.socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&main_socket, sizeof(main_socket) );
-			{
-				std::lock_guard lock(safety);
-				register_handle((HANDLE)data.socket, &data);
-			}
-
-			if(!dwBytesTransferred){
-				DWORD flags = 0, bytes = 0;
-				int nBytesRecv = WSARecv(data.socket, &data.buffer, 1, 
-				&bytes, &flags, &data.overlapped, NULL);
-				if ((SOCKET_ERROR == nBytesRecv) && (WSA_IO_PENDING != WSAGetLastError())){
-					closesocket(data.socket);
-					return;
-				}
-			}
-			else {
-				size_t ignored_data = (sizeof(SOCKADDR_IN)+16)*2;
-				data.buffer.buf += ignored_data;
-				data.buffer.len -= ignored_data;
-				
-				data.handle(dwBytesTransferred);
-			}
-			return;
-		}
-		else if ((FALSE == status) || ((true == status) && (0 == dwBytesTransferred)))
-		{
-			delete &data;
-			return;
-		}
-		data.handle(dwBytesTransferred);
-	}
-	void set_on_connect(typed_lgr<class FuncEnviropment> on_connect){
-		if(corrupted)
-			throw std::runtime_error("TcpNetworkManager is corrupted");
-		std::lock_guard lock(safety);
-		this->on_connect = on_connect;
-	}
-	void mainline(){
-		if(corrupted)
-			throw std::runtime_error("TcpNetworkManager is corrupted");
-		
-		if(disabled){
-			std::lock_guard lock(safety);
-			if(disabled){
-				if (listen(main_socket, SOMAXCONN) == SOCKET_ERROR){
-					WSACleanup();
-					return;
-				}
-				allow_new_connections = true; 
-				disabled = false;
-				
-				while(acceptors--)
-					make_acceptEx();
-			}
-		}
-		dispatch();
-	}
-	void shutdown(){
-		if(corrupted)
-			throw std::runtime_error("TcpNetworkManager is corrupted");
-		std::lock_guard lock(safety);
-		stop();
-		if(closesocket(main_socket) == SOCKET_ERROR)
-			WSACleanup();
-		allow_new_connections = false;
-		disabled = true;
-	}
-	void pause(){
-		if(corrupted)
-			throw std::runtime_error("TcpNetworkManager is corrupted");
-		if(blocking_mode){
-			std::lock_guard lock(safety);
-			allow_new_connections = false;
-		}
-		else
-			allow_new_connections = false;
-	}
-	void resume(){
-		if(corrupted)
-			throw std::runtime_error("TcpNetworkManager is corrupted");
-		if(blocking_mode){
-			std::lock_guard lock(safety);
-			allow_new_connections = true;
-		}
-		else
-			allow_new_connections = true;
-	}
-	void start(){
-		if(corrupted)
-			throw std::runtime_error("TcpNetworkManager is corrupted");
-		std::lock_guard lock(safety);
-		allow_new_connections = true; 
-		if(!disabled)
-			return;
-		if (listen(main_socket, SOMAXCONN) == SOCKET_ERROR){
-			WSACleanup();
-			return;
-		}
-		OverlappedController::run();
-		while(acceptors--)
-			make_acceptEx();
-		disabled = false;
-	}
-
-
-	void set_accept_filter(typed_lgr<class FuncEnviropment> filter){
-		if(corrupted)
-			throw std::runtime_error("TcpNetworkManager is corrupted");
-		std::lock_guard lock(safety);
-		this->accept_filter = filter;
-	}
-	bool is_corrupted(){
-		return corrupted;
-	}
-};
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#endif
-	struct async_handle{
-		TcpNetworkManager manager;
-		async_handle(typed_lgr<class FuncEnviropment> on_connect, short port, bool blocking_mode, TcpNetworkTask::HandleType type, size_t acceptors) : manager(port, blocking_mode, type, acceptors){
-			manager.set_on_connect(on_connect);
-		}
-		void mainline(){
-			manager.mainline();
-		}
-		void set_on_connect(typed_lgr<class FuncEnviropment> on_connect){
-			manager.set_on_connect(on_connect);
-		}
-		void stop(){
-			manager.stop();
-		}
-		void pause(){
-			manager.pause();
-		}
-		void resume(){
-			manager.resume();
-		}
-		void start(){
-			manager.start();
-		}
-		bool in_run(){
-			return manager.in_run();
-		}
-		bool is_corrupted(){
-			return manager.is_corrupted();
-		}
-	};
-
-
-	TcpNetworkTask::TcpNetworkTask(typed_lgr<class FuncEnviropment> on_connect, short port, bool blocking_mode, TcpNetworkTask::HandleType type, size_t acceptors) : handle(new async_handle(on_connect, port, blocking_mode, type, acceptors)){}
-	void TcpNetworkTask::start(typed_lgr<TcpNetworkTask>& item){
-		item->handle->start();
-	}
-	void TcpNetworkTask::pause(typed_lgr<TcpNetworkTask>& item){
-		item->handle->pause();
-	}
-	void TcpNetworkTask::resume(typed_lgr<TcpNetworkTask>& item){
-		item->handle->resume();
-	}
-	void TcpNetworkTask::stop(typed_lgr<TcpNetworkTask>& item){
-		item->handle->stop();
-	}
-	void TcpNetworkTask::mainline(typed_lgr<TcpNetworkTask>& item){
-		item->handle->mainline();
-	}
-	void TcpNetworkTask::set_on_connect(typed_lgr<TcpNetworkTask>& item, typed_lgr<class FuncEnviropment> on_connect){
-		item->handle->set_on_connect(on_connect);
-	}
-	bool TcpNetworkTask::is_corrupted(typed_lgr<TcpNetworkTask>& item){
-		return item->handle->is_corrupted();
-	}
-#pragma endregion

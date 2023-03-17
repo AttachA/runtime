@@ -8,6 +8,7 @@
 #include <mutex>
 #include <fstream>
 #include <list>
+#include <queue>
 #include "link_garbage_remover.hpp"
 #include "../library/list_array.hpp"
 #include "attacha_abi_structs.hpp"
@@ -15,6 +16,8 @@
 #include "util/enum_helper.hpp"
 #pragma push_macro("min")
 #undef min
+
+
 
 //it do abort when catched, recomended do rethrow manually and catching by const refrence
 class TaskCancellation : AttachARuntimeException {
@@ -173,7 +176,7 @@ struct Task {
 	static ValueItem* get_result(typed_lgr<Task>& lgr_task, size_t yield_res = 0);
 	static ValueItem* get_result(typed_lgr<Task>&& lgr_task, size_t yield_res = 0);
 	static bool has_result(typed_lgr<Task>& lgr_task, size_t yield_res = 0);
-	static void await_task(typed_lgr<Task>& lgr_task, bool in_place = false);
+	static void await_task(typed_lgr<Task>& lgr_task, bool make_start = true);
 	static void await_multiple(list_array<typed_lgr<Task>>& tasks, bool pre_started = false, bool release = false);
 	static void await_multiple(typed_lgr<Task>* tasks, size_t len, bool pre_started = false, bool release = false);
 	static list_array<ValueItem> await_results(typed_lgr<Task>& task);
@@ -188,6 +191,11 @@ struct Task {
 	//clean unused memory, used for debug pruproses, ie memory leak
 	//not recomended use in production
 	static void clean_up();
+
+	static typed_lgr<Task> dummy_task();
+
+	//unsafe function, checker and cd must be alive during task bridge lifetime
+	static typed_lgr<Task> cxx_native_bridge(bool& checker, class std::condition_variable_any& cd);
 };
 #pragma pack (pop)
 class TaskSemaphore {
@@ -303,35 +311,15 @@ public:
 	bool wait_until(std::chrono::high_resolution_clock::time_point time_point);
 };
 
-class TcpNetworkTask {
-	struct async_handle* handle;
-public:
-	enum class HandleType{
-		in_place,
-		task
-	};
-	//constructor set the function to call when a new connection is made
-	//function will return another function to call when data is received
-	//if the function returns nullptr, the connection will be closed
-	TcpNetworkTask(typed_lgr<class FuncEnviropment>, short port, bool blocking_mode = false, HandleType type = HandleType::task, size_t acceptors = 10);
-	//start handling
-	static void start(typed_lgr<TcpNetworkTask>&);
-	//stop getting new connections, and continue handling connected
-	static void pause(typed_lgr<TcpNetworkTask>&);
-	//resume getting new connections
-	static void resume(typed_lgr<TcpNetworkTask>&);
-	//stop and close all connections
-	static void stop(typed_lgr<TcpNetworkTask>&);
-	//check if the server is running
-	static bool is_running(typed_lgr<TcpNetworkTask>&);
-	//start handling, and use the current thread to handle connections
-	static void mainline(typed_lgr<TcpNetworkTask>&);
-	//same as constructor
-	static void set_on_connect(typed_lgr<TcpNetworkTask>&, typed_lgr<class FuncEnviropment> func);
-	//return status of the server, will be checked after constructor
-	static bool is_corrupted(typed_lgr<TcpNetworkTask>&);
-};
 
 
 
+//internal
+namespace _Task_unsafe{
+	void ctxSwap();
+	void ctxSwapRelock(const MutexUnify& lock0);
+	void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1);
+	void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1, const MutexUnify& lock2);
+	typed_lgr<Task> get_self();
+}
 #pragma pop_macro("min")

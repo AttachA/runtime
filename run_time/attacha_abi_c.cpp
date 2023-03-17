@@ -381,6 +381,7 @@ void* copyValue(void*& val, ValueMeta& meta) {
 			return new typed_lgr<Task>(*(typed_lgr<Task>*)actual_val);
 		case VType::except_value:
 			return new std::exception_ptr(*(std::exception_ptr*)actual_val);
+		case VType::saarr:
 		case VType::faarr: {
 			ValueItem* cop = new ValueItem[meta.val_len]();
 			for (uint32_t i = 0; i < meta.val_len; i++)
@@ -2163,7 +2164,23 @@ size_t getSize(void** value) {
 		throw NumericUndererflowException();
 	return actual;
 }
+ValueItem::ValueItem(ValueItem&& move) {
+	if(move.meta.vtype == VType::saarr && !move.meta.as_ref){
+		ValueItem* farrr = new ValueItem[move.meta.val_len];
+		ValueItem* src = (ValueItem*)move.getSourcePtr();
+		for (size_t i = 0; i < move.meta.val_len; i++)
+			farrr[i] = std::move(src[i]);
+			
+		val = farrr;
+		meta = move.meta;
+		meta.vtype = VType::faarr;
+		move.val = nullptr;
+	}
 
+	val = move.val;
+	meta = move.meta;
+	move.val = nullptr;
+}
 
 
 ValueItem::ValueItem(const void* vall, ValueMeta vmeta) : val(0) {
@@ -2402,7 +2419,7 @@ ValueItem& ValueItem::operator=(const ValueItem& copy) {
 	meta = copy.meta;
 	return *this;
 }
-ValueItem& ValueItem::operator=(ValueItem&& move) noexcept {
+ValueItem& ValueItem::operator=(ValueItem&& move) {
 	if (val)
 		if (!meta.as_ref)
 			if (needAlloc(meta))
