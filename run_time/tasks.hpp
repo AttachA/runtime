@@ -47,6 +47,10 @@ public:
 	bool try_lock_until(std::chrono::high_resolution_clock::time_point time_point);
 	void unlock();
 	bool is_locked();
+	//put here child task(not started), and it will lock mutex, and unlock it when it will be finished
+	void lifecycle_lock(typed_lgr<struct Task> task);
+	//put here child task(not started), and it will lock mutex and relock it when recived value from child task, and unlock it when it will be finished
+	void sequence_lock(typed_lgr<struct Task> task);
 };
 
 ENUM_t(MutexUnifyType, uint8_t,
@@ -113,6 +117,14 @@ public:
 	bool wait_until(std::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point);
 	void notify_one();
 	void notify_all();
+
+	void dummy_wait(typed_lgr<struct Task> task, std::unique_lock<MutexUnify>& lock);
+	//set in arguments result of wait_for
+	void dummy_wait_for(typed_lgr<struct Task> task, std::unique_lock<MutexUnify>& lock, size_t milliseconds);
+	//set in arguments result of wait_until
+	void dummy_wait_until(typed_lgr<struct Task> task, std::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point);
+
+	bool has_waiters();
 };
 struct TaskResult {
 	TaskConditionVariable result_notify;
@@ -159,6 +171,7 @@ struct Task {
 	static void start(typed_lgr<Task>&& lgr_task);
 	static void start(list_array<typed_lgr<Task>>& lgr_task);
 	static void start(const typed_lgr<Task>& lgr_task);
+	
 
 	static void create_executor(size_t count = 1);
 	static size_t total_executors();
@@ -311,8 +324,39 @@ public:
 	bool wait_until(std::chrono::high_resolution_clock::time_point time_point);
 };
 
+//task unsafe, TO-DO: compatible with task sync classes
+class Generator {
+	friend void prepare_generator(ValueItem& args,typed_lgr<FuncEnviropment>& func, typed_lgr<FuncEnviropment>& ex_handler, Generator*& weak_ref);
+	list_array<ValueItem*> results;
+	typed_lgr<class FuncEnviropment> ex_handle;//if ex_handle is nullptr then exception will be unrolled to caller
+	typed_lgr<class FuncEnviropment> func;
+	ValueItem args;
+	class ValueEnvironment* _generator_local = nullptr;
+	std::exception_ptr ex_ptr = nullptr;
+	void* context = nullptr;
+	bool end_of_life : 1 = false;
+public:
+	Generator(typed_lgr<class FuncEnviropment> call_func, const ValueItem& arguments, bool used_generator_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr);
+	Generator(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_generator_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr);
+	Generator(Generator&& mov) noexcept;
+	~Generator();
+
+	static bool yield_iterate(typed_lgr<Generator>& lgr_task);
+	static ValueItem* get_result(typed_lgr<Generator>& lgr_task);
+	static bool has_result(typed_lgr<Generator>& lgr_task);
+	static list_array<ValueItem*> await_results(typed_lgr<Generator>& task);
+	static list_array<ValueItem*> await_results(list_array<typed_lgr<Generator>>& tasks);
 
 
+	//in generators use
+	static class ValueEnvironment* generator_local(Generator* generator_weak_ref);
+	static void yield(Generator* generator_weak_ref, ValueItem* result);
+	static void result(Generator* generator_weak_ref, ValueItem* result);
+
+	//internal
+	static void back_unwind(Generator* generator_weak_ref, std::exception_ptr&& ex_ptr);
+	static void return_(Generator* generator_weak_ref, ValueItem* result);
+};
 
 //internal
 namespace _Task_unsafe{
