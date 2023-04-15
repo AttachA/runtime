@@ -107,5 +107,6 @@
     },
     "C/C++ Include Guard.Auto Update Include Guard": true,
     "C/C++ Include Guard.Macro Type": "Filepath",
-    "C_Cpp.errorSquiggles": "enabled"
+    "C_Cpp.errorSquiggles": "enabled",
+    "todo-tree.tree.scanMode": "workspace only"
 }

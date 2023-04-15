@@ -698,7 +698,8 @@ namespace ABI_IMPL {
 					return (ClassValue&)val;
 				else if constexpr (std::is_same_v<T, void*>) {
 					return val;
-				}
+				}else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
+					return { ValueItem(val,meta) };
 				else {
 					ValueItem tmp(val, meta, no_copy);
 					ValueItem* res = ((ClassValue&)val).callFnPtr("()", ClassAccess::pub)->syncWrapper(&tmp,1);
@@ -726,8 +727,8 @@ namespace ABI_IMPL {
 				break;
 			}
 			case VType::proxy: {
-				if constexpr (std::is_same_v<T, ClassValue>)
-					return (ClassValue&)val;
+				if constexpr (std::is_same_v<T, ProxyClass>)
+					return (ProxyClass&)val;
 				else if constexpr (std::is_same_v<T, void*>) {
 					return val;
 				}

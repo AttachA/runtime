@@ -1765,7 +1765,7 @@ bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t s
 		case EXCEPTION_PRIV_INSTRUCTION:
 			return exceptions.contains("PrivilegedInstruction");
 		default:
-			return exceptions.contains("NativeException");
+			return exceptions.contains("nUnknownNativeException");
 		}
 	} else {
 		return exceptions.contains_one([&info](const std::string& str) {

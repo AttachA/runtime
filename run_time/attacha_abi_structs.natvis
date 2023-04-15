@@ -17,7 +17,6 @@
 		<DisplayString Condition="meta.vtype == VType::async_res &amp;&amp; !meta.use_gc">{{ type=async_res }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::except_value &amp;&amp; !meta.use_gc">{{ type=except_value }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::undefined_ptr &amp;&amp; !meta.use_gc">{{ type=undefined_ptr }}</DisplayString>
-		<DisplayString Condition="meta.vtype == VType::type_identifier &amp;&amp; !meta.use_gc">{{ type=type_identifier }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::raw_arr_i8 &amp;&amp; !meta.use_gc">{{ type=raw_arr_i8, size={meta.val_len} }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::raw_arr_i16 &amp;&amp; !meta.use_gc">{{ type=raw_arr_i16, size={meta.val_len} }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::raw_arr_i32 &amp;&amp; !meta.use_gc">{{ type=raw_arr_i32, size={meta.val_len} }}</DisplayString>
@@ -31,9 +30,19 @@
 		<DisplayString Condition="meta.vtype == VType::faarr &amp;&amp; !meta.use_gc">{{ type=faarr, size={meta.val_len} }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::saarr &amp;&amp; !meta.use_gc">{{ type=saarr, size={meta.val_len} }}</DisplayString>
 
+		<DisplayString Condition="meta.vtype == VType::class_ &amp;&amp; !meta.use_gc">{{ type=class_, name={(*(ClassValue*)val).define->name} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::morph &amp;&amp; !meta.use_gc">{{ type=morph, name={(*(MorphValue*)val).define.name} }}</DisplayString>
+    	<DisplayString Condition="meta.vtype == VType::proxy &amp;&amp; !meta.use_gc">{{ type=proxy, name={(*(ProxyClass*)val).declare_ty->name} }}</DisplayString>
+
+    <!--<DisplayString Condition="meta.vtype == VType::struct_ &amp;&amp; !meta.use_gc">{{ type=struct_ }}</DisplayString>-->
+
+
+		<DisplayString Condition="meta.vtype == VType::type_identifier &amp;&amp; !meta.use_gc">{{ type=type_identifier }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::function &amp;&amp; !meta.use_gc">{{ type=function }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::class_define &amp;&amp; !meta.use_gc">{{ type=class_define }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::map &amp;&amp; !meta.use_gc">{{ type=map }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::set &amp;&amp; !meta.use_gc">{{ type=set }}</DisplayString>
-
+		<DisplayString Condition="meta.vtype == VType::time_point &amp;&amp; !meta.use_gc">{{ type=time_point }}</DisplayString>
 		<Expand>
 			<Item Name="[type]" ExcludeView="simple">meta.vtype</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::boolean &amp;&amp; !meta.use_gc">(bool)val</Item>
@@ -54,6 +63,21 @@
 			<Item Name="[value]" Condition="meta.vtype == VType::undefined_ptr &amp;&amp; !meta.use_gc">(void*)val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::type_identifier &amp;&amp; !meta.use_gc">(VType)val</Item>
 
+      <Item Name="[value]" Condition="meta.vtype == VType::class_ &amp;&amp; !meta.use_gc">*(ClassValue*)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::morph &amp;&amp; !meta.use_gc">*(MorphValue*)val</Item>
+      <Item Name="[source]" Condition="meta.vtype == VType::proxy &amp;&amp; !meta.use_gc">(*(ProxyClass*)val).class_ptr</Item>
+      <Item Name="[name]" Condition="meta.vtype == VType::proxy &amp;&amp; !meta.use_gc">(*(ProxyClass*)val).declare_ty->name</Item>
+      <Item Name="[functions]" Condition="meta.vtype == VType::proxy &amp;&amp; !meta.use_gc">(*(ProxyClass*)val).declare_ty->funs</Item>
+      <Item Name="[getters]" Condition="meta.vtype == VType::proxy &amp;&amp; !meta.use_gc">(*(ProxyClass*)val).declare_ty->value_geter</Item>
+      <Item Name="[setters]" Condition="meta.vtype == VType::proxy &amp;&amp; !meta.use_gc">(*(ProxyClass*)val).declare_ty->value_seter</Item>
+      <Item Name="[value]" Condition="meta.vtype == VType::proxy &amp;&amp; !meta.use_gc">*(ProxyClass*)val</Item>
+			<!--<Item Name="[value]" Condition="meta.vtype == VType::struct_ &amp;&amp; !meta.use_gc">UNSUPPORTED</Item>-->
+
+      <!--<Item Name="[value]" Condition="meta.vtype == VType::function &amp;&amp; !meta.use_gc">*(typed_lgr&lt;FuncEnviropment*&gt;*)val</Item>-->
+      <!--<Item Name="[value]" Condition="meta.vtype == VType::set &amp;&amp; !meta.use_gc">*(std::unordered_map&lt;ValueItem,ValueItem&gt;*)val</Item>-->
+      <!--<Item Name="[value]" Condition="meta.vtype == VType::set &amp;&amp; !meta.use_gc">*(std::unordered_set&lt;ValueItem&gt;*)val</Item>-->
+      <Item Name="[value]" Condition="meta.vtype == VType::class_define &amp;&amp; !meta.use_gc">*(ClassDefine*)val</Item>
+      <Item Name="[value]" Condition="meta.vtype == VType::time_point &amp;&amp; !meta.use_gc">*(std::chrono::steady_clock::time_point*)val</Item>
 
 			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_i8 &amp;&amp; !meta.use_gc">
 				<DisplayString>{{ size={meta.val_len} }}</DisplayString>
