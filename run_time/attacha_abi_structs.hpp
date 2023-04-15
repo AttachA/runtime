@@ -7,6 +7,7 @@
 #pragma once
 #include <cstdint>
 #include <unordered_map>
+#include <unordered_set>
 #include <chrono>
 #include "../library/list_array.hpp"
 #include "library/exceptions.hpp"
@@ -27,6 +28,8 @@ ENUM_t(Opcode,uint8_t,
 	(bit_or)
 	(bit_and)
 	(bit_not)
+	(bit_shift_left)
+	(bit_shift_right)
 	(log_not)
 	(compare)
 	(jump)
@@ -60,7 +63,9 @@ ENUM_t(Opcode,uint8_t,
 	(explicit_await)
 
 
-	(generator_get)//TO-DO: implement
+	(async_get)//get result from task by index
+	(generator_next)//get next result for task or generator//TO-DO: implement
+	(yield)//suspend generator or async task and return value to caller //TO-DO: implement
 
 	(handle_begin)
 	(handle_catch)
@@ -254,6 +259,9 @@ ENUM_t(VType, uint8_t,
 	(map)//unordered_map<any,any>
 	(set)//unordered_set<any>
 	(time_point)//std::chrono::steady_clock::time_point
+
+
+	(generator)//holds function context
 )
 union ValueMeta {
 	size_t encoded;
@@ -296,6 +304,7 @@ struct ValueItem {
 	ValueItem(float val);
 	ValueItem(double val);
 	ValueItem(const std::string& val);
+	ValueItem(std::string&& val);
 	ValueItem(const char* str);
 	ValueItem(const list_array<ValueItem>& val);
 	ValueItem(list_array<ValueItem>&& val);
@@ -313,6 +322,17 @@ struct ValueItem {
 	ValueItem(const uint64_t* vals, uint32_t len);
 	ValueItem(const float* vals, uint32_t len);
 	ValueItem(const double* vals, uint32_t len);
+	
+	ValueItem(int8_t* vals, uint32_t len, no_copy_t);
+	ValueItem(uint8_t* vals, uint32_t len, no_copy_t);
+	ValueItem(int16_t* vals, uint32_t len, no_copy_t);
+	ValueItem(uint16_t* vals, uint32_t len, no_copy_t);
+	ValueItem(int32_t* vals, uint32_t len, no_copy_t);
+	ValueItem(uint32_t* vals, uint32_t len, no_copy_t);
+	ValueItem(int64_t* vals, uint32_t len, no_copy_t);
+	ValueItem(uint64_t* vals, uint32_t len, no_copy_t);
+	ValueItem(float* vals, uint32_t len, no_copy_t);
+	ValueItem(double* vals, uint32_t len, no_copy_t);
 	template<size_t len>
 	ValueItem(ValueItem(&vals)[len]) : ValueItem(vals, len) {}
 	ValueItem(typed_lgr<struct Task> task);
@@ -329,6 +349,12 @@ struct ValueItem {
 	ValueItem(const std::initializer_list<ValueItem>& args);
 	ValueItem(const std::exception_ptr&);
 	ValueItem(const std::chrono::steady_clock::time_point&);
+	ValueItem(const std::unordered_map<ValueItem, ValueItem>& map);
+	ValueItem(std::unordered_map<ValueItem, ValueItem>&& map);
+	ValueItem(const std::unordered_set<ValueItem>& set);
+	ValueItem(std::unordered_set<ValueItem>&& set);
+
+
 	ValueItem(typed_lgr<class FuncEnviropment>&);
 	ValueItem() {
 		val = nullptr;
@@ -351,6 +377,8 @@ struct ValueItem {
 	bool operator!=(const ValueItem& cmp) const;
 	bool operator>=(const ValueItem& cmp) const;
 	bool operator<=(const ValueItem& cmp) const;
+
+
 	ValueItem& operator +=(const ValueItem& op);
 	ValueItem& operator -=(const ValueItem& op);
 	ValueItem& operator *=(const ValueItem& op);
@@ -359,6 +387,10 @@ struct ValueItem {
 	ValueItem& operator ^=(const ValueItem& op);
 	ValueItem& operator &=(const ValueItem& op);
 	ValueItem& operator |=(const ValueItem& op);
+	ValueItem& operator <<=(const ValueItem& op);
+	ValueItem& operator >>=(const ValueItem& op);
+	ValueItem& operator ++();
+	ValueItem& operator --();
 	ValueItem& operator !();
 
 	ValueItem operator +(const ValueItem& op) const;
@@ -389,12 +421,17 @@ struct ValueItem {
 	explicit operator ProxyClass& ();
 	explicit operator std::exception_ptr();
 	explicit operator std::chrono::steady_clock::time_point();
+	explicit operator std::unordered_map<ValueItem, ValueItem>&();
+	explicit operator std::unordered_set<ValueItem>&();
 
 	ValueItem* operator()(ValueItem* arguments, uint32_t arguments_size);
 	void getAsync();
 	void*& getSourcePtr();
 	const void*& getSourcePtr() const;
 	typed_lgr<class FuncEnviropment>* funPtr();
+	
+	size_t hash() const;
+	size_t hash();
 };
 typedef ValueItem* (*Enviropment)(ValueItem* args, uint32_t len);
 
@@ -489,47 +526,8 @@ struct ProxyClass {
 namespace std {
 	template<>
 	struct hash<ValueItem> {
-		size_t operator()(const ValueItem& cit) {
-			ValueItem& it = const_cast<ValueItem&>(cit);
-			it.getAsync();
-			switch (it.meta.vtype) {
-			case VType::noting:return 0;
-			case VType::type_identifier:
-			case VType::boolean:
-			case VType::i8:return hash<int8_t>()((int8_t)it);
-			case VType::i16:return hash<int16_t>()((int16_t)it);
-			case VType::i32:return hash<int32_t>()((int32_t)it);
-			case VType::i64:return hash<int64_t>()((int64_t)it);
-			case VType::ui8:return hash<uint8_t>()((uint8_t)it);
-			case VType::ui16:return hash<uint16_t>()((uint16_t)it);
-			case VType::ui32:return hash<uint32_t>()((uint32_t)it);
-			case VType::undefined_ptr:
-			case VType::ui64:return hash<uint64_t>()((uint64_t)it);
-			case VType::flo:return hash<float>()((float)it);
-			case VType::doub:return hash<double>()((double)it);
-			case VType::string:return hash<string>()((string)it);
-			case VType::uarr: return hash<list_array<ValueItem>>()((list_array<ValueItem>)it);
-			case VType::raw_arr_i8:
-			case VType::raw_arr_i16:
-			case VType::raw_arr_i32:
-			case VType::raw_arr_i64:
-			case VType::raw_arr_ui8:
-			case VType::raw_arr_ui16:
-			case VType::raw_arr_ui32:
-			case VType::raw_arr_ui64:
-			case VType::raw_arr_flo:
-			case VType::raw_arr_doub:
-			case VType::async_res:
-			case VType::except_value:
-			case VType::faarr:
-			case VType::class_:
-			case VType::morph:
-			case VType::proxy:
-			default:
-				//TO-DO add impl
-				throw NotImplementedException();
-				break;
-			}
+		size_t operator()(const ValueItem& cit) const {
+			return cit.hash();
 		}
 	};
 }

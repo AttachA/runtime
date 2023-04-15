@@ -8,6 +8,8 @@
 #include <iostream>
 #include "attacha_abi.hpp"
 
+#include "agreement/symbols.hpp"
+
 ValueItem* FuncEnviropment::async_call(typed_lgr<FuncEnviropment> f, ValueItem* args, uint32_t args_len) {
 	ValueItem* res = new ValueItem();
 	res->meta = ValueMeta(VType::async_res, false, false).encoded;
@@ -2106,6 +2108,19 @@ struct CompilerFabric{
 		b.leaEnviro(readData<uint16_t>(data, data_len, i));
 		b.finalize(DynBitNot);
 	}
+	void dynamic_bit_shift_left(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynBitShiftLeft);
+	}
+	void dynamic_bit_shift_right(){
+		BuildCall b(a, 2);
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(DynBitShiftRight);
+	}
+
 #pragma endregion
 #pragma region dynamic logic
 	void dynamic_log_not(){
@@ -3154,6 +3169,8 @@ struct CompilerFabric{
 			case Opcode::bit_or: dynamic_bit_or(); break;
 			case Opcode::bit_and: dynamic_bit_and(); break;
 			case Opcode::bit_not: dynamic_bit_not(); break;
+			case Opcode::bit_shift_left: dynamic_bit_shift_left(); break;
+			case Opcode::bit_shift_right: dynamic_bit_shift_right(); break;
 			case Opcode::log_not: dynamic_log_not(); break;
 			case Opcode::compare: dynamic_compare(); break;
 			case Opcode::jump: dynamic_jump(); break;
@@ -3220,7 +3237,8 @@ struct CompilerFabric{
 			case Opcode::value_unhold:
 
 			
-			case Opcode::generator_get:
+			case Opcode::async_get:
+			case Opcode::generator_next:
 			default:
 				throw CompileTimeException("Invalid opcode");
 		}

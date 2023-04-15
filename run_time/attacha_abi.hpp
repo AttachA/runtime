@@ -781,6 +781,9 @@ void DynBitXor(void** val0, void** val1);
 void DynBitOr(void** val0, void** val1);
 void DynBitAnd(void** val0, void** val1);
 void DynBitNot(void** val0);
+void DynBitShiftLeft(void** val0, void** val1);
+void DynBitShiftRight(void** val0, void** val1);
+
 
 void* AsArg(void** val);
 void AsArr(void** val);
