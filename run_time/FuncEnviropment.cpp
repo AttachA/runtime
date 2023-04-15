@@ -1067,7 +1067,7 @@ void IndexArraySetMoveStatic(void** value, void** arr_ref, uint32_t pos) {
 template<char typ>
 void IndexArrayStaticInterface(void** value, ValueItem* arr_ref, uint64_t pos) noexcept(false) {
 	universalRemove(value);
-	size_t length = (size_t)AttachA::Interface::makeCall(ClassAccess::pub, *arr_ref, "size");
+	size_t length = (size_t)AttachA::Interface::makeCall(ClassAccess::pub, *arr_ref, symbols::structures::size);
 	if constexpr (typ == 2) {
 		if (length <= pos) {
 			*value = nullptr;
@@ -1078,19 +1078,19 @@ void IndexArrayStaticInterface(void** value, ValueItem* arr_ref, uint64_t pos) n
 	else if constexpr (typ == 1)
 		if (length > pos)
 			throw OutOfRange();
-	ValueItem temp = AttachA::Interface::makeCall(ClassAccess::pub, *arr_ref, "get[]", pos);
+	ValueItem temp = AttachA::Interface::makeCall(ClassAccess::pub, *arr_ref, symbols::structures::index_operator, pos);
 	*value = temp.val;
 	*((size_t*)(value + 1)) = temp.meta.encoded;
 	temp.val = nullptr;
 }
 template<char typ>
 void IndexArraySetStaticInterface(void** value, ValueItem* arr_ref, uint64_t pos) {
-	size_t length = (size_t)AttachA::Interface::makeCall(ClassAccess::pub, *arr_ref, "size");
+	size_t length = (size_t)AttachA::Interface::makeCall(ClassAccess::pub, *arr_ref, symbols::structures::size);
 	if constexpr (typ != 0) {
 		if (length <= pos)
 			throw OutOfRange();
 	}
-	AttachA::Interface::makeCall(ClassAccess::pub, *arr_ref, "set[]", pos, reinterpret_cast<ValueItem&>(value));
+	AttachA::Interface::makeCall(ClassAccess::pub, *arr_ref, symbols::structures::index_set_operator, pos, reinterpret_cast<ValueItem&>(value));
 }
 
 template<char typ>

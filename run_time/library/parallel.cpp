@@ -1,5 +1,6 @@
 #pragma once
 #include "../AttachA_CXX.hpp"
+#include "../agreement/symbols.hpp"
 namespace parallel {
 	ProxyClassDefine define_ConditionVariable;
 	ProxyClassDefine define_Mutex;
@@ -347,12 +348,12 @@ namespace parallel {
 		case VType::class_:
 		case VType::morph:
 		case VType::proxy:
-			if (AttachA::Interface::hasImplement(item, "to_u8[]")) {
-				ValueItem tmp = AttachA::Interface::makeCall(ClassAccess::pub, item, "to_u8[]");
+			if (AttachA::Interface::hasImplement(item, symbols::structures::convert::to_ui8_arr)) {
+				ValueItem tmp = AttachA::Interface::makeCall(ClassAccess::pub, item, symbols::structures::convert::to_ui8_arr);
 				return ___funs_ConcurentFile_write_array<1>(class_, item, pos);
 			}
-			else if (AttachA::Interface::hasImplement(item, "to_string")) 
-				return ___funs_ConcurentFile_write_string(class_, (std::string)AttachA::Interface::makeCall(ClassAccess::pub, item, "to_string"), pos);
+			else if (AttachA::Interface::hasImplement(item, symbols::structures::convert::to_string)) 
+				return ___funs_ConcurentFile_write_string(class_, (std::string)AttachA::Interface::makeCall(ClassAccess::pub, item, symbols::structures::convert::to_string), pos);
 			else
 				throw UnsupportedOperation("Fail to write unsupported interface: " + AttachA::Interface::name(item) + " cause that cannont be converted to ui8[] or string");
 		case VType::faarr:

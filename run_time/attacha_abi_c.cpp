@@ -4,6 +4,7 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 #include "AttachA_CXX.hpp"
+#include "agreement/symbols.hpp"
 #include <string>
 #include <sstream>
 #include <mutex>
@@ -709,13 +710,13 @@ std::pair<bool, bool> compareUarrAInterface(ValueMeta cmp1, ValueMeta cmp2, void
 		uint64_t length;  
 		switch (cmp2.vtype) {
 		case VType::class_:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv,*(ClassValue*)val2,"size");
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv,*(ClassValue*)val2, symbols::structures::size);
 			break;
 		case VType::morph:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(MorphValue*)val2, "size");
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(MorphValue*)val2, symbols::structures::size);
 			break;
 		case VType::proxy:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "size");
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::size);
 			break;
 		default:
 			throw AException("Implementation exception", "Wrong function usage compareUarrAInterface");
@@ -724,21 +725,21 @@ std::pair<bool, bool> compareUarrAInterface(ValueMeta cmp1, ValueMeta cmp2, void
 			return { false, true };
 		else if (arr1.size() == length) {
 			auto iter = arr1.begin(); 
-			if ((*(ProxyClass*)val2).containsFn("begin")) {
-				auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "begin");
+			if ((*(ProxyClass*)val2).containsFn(symbols::structures::iterable::begin)) {
+				auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::iterable::begin);
 				for (uint64_t i = 0; i < length; i++) {
 					auto& it1 = *iter;
-					auto it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, "next");
+					auto it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, symbols::structures::iterable::next);
 					auto res = compareValue(it1.meta, it2.meta, it1.val, it2.val);
 					if (!res.first)
 						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
 					++iter;
 				}
 			}
-			else if ((*(ProxyClass*)val2).containsFn("index")) {
+			else if ((*(ProxyClass*)val2).containsFn(symbols::structures::index_operator)) {
 				for (uint64_t i = 0; i < length; i++) {
 					auto& it1 = *iter;
-					auto it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "index", i);
+					auto it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::index_operator, i);
 					auto res = compareValue(it1.meta, it2.meta, it1.val, it2.val);
 					if (!res.first)
 						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
@@ -756,21 +757,21 @@ std::pair<bool, bool> compareUarrAInterface(ValueMeta cmp1, ValueMeta cmp2, void
 template<class T,VType T_VType>
 std::tuple<bool, bool, bool> compareRawArrAInterface_Worst0(void* val1, void* val2,uint64_t length) {
 	auto arr2 = (T*)val2;
-	if ((*(ProxyClass*)val2).containsFn("begin")) {
-		auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "begin");
+	if ((*(ProxyClass*)val2).containsFn(symbols::structures::iterable::begin)) {
+		auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::iterable::begin);
 		for (uint64_t i = 0; i < length; i++) {
 			T first = *arr2;
-			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, "next");
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, symbols::structures::iterable::next);
 			auto res = compareValue(T_VType, it2.meta, &first, it2.val);
 			if (!res.first)
 				return { false, res.second,true };
 			++arr2;
 		}
 	}
-	else if ((*(ProxyClass*)val2).containsFn("index")) {
+	else if ((*(ProxyClass*)val2).containsFn(symbols::structures::index_operator)) {
 		for (uint64_t i = 0; i < length; i++) {
 			T first = *arr2;
-			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "index", i);
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::index_operator, i);
 			auto res = compareValue(T_VType, it2.meta, &first, it2.val);
 			if (!res.first)
 				return { false, res.second,true };
@@ -783,21 +784,21 @@ std::tuple<bool, bool, bool> compareRawArrAInterface_Worst0(void* val1, void* va
 }
 std::tuple<bool, bool, bool> compareRawArrAInterface_Worst1(void* val1, void* val2, uint64_t length) {
 	auto arr2 = (ValueItem*)val2;
-	if ((*(ProxyClass*)val2).containsFn("begin")) {
-		auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "begin");
+	if ((*(ProxyClass*)val2).containsFn(symbols::structures::iterable::begin)) {
+		auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::iterable::begin);
 		for (uint64_t i = 0; i < length; i++) {
 			ValueItem& first = *arr2;
-			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, "next");
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, symbols::structures::iterable::next);
 			auto res = compareValue(first.meta, it2.meta, first.val, it2.val);
 			if (!res.first)
 				return { false, res.second,true };
 			++arr2;
 		}
 	}
-	else if ((*(ProxyClass*)val2).containsFn("index")) {
+	else if ((*(ProxyClass*)val2).containsFn(symbols::structures::index_operator)) {
 		for (uint64_t i = 0; i < length; i++) {
 			ValueItem& first = *arr2;
-			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "index", i);
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::index_operator, i);
 			auto res = compareValue(first.meta, it2.meta, first.val, it2.val);
 			if (!res.first)
 				return { false, res.second,true };
@@ -816,13 +817,13 @@ std::pair<bool, bool> compareRawArrAInterface(ValueMeta cmp1, ValueMeta cmp2, vo
 		uint64_t length;
 		switch (cmp2.vtype) {
 		case VType::class_:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ClassValue*)val2, "size");
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ClassValue*)val2, symbols::structures::size);
 			break;
 		case VType::morph:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(MorphValue*)val2, "size");
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(MorphValue*)val2, symbols::structures::size);
 			break;
 		case VType::proxy:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, "size");
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::size);
 			break;
 		default:
 			throw AException("Implementation exception", "Wrong function usage compareRawArrAInterface");
@@ -1171,27 +1172,121 @@ namespace ABI_IMPL {
 			res += ')';
 			return res;
 		}
-		case VType::time_point://std::chrono::steady_clock::time_point
-		case VType::class_define:
+		case VType::time_point: return "t(" + std::to_string(reinterpret_cast<std::chrono::steady_clock::time_point*>(val)->time_since_epoch().count()) + ')';
 		case VType::class_:
+			return (std::string)AttachA::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<ClassValue*>(val), symbols::structures::convert::to_string);
 		case VType::morph:
+			return (std::string)AttachA::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<MorphValue*>(val), symbols::structures::convert::to_string);
 		case VType::proxy: 
-			throw NotImplementedException();
+			return (std::string)AttachA::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<ProxyClass*>(val), symbols::structures::convert::to_string);
+		case VType::class_define:
+			throw InvalidCast("Fail cast class define");
 		default:
 			throw InvalidCast("Fail cast undefined type");
 		}
 	}
+
+	list_array<ValueItem> string_to_array(const std::string& str, uint32_t start){
+		list_array<ValueItem> res;
+		std::string tmp;
+		bool in_str = false;
+		for (uint32_t i = start; i < str.size(); i++) {
+			if (str[i] == '"' && str[i - 1] != '\\')
+				in_str = !in_str;
+			if (str[i] == ',' && !in_str) {
+				res.push_back(SBcast(tmp));
+				tmp.clear();
+			}
+			else
+				tmp += str[i];
+		}
+		if (tmp.size())
+			res.push_back(SBcast(tmp));
+		return res;	
+	}
 	ValueItem SBcast(const std::string& str) {
-		if (str == "noting")
-			return ValueItem();
+		if (str == "noting" || str == "null" || str == "undefined")
+			return nullptr;
+		else if (str == "true")
+			return true;
+		else if (str == "false")
+			return false;
+		else if (str.starts_with('"') && str.ends_with('"'))
+			return str.substr(1, str.size() - 2);
+		else if (str.starts_with('\'') && str.ends_with('\'') && str.size() > 2)
+			return str.substr(1, str.size() - 2);
+		else if(str == "\'\\\'\'")//'\'' -> '
+			return ValueItem("\'");
 		else if (str.starts_with("0x"))
 			return ValueItem((void*)std::stoull(str, nullptr, 16),VType::undefined_ptr);
-		else if (str.starts_with('[')) {
-			//TO-DO
-			return ValueItem(new std::string(str), VType::string);
-		}else if(str.starts_with("*[")) {
-			//TO-DO
-			return ValueItem(new std::string(str), VType::string);
+		else if (str.starts_with('[')) 
+			return ValueItem(string_to_array(str,1));	
+		else if(str.starts_with("*[")) {
+			auto tmp = string_to_array(str, 2);
+			ValueItem res;
+			res.meta.vtype = VType::faarr;
+			res.meta.allow_edit = true;
+			size_t size = 0;
+			res.val = tmp.take_raw(size);
+			res.meta.val_len = size;
+			return res;
+		}
+		else if(str.starts_with('{')){
+			std::unordered_map<ValueItem, ValueItem> res;
+			std::string key;
+			std::string value;
+			bool in_str = false;
+			bool is_key = true;
+			for (uint32_t i = 1; i < str.size(); i++) {
+				if (str[i] == '"' && str[i - 1] != '\\')
+					in_str = !in_str;
+				if (str[i] == ':' && !in_str) {
+					is_key = false;
+				}
+				else if (str[i] == ',' && !in_str) {
+					res[SBcast(key)] = SBcast(value);
+					key.clear();
+					value.clear();
+					is_key = true;
+				}
+				else {
+					if (is_key)
+						key += str[i];
+					else
+						value += str[i];
+				}
+			}
+			if (key.size())
+				res[SBcast(key)] = SBcast(value);
+			return ValueItem(std::move(res));
+		}
+		else if (str.starts_with('(')) {
+			std::unordered_set<ValueItem> res;
+			std::string tmp;
+			bool in_str = false;
+			for (uint32_t i = 1; i < str.size(); i++) {
+				if (str[i] == '"' && str[i - 1] != '\\')
+					in_str = !in_str;
+				if (str[i] == ',' && !in_str) {
+					res.insert(SBcast(tmp));
+					tmp.clear();
+				}
+				else
+					tmp += str[i];
+			}
+			if (tmp.size())
+				res.insert(SBcast(tmp));
+			return ValueItem(std::move(res));
+		}
+		else if (str.starts_with("t(")) {
+			std::string tmp;
+			for (uint32_t i = 11; i < str.size(); i++) {
+				if(str[i] == ')')
+					break;
+				tmp += str[i];
+			}
+			auto res = std::chrono::steady_clock::time_point(std::chrono::nanoseconds(std::stoull(tmp)));
+			return ValueItem(*(void**)&res, VType::time_point);
 		}
 		else {
 			try {
@@ -1334,500 +1429,663 @@ namespace ABI_IMPL {
 
 
 void DynSum(void** val0, void** val1) {
-	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
-	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
-	void*& actual_val0 = *val0;
-	void*& actual_val1 = *val1;
-	if(val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
-	if(val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	ValueItem& val1_r = *reinterpret_cast<ValueItem*>(val1);
+	val0_r.getAsync();
+	val1_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+	void*& actual_val1 = val1_r.getSourcePtr();
 
-	if (!val0_meta.allow_edit)
+	if (!val1_r.meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.vtype) {
-	case VType::noting: {
-		actual_val0 = copyValue(actual_val1, val1_meta);
-		val0_meta = val1_meta;
-		break;
-	}
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = val1_r;break;
 	case VType::i8:
-		reinterpret_cast<int8_t&>(actual_val0) += ABI_IMPL::Vcast<int8_t>(actual_val1, val1_meta);
+		reinterpret_cast<int8_t&>(actual_val0) += (int8_t)val1_r;
 		break;
 	case VType::i16:
-		reinterpret_cast<int16_t&>(actual_val0) += ABI_IMPL::Vcast<int16_t>(actual_val1, val1_meta);
+		reinterpret_cast<int16_t&>(actual_val0) += (int16_t)val1_r;
 		break;
 	case VType::i32:
-		reinterpret_cast<int32_t&>(actual_val0) += ABI_IMPL::Vcast<int32_t>(actual_val1, val1_meta);
+		reinterpret_cast<int32_t&>(actual_val0) += (int32_t)val1_r;
 		break;
 	case VType::i64:
-		reinterpret_cast<int64_t&>(actual_val0) += ABI_IMPL::Vcast<int64_t>(actual_val1, val1_meta);
+		reinterpret_cast<int64_t&>(actual_val0) += (int64_t)val1_r;
 		break;
 	case VType::ui8:
-		reinterpret_cast<uint8_t&>(actual_val0) += ABI_IMPL::Vcast<uint8_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint8_t&>(actual_val0) += (uint8_t)val1_r;
 		break;
 	case VType::ui16:
-		reinterpret_cast<uint16_t&>(actual_val0) += ABI_IMPL::Vcast<uint16_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint16_t&>(actual_val0) += (uint16_t)val1_r;
 		break;
 	case VType::ui32:
-		reinterpret_cast<uint32_t&>(actual_val0) += ABI_IMPL::Vcast<uint32_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint32_t&>(actual_val0) += (uint32_t)val1_r;
 		break;
 	case VType::ui64:
-		reinterpret_cast<uint64_t&>(actual_val0) += ABI_IMPL::Vcast<uint64_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint64_t&>(actual_val0) += (uint64_t)val1_r;
 		break;
 	case VType::flo:
-		reinterpret_cast<float&>(actual_val0) += ABI_IMPL::Vcast<float>(actual_val1, val1_meta);
+		reinterpret_cast<float&>(actual_val0) += (float)val1_r;
 		break;
 	case VType::doub:
-		reinterpret_cast<double&>(actual_val0) += ABI_IMPL::Vcast<double>(actual_val1, val1_meta);
+		reinterpret_cast<double&>(actual_val0) += (double)val1_r;
 		break;
 	case VType::uarr:
-		reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(ValueItem(copyValue(actual_val1,val1_meta), val1_meta));
+		reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(val1_r);
 		break;
 	case VType::string:
-		reinterpret_cast<std::string&>(actual_val0) += ABI_IMPL::Scast(actual_val1, val1_meta);
+		reinterpret_cast<std::string&>(actual_val0) += (std::string)val1_r;
 		break;
 	case VType::undefined_ptr:
-		reinterpret_cast<size_t&>(actual_val0) += ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
+		reinterpret_cast<size_t&>(actual_val0) += (size_t)val1_r;
+		break;
+	case VType::time_point:{
+		auto& val0_time = reinterpret_cast<std::chrono::steady_clock::time_point&>(actual_val0);
+		auto& val1_time = reinterpret_cast<std::chrono::steady_clock::time_point&>(actual_val1);
+		val0_time = val0_time + (std::chrono::nanoseconds)val1_time.time_since_epoch();
+		break;
+	}
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub,val0_r, symbols::structures::add_operator, val1_r);
 		break;
 	default:
-		throw InvalidCast("Fail cast value for add operation, cause value type is undefined");
+		throw InvalidCast("Fail cast value for add operation, cause value type is unsupported");
 	}
 }
 void DynMinus(void** val0, void** val1) {
-	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
-	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
-	void*& actual_val0 = *val0;
-	void*& actual_val1 = *val1;
-	if(val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
-	if(val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	ValueItem& val1_r = *reinterpret_cast<ValueItem*>(val1);
+	val0_r.getAsync();
+	val1_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+	void*& actual_val1 = val1_r.getSourcePtr();
 
-	if (!val0_meta.allow_edit)
+	if (!val1_r.meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.vtype) {
-	case VType::noting: {
-		actual_val0 = copyValue(actual_val1, val1_meta);
-		val0_meta = val1_meta;
-		break;
-	}
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = val1_r;break;
 	case VType::i8:
-		reinterpret_cast<int8_t&>(actual_val0) -= ABI_IMPL::Vcast<int8_t>(actual_val1, val1_meta);
+		reinterpret_cast<int8_t&>(actual_val0) -= (int8_t)val1_r;
 		break;
 	case VType::i16:
-		reinterpret_cast<int16_t&>(actual_val0) -= ABI_IMPL::Vcast<int16_t>(actual_val1, val1_meta);
+		reinterpret_cast<int16_t&>(actual_val0) -= (int16_t)val1_r;
 		break;
 	case VType::i32:
-		reinterpret_cast<int32_t&>(actual_val0) -= ABI_IMPL::Vcast<int32_t>(actual_val1, val1_meta);
+		reinterpret_cast<int32_t&>(actual_val0) -= (int32_t)val1_r;
 		break;
 	case VType::i64:
-		reinterpret_cast<int64_t&>(actual_val0) -= ABI_IMPL::Vcast<int64_t>(actual_val1, val1_meta);
+		reinterpret_cast<int64_t&>(actual_val0) -= (int64_t)val1_r;
 		break;
 	case VType::ui8:
-		reinterpret_cast<uint8_t&>(actual_val0) -= ABI_IMPL::Vcast<uint8_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint8_t&>(actual_val0) -= (uint8_t)val1_r;
 		break;
 	case VType::ui16:
-		reinterpret_cast<uint16_t&>(actual_val0) -= ABI_IMPL::Vcast<uint16_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint16_t&>(actual_val0) -= (uint16_t)val1_r;
 		break;
 	case VType::ui32:
-		reinterpret_cast<uint32_t&>(actual_val0) -= ABI_IMPL::Vcast<uint32_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint32_t&>(actual_val0) -= (uint32_t)val1_r;
 		break;
 	case VType::ui64:
-		reinterpret_cast<uint64_t&>(actual_val0) -= ABI_IMPL::Vcast<uint64_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint64_t&>(actual_val0) -= (uint64_t)val1_r;
 		break;
 	case VType::flo:
-		reinterpret_cast<float&>(actual_val0) -= ABI_IMPL::Vcast<float>(actual_val1, val1_meta);
+		reinterpret_cast<float&>(actual_val0) -= (float)val1_r;
 		break;
 	case VType::doub:
-		reinterpret_cast<double&>(actual_val0) -= ABI_IMPL::Vcast<double>(actual_val1, val1_meta);
+		reinterpret_cast<double&>(actual_val0) -= (double)val1_r;
 		break;
 	case VType::uarr:
-		reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_front(ValueItem(copyValue(actual_val1,val1_meta), val1_meta));
+		reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(val1_r);
 		break;
 	case VType::string:
-		reinterpret_cast<std::string&>(actual_val0) = ABI_IMPL::Scast(actual_val1, val1_meta) + reinterpret_cast<std::string&>(actual_val0);
+		reinterpret_cast<std::string&>(actual_val0) = (std::string)val1_r + reinterpret_cast<std::string&>(actual_val0);
 		break;
 	case VType::undefined_ptr:
-		reinterpret_cast<size_t&>(actual_val0) -= ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
+		reinterpret_cast<size_t&>(actual_val0) -= (size_t)val1_r;
+		break;
+	case VType::time_point:{
+		auto& val0_time = reinterpret_cast<std::chrono::steady_clock::time_point&>(actual_val0);
+		auto& val1_time = reinterpret_cast<std::chrono::steady_clock::time_point&>(actual_val1);
+		val0_time = val0_time - (std::chrono::nanoseconds)val1_time.time_since_epoch();
+		break;
+	}
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::subtract_operator, val1_r);
 		break;
 	default:
-		throw InvalidCast("Fail cast value for minus operation, cause value type is undefined");
+		throw InvalidCast("Fail cast value for minus operation, cause value type is unsupported");
 	}
 }
 void DynMul(void** val0, void** val1) {
-	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
-	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
-	void*& actual_val0 = *val0;
-	void*& actual_val1 = *val1;
-	if(val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
-	if(val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	ValueItem& val1_r = *reinterpret_cast<ValueItem*>(val1);
+	val0_r.getAsync();
+	val1_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+	void*& actual_val1 = val1_r.getSourcePtr();
 
-	if (!val0_meta.allow_edit)
+	if (!val1_r.meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.vtype) {
-	case VType::noting: {
-		actual_val0 = copyValue(actual_val1, val1_meta);
-		val0_meta = val1_meta;
-		break;
-	}
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = val1_r;break;
 	case VType::i8:
-		reinterpret_cast<int8_t&>(actual_val0) *= ABI_IMPL::Vcast<int8_t>(actual_val1, val1_meta);
+		reinterpret_cast<int8_t&>(actual_val0) *= (int8_t)val1_r;
 		break;
 	case VType::i16:
-		reinterpret_cast<int16_t&>(actual_val0) *= ABI_IMPL::Vcast<int16_t>(actual_val1, val1_meta);
+		reinterpret_cast<int16_t&>(actual_val0) *= (int16_t)val1_r;
 		break;
 	case VType::i32:
-		reinterpret_cast<int32_t&>(actual_val0) *= ABI_IMPL::Vcast<int32_t>(actual_val1, val1_meta);
+		reinterpret_cast<int32_t&>(actual_val0) *= (int32_t)val1_r;
 		break;
 	case VType::i64:
-		reinterpret_cast<int64_t&>(actual_val0) *= ABI_IMPL::Vcast<int64_t>(actual_val1, val1_meta);
+		reinterpret_cast<int64_t&>(actual_val0) *= (int64_t)val1_r;
 		break;
 	case VType::ui8:
-		reinterpret_cast<uint8_t&>(actual_val0) *= ABI_IMPL::Vcast<uint8_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint8_t&>(actual_val0) *= (uint8_t)val1_r;
 		break;
 	case VType::ui16:
-		reinterpret_cast<uint16_t&>(actual_val0) *= ABI_IMPL::Vcast<uint16_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint16_t&>(actual_val0) *= (uint16_t)val1_r;
 		break;
 	case VType::ui32:
-		reinterpret_cast<uint32_t&>(actual_val0) *= ABI_IMPL::Vcast<uint32_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint32_t&>(actual_val0) *= (uint32_t)val1_r;
 		break;
 	case VType::ui64:
-		reinterpret_cast<uint64_t&>(actual_val0) *= ABI_IMPL::Vcast<uint64_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint64_t&>(actual_val0) *= (uint64_t)val1_r;
 		break;
 	case VType::flo:
-		reinterpret_cast<float&>(actual_val0) *= ABI_IMPL::Vcast<float>(actual_val1, val1_meta);
+		reinterpret_cast<float&>(actual_val0) *= (float)val1_r;
 		break;
 	case VType::doub:
-		reinterpret_cast<double&>(actual_val0) *= ABI_IMPL::Vcast<double>(actual_val1, val1_meta);
+		reinterpret_cast<double&>(actual_val0) *= (double)val1_r;
 		break;
-	case VType::raw_arr_i8:
-	case VType::raw_arr_i16:
-	case VType::raw_arr_i32:
-	case VType::raw_arr_i64:
-	case VType::raw_arr_ui8:
-	case VType::raw_arr_ui16:
-	case VType::raw_arr_ui32:
-	case VType::raw_arr_ui64:
-	case VType::raw_arr_flo:
-	case VType::raw_arr_doub:
 	case VType::uarr:
-		if (val1_meta.vtype == VType::uarr)
-			reinterpret_cast<list_array<ValueItem>&>(actual_val0).insert(reinterpret_cast<list_array<ValueItem>&>(actual_val0).size() - 1, reinterpret_cast<list_array<ValueItem>&>(actual_val1));
-		else
-			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(ValueItem(copyValue(actual_val1, val1_meta), val1_meta));
+		reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(val1_r);
 		break;
-	case VType::string:
-		throw InvalidOperation("for strings multiply operation is not defined");
 	case VType::undefined_ptr:
-		reinterpret_cast<size_t&>(actual_val0) *= ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
-		break;
-	case VType::faarr:
-	case VType::saarr: {
-
-
-
-
-		break;
-	}
-	case VType::class_:
-		AttachA::Interface::makeCall(ClassAccess::priv, reinterpret_cast<ClassValue&>(actual_val0), "operator *", reinterpret_cast<ValueItem&>(val1));
-		break;
-	case VType::morph:
-		AttachA::Interface::makeCall(ClassAccess::priv, reinterpret_cast<MorphValue&>(actual_val0), "operator *", reinterpret_cast<ValueItem&>(val1));
+		reinterpret_cast<size_t&>(actual_val0) *= (size_t)val1_r;
 		break;
 	case VType::proxy:
-		AttachA::Interface::makeCall(ClassAccess::priv, reinterpret_cast<ProxyClass&>(actual_val0), "operator *", reinterpret_cast<ValueItem&>(val1));
-		break;
-	case VType::type_identifier:
-		throw InvalidCast("Fail use value for mul operation, cause value type is type_identifier");
-	case VType::function:
-		throw InvalidCast("Fail use value for mul operation, cause value type is function");
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::multiply_operator, val1_r);
 		break;
 	default:
-		throw InvalidCast("Fail cast value for mul operation, cause value type is undefined");
+		throw InvalidCast("Fail cast value for multiply operation, cause value type is unsupported");
 	}
+
 }
 void DynDiv(void** val0, void** val1) {
-	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
-	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
-	void*& actual_val0 = *val0;
-	void*& actual_val1 = *val1;
-	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
-	if (val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	ValueItem& val1_r = *reinterpret_cast<ValueItem*>(val1);
+	val0_r.getAsync();
+	val1_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+	void*& actual_val1 = val1_r.getSourcePtr();
 
-	if (!val0_meta.allow_edit)
+	if (!val1_r.meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.vtype) {
-	case VType::noting: {
-		actual_val0 = copyValue(actual_val1, val1_meta);
-		val0_meta = val1_meta;
-		break;
-	}
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = val1_r;break;
 	case VType::i8:
-		reinterpret_cast<int8_t&>(actual_val0) /= ABI_IMPL::Vcast<int8_t>(actual_val1, val1_meta);
+		reinterpret_cast<int8_t&>(actual_val0) /= (int8_t)val1_r;
 		break;
 	case VType::i16:
-		reinterpret_cast<int16_t&>(actual_val0) /= ABI_IMPL::Vcast<int16_t>(actual_val1, val1_meta);
+		reinterpret_cast<int16_t&>(actual_val0) /= (int16_t)val1_r;
 		break;
 	case VType::i32:
-		reinterpret_cast<int32_t&>(actual_val0) /= ABI_IMPL::Vcast<int32_t>(actual_val1, val1_meta);
+		reinterpret_cast<int32_t&>(actual_val0) /= (int32_t)val1_r;
 		break;
 	case VType::i64:
-		reinterpret_cast<int64_t&>(actual_val0) /= ABI_IMPL::Vcast<int64_t>(actual_val1, val1_meta);
+		reinterpret_cast<int64_t&>(actual_val0) /= (int64_t)val1_r;
 		break;
 	case VType::ui8:
-		reinterpret_cast<uint8_t&>(actual_val0) /= ABI_IMPL::Vcast<uint8_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint8_t&>(actual_val0) /= (uint8_t)val1_r;
 		break;
 	case VType::ui16:
-		reinterpret_cast<uint16_t&>(actual_val0) /= ABI_IMPL::Vcast<uint16_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint16_t&>(actual_val0) /= (uint16_t)val1_r;
 		break;
 	case VType::ui32:
-		reinterpret_cast<uint32_t&>(actual_val0) /= ABI_IMPL::Vcast<uint32_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint32_t&>(actual_val0) /= (uint32_t)val1_r;
 		break;
 	case VType::ui64:
-		reinterpret_cast<uint64_t&>(actual_val0) /= ABI_IMPL::Vcast<uint64_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint64_t&>(actual_val0) /= (uint64_t)val1_r;
 		break;
 	case VType::flo:
-		reinterpret_cast<float&>(actual_val0) /= ABI_IMPL::Vcast<float>(actual_val1, val1_meta);
+		reinterpret_cast<float&>(actual_val0) /= (float)val1_r;
 		break;
 	case VType::doub:
-		reinterpret_cast<double&>(actual_val0) /= ABI_IMPL::Vcast<double>(actual_val1, val1_meta);
+		reinterpret_cast<double&>(actual_val0) /= (double)val1_r;
 		break;
-	case VType::uarr:
-		if (val1_meta.vtype == VType::uarr)
-			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_front(reinterpret_cast<list_array<ValueItem>&>(actual_val1));
-		else
-			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_front(ValueItem(copyValue(actual_val1,val1_meta), val1_meta));
-		break;
-	case VType::string:
-		throw InvalidOperation("for strings divide operation is not defined");
 	case VType::undefined_ptr:
-		reinterpret_cast<size_t&>(actual_val0) /= ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
+		reinterpret_cast<size_t&>(actual_val0) /= (size_t)val1_r;
+		break;
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::divide_operator, val1_r);
 		break;
 	default:
-		throw InvalidCast("Fail cast value for div operation, cause value type is undefined");
+		throw InvalidCast("Fail cast value for divide operation, cause value type is unsupported");
 	}
 }
 void DynRest(void** val0, void** val1) {
-	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
-	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
-	void*& actual_val0 = *val0;
-	void*& actual_val1 = *val1;
-	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
-	if (val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	ValueItem& val1_r = *reinterpret_cast<ValueItem*>(val1);
+	val0_r.getAsync();
+	val1_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+	void*& actual_val1 = val1_r.getSourcePtr();
 
-	if (!val0_meta.allow_edit)
+	if (!val1_r.meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.vtype) {
-	case VType::noting: {
-		actual_val0 = copyValue(actual_val1, val1_meta);
-		val0_meta = val1_meta;
-		break;
-	}
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = val1_r;break;
 	case VType::i8:
-		reinterpret_cast<int8_t&>(actual_val0) %= ABI_IMPL::Vcast<int8_t>(actual_val1, val1_meta);
+		reinterpret_cast<int8_t&>(actual_val0) %= (int8_t)val1_r;
 		break;
 	case VType::i16:
-		reinterpret_cast<int16_t&>(actual_val0) %= ABI_IMPL::Vcast<int16_t>(actual_val1, val1_meta);
+		reinterpret_cast<int16_t&>(actual_val0) %= (int16_t)val1_r;
 		break;
 	case VType::i32:
-		reinterpret_cast<int32_t&>(actual_val0) %= ABI_IMPL::Vcast<int32_t>(actual_val1, val1_meta);
+		reinterpret_cast<int32_t&>(actual_val0) %= (int32_t)val1_r;
 		break;
 	case VType::i64:
-		reinterpret_cast<int64_t&>(actual_val0) %= ABI_IMPL::Vcast<int64_t>(actual_val1, val1_meta);
+		reinterpret_cast<int64_t&>(actual_val0) %= (int64_t)val1_r;
 		break;
 	case VType::ui8:
-		reinterpret_cast<uint8_t&>(actual_val0) %= ABI_IMPL::Vcast<uint8_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint8_t&>(actual_val0) %= (uint8_t)val1_r;
 		break;
 	case VType::ui16:
-		reinterpret_cast<uint16_t&>(actual_val0) %= ABI_IMPL::Vcast<uint16_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint16_t&>(actual_val0) %= (uint16_t)val1_r;
 		break;
 	case VType::ui32:
-		reinterpret_cast<uint32_t&>(actual_val0) %= ABI_IMPL::Vcast<uint32_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint32_t&>(actual_val0) %= (uint32_t)val1_r;
 		break;
 	case VType::ui64:
-		reinterpret_cast<uint64_t&>(actual_val0) %= ABI_IMPL::Vcast<uint64_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint64_t&>(actual_val0) %= (uint64_t)val1_r;
 		break;
-	case VType::flo:
-		reinterpret_cast<float&>(actual_val0) = std::fmod(reinterpret_cast<float&>(actual_val0),ABI_IMPL::Vcast<float>(actual_val1, val1_meta));
-		break;
-	case VType::doub:
-		reinterpret_cast<double&>(actual_val0) = std::fmod(reinterpret_cast<double&>(actual_val0), ABI_IMPL::Vcast<double>(actual_val1, val1_meta));
-		break;
-	case VType::uarr:
-		if (val1_meta.vtype == VType::uarr)
-			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(reinterpret_cast<list_array<ValueItem>&>(actual_val1));
-		else
-			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(ValueItem(copyValue(actual_val1, val1_meta), val1_meta));
-		break;
-	case VType::string:
-		throw InvalidOperation("for strings divide operation is not defined");
 	case VType::undefined_ptr:
-		reinterpret_cast<size_t&>(actual_val0) %= ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
+		reinterpret_cast<size_t&>(actual_val0) %= (size_t)val1_r;
+		break;
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::modulo_operator, val1_r);
 		break;
 	default:
-		throw InvalidCast("Fail cast value for div operation, cause value type is undefined");
+		throw InvalidCast("Fail cast value for rest operation, cause value type is unsupported");
+	}
+}
+void DynInc(void** val0){
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	val0_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+
+	if (!val0_r.meta.allow_edit)
+		throw UnmodifabeValue();
+
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = 1;break;
+	case VType::i8:
+		reinterpret_cast<int8_t&>(actual_val0)++;
+		break;
+	case VType::i16:
+		reinterpret_cast<int16_t&>(actual_val0)++;
+		break;
+	case VType::i32:
+		reinterpret_cast<int32_t&>(actual_val0)++;
+		break;
+	case VType::i64:
+		reinterpret_cast<int64_t&>(actual_val0)++;
+		break;
+	case VType::ui8:
+		reinterpret_cast<uint8_t&>(actual_val0)++;
+		break;
+	case VType::ui16:
+		reinterpret_cast<uint16_t&>(actual_val0)++;
+		break;
+	case VType::ui32:
+		reinterpret_cast<uint32_t&>(actual_val0)++;
+		break;
+	case VType::ui64:
+		reinterpret_cast<uint64_t&>(actual_val0)++;
+		break;
+	case VType::flo:
+		reinterpret_cast<float&>(actual_val0)++;
+		break;
+	case VType::doub:
+		reinterpret_cast<double&>(actual_val0)++;
+		break;
+	case VType::undefined_ptr:
+		reinterpret_cast<size_t&>(actual_val0)++;
+		break;
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::increment_operator);
+		break;
+	default:
+		throw InvalidCast("Fail cast value for increment operation, cause value type is unsupported");
+	}
+}
+void DynDec(void** val0) {
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	val0_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+
+	if (!val0_r.meta.allow_edit)
+		throw UnmodifabeValue();
+
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = -1;break;
+	case VType::i8:
+		reinterpret_cast<int8_t&>(actual_val0)--;
+		break;
+	case VType::i16:
+		reinterpret_cast<int16_t&>(actual_val0)--;
+		break;
+	case VType::i32:
+		reinterpret_cast<int32_t&>(actual_val0)--;
+		break;
+	case VType::i64:
+		reinterpret_cast<int64_t&>(actual_val0)--;
+		break;
+	case VType::ui8:
+		reinterpret_cast<uint8_t&>(actual_val0)--;
+		break;
+	case VType::ui16:
+		reinterpret_cast<uint16_t&>(actual_val0)--;
+		break;
+	case VType::ui32:
+		reinterpret_cast<uint32_t&>(actual_val0)--;
+		break;
+	case VType::ui64:
+		reinterpret_cast<uint64_t&>(actual_val0)--;
+		break;
+	case VType::flo:
+		reinterpret_cast<float&>(actual_val0)--;
+		break;
+	case VType::doub:
+		reinterpret_cast<double&>(actual_val0)--;
+		break;
+	case VType::undefined_ptr:
+		reinterpret_cast<size_t&>(actual_val0)--;
+		break;
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::decrement_operator);
+		break;
+	default:
+		throw InvalidCast("Fail cast value for decrement operation, cause value type is unsupported");
 	}
 }
 
-
 void DynBitXor(void** val0, void** val1) {
-	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
-	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
-	void*& actual_val0 = *val0;
-	void*& actual_val1 = *val1;
-	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
-	if (val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	ValueItem& val1_r = *reinterpret_cast<ValueItem*>(val1);
+	val0_r.getAsync();
+	val1_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+	void*& actual_val1 = val1_r.getSourcePtr();
 
-	if (!val0_meta.allow_edit)
+	if (!val0_r.meta.allow_edit)
 		throw UnmodifabeValue();
-
-	switch (val0_meta.vtype) {
-	case VType::noting: {
-		actual_val0 = copyValue(actual_val1, val1_meta);
-		val0_meta = val1_meta;
-		break;
-	}
+	
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = val1_r;break;
 	case VType::i8:
-		reinterpret_cast<int8_t&>(actual_val0) ^= ABI_IMPL::Vcast<int8_t>(actual_val1, val1_meta);
+		reinterpret_cast<int8_t&>(actual_val0) ^= (int8_t)val1_r;
 		break;
 	case VType::i16:
-		reinterpret_cast<int16_t&>(actual_val0) ^= ABI_IMPL::Vcast<int16_t>(actual_val1, val1_meta);
+		reinterpret_cast<int16_t&>(actual_val0) ^= (int16_t)val1_r;
 		break;
 	case VType::i32:
-		reinterpret_cast<int32_t&>(actual_val0) ^= ABI_IMPL::Vcast<int32_t>(actual_val1, val1_meta);
+		reinterpret_cast<int32_t&>(actual_val0) ^= (int32_t)val1_r;
 		break;
 	case VType::i64:
-		reinterpret_cast<int64_t&>(actual_val0) ^= ABI_IMPL::Vcast<int64_t>(actual_val1, val1_meta);
+		reinterpret_cast<int64_t&>(actual_val0) ^= (int64_t)val1_r;
 		break;
 	case VType::ui8:
-		reinterpret_cast<uint8_t&>(actual_val0) ^= ABI_IMPL::Vcast<uint8_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint8_t&>(actual_val0) ^= (uint8_t)val1_r;
 		break;
 	case VType::ui16:
-		reinterpret_cast<uint16_t&>(actual_val0) ^= ABI_IMPL::Vcast<uint16_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint16_t&>(actual_val0) ^= (uint16_t)val1_r;
 		break;
 	case VType::ui32:
-		reinterpret_cast<uint32_t&>(actual_val0) ^= ABI_IMPL::Vcast<uint32_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint32_t&>(actual_val0) ^= (uint32_t)val1_r;
 		break;
 	case VType::ui64:
-		reinterpret_cast<uint64_t&>(actual_val0) ^= ABI_IMPL::Vcast<uint64_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint64_t&>(actual_val0) ^= (uint64_t)val1_r;
 		break;
 	case VType::undefined_ptr:
-		reinterpret_cast<size_t&>(actual_val0) ^= ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
+		reinterpret_cast<size_t&>(actual_val0) ^= (size_t)val1_r;
+		break;
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_xor_operator, val1_r);
 		break;
 	default:
-		throw InvalidOperation("Invalid operation for non integer or non ptr type");
+		throw InvalidCast("Fail cast value for xor operation, cause value type is unsupported");
 	}
 }
 void DynBitOr(void** val0, void** val1) {
-	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
-	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
-	void*& actual_val0 = *val0;
-	void*& actual_val1 = *val1;
-	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
-	if (val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	ValueItem& val1_r = *reinterpret_cast<ValueItem*>(val1);
+	val0_r.getAsync();
+	val1_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+	void*& actual_val1 = val1_r.getSourcePtr();
 
-	if (!val0_meta.allow_edit)
+	if (!val0_r.meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.vtype) {
-	case VType::noting: {
-		actual_val0 = copyValue(actual_val1, val1_meta);
-		val0_meta = val1_meta;
-		break;
-	}
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = val1_r;break;
 	case VType::i8:
-		reinterpret_cast<int8_t&>(actual_val0) |= ABI_IMPL::Vcast<int8_t>(actual_val1, val1_meta);
+		reinterpret_cast<int8_t&>(actual_val0) |= (int8_t)val1_r;
 		break;
 	case VType::i16:
-		reinterpret_cast<int16_t&>(actual_val0) |= ABI_IMPL::Vcast<int16_t>(actual_val1, val1_meta);
+		reinterpret_cast<int16_t&>(actual_val0) |= (int16_t)val1_r;
 		break;
 	case VType::i32:
-		reinterpret_cast<int32_t&>(actual_val0) |= ABI_IMPL::Vcast<int32_t>(actual_val1, val1_meta);
+		reinterpret_cast<int32_t&>(actual_val0) |= (int32_t)val1_r;
 		break;
 	case VType::i64:
-		reinterpret_cast<int64_t&>(actual_val0) |= ABI_IMPL::Vcast<int64_t>(actual_val1, val1_meta);
+		reinterpret_cast<int64_t&>(actual_val0) |= (int64_t)val1_r;
 		break;
 	case VType::ui8:
-		reinterpret_cast<uint8_t&>(actual_val0) |= ABI_IMPL::Vcast<uint8_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint8_t&>(actual_val0) |= (uint8_t)val1_r;
 		break;
 	case VType::ui16:
-		reinterpret_cast<uint16_t&>(actual_val0) |= ABI_IMPL::Vcast<uint16_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint16_t&>(actual_val0) |= (uint16_t)val1_r;
 		break;
 	case VType::ui32:
-		reinterpret_cast<uint32_t&>(actual_val0) |= ABI_IMPL::Vcast<uint32_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint32_t&>(actual_val0) |= (uint32_t)val1_r;
 		break;
 	case VType::ui64:
-		reinterpret_cast<uint64_t&>(actual_val0) |= ABI_IMPL::Vcast<uint64_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint64_t&>(actual_val0) |= (uint64_t)val1_r;
 		break;
 	case VType::undefined_ptr:
-		reinterpret_cast<size_t&>(actual_val0) |= ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
+		reinterpret_cast<size_t&>(actual_val0) |= (size_t)val1_r;
+		break;
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_or_operator, val1_r);
 		break;
 	default:
-		throw InvalidOperation("Invalid operation for non integer or non ptr type");
+		throw InvalidCast("Fail cast value for or operation, cause value type is unsupported");
 	}
 }
 void DynBitAnd(void** val0, void** val1) {
-	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
-	ValueMeta& val1_meta = *((ValueMeta*)val1 + 1);
-	void*& actual_val0 = *val0;
-	void*& actual_val1 = *val1;
-	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
-	if (val1_meta.vtype == VType::async_res) getAsyncResult(actual_val1, val1_meta);
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	ValueItem& val1_r = *reinterpret_cast<ValueItem*>(val1);
+	val0_r.getAsync();
+	val1_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+	void*& actual_val1 = val1_r.getSourcePtr();
 
-	if (!val0_meta.allow_edit)
+	if (!val0_r.meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.vtype) {
-	case VType::noting: {
-		actual_val0 = copyValue(actual_val1, val1_meta);
-		val0_meta = val1_meta;
-		break;
-	}
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = val1_r;break;
 	case VType::i8:
-		reinterpret_cast<int8_t&>(actual_val0) &= ABI_IMPL::Vcast<int8_t>(actual_val1, val1_meta);
+		reinterpret_cast<int8_t&>(actual_val0) &= (int8_t)val1_r;
 		break;
 	case VType::i16:
-		reinterpret_cast<int16_t&>(actual_val0) &= ABI_IMPL::Vcast<int16_t>(actual_val1, val1_meta);
+		reinterpret_cast<int16_t&>(actual_val0) &= (int16_t)val1_r;
 		break;
 	case VType::i32:
-		reinterpret_cast<int32_t&>(actual_val0) &= ABI_IMPL::Vcast<int32_t>(actual_val1, val1_meta);
+		reinterpret_cast<int32_t&>(actual_val0) &= (int32_t)val1_r;
 		break;
 	case VType::i64:
-		reinterpret_cast<int64_t&>(actual_val0) &= ABI_IMPL::Vcast<int64_t>(actual_val1, val1_meta);
+		reinterpret_cast<int64_t&>(actual_val0) &= (int64_t)val1_r;
 		break;
 	case VType::ui8:
-		reinterpret_cast<uint8_t&>(actual_val0) &= ABI_IMPL::Vcast<uint8_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint8_t&>(actual_val0) &= (uint8_t)val1_r;
 		break;
 	case VType::ui16:
-		reinterpret_cast<uint16_t&>(actual_val0) &= ABI_IMPL::Vcast<uint16_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint16_t&>(actual_val0) &= (uint16_t)val1_r;
 		break;
 	case VType::ui32:
-		reinterpret_cast<uint32_t&>(actual_val0) &= ABI_IMPL::Vcast<uint32_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint32_t&>(actual_val0) &= (uint32_t)val1_r;
 		break;
 	case VType::ui64:
-		reinterpret_cast<uint64_t&>(actual_val0) &= ABI_IMPL::Vcast<uint64_t>(actual_val1, val1_meta);
+		reinterpret_cast<uint64_t&>(actual_val0) &= (uint64_t)val1_r;
 		break;
 	case VType::undefined_ptr:
-		reinterpret_cast<size_t&>(actual_val0) &= ABI_IMPL::Vcast<size_t>(actual_val1, val1_meta);
+		reinterpret_cast<size_t&>(actual_val0) &= (size_t)val1_r;
+		break;
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_and_operator, val1_r);
 		break;
 	default:
-		throw InvalidOperation("Invalid operation for non integer or non ptr type");
+		throw InvalidCast("Fail cast value for and operation, cause value type is unsupported");
 	}
 }
-void DynBitNot(void** val0) {
-	ValueMeta& val0_meta = *((ValueMeta*)val0 + 1);
-	void*& actual_val0 = *val0;
-	if (val0_meta.vtype == VType::async_res) getAsyncResult(actual_val0, val0_meta);
+void DynBitShiftRight(void** val0, void** val1){
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	ValueItem& val1_r = *reinterpret_cast<ValueItem*>(val1);
+	val0_r.getAsync();
+	val1_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+	void*& actual_val1 = val1_r.getSourcePtr();
 
-	if (!val0_meta.allow_edit)
+	if (!val0_r.meta.allow_edit)
 		throw UnmodifabeValue();
 
-	switch (val0_meta.vtype) {
-	case VType::noting:
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = val1_r;break;
+	case VType::i8:
+		reinterpret_cast<int8_t&>(actual_val0) >>= (int8_t)val1_r;
 		break;
+	case VType::i16:
+		reinterpret_cast<int16_t&>(actual_val0) >>= (int16_t)val1_r;
+		break;
+	case VType::i32:
+		reinterpret_cast<int32_t&>(actual_val0) >>= (int32_t)val1_r;
+		break;
+	case VType::i64:
+		reinterpret_cast<int64_t&>(actual_val0) >>= (int64_t)val1_r;
+		break;
+	case VType::ui8:
+		reinterpret_cast<uint8_t&>(actual_val0) >>= (uint8_t)val1_r;
+		break;
+	case VType::ui16:
+		reinterpret_cast<uint16_t&>(actual_val0) >>= (uint16_t)val1_r;
+		break;
+	case VType::ui32:
+		reinterpret_cast<uint32_t&>(actual_val0) >>= (uint32_t)val1_r;
+		break;
+	case VType::ui64:
+		reinterpret_cast<uint64_t&>(actual_val0) >>= (uint64_t)val1_r;
+		break;
+	case VType::undefined_ptr:
+		reinterpret_cast<size_t&>(actual_val0) >>= (size_t)val1_r;
+		break;
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_shift_right_operator, val1_r);
+		break;
+	default:
+		throw InvalidCast("Fail cast value for shift right operation, cause value type is unsupported");
+	}
+}
+void DynBitShiftLeft(void** val0, void** val1) {
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	ValueItem& val1_r = *reinterpret_cast<ValueItem*>(val1);
+	val0_r.getAsync();
+	val1_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+	void*& actual_val1 = val1_r.getSourcePtr();
+
+	if (!val0_r.meta.allow_edit)
+		throw UnmodifabeValue();
+
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = val1_r;break;
+	case VType::i8:
+		reinterpret_cast<int8_t&>(actual_val0) <<= (int8_t)val1_r;
+		break;
+	case VType::i16:
+		reinterpret_cast<int16_t&>(actual_val0) <<= (int16_t)val1_r;
+		break;
+	case VType::i32:
+		reinterpret_cast<int32_t&>(actual_val0) <<= (int32_t)val1_r;
+		break;
+	case VType::i64:
+		reinterpret_cast<int64_t&>(actual_val0) <<= (int64_t)val1_r;
+		break;
+	case VType::ui8:
+		reinterpret_cast<uint8_t&>(actual_val0) <<= (uint8_t)val1_r;
+		break;
+	case VType::ui16:
+		reinterpret_cast<uint16_t&>(actual_val0) <<= (uint16_t)val1_r;
+		break;
+	case VType::ui32:
+		reinterpret_cast<uint32_t&>(actual_val0) <<= (uint32_t)val1_r;
+		break;
+	case VType::ui64:
+		reinterpret_cast<uint64_t&>(actual_val0) <<= (uint64_t)val1_r;
+		break;
+	case VType::undefined_ptr:
+		reinterpret_cast<size_t&>(actual_val0) <<= (size_t)val1_r;
+		break;
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_shift_left_operator, val1_r);
+		break;
+	default:
+		throw InvalidCast("Fail cast value for shift left operation, cause value type is unsupported");
+	}
+}
+
+void DynBitNot(void** val0) {
+	ValueItem& val0_r = *reinterpret_cast<ValueItem*>(val0);
+	val0_r.getAsync();
+	void*& actual_val0 = val0_r.getSourcePtr();
+
+	if (!val0_r.meta.allow_edit)
+		throw UnmodifabeValue();
+
+	switch (val0_r.meta.vtype) {
+	case VType::noting: val0_r = ValueItem(0);break;
 	case VType::i8:
 		reinterpret_cast<int8_t&>(actual_val0) = ~reinterpret_cast<int8_t&>(actual_val0);
 		break;
@@ -1855,10 +2113,16 @@ void DynBitNot(void** val0) {
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) = ~reinterpret_cast<size_t&>(actual_val0);
 		break;
+	case VType::proxy:
+	case VType::morph:
+	case VType::class_:
+		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_not_operator);
+		break;
 	default:
-		throw InvalidOperation("Invalid operation for non integer or non ptr type");
+		throw InvalidCast("Fail cast value for not operation, cause value type is unsupported");
 	}
 }
+
 
 
 void* AsArg(void** val) {
@@ -2182,7 +2446,7 @@ ValueItem::ValueItem(ValueItem&& move) {
 	move.val = nullptr;
 }
 
-
+#pragma region ValueItem constructors
 ValueItem::ValueItem(const void* vall, ValueMeta vmeta) : val(0) {
 	auto tmp = (void*)vall;
 	val = copyValue(tmp, vmeta);
@@ -2242,11 +2506,18 @@ ValueItem::ValueItem(float val) : val(0) {
 ValueItem::ValueItem(double val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
 }
-ValueItem::ValueItem(const std::string& val) : val(0) {
-	*this = ABI_IMPL::BVcast(val);
+ValueItem::ValueItem(const std::string& set) {
+	val = new std::string(set);
+	meta = VType::string;
 }
+ValueItem::ValueItem(std::string&& set){
+	val = new std::string(std::move(set));
+	meta = VType::string;
+}
+
 ValueItem::ValueItem(const char* str) : val(0) {
-	*this = ABI_IMPL::BVcast(std::string(str));
+	val = new std::string(str);
+	meta = VType::string;
 }
 ValueItem::ValueItem(const list_array<ValueItem>& val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
@@ -2295,6 +2566,39 @@ ValueItem::ValueItem(const float* vals, uint32_t len) {
 ValueItem::ValueItem(const double* vals, uint32_t len) {
 	*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len));
 }
+
+ValueItem::ValueItem(int8_t* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len), no_copy);
+}
+ValueItem::ValueItem(uint8_t* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len), no_copy);
+}
+ValueItem::ValueItem(int16_t* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len), no_copy);
+}
+ValueItem::ValueItem(uint16_t* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len), no_copy);
+}
+ValueItem::ValueItem(int32_t* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len), no_copy);
+}
+ValueItem::ValueItem(uint32_t* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len), no_copy);
+}
+ValueItem::ValueItem(int64_t* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len), no_copy);
+}
+ValueItem::ValueItem(uint64_t* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len), no_copy);
+}
+ValueItem::ValueItem(float* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len), no_copy);
+}
+ValueItem::ValueItem(double* vals, uint32_t len, no_copy_t){
+	*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), no_copy);
+}
+
+
 ValueItem::ValueItem(typed_lgr<struct Task> task) {
 	val = new typed_lgr(task);
 	meta = VType::async_res;
@@ -2306,7 +2610,7 @@ ValueItem::ValueItem(const std::initializer_list<ValueItem>& args) : val(0) {
 	meta = ValueMeta(VType::faarr, false, true, len);
 	if (args.size()) {
 		ValueItem* res = new ValueItem[len];
-		const ValueItem* copy = args.begin();
+		ValueItem* copy = const_cast<ValueItem*>(args.begin());
 		for(uint32_t i = 0;i< len;i++)
 			res[i] = std::move(copy[i]);
 		val = res;
@@ -2316,7 +2620,25 @@ ValueItem::ValueItem(const std::exception_ptr& ex) {
 	val = new std::exception_ptr(ex);
 	meta = VType::except_value;
 }
-ValueItem::ValueItem(const std::chrono::steady_clock::time_point& time):ValueItem(time.time_since_epoch().count()) {}
+ValueItem::ValueItem(const std::chrono::steady_clock::time_point& time) {
+	static_assert(sizeof(std::chrono::steady_clock::time_point) <= sizeof(val), "Time point is too large");
+	*reinterpret_cast<std::chrono::steady_clock::time_point*>(&val) = time;
+	meta = VType::time_point;
+}
+ValueItem::ValueItem(const std::unordered_map<ValueItem, ValueItem>& map): val(0){
+	*this = ValueItem(new std::unordered_map<ValueItem, ValueItem>(map), VType::map);
+}
+ValueItem::ValueItem(std::unordered_map<ValueItem, ValueItem>&& map): val(0){
+	*this = ValueItem(new std::unordered_map<ValueItem, ValueItem>(std::move(map)), VType::map);
+}
+ValueItem::ValueItem(const std::unordered_set<ValueItem>& set): val(0){
+	*this = ValueItem(new std::unordered_set<ValueItem>(set), VType::set);
+}
+ValueItem::ValueItem(std::unordered_set<ValueItem>&& set): val(0){
+	*this = ValueItem(new std::unordered_set<ValueItem>(std::move(set)), VType::set);
+}
+
+
 ValueItem::ValueItem(typed_lgr<class FuncEnviropment>& fun){
 	val = new typed_lgr(fun);
 	meta = VType::function;
@@ -2402,6 +2724,8 @@ ValueItem::ValueItem(ValueMeta type) {
 	val = &type;
 	meta = VType::type_identifier;
 }
+#pragma endregion
+
 ValueItem::~ValueItem() {
 	if (val)
 		if(!meta.as_ref)
@@ -2429,7 +2753,7 @@ ValueItem& ValueItem::operator=(ValueItem&& move) {
 	move.val = nullptr;
 	return *this;
 }
-
+#pragma region ValueItem operators
 bool ValueItem::operator<(const ValueItem& cmp) const {
 	void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
 	void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
@@ -2494,6 +2818,23 @@ ValueItem& ValueItem::operator |=(const ValueItem& op) {
 	DynBitOr(&val, (void**)&op.val);
 	return *this;
 }
+ValueItem& ValueItem::operator<<=(const ValueItem& op) {
+	DynBitShiftLeft(&val, (void**)&op.val);
+	return *this;
+}
+ValueItem& ValueItem::operator>>=(const ValueItem& op) {
+	DynBitShiftRight(&val, (void**)&op.val);
+	return *this;
+}
+ValueItem& ValueItem::operator ++() {
+	DynInc(&val);
+	return *this;
+}
+ValueItem& ValueItem::operator --() {
+	DynDec(&val);
+	return *this;
+}
+
 ValueItem& ValueItem::operator !() {
 	DynBitNot(&val);
 	return *this;
@@ -2520,8 +2861,9 @@ ValueItem ValueItem::operator &(const ValueItem& op) const {
 ValueItem ValueItem::operator |(const ValueItem& op) const {
 	return ValueItem(*this) |= op;
 }
+#pragma endregion
 
-
+#pragma region ValueItem cast operators
 ValueItem::operator bool() {
 	return ABI_IMPL::Vcast<bool>(val, meta);
 }
@@ -2556,7 +2898,10 @@ ValueItem::operator double() {
 	return ABI_IMPL::Vcast<double>(val, meta);
 }
 ValueItem::operator std::string() {
-	return ABI_IMPL::Scast(val, meta);
+	if(meta.vtype == VType::string)
+		return *(std::string*)getSourcePtr();
+	else
+		return ABI_IMPL::Scast(val, meta);
 }
 ValueItem::operator void*() {
 	return ABI_IMPL::Vcast<void*>(val, meta);
@@ -2565,24 +2910,32 @@ ValueItem::operator list_array<ValueItem>() {
 	return ABI_IMPL::Vcast<list_array<ValueItem>>(val, meta);
 }
 ValueItem::operator ClassValue&() {
+	if(meta.vtype == VType::async_res)
+			getAsync();
 	if (meta.vtype == VType::class_)
 		return *(ClassValue*)getSourcePtr();
 	else
 		throw InvalidCast("This type is not class");
 }
 ValueItem::operator MorphValue&() {
+	if(meta.vtype == VType::async_res)
+			getAsync();
 	if (meta.vtype == VType::morph)
 		return *(MorphValue*)getSourcePtr();
 	else
 		throw InvalidCast("This type is not morph");
 }
 ValueItem::operator ProxyClass&() {
+	if(meta.vtype == VType::async_res)
+			getAsync();
 	if (meta.vtype == VType::proxy)
 		return *(ProxyClass*)getSourcePtr();
 	else
 		throw InvalidCast("This type is not proxy");
 }
 ValueItem::operator std::exception_ptr() {
+	if(meta.vtype == VType::async_res)
+			getAsync();
 	if (meta.vtype == VType::except_value)
 		return *(std::exception_ptr*)getSourcePtr();
 	else {
@@ -2594,9 +2947,30 @@ ValueItem::operator std::exception_ptr() {
 	}
 }
 ValueItem::operator std::chrono::steady_clock::time_point(){
-	return std::chrono::steady_clock::time_point(std::chrono::duration_cast<std::chrono::steady_clock::time_point::duration>(std::chrono::nanoseconds((std::chrono::steady_clock::rep)*this)));
+	if(meta.vtype == VType::async_res)
+		getAsync();
+	if (meta.vtype == VType::time_point)
+		return *(std::chrono::steady_clock::time_point*)getSourcePtr();
+	else
+		throw InvalidCast("This type is not time_point");
 }
-
+ValueItem::operator std::unordered_map<ValueItem, ValueItem>&(){
+	if(meta.vtype == VType::async_res)
+		getAsync();
+	if (meta.vtype == VType::map)
+		return *(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr();
+	else
+		throw InvalidCast("This type is not map");
+}
+ValueItem::operator std::unordered_set<ValueItem>&(){
+	if(meta.vtype == VType::async_res)
+		getAsync();
+	if (meta.vtype == VType::set)
+		return *(std::unordered_set<ValueItem>*)getSourcePtr();
+	else
+		throw InvalidCast("This type is not set");
+}
+#pragma endregion
 
 ValueItem* ValueItem::operator()(ValueItem* args,uint32_t len) {
 	if (meta.vtype == VType::function)
@@ -2622,6 +2996,85 @@ typed_lgr<FuncEnviropment>* ValueItem::funPtr() {
 	if (meta.vtype == VType::function)
 		return (typed_lgr<FuncEnviropment>*)getValue(val, meta);
 	return nullptr;
+}
+template<typename T>
+size_t array_hash(T* arr, size_t len) {
+	size_t hash = 0;
+	for (size_t i = 0; i < len; i++)
+		hash ^= std::hash<T>()(arr[i]) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+	return hash;
+}
+
+size_t ValueItem::hash() const{
+	return const_cast<ValueItem&>(*this).hash();
+}
+size_t ValueItem::hash() {
+	getAsync();
+	switch (meta.vtype) {
+	case VType::noting:return 0;
+	case VType::type_identifier:
+	case VType::boolean:
+	case VType::i8:return std::hash<int8_t>()((int8_t)*this);
+	case VType::i16:return std::hash<int16_t>()((int16_t)*this);
+	case VType::i32:return std::hash<int32_t>()((int32_t)*this);
+	case VType::i64:return std::hash<int64_t>()((int64_t)*this);
+	case VType::ui8:return std::hash<uint8_t>()((uint8_t)*this);
+	case VType::ui16:return std::hash<uint16_t>()((uint16_t)*this);
+	case VType::ui32:return std::hash<uint32_t>()((uint32_t)*this);
+	case VType::undefined_ptr: return std::hash<uint32_t>()((size_t)*this);
+	case VType::ui64: return std::hash<uint64_t>()((uint64_t)*this);
+	case VType::flo: return std::hash<float>()((float)*this);
+	case VType::doub: return std::hash<double>()((double)*this);
+	case VType::string: return std::hash<std::string>()(*(std::string*)getSourcePtr());
+	case VType::uarr: return std::hash<list_array<ValueItem>>()(*(list_array<ValueItem>*)getSourcePtr());
+	case VType::raw_arr_i8: return array_hash((int8_t*)getSourcePtr(), meta.val_len);
+	case VType::raw_arr_i16: return array_hash((int16_t*)getSourcePtr(), meta.val_len);
+	case VType::raw_arr_i32: return array_hash((int32_t*)getSourcePtr(), meta.val_len);
+	case VType::raw_arr_i64: return array_hash((int64_t*)getSourcePtr(), meta.val_len);
+	case VType::raw_arr_ui8: return array_hash((uint8_t*)getSourcePtr(), meta.val_len);
+	case VType::raw_arr_ui16: return array_hash((uint16_t*)getSourcePtr(), meta.val_len);
+	case VType::raw_arr_ui32: return array_hash((uint32_t*)getSourcePtr(), meta.val_len);
+	case VType::raw_arr_ui64: return array_hash((uint64_t*)getSourcePtr(), meta.val_len);
+	case VType::raw_arr_flo: return array_hash((float*)getSourcePtr(), meta.val_len);
+	case VType::raw_arr_doub: return array_hash((double*)getSourcePtr(), meta.val_len);
+
+	case VType::saarr:
+	case VType::faarr: return array_hash((ValueItem*)getSourcePtr(), meta.val_len);
+
+	case VType::class_: 
+	case VType::morph:
+	case VType::proxy:
+		{
+			if(AttachA::Interface::hasImplement(*this, "hash"))
+				return  (size_t)AttachA::Interface::makeCall(ClassAccess::pub, *this, "hash");
+			else
+				return std::hash<void*>()(getSourcePtr());
+		}
+	case VType::set: {
+		size_t hash = 0;
+		for (auto& i : operator std::unordered_set<ValueItem>&())
+			hash ^= const_cast<ValueItem&>(i).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+		return hash;
+	}
+	case VType::map:{
+		size_t hash = 0;
+		for (auto& i : operator std::unordered_map<ValueItem, ValueItem>&())
+			hash ^= const_cast<ValueItem&>(i.first).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2) + const_cast<ValueItem&>(i.second).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+		return hash;
+	}
+	case VType::function: {
+		auto fn = funPtr();
+		if (fn)
+			return std::hash<void*>()(fn->getPtr());
+		else
+			return 0;
+	}
+	case VType::async_res:  throw InternalException("getAsync() not work in hash function");
+	case VType::except_value: throw InvalidOperation("Hash function for exception not available", *(std::exception_ptr*)getSourcePtr());
+	default:
+		throw NotImplementedException();
+		break;
+	}
 }
 
 
@@ -2835,7 +3288,7 @@ bool MorphValue::containsValue(const std::string& str) {
 
 
 
-ProxyClassDefine::ProxyClassDefine() :name("Unnamed") {}
+ProxyClassDefine::ProxyClassDefine() :name("") {}
 ProxyClassDefine::ProxyClassDefine(const std::string& name) :name(name) { }
 ProxyClass::ProxyClass() {
 	class_ptr = nullptr;
