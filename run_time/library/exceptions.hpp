@@ -29,6 +29,7 @@ public:
 	const std::string& what() const {
 		return message;
 	}
+	virtual std::string full_info() const;
 	virtual const char* name() const {
 		return "AttachARuntimeException";
 	}
@@ -271,6 +272,17 @@ public:
 	const char* name() const override {
 		return "SystemException";
 	}
+};
+
+class InternalException : public AttachARuntimeException {
+	list_array<void*> stack_trace;
+public:
+	InternalException(const std::string& msq);
+	InternalException(const std::string& msq, std::exception_ptr inner_exception);
+	const char* name() const override {
+		return "InternalException";
+	}
+	std::string full_info() const override;
 };
 #pragma endregion
 
