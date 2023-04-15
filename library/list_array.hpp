@@ -2243,6 +2243,16 @@ public:
 		remove(take_pos);
 		return res;
 	}
+	conexpr T* take_raw(size_t& size) {
+		if (blocks_more(1))
+			commit();
+		size = _size;
+		T* res = arr.arr->arr_contain;
+		arr.arr->arr_contain = nullptr;
+		clear();
+		return res;
+	}
+	
 	conexpr list_array<T> take(size_t start_pos, size_t end_pos) {
 		if (start_pos > end_pos) {
 			std::swap(start_pos, end_pos);
