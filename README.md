@@ -1,7 +1,15 @@
 # Attach A
 ![](https://tokei.rs/b1/github/GParcade/AttachA)
 
-This project implement tiny VM like .Net or JVM.
+This project implements a small virtual machine compared to the known JVM/NET, and also implements a huge number of features that are not available to these virtual machines
+
+
+# Example:
+- mutexes, condition_variables, e.t.c. which can be used both in normal threads and in tasks,(parallel ...)
+- Awaitable threads,(parallel create_async_thread)
+- Full stack size control,(internal stack ...)
+- Correct stack unwinding after stack overflow,(optional spare space for unwinding in guard page)
+
 
 # For what?
 Basically, this project was made for another project, because no C++ implementation allows hot reloading, and the one that does not work with C++, so I decided to make my own VM.
