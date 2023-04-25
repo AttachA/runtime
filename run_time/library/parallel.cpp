@@ -39,9 +39,10 @@ namespace parallel {
 						if (AttachA::Interface::name(vals[1]) == "mutex") {
 							auto tmp = getClass<TaskMutex>(vals + 1);
 							MutexUnify unif(*tmp.getPtr());
-							std::unique_lock lock(unif);
+							ValueItem* ret = nullptr;
+							std::unique_lock lock(unif, std::adopt_lock);
 							getClass<TaskConditionVariable>(vals)->wait(lock);
-							return nullptr;
+							lock.release();
 						}
 						else
 							throw  InvalidArguments("That function recuive [class ptr] and optional [mutex]");
@@ -57,9 +58,15 @@ namespace parallel {
 					if (vals[1].meta.vtype == VType::proxy) {
 						if (AttachA::Interface::name(vals[1]) == "mutex") {
 							auto tmp = getClass<TaskMutex>(vals + 1);
+
 							MutexUnify unif(*tmp.getPtr());
-							std::unique_lock lock(unif);
-							return new ValueItem(getClass<TaskConditionVariable>(vals)->wait_for(lock, (size_t)vals[2]));
+							ValueItem* ret = nullptr;
+							{
+								std::unique_lock lock(unif, std::adopt_lock);
+								ret = new ValueItem(getClass<TaskConditionVariable>(vals)->wait_for(lock, (size_t)vals[2]));
+								lock.release();
+							}
+							return ret;
 						}
 						else throw InvalidArguments("That function recuive [class ptr], optional [mutex] and optional [milliseconds to timeout]");
 					}
@@ -79,15 +86,20 @@ namespace parallel {
 					std::mutex mt;
 					MutexUnify unif(mt);
 					std::unique_lock lock(unif);
-					return new ValueItem(getClass<TaskConditionVariable>(vals)->wait_until(lock, std::chrono::high_resolution_clock::time_point((std::chrono::nanoseconds)(uint64_t)vals[1])));
+					return new ValueItem(getClass<TaskConditionVariable>(vals)->wait_until(lock, (std::chrono::high_resolution_clock::time_point)vals[1]));
 				}
 				case 3:
 					if (vals[1].meta.vtype == VType::proxy) {
 						if (AttachA::Interface::name(vals[1]) == "mutex") {
 							auto tmp = getClass<TaskMutex>(vals + 1);
 							MutexUnify unif(*tmp.getPtr());
-							std::unique_lock lock(unif);
-							return new ValueItem(getClass<TaskConditionVariable>(vals)->wait_until(lock, std::chrono::high_resolution_clock::time_point((std::chrono::nanoseconds)(uint64_t)vals[2])));
+							ValueItem* ret = nullptr;
+							{
+								std::unique_lock lock(unif, std::adopt_lock);
+								ret = new ValueItem(getClass<TaskConditionVariable>(vals)->wait_until(lock, (std::chrono::high_resolution_clock::time_point)vals[2]));
+								lock.release();
+							}
+							return ret;
 						}
 						else
 							throw  InvalidArguments("That function recuive [class ptr], optional [mutex] and optional  [milliseconds to timeout] ");
@@ -162,7 +174,7 @@ namespace parallel {
 		if (len) {
 			if (vals->meta.vtype == VType::proxy) {
 				if (len >= 2)
-					return new ValueItem(getClass<TaskMutex>(vals)->try_lock_until(std::chrono::high_resolution_clock::time_point((std::chrono::nanoseconds)(uint64_t)vals[1])));
+					return new ValueItem(getClass<TaskMutex>(vals)->try_lock_until((std::chrono::high_resolution_clock::time_point)vals[1]));
 				else
 					throw InvalidArguments("That function recuive only [class ptr] and [time point value in nanoseconds]");
 			}
@@ -229,7 +241,7 @@ namespace parallel {
 		if (len) {
 			if (vals->meta.vtype == VType::proxy) {
 				if (len >= 2)
-					return new ValueItem(getClass<TaskSemaphore>(vals)->try_lock_until(std::chrono::high_resolution_clock::time_point((std::chrono::nanoseconds)(uint64_t)vals[1])));
+					return new ValueItem(getClass<TaskSemaphore>(vals)->try_lock_until((std::chrono::high_resolution_clock::time_point)vals[1]));
 				else
 					throw InvalidArguments("That function recuive only [class ptr] and [time point value in nanoseconds]");
 			}
@@ -735,7 +747,7 @@ namespace parallel {
 		define_EventSystem.destructor = AttachA::Interface::special::proxyDestruct<EventSystem, true>;
 		define_EventSystem.name = "event_system";
 
-		define_EventSystem.funs["operator +"] = { new FuncEnviropment(funs_EventSystem_operator_add,false),false,ClassAccess::pub };
+		define_EventSystem.funs[symbols::structures::add_operator] = { new FuncEnviropment(funs_EventSystem_operator_add,false),false,ClassAccess::pub };
 
 		define_EventSystem.funs["join"] = { new FuncEnviropment(funs_EventSystem_join,false),false,ClassAccess::pub };
 		define_EventSystem.funs["leave"] = { new FuncEnviropment(funs_EventSystem_leave,false),false,ClassAccess::pub };
@@ -794,7 +806,7 @@ namespace parallel {
 		if (len) {
 			if (vals->meta.vtype == VType::proxy) {
 				if (len >= 2)
-					return new ValueItem(getClass<TaskLimiter>(vals)->try_lock_until(std::chrono::high_resolution_clock::time_point((std::chrono::nanoseconds)(uint64_t)vals[1])));
+					return new ValueItem(getClass<TaskLimiter>(vals)->try_lock_until((std::chrono::high_resolution_clock::time_point)vals[1]));
 				else
 					throw InvalidArguments("That function recuive only [class ptr] and [time point value in nanoseconds]");
 			}
