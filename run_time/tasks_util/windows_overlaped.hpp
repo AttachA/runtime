@@ -76,7 +76,7 @@ public:
             {
                 ValueItem notify{ "GetQueuedCompletionStatus failed with error ", (uint32_t)GetLastError(), m_hCompletionPort.get() };
                 errors.async_notify(notify);
-                break;
+                continue;
             }
             
             if(NULL == data)

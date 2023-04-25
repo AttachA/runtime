@@ -176,6 +176,9 @@ namespace internal {
             }
 
             void init(){
+                static bool is_init = false;
+                if(is_init)
+                    return;
                 define_NativeLib.copy = AttachA::Interface::special::proxyCopy<NativeLib, true>;
                 define_NativeLib.destructor = AttachA::Interface::special::proxyDestruct<NativeLib, true>;
                 define_NativeLib.name = "native_lib";
@@ -230,6 +233,7 @@ namespace internal {
                 define_NativeValue.value_geter["value_type"] = [](void* class_val){
                     return new ValueItem((uint8_t)(*(DynamicCall::FunctionTemplate::ValueT*)class_val).vtype);
                 };
+                is_init = true;
             }
         }
     }
@@ -249,11 +253,18 @@ namespace internal {
 
 
 
-            ValueItem* createProxy_FunctionHolder(ValueItem*, uint32_t);//{ uarr<LabelPoint> points; PrologBuilder pbuild; ScopeMangaer sm; }
-            
-            ValueItem* createProxy_CallBuilder(ValueItem*, uint32_t);//typed_lgr<FunctionHolder> fh;
-            ValueItem* createProxy_AbstractedBuilder(ValueItem*, uint32_t);//typed_lgr<FunctionHolder> fh;
-
+            ValueItem* createProxy_FunctionHolder(ValueItem*, uint32_t){
+                throw NotImplementedException();
+                //{ uarr<LabelPoint> points; PrologBuilder pbuild; ScopeMangaer sm; }
+            }
+            ValueItem* createProxy_CallBuilder(ValueItem*, uint32_t){
+                throw NotImplementedException();
+                //typed_lgr<FunctionHolder> fh;
+            }
+            ValueItem* createProxy_AbstractedBuilder(ValueItem*, uint32_t){
+                throw NotImplementedException();
+                //typed_lgr<FunctionHolder> fh;
+            }
             ValueItem* createProxy_Register(ValueItem*, uint32_t){
                 return new ValueItem(0);
             }
