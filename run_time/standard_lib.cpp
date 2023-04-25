@@ -2,6 +2,7 @@
 #include "library/parallel.hpp"
 #include "library/chanel.hpp"
 #include "library/internal.hpp"
+#include "library/net.hpp"
 #include "AttachA_CXX.hpp"
 #include <cmath>
 #include <math.h>
@@ -860,8 +861,10 @@ ValueItem* math_pow(ValueItem* args, uint32_t args_len) {
 }
 
 #pragma endregion
-extern "C" void initStandardFunctions() {
-#pragma region Console
+
+#define INIT_CHECK static bool is_init = false; if (is_init) return; is_init = true;
+extern "C" void initStandardLib_console(){
+	INIT_CHECK
 	FuncEnviropment::AddNative(console::printLine, "console print_line", false);
 	FuncEnviropment::AddNative(console::print, "console print", false);
 	{
@@ -897,8 +900,9 @@ extern "C" void initStandardFunctions() {
 	FuncEnviropment::AddNative(console::readInput, "console read_input", false);
 	FuncEnviropment::AddNative(console::readValue, "console read_value", false);
 	FuncEnviropment::AddNative(console::readInt, "console read_int", false);
-#pragma endregion
-#pragma region Math
+}
+extern "C" void initStandardLib_math(){
+	INIT_CHECK
 	FuncEnviropment::AddNative(math_abs, "math abs", false);
 
 	FuncEnviropment::AddNative(math_min, "math min", false);
@@ -944,16 +948,12 @@ extern "C" void initStandardFunctions() {
 	FuncEnviropment::AddNative(math_thrigonomic<log>, "math log", false);
 	FuncEnviropment::AddNative(math_thrigonomic<log2>, "math log2", false);
 	FuncEnviropment::AddNative(math_thrigonomic<log10>, "math log10", false);
-
-
-
-
-	
-#pragma endregion
-#pragma region File
-
-#pragma endregion
-#pragma region Paralel
+}
+extern "C" void initStandardLib_file(){
+	INIT_CHECK
+}
+extern "C" void initStandardLib_paralel(){
+	INIT_CHECK
 	parallel::init();
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_Mutex, "# parallel mutex", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_ConditionVariable, "# parallel condition_variable", false);
@@ -961,26 +961,37 @@ extern "C" void initStandardFunctions() {
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_ConcurentFile, "# parallel concurent_file", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_EventSystem, "# parallel event_system", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskLimiter, "# parallel task_limiter", false);
+	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskQuery, "# parallel task_query", false);
 	FuncEnviropment::AddNative(parallel::createThread, "parallel create_thread", false);
 	FuncEnviropment::AddNative(parallel::createThreadAndWait, "parallel create_thread_and_wait", false);
 	FuncEnviropment::AddNative(parallel::createAsyncThread, "parallel create_async_thread", false);
-#pragma endregion
-#pragma region Chanel
+}
+extern "C" void initStandardLib_chanel(){
+	INIT_CHECK
 	FuncEnviropment::AddNative(chanel::constructor::createProxy_Chanel, "# chanel chanel", false);
 	FuncEnviropment::AddNative(chanel::constructor::createProxy_ChanelHandler, "# chanel chanel_handler", false);
-#pragma endregion
-#pragma region Internal
-	internal::init();
+}
+extern "C" void initStandardLib_internal_memory(){
+	INIT_CHECK
 	FuncEnviropment::AddNative(internal::memory::dump, "internal memory dump", false);
 
+}
+extern "C" void initStandardLib_internal_run_time(){
+	INIT_CHECK
 	FuncEnviropment::AddNative(internal::run_time::gc_hinit_collect, "internal run_time gc_hinit_collect", false);
 	FuncEnviropment::AddNative(internal::run_time::gc_pause, "internal run_time gc_pause", false);
 	FuncEnviropment::AddNative(internal::run_time::gc_resume, "internal run_time gc_resume", false);
+}
+extern "C" void initStandardLib_internal_run_time_native(){
+	INIT_CHECK
+	internal::init();
+	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeLib, "# internal run_time native native_lib", false);
+	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeValue, "# internal run_time native native_value", false);
+	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeTemplate, "# internal run_time native native_template", false);
 
-	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeLib, "# internal run_time native_lib", false);
-	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeValue, "# internal run_time native_value", false);
-	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeTemplate, "# internal run_time native_template", false);
-
+}
+extern "C" void initStandardLib_internal_stack(){
+	INIT_CHECK
 	FuncEnviropment::AddNative(internal::stack::dump, "internal stack dump", false);
 
 	FuncEnviropment::AddNative(internal::stack::bs_supported, "internal stack bs_supported", false);
@@ -995,11 +1006,42 @@ extern "C" void initStandardFunctions() {
 	FuncEnviropment::AddNative(internal::stack::trace, "internal stack trace", false);
 	FuncEnviropment::AddNative(internal::stack::trace_frames, "internal stack trace_frames", false);
 	FuncEnviropment::AddNative(internal::stack::resolve_frame, "internal stack resolve_frame", false);
-
-#pragma endregion
-
 }
 
+extern "C" void initStandardLib_net(){
+	INIT_CHECK
+	net::init();
+	FuncEnviropment::AddNative(net::constructor::createProxy_TcpServer, "# net tcp_server", false);
+	FuncEnviropment::AddNative(net::constructor::createProxy_TcpClient, "# net tcp_client", false);
+	FuncEnviropment::AddNative(net::constructor::createProxy_UdpServer, "# net udp_server", false);
+	FuncEnviropment::AddNative(net::constructor::createProxy_UdpClient, "# net udp_client", false);
+	FuncEnviropment::AddNative(net::constructor::createProxy_Address, "# net ip#address", false);
+	FuncEnviropment::AddNative(net::constructor::createProxy_IP4, "# net ip#v4", false);
+	FuncEnviropment::AddNative(net::constructor::createProxy_IP6, "# net ip#v6", false);
+	FuncEnviropment::AddNative(net::constructor::createProxy_IP, "# net ip", false);
+}
+
+extern "C" void initStandardLib() {
+	initStandardLib_console();
+	initStandardLib_math();
+	initStandardLib_file();
+	initStandardLib_paralel();
+	initStandardLib_chanel();
+	initStandardLib_internal_memory();
+	initStandardLib_internal_run_time();
+	initStandardLib_internal_run_time_native();
+	initStandardLib_internal_stack();
+	initStandardLib_net();
+}
+
+extern "C" void initStandardLib_safe(){
+	initStandardLib_console();
+	initStandardLib_math();
+	initStandardLib_file();
+	initStandardLib_paralel();
+	initStandardLib_chanel();
+	initStandardLib_net();
+}
 
 
 ValueItem* cmath_frexp(ValueItem* args, uint32_t args_len) {
@@ -1101,7 +1143,7 @@ extern "C" void initCMathLib() {
 	FuncEnviropment::AddNative(cmath_nexttoward, "cmath nexttoward", false);
 	FuncEnviropment::AddNative((double(*)(double, double))std::pow, "cmath pow", false);
 	FuncEnviropment::AddNative((double(*)(double, double))std::remainder, "cmath remainder", false);
-	FuncEnviropment::AddNative(cmath_remquo, "math sqrt", false);
+	FuncEnviropment::AddNative(cmath_remquo, "math remquo", false);
 	FuncEnviropment::AddNative((double(*)(double))std::round, "cmath round", false);
 	FuncEnviropment::AddNative((double(*)(double, long))std::scalbln, "cmath scalbln", false);
 	FuncEnviropment::AddNative((double(*)(double, int))std::scalbn, "cmath scalbn", false);

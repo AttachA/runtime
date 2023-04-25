@@ -92,5 +92,10 @@ public:
         }
         on_dispatch_count--;
     }
+
+    void set_dispatchers(size_t count){
+        stop();
+        run(count);
+    }
 };
 

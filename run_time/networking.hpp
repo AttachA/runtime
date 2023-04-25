@@ -1,16 +1,12 @@
 #ifndef RUN_TIME_NETWORKING
 #define RUN_TIME_NETWORKING
 #include "link_garbage_remover.hpp"
-
+#include "attacha_abi_structs.hpp"
 //clients serve async, but reading and writing operations is blocking per client
 // accept spawn new task/thread for each new connection
 class TcpNetworkServer {
 	struct TcpNetworkManager* handle;
 public:
-	enum class AcceptMode{
-		task,
-		thread
-	};
 	enum class ManageType{
 		//like regular blocking socket read/write(not block other clients)
 		//proxy TcpNetworkBlocking{
@@ -42,32 +38,29 @@ public:
 	//	nothing
 	typed_lgr<class FuncEnviropment> on_connect;
 
-	TcpNetworkServer(typed_lgr<class FuncEnviropment> on_connect, short port, ManageType manage_type, size_t acceptors = 10, AcceptMode accept_mode = AcceptMode::task);
+	TcpNetworkServer(typed_lgr<class FuncEnviropment> on_connect, ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10);
 	~TcpNetworkServer();
-	//start handling
-	void start();
-	//stop getting new connections, and continue handling connected
+	void start(size_t pool_size = 0);
 	void pause();
-	//resume getting new connections
 	void resume();
-	//stop and close all connections
 	void stop();
-	//check if the server is running
-	bool is_running();
-	//start handling, and use the current thread to handle connections, also can be used afer start to wait server to stop
 	void mainline();
-	//return status of the server, will be checked after constructor
+	void set_pool_size(size_t pool_size);
+
+	bool is_running();
+	bool is_paused();
 	bool is_corrupted();
+
+	uint16_t server_port();
+	std::string server_ip();
+	ValueItem server_address();
+
 };
 
 
 class UdpNetworkServer {
 	struct UdpNetworkManager* handle;
 public:
-	enum class AcceptMode{
-		task,
-		thread
-	};
 	//arguments:
 	//	ui8[]& data
 	//	IP client_ip
@@ -75,10 +68,10 @@ public:
 	//	UdpNetworkServer& server
 	//return:
 	//	nothing
-	UdpNetworkServer(typed_lgr<class FuncEnviropment> packet_handler,  short port, size_t acceptors = 10,AcceptMode accept_mode = AcceptMode::task);
+	UdpNetworkServer(typed_lgr<class FuncEnviropment> packet_handler, uint32_t buffer_len, ValueItem& ip_port, size_t acceptors = 10);
 	~UdpNetworkServer();
 	//start handling
-	void start();
+	void start(size_t pool_size = 0);
 	//stop handling
 	void stop();
 	//check if the server is running
@@ -92,6 +85,33 @@ public:
 	//send data to client
 	//return true if data was sent
 	bool send(ValueItem client_ip, uint8_t* data, uint32_t size);
+	
+	//change pool size, if server is running
+	//if pool_size == 0, then pool size will be set to number of cores
+	void set_pool_size(size_t pool_size);
+	
+	uint16_t server_port();
+	std::string server_ip();
+	ValueItem server_address();
+
+	bool is_disabled();
+	bool is_paused();
 };
+
+
+uint8_t init_networking();
+void deinit_networking();
+bool ipv6_supported();
+
+namespace client {
+	
+}
+
+ValueItem makeIP4(const char* ip, uint16_t port = 0);
+ValueItem makeIP6(const char* ip, uint16_t port = 0);
+ValueItem makeIP(const char* ip, uint16_t port = 0);
+ValueItem makeIP4_port(const char* ip_port);//ip4:port
+ValueItem makeIP6_port(const char* ip_port);//ip6:port
+ValueItem makeIP_port(const char* ip_port);//ip:port
 
 #endif /* RUN_TIME_NETWORKING */

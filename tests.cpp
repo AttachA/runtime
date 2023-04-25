@@ -1,4 +1,4 @@
-﻿// Copyright Danyil Melnytskyi 2022
+// Copyright Danyil Melnytskyi 2022
 //
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
@@ -13,7 +13,7 @@
 #include <vector>
 #include <cassert>
 #include <unordered_map>
-
+#include "run_time/standard_lib.hpp"
 #include "run_time/attacha_abi_structs.hpp"
 #include "run_time/run_time_compiler.hpp"
 #include "run_time/Tasks.hpp"
@@ -409,7 +409,7 @@ int main(){
 	//light_stack::dump_current_out();
 	//std::cout << light_stack::shrink_current(0) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
 	//light_stack::dump_current_out();
-	initStandardFunctions();
+	initStandardLib();
 	FuncEnviropment::AddNative(TestCall, "test", false);
 	FuncEnviropment::AddNative(ThrowCall, "throwcall", false);
 	FuncEnviropment::AddNative(SOVER, "stack_owerflower", false);

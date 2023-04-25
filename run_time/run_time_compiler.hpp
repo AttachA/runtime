@@ -194,5 +194,3 @@ public:
 	void loadFunc(const std::string& symbol_name, bool can_be_unloaded = true);
 };
 
-extern "C" void initStandardFunctions();
-

@@ -1,3 +1,16 @@
+
+#include "AttachA_CXX.hpp"
+bool inited = false;
+ProxyClassDefine define_UniversalAddress;
+ProxyClassDefine define_TcpNetworkStream;
+ProxyClassDefine define_TcpNetworkBlocking;
+ProxyClassDefine define_UdpNetworkManager;
+
+void init_define_TcpNetworkStream();
+void init_define_TcpNetworkBlocking();
+void init_define_UdpNetworkManager();
+void init_define_UniversalAddress();
+
 #if defined(_WIN32) || defined(_WIN64)
 #define _WINSOCKAPI_
 #define WIN32_LEAN_AND_MEAN
@@ -10,12 +23,12 @@
 
 #include "networking.hpp"
 #include "FuncEnviropment.hpp"
-#include "AttachA_CXX.hpp"
 #include "agreement/symbols.hpp"
 #include <condition_variable>
 
 LPFN_ACCEPTEX _AcceptEx;
 LPFN_GETACCEPTEXSOCKADDRS _GetAcceptExSockaddrs;
+WSADATA wsaData;
 
 void init_win_fns(SOCKET sock){
 	static bool inited = false;
@@ -34,11 +47,7 @@ void init_win_fns(SOCKET sock){
 
 
 
-ProxyClassDefine define_UniversalAddress;
-ProxyClassDefine define_TcpNetworkStream;
-ProxyClassDefine define_TcpNetworkBlocking;
-
-using univeral_address = sockaddr_storage;
+using universal_address = sockaddr_storage;
 namespace UniversalAddress{
 	enum class AddressType : uint32_t{
 		IPv4,
@@ -57,7 +66,7 @@ namespace UniversalAddress{
 			else
 				throw InvalidArguments("universal_address.to_string, excepted universal_address, got non native universal_address");
 		}
-		auto* address = (univeral_address*)proxy.class_ptr;
+		auto* address = (universal_address*)proxy.class_ptr;
 		std::string result;
 		result.resize(INET6_ADDRSTRLEN);
 		if(address->ss_family == AF_INET)
@@ -85,7 +94,7 @@ namespace UniversalAddress{
 			else
 				throw InvalidArguments("universal_address.type, excepted universal_address, got non native universal_address");
 		}
-		auto* address = (univeral_address*)proxy.class_ptr;
+		auto* address = (universal_address*)proxy.class_ptr;
 		std::string result;
 		result.resize(INET6_ADDRSTRLEN);
 		if(address->ss_family == AF_INET)
@@ -112,7 +121,7 @@ namespace UniversalAddress{
 			else
 				throw InvalidArguments("universal_address.actual_type, excepted universal_address, got non native universal_address");
 		}
-		auto* address = (univeral_address*)proxy.class_ptr;
+		auto* address = (universal_address*)proxy.class_ptr;
 		if(address->ss_family == AF_INET)
 			return new ValueItem((uint32_t)AddressType::IPv4);
 		else if(address->ss_family == AF_INET6){
@@ -133,7 +142,7 @@ namespace UniversalAddress{
 			else
 				throw InvalidArguments("universal_address.port, excepted universal_address, got non native universal_address");
 		}
-		auto* address = (univeral_address*)proxy.class_ptr;
+		auto* address = (universal_address*)proxy.class_ptr;
 		if(address->ss_family == AF_INET)
 			return new ValueItem((uint32_t)((sockaddr_in*)address)->sin_port);
 		else if(address->ss_family == AF_INET6){
@@ -142,29 +151,148 @@ namespace UniversalAddress{
 		else
 			throw std::runtime_error("universal_address.port, unknown address family");
 	}
+	ValueItem* _define_full_address(ValueItem* args, uint32_t len){
+		if(len < 1)
+			throw InvalidArguments("universal_address.to_string, expected 1 argument, got " + std::to_string(len));
+		if(args[0].meta.vtype != VType::proxy)
+			throw InvalidArguments("universal_address.to_string, excepted proxy, got " + enum_to_string(args[0].meta.vtype));
+		ProxyClass& proxy = (ProxyClass&)args[0];
+		if(proxy.declare_ty != &define_UniversalAddress){
+			if(proxy.declare_ty->name != "universal_address")
+				throw InvalidArguments("universal_address.to_string, excepted universal_address, got " + proxy.declare_ty->name);
+			else
+				throw InvalidArguments("universal_address.to_string, excepted universal_address, got non native universal_address");
+		}
+		auto* address = (universal_address*)proxy.class_ptr;
+		std::string result;
+		result.resize(INET6_ADDRSTRLEN);
 
-	typed_lgr<class FuncEnviropment> define_to_string = new FuncEnviropment(_define_to_string, false);
-	typed_lgr<class FuncEnviropment> define_type = new FuncEnviropment(_define_type, false);
-	typed_lgr<class FuncEnviropment> define_actual_type = new FuncEnviropment(_define_actual_type, false);
-	typed_lgr<class FuncEnviropment> define_port = new FuncEnviropment(_define_port, false);
+		auto actual_family = address->ss_family;
+		if(address->ss_family == AF_INET)
+			inet_ntop(AF_INET, &((sockaddr_in*)address)->sin_addr, result.data(), INET6_ADDRSTRLEN);
+		else if(address->ss_family == AF_INET6){
+			inet_ntop(AF_INET6, &((sockaddr_in6*)address)->sin6_addr, result.data(), INET6_ADDRSTRLEN);
+			if(result.starts_with("::ffff:")){
+				result = result.substr(7);
+				actual_family = AF_INET;
+			}
+		}
+		else
+			throw std::runtime_error("universal_address.to_string, unknown address family");
+		result.resize(strlen(result.data()));
+		if(actual_family == AF_INET){
+			result += ":" + std::to_string((uint32_t)htons(((sockaddr_in*)address)->sin_port));
+		}else{
+			result = '[' + result +  "]:" + std::to_string((uint32_t)htons(((sockaddr_in6*)address)->sin6_port));
+		}
+		return new ValueItem(result);
+	}
 }
 void init_define_UniversalAddress(){
 	if(!define_UniversalAddress.name.empty())
 		return;
 	define_UniversalAddress.name = "universal_address";
-	define_UniversalAddress.copy = AttachA::Interface::special::proxyCopy<univeral_address, false>;
-	define_UniversalAddress.destructor = AttachA::Interface::special::proxyDestruct<univeral_address, false>;
-	define_UniversalAddress.funs[symbols::structures::convert::to_string] = ClassFnDefine(UniversalAddress::define_to_string, false, ClassAccess::pub);
-	define_UniversalAddress.funs["type"] = ClassFnDefine(UniversalAddress::define_type, false, ClassAccess::pub);
-	define_UniversalAddress.funs["actual_type"] = ClassFnDefine(UniversalAddress::define_actual_type, false, ClassAccess::pub);
-	define_UniversalAddress.funs["port"] = ClassFnDefine(UniversalAddress::define_port, false, ClassAccess::pub);
+	define_UniversalAddress.copy = AttachA::Interface::special::proxyCopy<universal_address, false>;
+	define_UniversalAddress.destructor = AttachA::Interface::special::proxyDestruct<universal_address, false>;
+	define_UniversalAddress.funs[symbols::structures::convert::to_string] = 
+		ClassFnDefine(
+			new FuncEnviropment(UniversalAddress::_define_to_string, false), false, ClassAccess::pub
+		);
+	define_UniversalAddress.funs["type"] = 
+		ClassFnDefine(
+			new FuncEnviropment(UniversalAddress::_define_type, false), false, ClassAccess::pub
+		);
+	define_UniversalAddress.funs["actual_type"] = 
+		ClassFnDefine(
+			new FuncEnviropment(UniversalAddress::_define_actual_type, false), false, ClassAccess::pub
+		);
+	define_UniversalAddress.funs["port"] = 
+		ClassFnDefine(
+			new FuncEnviropment(UniversalAddress::_define_port, false), false, ClassAccess::pub
+		);
+	define_UniversalAddress.funs["full_address"] =
+		ClassFnDefine(
+			new FuncEnviropment(UniversalAddress::_define_full_address, false), false, ClassAccess::pub
+		);
+}
+
+void internal_makeIP4(universal_address& addr_storage, const char* ip, uint16_t port){
+	sockaddr_in6 addr6;
+	memset(&addr6, 0, sizeof(addr6));
+	addr6.sin6_family = AF_INET6;
+	addr6.sin6_port = htons(port);
+	addr6.sin6_addr.s6_addr[10] = 0xFF;
+	addr6.sin6_addr.s6_addr[11] = 0xFF;
+	if(inet_pton(AF_INET, ip, &addr6.sin6_addr.s6_addr[12]) != 1)
+		throw InvalidArguments("Invalid ip4 address");
+
+	memcpy(&addr_storage, &addr6, sizeof(addr6));
+}
+void internal_makeIP6(universal_address& addr_storage, const char* ip, uint16_t port){
+	sockaddr_in6 addr6;
+	memset(&addr6, 0, sizeof(addr6));
+	addr6.sin6_family = AF_INET6;
+	addr6.sin6_port = htons(port);
+	if(inet_pton(AF_INET6, ip, &addr6.sin6_addr) != 1)
+		throw InvalidArguments("Invalid ip6 address");
+
+	memcpy(&addr_storage, &addr6, sizeof(addr6));
+}
+void internal_makeIP(universal_address& addr_storage, const char* ip, uint16_t port){
+	sockaddr_in6 addr6;
+	memset(&addr6, 0, sizeof(addr6));
+	addr6.sin6_family = AF_INET6;
+	addr6.sin6_port = htons(port);
+	addr6.sin6_addr.s6_addr[10] = 0xFF;
+	addr6.sin6_addr.s6_addr[11] = 0xFF;
+	if(inet_pton(AF_INET, ip, &addr6.sin6_addr+12) == 1);
+	else if(inet_pton(AF_INET6, ip, &addr6.sin6_addr) != 1)
+		throw InvalidArguments("Invalid ip4 address");
+	memcpy(&addr_storage, &addr6, sizeof(addr6));
+}
+
+void internal_makeIP4_port(universal_address& addr_storage, const char* ip_port){
+	const char* port = strchr(ip_port, ':');
+	if(!port)
+		throw InvalidArguments("Invalid ip4 address");
+	uint16_t port_num = (uint16_t)std::stoi(port+1);
+	std::string ip(ip_port, port);
+	internal_makeIP4(addr_storage, ip.c_str(), port_num);
+}
+void internal_makeIP6_port(universal_address& addr_storage, const char* ip_port){
+	if(ip_port[0] != '[')
+		throw InvalidArguments("Invalid ip6:port address");
+	const char* port = strchr(ip_port, ']');
+	if(!port)
+		throw InvalidArguments("Invalid ip6:port address");
+	if(port[1] != ':')
+		throw InvalidArguments("Invalid ip6:port address");
+	if(port[2] == 0 )
+		throw InvalidArguments("Invalid ip6:port address");
+	uint16_t port_num = (uint16_t)std::stoi(port+2);
+
+
+	if(ip_port == port - 1){
+		sockaddr_in6 addr6;
+		memset(&addr6, 0, sizeof(addr6));
+		addr6.sin6_family = AF_INET6;
+		addr6.sin6_port = htons(port_num);
+		memcpy(&addr_storage, &addr6, sizeof(addr6));
+		return;
+	}
+	std::string ip(ip_port+1, port);
+	internal_makeIP6(addr_storage, ip.c_str(), port_num);
+}
+void internal_makeIP_port(universal_address& addr_storage, const char* ip_port){
+	if(ip_port[0] == '[')
+		return internal_makeIP6_port(addr_storage, ip_port);
+	else
+		return internal_makeIP4_port(addr_storage, ip_port);
 }
 
 
 
-void init_define_TcpNetworkStream();
-void init_define_TcpNetworkBlocking();
-
+#pragma region TCP
 struct tcp_handle{
 	OVERLAPPED overlapped;
 	std::list<std::tuple<char*, size_t>> write_queue;
@@ -176,8 +304,13 @@ struct tcp_handle{
     int sent_bytes;
 	int readed_bytes;
 	int data_len;
-
-	enum class Opcode{
+	enum class error : uint8_t{
+		none = 0,
+		remote_close = 1,
+		local_close = 2,
+		undefined_error = 0xFF
+	} invalid_reason = error::none;
+	enum class Opcode : uint8_t{
 		ACCEPT,
 		READ,
 		WRITE
@@ -297,13 +430,27 @@ struct tcp_handle{
 		buffer.buf = data;
 
 		DWORD flags = 0;
-		DWORD bytes_received = 0;
 		typed_lgr<Task> task_await = notify_task = Task::dummy_task();
 		opcode = Opcode::READ;
-		int result = WSARecv(socket, &buffer, 1, &bytes_received, &flags, &overlapped, NULL);
-		if ((SOCKET_ERROR == bytes_received) && (WSA_IO_PENDING != WSAGetLastError())){
-			close();
-			return;
+		int result = WSARecv(socket, &buffer, 1, NULL, &flags, &overlapped, NULL);
+		if ((SOCKET_ERROR == result)){
+			auto error = WSAGetLastError();
+			if(WSA_IO_PENDING != error){
+				switch (error){
+				case WSAECONNRESET:
+					invalid_reason = error::remote_close;
+					break;
+				case WSAECONNABORTED:
+				case WSA_OPERATION_ABORTED:
+					invalid_reason = error::local_close;
+					break;
+				default:
+					invalid_reason = error::undefined_error;
+					break;
+				}
+				close();
+				return;
+			}
 		}
 		Task::await_task(task_await, false);
 		notify_task = nullptr;
@@ -349,6 +496,7 @@ struct tcp_handle{
 		closesocket(socket);
 		delete[] data;
 		data = nullptr;
+		invalid_reason = error::local_close;
 		if(notify_task)
 			Task::start(notify_task);
 		notify_task = nullptr;
@@ -414,6 +562,7 @@ struct tcp_handle{
 
 	void connection_reset(){
 		data = nullptr;
+		invalid_reason = error::remote_close;
 		if(notify_task)
 			Task::start(notify_task);
 		notify_task = nullptr;
@@ -426,13 +575,27 @@ struct tcp_handle{
 	}
 private:
 	bool send(){
-		DWORD bytes_sent = 0;
 		DWORD flags = 0;
 		opcode = Opcode::WRITE;
-		int result = WSASend(socket, &buffer, 1, &bytes_sent, flags, &overlapped, NULL);
-		if ((SOCKET_ERROR == bytes_sent) && (WSA_IO_PENDING != WSAGetLastError())){
-			close();
-			return false;
+		int result = WSASend(socket, &buffer, 1, NULL, flags, &overlapped, NULL);
+		if ((SOCKET_ERROR == result)){
+			auto error = WSAGetLastError();
+			if(WSA_IO_PENDING != error){
+				switch (error){
+				case WSAECONNRESET:
+					invalid_reason = error::remote_close;
+					break;
+				case WSAECONNABORTED:
+				case WSA_OPERATION_ABORTED:
+					invalid_reason = error::local_close;
+					break;
+				default:
+					invalid_reason = error::undefined_error;
+					break;
+				}
+				close();
+				return false;
+			}
 		}
 		return true;
 	}
@@ -510,7 +673,7 @@ public:
 	void force_write(){
 		std::lock_guard lg(mutex);
 		if(handle)
-			while(handle->send_queue_item());
+			while(handle->valid())if(!handle->send_queue_item())break;
 	}
 	void force_write_and_close(char* data, size_t size){
 		std::lock_guard lg(mutex);
@@ -534,6 +697,12 @@ public:
 			return !res;
 		}
 		return true;
+	}
+	tcp_handle::error error(){
+		std::lock_guard lg(mutex);
+		if(handle)
+			return handle->invalid_reason;
+		return tcp_handle::error::local_close;
 	}
 };
 
@@ -611,6 +780,14 @@ ValueItem* funs_TcpNetworkStream_is_closed(ValueItem* args, uint32_t len){
 	}else
 		throw InvalidArguments("The number of arguments must be 1.");
 }
+ValueItem* funs_TcpNetworkStream_error(ValueItem* args, uint32_t len){
+	if(len == 1){
+		if(args[0].meta.vtype != VType::proxy)
+			throw InvalidArguments("The first argument must be a client_context.");
+		return new ValueItem((uint8_t)((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->error());
+	}else
+		throw InvalidArguments("The number of arguments must be 1.");
+}
 
 
 
@@ -628,6 +805,7 @@ void init_define_TcpNetworkStream(){
 	define_TcpNetworkStream.funs["force_write_and_close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_force_write_and_close, false), false, ClassAccess::pub};
 	define_TcpNetworkStream.funs["close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_close, false), false, ClassAccess::pub};
 	define_TcpNetworkStream.funs["is_closed"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_is_closed, false), false, ClassAccess::pub};
+	define_TcpNetworkStream.funs["error"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_error, false), false, ClassAccess::pub};
 }
 
 #pragma endregion
@@ -691,6 +869,12 @@ public:
 		}
 		return true;
 	}
+	tcp_handle::error error(){
+		std::lock_guard lg(mutex);
+		if(handle)
+			return handle->invalid_reason;
+		return tcp_handle::error::local_close;
+	}
 };
 
 ValueItem* funs_TcpNetworkBlocing_read(ValueItem* args, uint32_t len){
@@ -736,6 +920,15 @@ ValueItem* funs_TcpNetworkBlocing_is_closed(ValueItem* args, uint32_t len){
 	}else
 		throw InvalidArguments("The number of arguments must be 1.");
 }
+ValueItem* funs_TcpNetworkBlocing_error(ValueItem* args, uint32_t len){
+	if(len == 1){
+		if(args[0].meta.vtype != VType::proxy)
+			throw InvalidArguments("The first argument must be a client_context.");
+		return new ValueItem((uint8_t)((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->error());
+	}else
+		throw InvalidArguments("The number of arguments must be 1.");
+}
+
 void init_define_TcpNetworkBlocking(){
 	if(!define_TcpNetworkBlocking.name.empty())
 		return;
@@ -747,6 +940,7 @@ void init_define_TcpNetworkBlocking(){
 	define_TcpNetworkBlocking.funs["write"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_write, false), false, ClassAccess::pub};
 	define_TcpNetworkBlocking.funs["close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_close, false), false, ClassAccess::pub};
 	define_TcpNetworkBlocking.funs["is_closed"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_is_closed, false), false, ClassAccess::pub};
+	define_TcpNetworkBlocking.funs["error"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_error, false), false, ClassAccess::pub};
 }
 
 #pragma endregion
@@ -755,7 +949,6 @@ class TcpNetworkManager : public OverlappedController {
 	TaskMutex safety;
 	typed_lgr<class FuncEnviropment> handler_fn;
 	typed_lgr<class FuncEnviropment> accept_filter;
-	WSADATA wsaData;
     sockaddr_in6 connectionAddress;
 	SOCKET main_socket;
 public:
@@ -765,7 +958,6 @@ private:
 	bool disabled = true;
 	bool corrupted = false;
 	size_t acceptors;
-	TcpNetworkServer::AcceptMode accept_mode;
 	TcpNetworkServer::ManageType manage_type;
 
 	void make_acceptEx(void){
@@ -813,72 +1005,42 @@ private:
 			delete self;
 			return;
 		}
-		switch (accept_mode) {
-		case TcpNetworkServer::AcceptMode::task:{
-			std::lock_guard guard(safety);
-			Task::start(new Task(handler_fn, ValueItem{
-				accept_manager_construct(self), 
-				std::move(clientAddr),
-				std::move(localAddr)
-			}));
-			break;
-		}
-		case TcpNetworkServer::AcceptMode::thread: {
-			std::thread([this, self, clientAddr, localAddr](){
-				std::unique_lock guard(safety);
-				ValueItem args{
-					accept_manager_construct(self),
-					std::move(clientAddr),
-					std::move(localAddr)
-				};
-				auto fn = handler_fn;
-				guard.unlock();
-				FuncEnviropment::sync_call(fn, &args, 1);
-			}).detach();
-			break;
-		}
-		default:
-			break;
-		}
+		std::lock_guard guard(safety);
+		Task::start(new Task(handler_fn, ValueItem{
+			accept_manager_construct(self), 
+			std::move(clientAddr),
+			std::move(localAddr)
+		}));
 	}
 
 public:
-	TcpNetworkManager(short port, size_t acceptors,TcpNetworkServer::ManageType manage_type, TcpNetworkServer::AcceptMode accept) : acceptors(acceptors),manage_type(manage_type), accept_mode(accept) {
-		init_define_UniversalAddress();
-		init_define_TcpNetworkStream();
-		
-    	memset(&connectionAddress, 0, sizeof(sockaddr_in6));
-		connectionAddress.sin6_family = AF_INET6;
-		connectionAddress.sin6_port = htons(port);
-		WSAStartup(MAKEWORD(2, 2), &wsaData);
+	TcpNetworkManager(universal_address& ip_port, size_t acceptors,TcpNetworkServer::ManageType manage_type) : acceptors(acceptors),manage_type(manage_type) {
+    	memcpy(&connectionAddress, &ip_port, sizeof(sockaddr_in6));
 		main_socket = WSASocketA(AF_INET6, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 		if (main_socket == INVALID_SOCKET){
-			WSACleanup();
 			corrupted = true;
 			return;
 		}
 		DWORD argp = 1;//non blocking
 		int result = setsockopt(main_socket,SOL_SOCKET,SO_REUSEADDR,(char*)&argp, sizeof(argp));
 		if (result == SOCKET_ERROR){
-			WSACleanup();
 			corrupted = true;
 			return;
 		}
 		argp = 0;
 		result = setsockopt(main_socket,IPPROTO_IPV6,IPV6_V6ONLY,(char*)&argp, sizeof(argp));
 		if (result == SOCKET_ERROR){
-			WSACleanup();
 			corrupted = true;
 			return;
 		}
 		if (ioctlsocket(main_socket, FIONBIO, &argp) == SOCKET_ERROR){
-			WSACleanup();
 			corrupted = true;
 			return;
 		}
 		init_win_fns(main_socket);
 		if (bind(main_socket, (sockaddr*)&connectionAddress, sizeof(sockaddr_in6)) == SOCKET_ERROR){
-			WSACleanup();
+			ValueItem error = std::string("Failed bind: ") + std::to_string(WSAGetLastError());
+			errors.sync_notify(error);
 			corrupted = true;
 			return;
 		}
@@ -887,7 +1049,6 @@ public:
 	}
 	~TcpNetworkManager(){
 		shutdown();
-		WSACleanup();
 	}
 	
 	void handle(void* _data, void* overlapped, DWORD dwBytesTransferred, bool status) {
@@ -896,20 +1057,20 @@ public:
 		if(data.opcode == tcp_handle::Opcode::ACCEPT){
 			make_acceptEx();
 			
-			univeral_address* pClientAddr = NULL;
-            univeral_address* pLocalAddr = NULL;
-            int remoteLen = sizeof(univeral_address);
-            int localLen = sizeof(univeral_address);
+			universal_address* pClientAddr = NULL;
+            universal_address* pLocalAddr = NULL;
+            int remoteLen = sizeof(universal_address);
+            int localLen = sizeof(universal_address);
             _GetAcceptExSockaddrs(data.buffer.buf,
                                          0,
-                                         sizeof(univeral_address) + 16,
-                                         sizeof(univeral_address) + 16,
+                                         sizeof(universal_address) + 16,
+                                         sizeof(universal_address) + 16,
                                          (LPSOCKADDR*)&pLocalAddr,
                                          &localLen,
                                          (LPSOCKADDR*)&pClientAddr,
                                          &remoteLen);
-			ValueItem clientAddress(new ProxyClass(new univeral_address(*pClientAddr),&define_UniversalAddress), VType::proxy, no_copy);
-			ValueItem localAddress(new ProxyClass(new univeral_address(*pLocalAddr),&define_UniversalAddress), VType::proxy, no_copy);
+			ValueItem clientAddress(new ProxyClass(new universal_address(*pClientAddr),&define_UniversalAddress), VType::proxy, no_copy);
+			ValueItem localAddress(new ProxyClass(new universal_address(*pLocalAddr),&define_UniversalAddress), VType::proxy, no_copy);
 			if(accept_filter){
 				if(AttachA::cxxCall(accept_filter,clientAddress,localAddress)){
 					closesocket(data.socket);
@@ -1030,7 +1191,7 @@ public:
 			throw AttachARuntimeException("TcpNetworkManager is corrupted");
 		allow_new_connections = true;
 	}
-	void start(){
+	void start(size_t pool_size){
 		if(corrupted)
 			throw AttachARuntimeException("TcpNetworkManager is corrupted");
 		std::lock_guard lock(safety);
@@ -1041,7 +1202,10 @@ public:
 			WSACleanup();
 			return;
 		}
-		OverlappedController::run();
+		if(pool_size)
+			OverlappedController::run(pool_size);
+		else
+			OverlappedController::run();
 		for(size_t i = 0; i < acceptors; i++)
 			make_acceptEx();
 		disabled = false;
@@ -1057,16 +1221,68 @@ public:
 	bool is_corrupted(){
 		return corrupted;
 	}
+	void set_pool_size(size_t pool_size){
+		if(corrupted)
+			throw AttachARuntimeException("TcpNetworkManager is corrupted");
+		std::lock_guard lock(safety);
+		if(disabled)
+			return;
+		if(!pool_size)
+			pool_size = std::thread::hardware_concurrency();
+		OverlappedController::set_dispatchers(pool_size);
+	}
+
+	uint16_t port(){
+		if(corrupted)
+			throw AttachARuntimeException("TcpNetworkManager is corrupted");
+		return htons(connectionAddress.sin6_port);
+	}
+	std::string ip(){
+		if(corrupted)
+			throw AttachARuntimeException("TcpNetworkManager is corrupted");
+
+		ProxyClass tmp(&connectionAddress, &define_UniversalAddress);
+		ValueItem args(&tmp, VType::proxy, as_refrence);
+		ValueItem* res;
+		try{
+			res = UniversalAddress::_define_to_string(&args, 1);
+		}catch(...){
+			tmp.declare_ty = nullptr;//prevent delete
+			throw;
+		}
+		tmp.declare_ty = nullptr;//prevent delete
+		std::string ret = (std::string)*res;
+		delete res;
+		return ret;
+	}
+	ValueItem address(){
+		if(corrupted)
+			throw AttachARuntimeException("TcpNetworkManager is corrupted");
+
+		sockaddr_storage* addr = new sockaddr_storage;
+		memcpy(addr, &connectionAddress, sizeof(sockaddr_in6));
+		memset(addr + sizeof(sockaddr_in6), 0, sizeof(sockaddr_storage) - sizeof(sockaddr_in6));
+		return ValueItem(new ProxyClass(addr, &define_UniversalAddress), VType::proxy, no_copy);
+	}
+
+	bool is_paused(){
+		return !disabled && !allow_new_connections;
+	}
 };
-
-
+#pragma endregion
+#pragma region UDP
 struct udp_handle{
-	static constexpr auto adress_len = sizeof(univeral_address) + 16;
+	static constexpr auto adress_len = sizeof(universal_address) + 16;
 	static constexpr auto meta_length = adress_len * 2;
 
 	WSAOVERLAPPED overlapped;
 	SOCKET socket;
 	WSABUF buffer;
+	universal_address* clientAddress = nullptr;
+	enum class Opcode{
+		READ,
+		WRITE
+	} opcode = Opcode::WRITE;
 	udp_handle(SOCKET socket, size_t buffer_len) : socket(socket){
 		ZeroMemory(&overlapped, sizeof(overlapped));
 		buffer.len = buffer_len;
@@ -1074,12 +1290,14 @@ struct udp_handle{
 	}
 	~udp_handle(){
 		delete[] buffer.buf;
+		if(clientAddress)
+			delete clientAddress;
 	}
 };
 class UdpNetworkManager : public OverlappedController{
 	TaskMutex safety;
-	typed_lgr<class FuncEnviropment> handler_fn;
-	WSADATA wsaData;
+	typed_lgr<class FuncEnviropment> income_fn;
+	typed_lgr<class FuncEnviropment> outcome_fault_fn;
     sockaddr_in6 connectionAddress;
 	SOCKET main_socket;
 public:
@@ -1089,12 +1307,12 @@ private:
 	bool disabled = true;
 	bool corrupted = false;
 	size_t acceptors;
-	UdpNetworkServer::AcceptMode accept_mode;
 
 
 	void make_acceptEx(void){
 		auto new_sock = WSASocketA(AF_INET, SOCK_DGRAM, IPPROTO_UDP, NULL, 0, WSA_FLAG_OVERLAPPED);
 		udp_handle *pClientContext = new udp_handle(new_sock, buffer_len);
+		pClientContext->opcode = udp_handle::Opcode::READ;
 		int nBytesRecv = _AcceptEx(main_socket, new_sock, pClientContext->buffer.buf, buffer_len - udp_handle::adress_len * 2, udp_handle::adress_len, udp_handle::adress_len, NULL, &pClientContext->overlapped);
 		if ((SOCKET_ERROR == nBytesRecv) && (WSA_IO_PENDING != WSAGetLastError())){
 			delete pClientContext;
@@ -1106,76 +1324,74 @@ private:
 		udp_handle* handle = (udp_handle*)(void*)args[0];
 		typed_lgr<class FuncEnviropment> accept_handle = *args[1].funPtr();
 		ValueItem fn_args((uint8_t*)handle->buffer.buf + udp_handle::meta_length, handle->buffer.len,as_refrence);
-
-		AttachA::cxxCall(accept_handle, fn_args);
+		ValueItem client_ip = ValueItem(new ProxyClass((universal_address*)args[2].val, &define_UniversalAddress), VType::proxy, no_copy);
+		ValueItem manager = args[3];
+		AttachA::cxxCall(accept_handle, fn_args, client_ip, manager);
 		delete handle;
 		return nullptr;
 	}
 
 	
-	void accepted(udp_handle* self){
+	void accepted(udp_handle* self, universal_address* clientAddress){
 		if(!allow_new_connections){
 			delete self;
 			return;
 		}
-		switch (accept_mode) {
-		case UdpNetworkServer::AcceptMode::task:{
-			std::lock_guard guard(safety);
-			Task::start(new Task(accept_handle, ValueItem(self)));
-		}
-		break;
-		case UdpNetworkServer::AcceptMode::thread: {
-			std::thread([this, self](){
-				std::unique_lock guard(safety);
-				ValueItem args ;
-				auto fn = handler_fn;
-				guard.unlock();
-				FuncEnviropment::sync_call(fn, &args, 1);
-			}).detach();
-			break;
-		}
-		default:
-			break;
-		}
+		std::lock_guard guard(safety);
+		Task::start(new Task(accept_handle,ValueItem{ self, income_fn, clientAddress, ValueItem(new ProxyClass(this, &define_UdpNetworkManager), VType::proxy, no_copy)}));
 	}
-
-public:
-	UdpNetworkManager(short port, size_t acceptors, UdpNetworkServer::AcceptMode accept) : acceptors(acceptors), accept_mode(accept) {
-		init_define_UniversalAddress();
 	
-		
-    	memset(&connectionAddress, 0, sizeof(sockaddr_in6));
-		connectionAddress.sin6_family = AF_INET6;
-		connectionAddress.sin6_port = htons(port);
-		WSAStartup(MAKEWORD(2, 2), &wsaData);
+	
+	
+	static typed_lgr<class FuncEnviropment> sended_fault_handle;
+	static ValueItem* _sended_fault_handle(ValueItem* args, uint32_t len){
+		typed_lgr<class FuncEnviropment> fault_handle = *args[0].funPtr();
+
+		udp_handle* handle = (udp_handle*)(void*)args[1];
+		ValueItem fail_send_array((uint8_t*)handle->buffer.buf, handle->buffer.len,as_refrence);
+		ValueItem client_ip = ValueItem(new ProxyClass(new universal_address(*handle->clientAddress), &define_UniversalAddress), VType::proxy, no_copy);
+		ValueItem sended_len = args[2];
+		ValueItem manager = args[3];
+
+		AttachA::cxxCall(fault_handle, fail_send_array, client_ip, sended_len, manager);
+		delete handle;
+		return nullptr;
+	}
+	void sended(udp_handle* self, DWORD dwBytesTransferred){
+		if(self->buffer.len < dwBytesTransferred && outcome_fault_fn) {
+			std::lock_guard guard(safety);
+			ValueItem args{ outcome_fault_fn, self, (uint32_t)dwBytesTransferred, ValueItem(new ProxyClass(this, &define_UdpNetworkManager), VType::proxy, no_copy)};
+			Task::start(new Task(sended_fault_handle, std::move(args)));
+			return;
+		}
+		delete self;
+	}
+public:
+	UdpNetworkManager(universal_address& ip_port, size_t acceptors) : acceptors(acceptors) {
+		memcpy(&connectionAddress, &ip_port, sizeof(sockaddr_in6));
 		main_socket = WSASocketA(AF_INET6, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 		if (main_socket == INVALID_SOCKET){
-			WSACleanup();
 			corrupted = true;
 			return;
 		}
 		DWORD argp = 1;//non blocking
 		int result = setsockopt(main_socket,SOL_SOCKET,SO_REUSEADDR,(char*)&argp, sizeof(argp));
 		if (result == SOCKET_ERROR){
-			WSACleanup();
 			corrupted = true;
 			return;
 		}
 		argp = 0;//dual stack
 		result = setsockopt(main_socket,IPPROTO_IPV6,IPV6_V6ONLY,(char*)&argp, sizeof(argp));
 		if (result == SOCKET_ERROR){
-			WSACleanup();
 			corrupted = true;
 			return;
 		}
 		if (ioctlsocket(main_socket, FIONBIO, &argp) == SOCKET_ERROR){
-			WSACleanup();
 			corrupted = true;
 			return;
 		}
 		init_win_fns(main_socket);
 		if (bind(main_socket, (sockaddr*)&connectionAddress, sizeof(sockaddr_in6)) == SOCKET_ERROR){
-			WSACleanup();
 			corrupted = true;
 			return;
 		}
@@ -1187,40 +1403,51 @@ public:
 			return;
 		auto& data = *(udp_handle*)overlapped;
 		if ((FALSE == status) || ((true == status) && (0 == dwBytesTransferred))) {
-			make_acceptEx();
-
+			if(data.opcode == udp_handle::Opcode::READ)
+				make_acceptEx();
 			delete &data;
 			return;
 		}
-			univeral_address* pClientAddr = NULL;
-            univeral_address* pLocalAddr = NULL;
-            int remoteLen = sizeof(univeral_address);
-            int localLen = sizeof(univeral_address);
-            _GetAcceptExSockaddrs(data.buffer.buf,
-                                         0,
-                                         sizeof(univeral_address) + 16,
-                                         sizeof(univeral_address) + 16,
-                                         (LPSOCKADDR*)&pLocalAddr,
-                                         &localLen,
-                                         (LPSOCKADDR*)&pClientAddr,
-                                         &remoteLen);
+		switch (data.opcode) {
+			case udp_handle::Opcode::READ: {
+				universal_address* pClientAddr = NULL;
+				universal_address* pLocalAddr = NULL;
+				int remoteLen = sizeof(universal_address);
+				int localLen = sizeof(universal_address);
+				_GetAcceptExSockaddrs(data.buffer.buf,
+											0,
+											sizeof(universal_address) + 16,
+											sizeof(universal_address) + 16,
+											(LPSOCKADDR*)&pLocalAddr,
+											&localLen,
+											(LPSOCKADDR*)&pClientAddr,
+											&remoteLen);
 
-			
+				
 
-			setsockopt(data.socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&main_socket, sizeof(main_socket) );
-			{
-				std::lock_guard lock(safety);
-				register_handle((HANDLE)data.socket, &data);
+				setsockopt(data.socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&main_socket, sizeof(main_socket) );
+				{
+					std::lock_guard lock(safety);
+					register_handle((HANDLE)data.socket, &data);
+				}
+				
+				accepted(&data, new universal_address(*pClientAddr));
+				return;
 			}
-			
-			accepted(&data);
-			return;
+			case udp_handle::Opcode::WRITE: sended(&data, dwBytesTransferred);return;
+		}
 	}
 	void set_on_connect(typed_lgr<class FuncEnviropment> handler_fn){
 		if(corrupted)
-			throw AttachARuntimeException("TcpNetworkManager is corrupted");
+			throw AttachARuntimeException("UdpNetworkManager is corrupted");
 		std::lock_guard lock(safety);
-		this->handler_fn = handler_fn;
+		this->income_fn = handler_fn;
+	}
+	void set_on_send_fault(typed_lgr<class FuncEnviropment> handler_fn){
+		if(corrupted)
+			throw AttachARuntimeException("UdpNetworkManager is corrupted");
+		std::lock_guard lock(safety);
+		this->outcome_fault_fn = handler_fn;
 	}
 	void mainline(){
 		if(corrupted)
@@ -1291,7 +1518,7 @@ public:
 			throw AttachARuntimeException("UdpNetworkManager is corrupted");
 		allow_new_connections = true;
 	}
-	void start(){
+	void start(size_t pool_size){
 		if(corrupted)
 			throw AttachARuntimeException("UdpNetworkManager is corrupted");
 		std::lock_guard lock(safety);
@@ -1302,7 +1529,11 @@ public:
 			WSACleanup();
 			return;
 		}
-		OverlappedController::run();
+		if(pool_size)
+			OverlappedController::run(pool_size);
+		else
+			OverlappedController::run();
+		
 		for(size_t i = 0; i < acceptors; i++)
 			make_acceptEx();
 		disabled = false;
@@ -1311,25 +1542,201 @@ public:
 	bool is_corrupted(){
 		return corrupted;
 	}
+	void set_pool_size(size_t pool_size){
+		if(corrupted)
+			throw AttachARuntimeException("UdpNetworkManager is corrupted");
+		std::lock_guard lock(safety);
+		if(disabled)
+			return;
+		if(!pool_size)
+			pool_size = std::thread::hardware_concurrency();
+		OverlappedController::set_dispatchers(pool_size);
+	}
 
+	bool send(const void* data, size_t size, const universal_address& addr){
+		if(corrupted)
+			throw AttachARuntimeException("UdpNetworkManager is corrupted");
+		std::lock_guard lock(safety);
+		if(disabled)
+			return false;
+		udp_handle* handle = new udp_handle(main_socket, size);
+		handle->buffer.buf = new char[size];
+		memcpy(handle->buffer.buf, data, size);
+		handle->clientAddress = new universal_address(addr);
+		handle->socket = main_socket;
+		handle->opcode = udp_handle::Opcode::WRITE;
+		if(WSASendTo(main_socket, &handle->buffer, 1, NULL, 0, (sockaddr*)&addr, sizeof(universal_address), (LPWSAOVERLAPPED)handle, NULL) == SOCKET_ERROR){
+			if(WSAGetLastError() != WSA_IO_PENDING){
+				delete handle;
+				return false;
+			}
+		}
+		return true;
+	}
+
+	
+	uint16_t port(){
+		if(corrupted)
+			throw AttachARuntimeException("TcpNetworkManager is corrupted");
+		return htons(connectionAddress.sin6_port);
+	}
+	std::string ip(){
+		if(corrupted)
+			throw AttachARuntimeException("TcpNetworkManager is corrupted");
+
+		ProxyClass tmp(&connectionAddress, &define_UniversalAddress);
+		ValueItem args(&tmp, VType::proxy, as_refrence);
+		ValueItem* res;
+		try{
+			res = UniversalAddress::_define_to_string(&args, 1);
+		}catch(...){
+			tmp.declare_ty = nullptr;//prevent delete
+			throw;
+		}
+		tmp.declare_ty = nullptr;//prevent delete
+		std::string ret = (std::string)*res;
+		delete res;
+		return ret;
+	}
+	ValueItem address(){
+		if(corrupted)
+			throw AttachARuntimeException("TcpNetworkManager is corrupted");
+
+		sockaddr_storage* addr = new sockaddr_storage;
+		memcpy(addr, &connectionAddress, sizeof(sockaddr_in6));
+		memset(addr + sizeof(sockaddr_in6), 0, sizeof(sockaddr_storage) - sizeof(sockaddr_in6));
+		return ValueItem(new ProxyClass(addr, &define_UniversalAddress), VType::proxy, no_copy);
+	}
+	bool is_disabled(){
+		return disabled;
+	}
+	bool is_paused(){
+		return !disabled && !allow_new_connections;
+	}
 };
 typed_lgr<class FuncEnviropment> UdpNetworkManager::accept_handle = new FuncEnviropment(UdpNetworkManager::_accept_handle, false);
+typed_lgr<class FuncEnviropment> UdpNetworkManager::sended_fault_handle = new FuncEnviropment(UdpNetworkManager::_sended_fault_handle, false);
 
+
+namespace proxy_UdpNetworkManager{
+	ValueItem* _define_sendto(ValueItem* args,uint32_t len){
+		if(len < 3)
+			throw InvalidArguments("udp_manager &.sendto, expected 1 argument, got " + std::to_string(len));
+		if(args[0].meta.vtype != VType::proxy)
+			throw InvalidArguments("udp_manager &.sendto, excepted proxy, got " + enum_to_string(args[0].meta.vtype));
+		ProxyClass& manager_proxy = (ProxyClass&)args[0];
+		if(manager_proxy.declare_ty != &define_UdpNetworkManager){
+			if(manager_proxy.declare_ty->name != "udp_manager &")
+				throw InvalidArguments("udp_manager &.sendto, excepted udp_manager &, got " + manager_proxy.declare_ty->name);
+			else
+				throw InvalidArguments("udp_manager &.sendto, excepted udp_manager &, got non native udp_manager &");
+		}
+		if(args[1].meta.vtype != VType::proxy)
+			throw InvalidArguments("udp_manager &.sendto, excepted proxy, got " + enum_to_string(args[0].meta.vtype));
+		ProxyClass& address_proxy = (ProxyClass&)args[0];
+		if(address_proxy.declare_ty != &define_UniversalAddress){
+			if(address_proxy.declare_ty->name != "universal_address")
+				throw InvalidArguments("udp_manager &.sendto, excepted universal_address, got " + address_proxy.declare_ty->name);
+			else
+				throw InvalidArguments("udp_manager &.sendto, excepted universal_address, got non native universal_address");
+		}
+
+
+
+
+		auto* manager = (UdpNetworkManager*)manager_proxy.class_ptr;
+		switch (args[1].meta.vtype ) {
+		case VType::raw_arr_ui8:
+		case VType::raw_arr_i8:
+			return new ValueItem(manager->send(args[1].getSourcePtr(), args[1].meta.val_len, *((universal_address*)address_proxy.class_ptr)));
+		case VType::raw_arr_ui16:
+		case VType::raw_arr_i16:
+			return new ValueItem(manager->send(args[1].getSourcePtr(), args[1].meta.val_len * 2, *((universal_address*)address_proxy.class_ptr)));
+		case VType::raw_arr_ui32:
+		case VType::raw_arr_i32:
+		case VType::raw_arr_flo:
+			return new ValueItem(manager->send(args[1].getSourcePtr(), args[1].meta.val_len * 4, *((universal_address*)address_proxy.class_ptr)));
+		case VType::raw_arr_ui64:
+		case VType::raw_arr_i64:
+		case VType::raw_arr_doub:
+			return new ValueItem(manager->send(args[1].getSourcePtr(), args[1].meta.val_len * 8, *((universal_address*)address_proxy.class_ptr)));
+		default:
+			throw InvalidArguments("udp_manager &.sendto, excepted raw array, got " + enum_to_string(args[1].meta.vtype));
+			break;
+		}
+	}
+	typed_lgr<class FuncEnviropment> define_sendto = new FuncEnviropment(_define_sendto, false);
+}
+#pragma endregion
+void init_define_UdpNetworkManager(){
+	if(!define_UdpNetworkManager.name.empty())
+		return;
+	define_UdpNetworkManager.name = "udp_manager &";
+	define_UdpNetworkManager.funs["sendto"] = ClassFnDefine(proxy_UdpNetworkManager::define_sendto, false, ClassAccess::pub);
+}
+
+
+
+uint8_t init_networking(){
+	init_define_UniversalAddress();
+	init_define_UdpNetworkManager();
+	init_define_TcpNetworkStream();
+	init_define_TcpNetworkBlocking();
+	
+	if(WSAStartup(MAKEWORD(2, 2), &wsaData)){
+		auto err = WSAGetLastError();
+		switch (err) {
+		case WSASYSNOTREADY:return 1;
+		case WSAVERNOTSUPPORTED:return 2;return 3;
+		case WSAEPROCLIM:return 4;
+		case WSAEFAULT:return 5;
+		default:return 0xFF;
+		}
+	};
+	inited = true;
+	return 0;
+}
+void deinit_networking(){
+	if(inited)
+		WSACleanup();
+	inited = false;
+}
 
 #else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include "networking.hpp"
-#include "FuncEnviropment.hpp"
-#include "AttachA_CXX.hpp"
+//TO_DO: LINUX implementation using io_uring
+
+uint8_t init_networking(){
+	init_define_UniversalAddress();
+	init_define_UdpNetworkManager();
+	init_define_TcpNetworkStream();
+	init_define_TcpNetworkBlocking();
+	
+	inited = true;
+}
+void deinit_networking(){
+	//inited = false;
+}
 #endif
 
-TcpNetworkServer::TcpNetworkServer(typed_lgr<class FuncEnviropment> on_connect, short port, ManageType mt, size_t acceptors, AcceptMode mode){
-	handle = new TcpNetworkManager(port, acceptors, mt, mode);
+TcpNetworkServer::TcpNetworkServer(typed_lgr<class FuncEnviropment> on_connect, ValueItem& ip_port, ManageType mt, size_t acceptors){
+	if(!inited)
+		throw InternalException("Network module not initialized");
+	if(ip_port.meta.vtype == VType::proxy){
+		ProxyClass& proxy = (ProxyClass&)ip_port;
+		if(proxy.declare_ty != &define_UniversalAddress){
+			if(proxy.declare_ty->name != "universal_address")
+				throw InvalidArguments("excepted universal_address, got " + proxy.declare_ty->name);
+			else
+				throw InvalidArguments("excepted universal_address, got non native universal_address");
+		}
+		handle = new TcpNetworkManager((universal_address&)proxy.class_ptr, acceptors, mt);
+	}else if(ip_port.meta.vtype == VType::string){
+		universal_address addr;
+		internal_makeIP_port(addr, ((std::string)ip_port).c_str());
+		handle = new TcpNetworkManager(addr, acceptors, mt);
+	}else
+		throw InvalidArguments("excepted universal_address or string, got " + enum_to_string(ip_port.meta.vtype));
+		
 	handle->set_on_connect(on_connect, mt);
 }
 TcpNetworkServer::~TcpNetworkServer(){
@@ -1337,8 +1744,8 @@ TcpNetworkServer::~TcpNetworkServer(){
 		delete handle;
 	handle = nullptr;
 }
-void TcpNetworkServer::start(){
-	handle->start();
+void TcpNetworkServer::start(size_t pool_size){
+	handle->start(pool_size);
 }
 void TcpNetworkServer::pause(){
 	handle->pause();
@@ -1358,11 +1765,45 @@ void TcpNetworkServer::mainline(){
 bool TcpNetworkServer::is_corrupted(){
 	return handle->is_corrupted();
 }
+void TcpNetworkServer::set_pool_size(size_t pool_size){
+	handle->set_pool_size(pool_size);
+}
 
+uint16_t TcpNetworkServer::server_port(){
+	return handle->port();
+}
+std::string TcpNetworkServer::server_ip(){
+	return handle->ip();
+}
+ValueItem TcpNetworkServer::server_address(){
+	return handle->address();
+}
+bool TcpNetworkServer::is_paused(){
+	return handle->is_paused();
+}
 
+UdpNetworkServer::UdpNetworkServer(typed_lgr<class FuncEnviropment> packet_handler, uint32_t buffer_len, ValueItem& ip_port, size_t acceptors){
+	if(!inited)
+		throw InternalException("Network module not initialized");
 
-UdpNetworkServer::UdpNetworkServer(typed_lgr<class FuncEnviropment> packet_handler,  short port, size_t acceptors, AcceptMode mode){
-	handle = new UdpNetworkManager(port, acceptors, mode);
+	if(ip_port.meta.vtype == VType::proxy){
+		ProxyClass& proxy = (ProxyClass&)ip_port;
+		if(proxy.declare_ty != &define_UniversalAddress){
+			if(proxy.declare_ty->name != "universal_address")
+				throw InvalidArguments("excepted universal_address, got " + proxy.declare_ty->name);
+			else
+				throw InvalidArguments("excepted universal_address, got non native universal_address");
+		}
+		handle = new UdpNetworkManager((universal_address&)proxy.class_ptr, acceptors);
+	}else if(ip_port.meta.vtype == VType::string){
+		universal_address addr;
+		internal_makeIP_port(addr, ((std::string)ip_port).c_str());
+		handle = new UdpNetworkManager(addr, acceptors);
+	}else
+		throw InvalidArguments("excepted universal_address or string, got " + enum_to_string(ip_port.meta.vtype));
+	handle->buffer_len = buffer_len;
+	if(handle->buffer_len != buffer_len)
+		throw InternalException("Invalid buffer length, expected " + std::to_string(buffer_len) + ", got " + std::to_string(handle->buffer_len));
 	handle->set_on_connect(packet_handler);
 }
 UdpNetworkServer::~UdpNetworkServer(){
@@ -1370,8 +1811,8 @@ UdpNetworkServer::~UdpNetworkServer(){
 		delete handle;
 	handle = nullptr;
 }
-void UdpNetworkServer::start(){
-	handle->start();
+void UdpNetworkServer::start(size_t pool_size){
+	handle->start(pool_size);
 }
 void UdpNetworkServer::stop(){
 	handle->shutdown();
@@ -1385,5 +1826,84 @@ void UdpNetworkServer::mainline(){
 bool UdpNetworkServer::is_corrupted(){
 	return handle->is_corrupted();
 }
+void UdpNetworkServer::set_pool_size(size_t pool_size){
+	handle->set_dispatchers(pool_size);
+}
 
 
+uint16_t UdpNetworkServer::server_port(){
+	return handle->port();
+}
+std::string UdpNetworkServer::server_ip(){
+	return handle->ip();
+}
+ValueItem UdpNetworkServer::server_address(){
+	return handle->address();
+}
+
+bool UdpNetworkServer::is_disabled(){
+	return handle->is_disabled();
+}
+bool UdpNetworkServer::is_paused(){
+	return handle->is_paused();
+}
+
+bool ipv6_supported(){
+	if(!inited)
+		throw InternalException("Network module not initialized");
+	static int ipv6_supported = -1;
+	if(ipv6_supported == -1){
+		ipv6_supported = 0;
+		SOCKET sock = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+		if(sock != INVALID_SOCKET){
+			ipv6_supported = 1;
+			closesocket(sock);
+		}
+	}
+	return ipv6_supported == 1;
+}
+
+
+ValueItem makeIP4(const char* ip, uint16_t port){
+	if(!inited)
+		throw InternalException("Network module not initialized");
+	universal_address* addr_storage = new universal_address;
+	internal_makeIP4(*addr_storage, ip, port);
+	return ValueItem(new ProxyClass(addr_storage, &define_UniversalAddress), VType::proxy);
+}
+ValueItem makeIP6(const char* ip, uint16_t port){
+	if(!inited)
+		throw InternalException("Network module not initialized");
+	universal_address* addr_storage = new universal_address;
+	internal_makeIP6(*addr_storage, ip, port);
+	return ValueItem(new ProxyClass(addr_storage, &define_UniversalAddress), VType::proxy);
+}
+ValueItem makeIP(const char* ip, uint16_t port){
+	if(!inited)
+		throw InternalException("Network module not initialized");
+	universal_address* addr_storage = new universal_address;
+	internal_makeIP(*addr_storage, ip, port);
+	return ValueItem(new ProxyClass(addr_storage, &define_UniversalAddress), VType::proxy);
+}
+
+
+ValueItem makeIP4_port(const char* ip_port){
+	if(!inited)
+		throw InternalException("Network module not initialized");
+	universal_address* addr_storage = new universal_address;
+	internal_makeIP4_port(*addr_storage, ip_port);
+	return ValueItem(new ProxyClass(addr_storage, &define_UniversalAddress), VType::proxy);
+}
+ValueItem makeIP6_port(const char* ip_port){
+	if(!inited)
+		throw InternalException("Network module not initialized");
+	universal_address* addr_storage = new universal_address;
+	internal_makeIP6_port(*addr_storage, ip_port);
+	return ValueItem(new ProxyClass(addr_storage, &define_UniversalAddress), VType::proxy);
+}
+ValueItem makeIP_port(const char* ip_port){
+	if(ip_port[0] == '[')
+		return makeIP6_port(ip_port);
+	else
+		return makeIP4_port(ip_port);
+}
