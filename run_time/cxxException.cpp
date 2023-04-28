@@ -23,7 +23,7 @@ namespace except_abi {
 			}
 		};
 		struct ExCatchableType {
-			uint32_t properties; // bit field  IsScalar 1; HasVirtualBases 4; IsStdBadAlloc 16
+			uint32_t properties; // bit field  IsScalar 1; RefrenceOnly: 2, HasVirtualBases 4; isWinRT: 8, IsStdBadAlloc 16
 			int32_t type_info;
 			uint32_t non_virtual_adjustment;
 			uint32_t offset_to_virtual_base_ptr;
@@ -51,8 +51,10 @@ namespace except_abi {
 			CXXExInfo::Tys tys
 			{
 				(const std::type_info*)(e->ExceptionInformation[3] + ss->type_info),
-				(const void*)(e->ExceptionInformation[3] + ss->copy_function)
+				(const void*)(e->ExceptionInformation[3] + ss->copy_function),
+				(bool)(ss->properties & 16)
 			};
+
 			ex.ty_arr.push_back(tys);
 		}
 		ex.ty_arr.shrink_to_fit();
@@ -87,4 +89,7 @@ void getCxxExInfoFromNative1(CXXExInfo& res, void* ex_ptr) {
 bool hasClassInEx(CXXExInfo& cxx, const char* class_nam) {
 	std::string str = std::string("class ") + class_nam;
 	return cxx.ty_arr.contains_one([&str](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == str; });
+}
+bool isBadAlloc(CXXExInfo& cxx){
+	return cxx.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.is_bad_alloc; });
 }
