@@ -14,7 +14,7 @@
 #include <iostream>
 #include "attacha_abi.hpp"
 
-#include "agreement/symbols.hpp"
+#include "../configuration/agreement/symbols.hpp"
 
 ValueItem* FuncEnviropment::async_call(typed_lgr<FuncEnviropment> f, ValueItem* args, uint32_t args_len) {
 	ValueItem* res = new ValueItem();
@@ -1570,6 +1570,7 @@ EXCEPTION_DISPOSITION __attacha_handle(
 	void* addr = (void*)DispatcherContext->ControlPc;
 	uint8_t* data = (uint8_t*)DispatcherContext->HandlerData;
 	bool execute = false;
+	bool on_unwind = ExceptionRecord->ExceptionFlags & EXCEPTION_UNWINDING;
 	while(true){
 		ScopeAction::Action action = (ScopeAction::Action)*data++;
 		if (action == ScopeAction::Action::not_action)
@@ -1580,115 +1581,136 @@ EXCEPTION_DISPOSITION __attacha_handle(
 			execute = true;
 		switch(action) {
 			case ScopeAction::Action::destruct_stack: {
-				char* stack = (char*)ContextRecord->Rbp;
-				auto destruct = readFromArrayAsValue<void(*)(void*&)>(data);
-				stack += readFromArrayAsValue<uint64_t>(data);
-				if(execute)
-					destruct(*(void**)stack);
-				break;
-			}
-			case ScopeAction::Action::destruct_register: {
-				auto destruct = readFromArrayAsValue<void(*)(void*&)>(data);
-				if(!execute){
-					readFromArrayAsValue<uint32_t>(data);
-					execute = false;
-					continue;
-				}
-				switch (readFromArrayAsValue<uint32_t>(data))
-				{
-				case asmjit::x86::Gp::kIdAx:
-					destruct(*(void**)ContextRecord->Rax);
-					break;
-				case asmjit::x86::Gp::kIdBx:
-					destruct(*(void**)ContextRecord->Rbx);
-					break;
-				case asmjit::x86::Gp::kIdCx:
-					destruct(*(void**)ContextRecord->Rcx);
-					break;
-				case asmjit::x86::Gp::kIdDx:
-					destruct(*(void**)ContextRecord->Rdx);
-					break;
-				case asmjit::x86::Gp::kIdDi:
-					destruct(*(void**)ContextRecord->Rdi);
-					break;
-				case asmjit::x86::Gp::kIdSi:
-					destruct(*(void**)ContextRecord->Rsi);
-					break;
-				case asmjit::x86::Gp::kIdR8:
-					destruct(*(void**)ContextRecord->R8);
-					break;
-				case asmjit::x86::Gp::kIdR9:
-					destruct(*(void**)ContextRecord->R9);
-					break;
-				case asmjit::x86::Gp::kIdR10:
-					destruct(*(void**)ContextRecord->R10);
-					break;
-				case asmjit::x86::Gp::kIdR11:
-					destruct(*(void**)ContextRecord->R11);
-					break;
-				case asmjit::x86::Gp::kIdR12:
-					destruct(*(void**)ContextRecord->R12);
-					break;
-				case asmjit::x86::Gp::kIdR13:
-					destruct(*(void**)ContextRecord->R13);
-					break;
-				case asmjit::x86::Gp::kIdR14:
-					destruct(*(void**)ContextRecord->R14);
-					break;
-				case asmjit::x86::Gp::kIdR15:
-					destruct(*(void**)ContextRecord->R15);
-					break;
-				default:
-					{
-						ValueItem it {"Invalid register id"};
-						errors.async_notify(it);
+					char* stack = (char*)ContextRecord->Rbp;
+					auto destruct = readFromArrayAsValue<void(*)(void*&)>(data);
+					stack += readFromArrayAsValue<uint64_t>(data);
+					if(execute && on_unwind){
+						destruct(*(void**)stack);
+						ExceptionRecord->ExceptionFlags |= EXCEPTION_NONCONTINUABLE;
 					}
-					return ExceptionContinueSearch;
+					break;
 				}
-			}
+			case ScopeAction::Action::destruct_register: {
+					auto destruct = readFromArrayAsValue<void(*)(void*&)>(data);
+					if(!execute || !on_unwind){
+						readFromArrayAsValue<uint32_t>(data);
+						execute = false;
+						continue;
+					}
+					switch (readFromArrayAsValue<uint32_t>(data))
+					{
+					case asmjit::x86::Gp::kIdAx:
+						destruct(*(void**)ContextRecord->Rax);
+						break;
+					case asmjit::x86::Gp::kIdBx:
+						destruct(*(void**)ContextRecord->Rbx);
+						break;
+					case asmjit::x86::Gp::kIdCx:
+						destruct(*(void**)ContextRecord->Rcx);
+						break;
+					case asmjit::x86::Gp::kIdDx:
+						destruct(*(void**)ContextRecord->Rdx);
+						break;
+					case asmjit::x86::Gp::kIdDi:
+						destruct(*(void**)ContextRecord->Rdi);
+						break;
+					case asmjit::x86::Gp::kIdSi:
+						destruct(*(void**)ContextRecord->Rsi);
+						break;
+					case asmjit::x86::Gp::kIdR8:
+						destruct(*(void**)ContextRecord->R8);
+						break;
+					case asmjit::x86::Gp::kIdR9:
+						destruct(*(void**)ContextRecord->R9);
+						break;
+					case asmjit::x86::Gp::kIdR10:
+						destruct(*(void**)ContextRecord->R10);
+						break;
+					case asmjit::x86::Gp::kIdR11:
+						destruct(*(void**)ContextRecord->R11);
+						break;
+					case asmjit::x86::Gp::kIdR12:
+						destruct(*(void**)ContextRecord->R12);
+						break;
+					case asmjit::x86::Gp::kIdR13:
+						destruct(*(void**)ContextRecord->R13);
+						break;
+					case asmjit::x86::Gp::kIdR14:
+						destruct(*(void**)ContextRecord->R14);
+						break;
+					case asmjit::x86::Gp::kIdR15:
+						destruct(*(void**)ContextRecord->R15);
+						break;
+					default:
+						{
+							ValueItem it {"Invalid register id"};
+							errors.async_notify(it);
+						}
+						return ExceptionContinueSearch;
+					}
+				}
 			case ScopeAction::Action::filter: {
-				auto filter = readFromArrayAsValue<bool(*)(CXXExInfo&, void*&, void*, size_t, void*)>(data);
-				if(!execute){
-					skipArray<char>(data);
-					execute = false;
-					continue;
-				}
-				size_t size = 0;
-				std::unique_ptr<char[]> stack;
-				stack.reset(readFromArrayAsArray<char>(data, size));
+					auto filter = readFromArrayAsValue<bool(*)(CXXExInfo&, void*&, void*, size_t, void*)>(data);
+					if(!execute){
+						skipArray<char>(data);
+						execute = false;
+						continue;
+					}
+					size_t size = 0;
+					std::unique_ptr<char[]> stack;
+					stack.reset(readFromArrayAsArray<char>(data, size));
 
-				CXXExInfo info;
-				getCxxExInfoFromNative1(info,ExceptionRecord);
-				void* continue_from = nullptr;
-				if (filter(info,continue_from, stack.get(), size, (void*)ContextRecord->Rsp)){
-					ContextRecord->Rip = (uint64_t)continue_from;
-					return ExceptionCollidedUnwind;
+					CXXExInfo info;
+					getCxxExInfoFromNative1(info,ExceptionRecord);
+					void* continue_from = nullptr;
+					if(!on_unwind){
+						if (filter(info,continue_from, stack.get(), size, (void*)ContextRecord->Rsp)){
+							RtlUnwindEx(
+								(void*)EstablisherFrame,
+								continue_from,
+								ExceptionRecord,
+								UlongToPtr(ExceptionRecord->ExceptionCode),
+								DispatcherContext->ContextRecord,DispatcherContext->HistoryTable
+							);
+                			__debugbreak();
+							ContextRecord->Rip = (uint64_t)continue_from;
+							return ExceptionCollidedUnwind;
+						}
+						else
+							return ExceptionContinueSearch;
+					}
+					break;
 				}
-				else
-					return ExceptionContinueSearch;
-				break;
-			}
 			case ScopeAction::Action::converter: {
-				auto convert = readFromArrayAsValue<void(*)(void*,size_t, void* rsp)>(data);
-				size_t size = 0;
-				std::unique_ptr<char[]> stack;
-				stack.reset(readFromArrayAsArray<char>(data, size));
-				convert(stack.get(), size, (void*)ContextRecord->Rsp);
-				ValueItem args{"Exception converter will not return"};
-				errors.async_notify(args);
-				return ExceptionContinueSearch;
-				break;
-			}
+					auto convert = readFromArrayAsValue<void(*)(void*,size_t, void* rsp)>(data);
+					size_t size = 0;
+					std::unique_ptr<char[]> stack;
+					stack.reset(readFromArrayAsArray<char>(data, size));
+					convert(stack.get(), size, (void*)ContextRecord->Rsp);
+					ValueItem args{"Exception converter will not return"};
+					errors.async_notify(args);
+					return ExceptionContinueSearch;
+					break;
+				}
+			case ScopeAction::Action::finally:{
+					auto finally = readFromArrayAsValue<void(*)(void* rsp)>(data);
+					if(!execute || !on_unwind){
+						skipArray<char>(data);
+						execute = false;
+						continue;
+					}
+					size_t size = 0;
+					std::unique_ptr<char[]> stack;
+					stack.reset(readFromArrayAsArray<char>(data, size));
+					finally(stack.get());
+					break;
+				}
 			case ScopeAction::Action::not_action:
 				return ExceptionContinueSearch;
 			default:
 				throw BadOperationException();
 		}
 	}
-
-
-
-
 	//printf("hello!");
 	return ExceptionContinueSearch;
 }
@@ -1776,6 +1798,8 @@ bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t s
 	} else {
 		return exceptions.contains_one([&info](const std::string& str) {
 			return info.ty_arr.contains_one([&str](const CXXExInfo::Tys& ty) {
+				if(ty.is_bad_alloc)
+					return str == "BadAlloc";
 				return str == ty.ty_info->name();
 			});
 		});

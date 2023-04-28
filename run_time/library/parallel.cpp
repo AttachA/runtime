@@ -6,7 +6,7 @@
 
 #pragma once
 #include "../AttachA_CXX.hpp"
-#include "../agreement/symbols.hpp"
+#include "../../configuration/agreement/symbols.hpp"
 namespace parallel {
 	ProxyClassDefine define_ConditionVariable;
 	ProxyClassDefine define_Mutex;

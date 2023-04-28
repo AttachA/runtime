@@ -28,7 +28,7 @@ void init_define_UniversalAddress();
 
 #include "networking.hpp"
 #include "FuncEnviropment.hpp"
-#include "agreement/symbols.hpp"
+#include "../configuration/agreement/symbols.hpp"
 #include <condition_variable>
 
 LPFN_ACCEPTEX _AcceptEx;
