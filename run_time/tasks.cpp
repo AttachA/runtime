@@ -1,4 +1,4 @@
-// Copyright Danyil Melnytskyi 2022
+// Copyright Danyil Melnytskyi 2022-2023
 //
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
@@ -1651,7 +1651,7 @@ re_try:
 void TaskLimiter::unlock() {
 	std::lock_guard lg0(no_race);
 	if (!lock_check.contains(loc.curr_task.getPtr()))
-		throw InvalidLock("Invalid unlock. Task try unlock already unlocked task limiter");
+		throw InvalidUnlock("Invalid unlock. Task try unlock already unlocked task limiter");
 	else
 		lock_check.erase(loc.curr_task.getPtr());
 	unchecked_unlock();
