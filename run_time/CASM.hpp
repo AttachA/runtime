@@ -730,6 +730,7 @@ struct ScopeAction{
 		destruct_register,
 		filter,
 		converter,
+		finally,
 
 		not_action = (uint8_t)-1
 	} action : 8;
