@@ -5,6 +5,9 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
+#ifndef ATTACHA_ABI_STRUCTS_HPP
+#define ATTACHA_ABI_STRUCTS_HPP
+
 #include <cstdint>
 #include <unordered_map>
 #include <unordered_set>
@@ -419,6 +422,7 @@ struct ValueItem {
 	explicit operator ClassValue& ();
 	explicit operator MorphValue& ();
 	explicit operator ProxyClass& ();
+	explicit operator ValueMeta();
 	explicit operator std::exception_ptr();
 	explicit operator std::chrono::steady_clock::time_point();
 	explicit operator std::unordered_map<ValueItem, ValueItem>&();
@@ -429,6 +433,9 @@ struct ValueItem {
 	void*& getSourcePtr();
 	const void*& getSourcePtr() const;
 	typed_lgr<class FuncEnviropment>* funPtr();
+	void make_gc();
+	void localize_gc();
+	void ungc();
 	
 	size_t hash() const;
 	size_t hash();
@@ -442,7 +449,7 @@ ENUM_t(ClassAccess, uint8_t,
 	(pub)//anyone can use
 	(priv)//main only
 	(prot)//derived or main
-	(deriv)//derived only
+	(intern)//internal, derived or main
 )
 struct ClassFnDefine {
 	typed_lgr<class FuncEnviropment> fn = nullptr;
@@ -531,3 +538,4 @@ namespace std {
 		}
 	};
 }
+#endif

@@ -219,7 +219,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
-					return (T)(int8_t)val;
+					return (T)(int8_t)(ptrdiff_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
 					return AsPointer<T, int8_t>(val);
 				else
@@ -232,7 +232,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
-					return (T)(int16_t)val;
+					return (T)(int16_t)(ptrdiff_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
 					return AsPointer<T, int16_t>(val);
 				else
@@ -245,7 +245,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
-					return (T)(int32_t)val;
+					return (T)(int32_t)(ptrdiff_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
 					return AsPointer<T, int32_t>(val);
 				else
@@ -258,7 +258,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
-					return (T)(int64_t)val;
+					return (T)(int64_t)(ptrdiff_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
 					return AsPointer<T, int64_t>(val);
 				else

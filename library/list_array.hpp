@@ -531,9 +531,9 @@ private:
 		conexpr arr_block(const arr_block& copy) { operator=(copy); }
 		conexpr arr_block(arr_block&& move) noexcept { operator=(std::move(move)); }
 		conexpr arr_block(arr_block* prev, size_t len, arr_block* next) {
-			if (_prev = prev)
+			if ((_prev = prev))
 				_prev->next_ = this;
-			if (next_ = next)
+			if ((next_ = next))
 				next_->_prev = this;
 			arr_contain = new T[len];
 			_size = len;
@@ -1707,13 +1707,13 @@ public:
 			throw std::out_of_range("end value out of size limit");
 		if (start > _size)
 			throw std::out_of_range("start value out of size limit");
-		size_t res = arr.remove_if([](const T& cval) { return comparer(val, cval); }, reserved_begin + start, reserved_begin + end);
+		size_t res = arr.remove_if([&comparer, &val](const T& cval) { return comparer(val, cval); }, reserved_begin + start, reserved_begin + end);
 		_size -= res;
 		return res;
 	}
 	template<class _Fn>
 	conexpr size_t remove_same(const T& val, _Fn comparer = [](const T& f, const T& s) { return f == s; }) {
-		size_t res = arr.remove_if([](const T& cval) { return comparer(val, cval); }, reserved_begin, reserved_begin + _size);
+		size_t res = arr.remove_if([&comparer, &val](const T& cval) { return comparer(val, cval); }, reserved_begin, reserved_begin + _size);
 		_size -= res;
 		return res;
 	}
@@ -1988,7 +1988,7 @@ public:
 		}
 		else if constexpr (std::is_signed<T>::value && sizeof(T) <= sizeof(size_t)) {
 			auto normalize = [](const T& to) {
-				constexpr size_t to_shift = sizeof(8) * 4;
+				constexpr size_t to_shift = sizeof(T) * 4;
 				return size_t((SIZE_MAX >> to_shift) + to);
 			};
 			size_t mival = normalize(mmin());
@@ -2068,7 +2068,7 @@ public:
 				return size_t(0);
 			};
 			size_t err = 0;
-			while (err = non_sorted_finder(err))
+			while ((err = non_sorted_finder(err)))
 				merge(0, err, _size);
 			delete[] L;
 			delete[] M;
@@ -2138,7 +2138,7 @@ public:
 			return size_t(0);
 		};
 		size_t err = 0;
-		while (err = non_sorted_finder(err))
+		while ((err = non_sorted_finder(err)))
 			merge(0, err, _size);
 		delete[] L;
 		delete[] M;
@@ -2284,7 +2284,7 @@ public:
 	conexpr list_array<T> take(_Fn select_fn, size_t start_pos, size_t end_pos) {
 		size_t i = 0;
 		size_t taken_items = 0;
-		list_array<uint8_t> selector((end_pos - start_pos) >> 3 + 1, 0);
+		list_array<uint8_t> selector(((end_pos - start_pos) >> 3) + 1, 0);
 		if (start_pos > end_pos) {
 			std::swap(start_pos, end_pos);
 			if (_size < end_pos)
@@ -2783,7 +2783,7 @@ public:
 		list_array<size_t> remove_pos;
 		size_t range_size = range_start > range_end ? range_start - range_end : range_end - range_start;
 		size_t find_item = start_pos;
-		while (find_item = find(range, range_start, range_end, find_item, end_pos) != npos)
+		while ((find_item = find(range, range_start, range_end, find_item, end_pos) != npos))
 			remove_pos.push_back(find_item - range_size);
 		for (size_t val : remove_pos) { remove(val, range_size); }
 	}

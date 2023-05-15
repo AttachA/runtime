@@ -10,17 +10,14 @@
 #include "AttachA_CXX.hpp"
 #include "tasks.hpp"
 #include "library/exceptions.hpp"
-#include "../library/mem_tool.hpp"
 #include "../library/string_help.hpp"
 #include "ValueEnvironment.hpp"
-#include <iostream>
-#include <stack>
 #include <queue>
 #include <deque>
 #include <condition_variable>
 #include "tasks_util/light_stack.hpp"
 #include "library/parallel.hpp"
-
+#include "tasks_util/native_workers_singleton.hpp"
 
 
 
@@ -28,6 +25,7 @@
 
 
 #undef min
+#undef max
 namespace ctx = boost::context;
 constexpr size_t native_thread_flag = (SIZE_MAX ^ -1);
 ValueItem* _empty_func(ValueItem* /*ignored*/, uint32_t /*ignored*/) {
@@ -42,6 +40,29 @@ ValueItem* _notify_native_thread(ValueItem* args, uint32_t /*ignored*/) {
 	return nullptr;
 }
 typed_lgr<FuncEnviropment> notify_native_thread(new FuncEnviropment(_notify_native_thread, false));
+
+void put_arguments(ValueItem& args_hold, const ValueItem& arguments){
+	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
+		args_hold = std::move(arguments);
+	else if (arguments.meta.vtype != VType::noting)
+		args_hold = {std::move(arguments)};
+}
+void put_arguments(ValueItem& args_hold, ValueItem&& arguments){
+	if (arguments.meta.vtype == VType::faarr)
+		args_hold = std::move(arguments);
+	else if(arguments.meta.vtype == VType::saarr){
+		ValueItem *arr = new ValueItem[arguments.meta.val_len];
+		ValueItem *arr2 = (ValueItem*)arguments.val;
+		for (size_t i = 0; i < arguments.meta.val_len; ++i)
+			arr[i] = std::move(arr2[i]);
+		args_hold = ValueItem(arr, arguments.meta.val_len, no_copy);
+	}
+	else if (arguments.meta.vtype != VType::noting){
+		ValueItem *arr = new ValueItem[1];
+		arr[0] = std::move(arguments);
+		args_hold = std::move(ValueItem(arr, 1, no_copy));
+	}
+}
 
 
 #pragma region MutexUnify
@@ -384,7 +405,43 @@ struct {
 	bool is_task_thread = false;
 	bool context_in_swap = false;
 } thread_local loc;
-
+struct TaskCallback {
+	static void dummy(ValueItem&){}
+	ValueItem args;
+	void(*on_start)(ValueItem&);
+	void(*on_await)(ValueItem&);
+	void(*on_cancel)(ValueItem&);
+	void(*on_timeout)(ValueItem&);
+	TaskCallback(ValueItem& args, void(*on_await)(ValueItem&) = dummy, void(*on_cancel)(ValueItem&) = dummy, void(*on_timeout)(ValueItem&) = dummy, void(*on_start)(ValueItem&) = dummy) : args(args), on_start(on_start), on_await(on_await), on_cancel(on_cancel), on_timeout(on_timeout){}
+	static void start(Task& task){
+		auto self = (TaskCallback*)task.args.val;
+		if(task.timeout != std::chrono::high_resolution_clock::time_point::min()){
+			if(task.timeout <= std::chrono::high_resolution_clock::now())
+				self->on_timeout(self->args);
+				return;
+		}
+		if(self->on_start)
+			self->on_start(self->args);
+	}
+	static bool await(Task& task){
+		auto self = (TaskCallback*)task.args.val;
+		if(self->on_await){
+			self->on_await(self->args);
+			return true;
+		}
+		else return false;
+	}
+	static void cancel(Task& task){
+		auto self = (TaskCallback*)task.args.val;
+		if(self->on_cancel)
+			self->on_cancel(self->args);
+	}
+	static void timeout(Task& task){
+		auto self = (TaskCallback*)task.args.val;
+		if(self->on_timeout)
+			self->on_timeout(self->args);
+	}
+};
 void checkCancelation() {
 	if (loc.curr_task->make_cancel)
 		throw TaskCancellation();
@@ -586,6 +643,18 @@ void taskExecutor(bool end_in_task_out = false) {
 		//if func is nullptr then this task signal to shutdown executor
 		if (!loc.curr_task->func)
 			break;
+		if(loc.curr_task->_task_local == (ValueEnvironment*)-1){
+			loc.is_task_thread = false;
+			try{
+				TaskCallback::start(*loc.curr_task);
+			}catch(...){
+				loc.is_task_thread = true;
+				loc.ex_ptr = std::current_exception();
+				goto caught_ex;
+			}
+			loc.is_task_thread = true;
+			continue;
+		}
 		if (!end_in_task_out)
 			worker_mode_desk("process task - " + std::to_string(loc.curr_task->task_id()));
 		if (loc.curr_task->end_of_life)
@@ -604,6 +673,7 @@ void taskExecutor(bool end_in_task_out = false) {
 				glob.can_planned_new_notifier.notify_one();
 			*loc.tmp_current_context = ctx::callcc(std::allocator_arg, light_stack(1048576/*1 mb*/), context_exec);
 		}
+	caught_ex:
 		if (loc.ex_ptr) {
 			if (loc.curr_task->ex_handle) {
 				ValueItem temp(new std::exception_ptr(loc.ex_ptr), VType::except_value, no_copy);
@@ -714,10 +784,7 @@ void makeTimeWait(std::chrono::high_resolution_clock::time_point t) {
 Task::Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& arguments, bool used_task_local, typed_lgr<class FuncEnviropment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
 	ex_handle = exception_handler;
 	func = call_func;
-	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
-		args = arguments;
-	else if (arguments.meta.vtype != VType::noting)
-		args = {arguments};
+	put_arguments(args, arguments);
 	
 	timeout = task_timeout;
 	if (used_task_local)
@@ -734,13 +801,7 @@ Task::Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& argument
 Task::Task(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_task_local, typed_lgr<class FuncEnviropment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
 	ex_handle = exception_handler;
 	func = call_func;
-	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
-		args = std::move(arguments);
-	else if (arguments.meta.vtype != VType::noting){
-		ValueItem *arr = new ValueItem[1];
-		arr[0] = std::move(arguments);
-		args = std::move(ValueItem(arr, 1, no_copy));
-	}
+	put_arguments(args, std::move(arguments));
 
 	timeout = task_timeout;
 	if (used_task_local)
@@ -813,7 +874,12 @@ void Task::await_task(typed_lgr<Task>& lgr_task, bool make_start) {
 		Task::start(lgr_task);
 	MutexUnify uni(lgr_task->no_race);
 	std::unique_lock l(uni);
-	lgr_task->fres.awaitEnd(l);
+	if(lgr_task->_task_local != (ValueEnvironment*)-1)
+		lgr_task->fres.awaitEnd(l);
+	else{
+		if(!TaskCallback::await(*lgr_task))
+			lgr_task->fres.awaitEnd(l);
+	}
 }
 list_array<ValueItem> Task::await_results(typed_lgr<Task>& task) {
 	await_task(task);
@@ -977,7 +1043,12 @@ void Task::self_cancel() {
 	else
 		throw EnviropmentRuinException("Thread attempted cancel self, like task");
 }
-
+void Task::notify_cancel(typed_lgr<Task>& lgr_task){
+	if(lgr_task->_task_local == (ValueEnvironment*)-1)
+		TaskCallback::cancel(*lgr_task);
+	else
+		lgr_task->make_cancel = true;
+}
 
 class ValueEnvironment* Task::task_local() {
 	if (!loc.is_task_thread)
@@ -1016,6 +1087,155 @@ typed_lgr<Task> Task::cxx_native_bridge(bool& checker, std::condition_variable_a
 	return new Task(notify_native_thread, ValueItem{ ValueItem(&checker, VType::undefined_ptr), ValueItem(std::addressof(cd), VType::undefined_ptr) });
 }
 
+
+typed_lgr<Task> Task::fullifed_task(const list_array<ValueItem>& results){
+	Task* task = new Task(empty_func, nullptr);
+	task->func = nullptr;
+	task->fres.results = results;
+	task->end_of_life = true;
+	task->started = true;
+	task->fres.end_of_life = true;
+	return task;
+}
+typed_lgr<Task> Task::fullifed_task(list_array<ValueItem>&& results){
+	Task* task = new Task(empty_func, nullptr);
+	task->func = nullptr;
+	task->fres.results = std::move(results);
+	task->end_of_life = true;
+	task->started = true;
+	task->fres.end_of_life = true;
+	return task;
+}
+typed_lgr<Task> Task::fullifed_task(const ValueItem& result){
+	Task* task = new Task(empty_func, nullptr);
+	task->func = nullptr;
+	task->fres.results = { result };
+	task->end_of_life = true;
+	task->started = true;
+	task->fres.end_of_life = true;
+	return task;
+}
+typed_lgr<Task> Task::fullifed_task(ValueItem&& result){
+	Task* task = new Task(empty_func, nullptr);
+	task->func = nullptr;
+	task->fres.results = { std::move(result) };
+	task->end_of_life = true;
+	task->started = true;
+	task->fres.end_of_life = true;
+	return task;
+}
+
+
+class native_task_shedule : public NativeWorkerHandle, public NativeWorkerManager {
+	typed_lgr<class FuncEnviropment> func;
+	ValueItem args;
+	bool started = false;
+public:
+	typed_lgr<Task> task;
+	
+	native_task_shedule(typed_lgr<class FuncEnviropment> func) : NativeWorkerHandle(this){
+		this->func = func;
+		task = Task::dummy_task();
+		task->started = true;
+	}
+	native_task_shedule(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments) : NativeWorkerHandle(this){
+		this->func = func;
+		task = Task::dummy_task();
+		task->started = true;
+		put_arguments(args, std::move(arguments));
+	}
+	native_task_shedule(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments) : NativeWorkerHandle(this){
+		this->func = func;
+		task = Task::dummy_task();
+		task->started = true;
+		put_arguments(args, arguments);
+	}
+	native_task_shedule(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&)): NativeWorkerHandle(this){
+		this->func = func;
+		task = Task::callback_dummy(dummy_data,nullptr, on_cancel, nullptr);
+		task->started = true;
+		put_arguments(args, arguments);
+	}
+	native_task_shedule(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&)): NativeWorkerHandle(this){
+		this->func = func;
+		task = Task::callback_dummy(dummy_data,nullptr, on_cancel, nullptr);
+		task->started = true;
+		put_arguments(args, std::move(arguments));
+	}
+	void handle(void* unused0, NativeWorkerHandle* unused1, unsigned long unused2, bool unused3){
+		ValueItem* result = nullptr;
+		try{
+			result = FuncEnviropment::sync_call(func, (ValueItem*)args.val, args.meta.val_len);
+		}catch(...){
+			MutexUnify mtx(task->no_race);
+			std::unique_lock<MutexUnify> ulock(mtx);
+			task->fres.finalResult(std::current_exception(), ulock);
+			task->end_of_life = true;
+			return;
+		}
+		MutexUnify mtx(task->no_race);
+		std::unique_lock<MutexUnify> ulock(mtx);
+		task->fres.finalResult(result, ulock);
+		task->end_of_life = true;
+		delete this;
+	}
+
+	bool start(){
+		if(started)
+			return false;
+		return started = NativeWorkersSingleton::post_work(this);
+	}
+};
+
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func){
+	native_task_shedule* shedule = new native_task_shedule(func);
+	if(!shedule->start()){
+		delete shedule;
+		throw AttachARuntimeException("Failed to start native task");
+	}
+	return shedule->task;
+}
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func){
+	native_task_shedule* shedule = new native_task_shedule(func);
+	if(!shedule->start()){
+		delete shedule;
+		throw AttachARuntimeException("Failed to start native task");
+	}
+	return shedule->task;
+}
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments){
+	native_task_shedule* shedule = new native_task_shedule(func, arguments);
+	if(!shedule->start()){
+		delete shedule;
+		throw AttachARuntimeException("Failed to start native task");
+	}
+	return shedule->task;
+}
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments){
+	native_task_shedule* shedule = new native_task_shedule(func, std::move(arguments));
+	if(!shedule->start()){
+		delete shedule;
+		throw AttachARuntimeException("Failed to start native task");
+	}
+	return shedule->task;
+}
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&)){
+	native_task_shedule* shedule = new native_task_shedule(func, arguments, dummy_data, on_cancel);
+	if(!shedule->start()){
+		delete shedule;
+		throw AttachARuntimeException("Failed to start native task");
+	}
+	return shedule->task;
+}
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&)){
+	native_task_shedule* shedule = new native_task_shedule(func, std::move(arguments), dummy_data, on_cancel);
+	if(!shedule->start()){
+		delete shedule;
+		throw AttachARuntimeException("Failed to start native task");
+	}
+	return shedule->task;
+}
+
 #pragma endregion
 #pragma optimize("",off)
 #pragma region Task: contexts swap
@@ -1040,6 +1260,48 @@ void Task::yield() {
 
 #pragma endregion
 
+#pragma region Task: TaskCallback
+
+
+typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_start)(ValueItem&), void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
+	typed_lgr<Task> tsk = new Task(
+		empty_func,
+		nullptr,
+		false,
+		nullptr,
+		timeout
+	);
+	tsk->args = new TaskCallback(dummy_data, on_start, on_await, on_cancel, on_timeout);
+	tsk->_task_local = (ValueEnvironment*)-1;
+	if(timeout != std::chrono::high_resolution_clock::time_point::max()){
+		std::lock_guard guard(glob.task_timer_safety);
+		if(glob.time_control_enabled)
+			startTimeController();
+		glob.timed_tasks.push_back(timing(timeout,tsk));
+	}
+	return tsk;
+}
+typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
+	typed_lgr<Task> tsk = new Task(
+		empty_func,
+		nullptr,
+		false,
+		nullptr,
+		timeout
+	);
+	tsk->args = new TaskCallback(dummy_data, on_await, on_cancel, on_timeout, nullptr),
+	tsk->_task_local = (ValueEnvironment*)-1;
+	
+	if(timeout != std::chrono::high_resolution_clock::time_point::max()){
+		std::lock_guard guard(glob.task_timer_safety);
+		if(glob.time_control_enabled)
+			startTimeController();
+		glob.timed_tasks.push_back(timing(timeout,tsk));
+	}
+	return tsk;
+}
+
+#pragma endregion
 #pragma region TaskMutex
 TaskMutex::~TaskMutex() {
 	std::lock_guard lg(no_race);
@@ -1685,227 +1947,6 @@ bool TaskLimiter::is_locked() {
 #pragma endregion
 #pragma optimize("",on)
 
-#pragma region ConcurentFile
-ConcurentFile::ConcurentFile(const char* path) {
-	stream.open(path, std::fstream::in | std::fstream::out | std::fstream::binary);
-	if (!stream.is_open()) {
-		stream.open(path, std::fstream::in | std::fstream::out | std::fstream::binary | std::fstream::trunc);
-		last_op_append = true;
-	}
-}
-ConcurentFile::~ConcurentFile() {
-	std::lock_guard guard(no_race);
-	stream.close();
-}
-ValueItem* concurentReader(ValueItem* arguments, uint32_t) {
-	typed_lgr<ConcurentFile> pfile = std::move(*(typed_lgr<ConcurentFile>*)arguments[0].val);
-	delete (typed_lgr<ConcurentFile>*)arguments[0].val;
-
-	std::fstream& stream = pfile->stream;
-	size_t len = (size_t)arguments[1].val;
-	size_t pos = (size_t)arguments[2].val;
-	std::lock_guard guard(pfile->no_race);
-	if (!stream.is_open())
-		Task::self_cancel();
-	if (pos != size_t(-1)) {
-		pfile->last_op_append = false;
-		stream.flush();
-		stream.seekg(pos);
-	}
-	if (len >= UINT32_MAX) {
-		auto pos = pfile->stream.tellg();
-		pos += len;
-		pfile->stream.seekg(pos);
-		try {
-			throw OutOfRange("Array length is too large for store in raw array type");
-		}
-		catch (...) {
-			return new ValueItem((void*)new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
-		}
-	}
-	else {
-		char* res = new char[len];
-		pfile->stream.read(res, len);
-		return new ValueItem(res, ValueMeta(VType::raw_arr_ui8, false, true, (uint32_t)len), no_copy);
-	}
-}
-typed_lgr<FuncEnviropment> ConcurentReader(new FuncEnviropment(concurentReader, false));
-ValueItem* concurentReaderLong(ValueItem* arguments, uint32_t) {
-	typed_lgr<ConcurentFile> pfile = std::move(*(typed_lgr<ConcurentFile>*)arguments[0].val);
-	delete (typed_lgr<ConcurentFile>*)arguments[0].val;
-
-	std::fstream& stream = pfile->stream;
-	size_t len = (size_t)arguments[1].val;
-	size_t pos = (size_t)arguments[2].val;
-	std::lock_guard guard(pfile->no_race);
-	if (!stream.is_open())
-		Task::self_cancel();
-	if (pos != size_t(-1)) {
-		pfile->last_op_append = false;
-		stream.flush();
-		stream.seekg(pos);
-	}
-	list_array<char> res(len);
-	pfile->stream.read(res.data(), len);
-	return new ValueItem(
-		new list_array<ValueItem>(
-			res.convert<ValueItem>([](char it) { return ValueItem((void*)it, ValueMeta(VType::ui8, false, true)); })
-			),
-		VType::uarr
-	);
-}
-typed_lgr<FuncEnviropment> ConcurentReaderLong(new FuncEnviropment(concurentReaderLong, false));
-
-ValueItem* concurentWriter(ValueItem* arguments, uint32_t) {
-	typed_lgr<ConcurentFile> pfile = std::move(*(typed_lgr<ConcurentFile>*)arguments[0].val);
-	delete (typed_lgr<ConcurentFile>*)arguments[0].val;
-
-	char* value = (char*)arguments[1].val;
-	uint32_t len = (uint32_t)arguments[1].meta.val_len;
-	size_t pos = (size_t)arguments[2].val;
-	bool is_append = (size_t)arguments[3].val;
-	std::fstream& stream = pfile->stream;
-
-	std::lock_guard guard(pfile->no_race);
-	if (!stream.is_open())
-		Task::self_cancel();
-	if (pos != size_t(-1) || (!pfile->last_op_append && is_append)) {
-		pfile->last_op_append = false;
-		stream.flush();
-		if(is_append)
-			stream.seekg(0,std::fstream::end);
-		else
-			stream.seekg(pos);
-	}
-	stream.write(value, len);
-	if (stream.eof())
-		return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), VType::except_value, no_copy);
-	else if (stream.fail())
-		return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), VType::except_value, no_copy);
-
-	else if (stream.bad())
-		return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), VType::except_value, no_copy);
-	else
-		return (ValueItem*)nullptr;
-}
-typed_lgr<FuncEnviropment> ConcurentWriter(new FuncEnviropment(concurentWriter, false));
-ValueItem* concurentWriterLong(ValueItem* arguments, uint32_t) {
-	typed_lgr<ConcurentFile> pfile = std::move(*(typed_lgr<ConcurentFile>*)arguments[0].val);
-	delete (typed_lgr<ConcurentFile>*)arguments[0].val;
-
-	list_array<uint8_t>* value = (list_array<uint8_t>*)arguments[1].val;
-	size_t len = value->size();
-	size_t pos = (size_t)arguments[2].val;
-	bool is_append = (size_t)arguments[3].val;
-	mem_tool::ValDeleter deleter0(value);
-	std::fstream& stream = pfile->stream;
-
-	std::lock_guard guard(pfile->no_race);
-	if (!stream.is_open())
-		Task::self_cancel();
-	if (pos != size_t(-1) || (!pfile->last_op_append && is_append)) {
-		pfile->last_op_append = false;
-		stream.flush();
-		if (is_append)
-			stream.seekg(0, std::fstream::end);
-		else
-			stream.seekg(pos);
-	}
-	
-	stream.write((const char*)value->data(), len);
-	if (stream.eof())
-		return new ValueItem(new AException("system fault file eof", "No more bytes aviable, end of file"), VType::except_value, no_copy);
-	else if (stream.fail())
-		return new ValueItem(new AException("system fault file fail", "Fail extract bytes"), VType::except_value, no_copy);
-
-	else if (stream.bad())
-		return new ValueItem(new AException("system fault file bad", "Stream maybe corrupted"), VType::except_value, no_copy);
-	else
-		return (ValueItem*)nullptr;
-}
-typed_lgr<FuncEnviropment> ConcurentWriterLong(new FuncEnviropment(concurentWriterLong, false));
-typed_lgr<Task> ConcurentFile::read(typed_lgr<ConcurentFile>& file, uint32_t len, uint64_t pos) {
-	ValueItem tmp[]{
-				ValueItem(new typed_lgr<ConcurentFile>(file),VType::undefined_ptr, no_copy),
-				ValueItem((void*)(0ull + len),VType::ui64, no_copy),
-				ValueItem((void*)pos,VType::ui64, no_copy)
-	};
-	ValueItem args(tmp);
-	typed_lgr<Task> aa(new Task(ConcurentReader, args));
-	Task::start(aa);
-	return aa;
-}
-typed_lgr<Task> ConcurentFile::write(typed_lgr<ConcurentFile>& file, char* arr, uint32_t len, uint64_t pos) {
-	ValueItem tmp[]{
-				ValueItem(new typed_lgr<ConcurentFile>(file),VType::undefined_ptr, no_copy),
-				ValueItem(arr,ValueMeta(VType::raw_arr_ui8,false,true,len), no_copy),
-				ValueItem((void*)pos,VType::ui64, no_copy),
-				ValueItem((void*)false,VType::ui8, no_copy)
-	};
-	ValueItem args(tmp);
-	typed_lgr<Task> aa(new Task(ConcurentWriter, args));
-	Task::start(aa);
-	return aa;
-}
-typed_lgr<Task> ConcurentFile::append(typed_lgr<ConcurentFile>& file, char* arr, uint32_t len) {
-	ValueItem tmp[]{
-				ValueItem(new typed_lgr<ConcurentFile>(file),VType::undefined_ptr, no_copy),
-				ValueItem(arr, ValueMeta(VType::raw_arr_ui8,false,true,len), no_copy),
-				ValueItem((void*)-1,VType::ui64, no_copy),
-				ValueItem((void*)false,VType::ui8, no_copy)
-	};
-	ValueItem args(tmp);
-	typed_lgr<Task> aa(new Task(ConcurentWriter, args));
-	Task::start(aa);
-	return aa;
-}
-
-typed_lgr<Task> ConcurentFile::read_long(typed_lgr<ConcurentFile>& file, uint64_t len, uint64_t pos) {
-	ValueItem tmp[]{
-				ValueItem(new typed_lgr<ConcurentFile>(file),VType::undefined_ptr, no_copy),
-				ValueItem((void*)len ,VType::ui64, no_copy),
-				ValueItem((void*)pos,VType::ui64, no_copy)
-	};
-	ValueItem args(tmp);
-	typed_lgr<Task> aa(new Task(ConcurentReaderLong, args));
-	Task::start(aa);
-	return aa;
-}
-typed_lgr<Task> ConcurentFile::write_long(typed_lgr<ConcurentFile>& file, list_array<uint8_t>* arr, uint64_t pos) {
-	ValueItem tmp[]{
-				ValueItem(new typed_lgr<ConcurentFile>(file),VType::undefined_ptr, no_copy),
-				ValueItem(arr,VType::undefined_ptr, no_copy),
-				ValueItem((void*)pos,VType::ui64, no_copy),
-				ValueItem((void*)false,VType::ui8, no_copy)
-	};
-	ValueItem args(tmp);
-	typed_lgr<Task> aa(new Task(ConcurentWriterLong, args));
-	Task::start(aa);
-	return aa;
-}
-typed_lgr<Task> ConcurentFile::append_long(typed_lgr<ConcurentFile>& file, list_array<uint8_t>* arr) {
-	ValueItem tmp[]{
-				ValueItem(new typed_lgr<ConcurentFile>(file),VType::undefined_ptr, no_copy),
-				ValueItem(arr, VType::undefined_ptr, no_copy),
-				ValueItem((void*)-1,VType::ui64, no_copy),
-				ValueItem((void*)true,VType::ui8, no_copy)
-	};
-	ValueItem args(tmp);
-	typed_lgr<Task> aa(new Task(ConcurentWriterLong, args));
-	Task::start(aa);
-	return aa;
-}
-
-bool ConcurentFile::is_open(typed_lgr<ConcurentFile>& file) {
-	std::lock_guard guard(file->no_race);
-	return file->stream.is_open();
-}
-void ConcurentFile::close(typed_lgr<ConcurentFile>& file) {
-	std::lock_guard guard(file->no_race);
-	file->stream.close();
-}
-#pragma endregion
-
 #pragma region EventSystem
 bool EventSystem::removeOne(std::list<typed_lgr<FuncEnviropment>>& list, const typed_lgr<FuncEnviropment>& func) {
 	auto iter = list.begin();
@@ -2197,7 +2238,7 @@ typed_lgr<Task> TaskQuery::add_task(typed_lgr<class FuncEnviropment> call_func, 
 	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
 		copy = ValueItem((ValueItem*)arguments.getSourcePtr(), arguments.meta.val_len);
 	else
-		copy = std::initializer_list{ arguments };
+		copy = ValueItem({ arguments });
 
 	typed_lgr<Task> res = new Task(_TaskQuery_add_task, ValueItem{(void*)handle, new typed_lgr<class FuncEnviropment>(call_func), copy }, used_task_local, exception_handler, timeout);
 	std::lock_guard lock(handle->no_race);

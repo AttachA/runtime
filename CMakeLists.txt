@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.20)
 project(AttachA CXX ASM_MASM)
 set(CMAKE_CXX_STANDARD 23)
+set(Boost_NO_WARN_NEW_VERSIONS ON)
 #enable_testing()
 #add_subdirectory(tests)
 
@@ -15,7 +16,7 @@ else(MSVC)
   set(Boost_USE_STATIC_LIBS ON)
   set(Boost_USE_STATIC_RUNTIME ON)
 endif(MSVC)
-
+set(ENABLE_BOOST_PREPROCESSOR ON)
 
 FILE(GLOB SRCFILES 
         run_time/dynamic_call_asm.asm 
@@ -31,12 +32,15 @@ set_property(TARGET AttachA PROPERTY
 
 find_package(Boost REQUIRED COMPONENTS context)
 find_package(asmjit REQUIRED)
+find_package(utf8cpp CONFIG REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS} ${asmjit_INCLUDE_DIRS})
 
 target_link_libraries(AttachA
   PRIVATE
     ${Boost_LIBRARIES}
-    asmjit::asmjit)
+    asmjit::asmjit
+    utf8::cpp
+  )
 
 IF(MSVC)
   SET(CMAKE_CXX_FLAGS "/EHsc")

@@ -7,10 +7,10 @@
 #include "link_garbage_remover.hpp"
 #include "CASM.hpp"
 thread_local std::unordered_set<const void*> __lgr_safe_deph;
-#if false
+#if ENABLE_SNAPSHOTS_LGR
 void lgr_join_snapshot(list_array<std::vector<void*>*>* snap_records, std::vector<void*>*& set_current_snap) {
 	if (snap_records)
-		snap_records->push_back(set_current_snap = FrameResult::JitCaptureStackChainTrace(3));
+		snap_records->push_back(set_current_snap = FrameResult::JitCaptureStackChainTrace(8));
 }
 void lgr_exit_snapshot(list_array<std::vector<void*>*>* snap_records, std::vector<void*>*& current_snap) {
 	if (snap_records)
@@ -185,6 +185,31 @@ const void* lgr::getPtr() const {
 		if (!*total)
 			return nullptr;
 	return ptr;
+}
+void(*lgr::getDestructor(void) const)(void*){
+	return destructor;
+}
+bool(*lgr::getCalcDepth(void) const)(void*){
+	return calc_depth;
+}
+bool lgr::alone(){
+	if (ptr) {
+		if(total){
+			if(*total != 1)
+				return false;
+			else return true;
+		}
+	}
+	return false;
+}
+void* lgr::try_take_ptr() {
+	if(alone()){
+		void* res = ptr;
+		ptr = nullptr;
+		exit();
+		return res;
+	}
+	return nullptr;
 }
 bool lgr::calcDeph() {
 	bool res = depth_safety();

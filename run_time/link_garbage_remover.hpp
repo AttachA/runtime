@@ -8,20 +8,20 @@
 #include <atomic>
 #include <unordered_set>
 #include "../library/list_array.hpp"
-
+#define ENABLE_SNAPSHOTS_LGR false
 extern thread_local std::unordered_set<const void*> __lgr_safe_deph;
 
 class lgr {
-#if false
+#if ENABLE_SNAPSHOTS_LGR
 	list_array<std::vector<void*>*>* snap_records = nullptr;
 	std::vector<void*>* current_snap = nullptr;
-#define snap_rec_lgr_arg ,list_array<std::vector<void*>*>* snap_record
-#define can_throw 
+	#define snap_rec_lgr_arg ,list_array<std::vector<void*>*>* snap_record
+	#define can_throw 
 #else
-#define snap_records
-#define current_snap
-#define snap_rec_lgr_arg
-#define can_throw noexcept
+	#define snap_records
+	#define current_snap
+	#define snap_rec_lgr_arg
+	#define can_throw noexcept
 #endif
 	bool(*calc_depth)(void*) = nullptr;
 	void(*destructor)(void*) = nullptr;
@@ -46,6 +46,10 @@ public:
 	void** operator->();
 	void* getPtr();
 	const void* getPtr() const;
+	void(*getDestructor(void) const)(void*);
+	bool(*getCalcDepth(void) const)(void*);
+	bool alone();
+	void* try_take_ptr();
 	bool calcDeph();
 	bool depth_safety() const;
 	bool is_deleted() const;
@@ -60,14 +64,14 @@ public:
 	operator bool() const;
 	operator size_t() const;
 	operator ptrdiff_t() const;
+	
+	#if ENABLE_SNAPSHOTS_LGR
+		#undef snap_records
+		#undef current_snap
+	#endif
+	#undef snap_rec_lgr_arg
+	#undef can_throw
 };
-#if !_DEBUG
-#undef snap_records
-#undef current_snap
-#undef snap_rec_lgr_arg
-#undef can_throw
-#endif
-
 
 template<typename, typename T>
 struct has_depth_safety {
@@ -82,7 +86,7 @@ private:
 	static constexpr auto check(T*) -> typename std::is_same<decltype(std::declval<T>().depth_safety(std::declval<Args>()...)), Ret>::type { return true; }
 
 	template<typename>
-	static constexpr std::false_type check(...) { return false; }
+	static constexpr std::false_type check(...) { return std::false_type(); }
 
 
 public:

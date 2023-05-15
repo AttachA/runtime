@@ -42,7 +42,7 @@ private:
 	uint32_t force_unload : 1 = false;
 	void RuntimeCompile();
 	void funcComp() {
-		std::lock_guard lguard(compile_lock);
+		std::lock_guard<TaskMutex> lguard(compile_lock);
 		if (need_compile) {
 			RuntimeCompile();
 			need_compile = false;
@@ -159,7 +159,7 @@ public:
 	static void AddNative(Ret(*function)(Args...), const std::string& symbol_name, bool can_be_unloaded = true) {
 		DynamicCall::FunctionTemplate templ;
 		templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();
-		StartBuild tmp(function, templ);
+		StartBuild<Ret,Args...> tmp(function, templ);
 		AddNative((DynamicCall::PROC)function, templ, symbol_name, can_be_unloaded);
 	}
 

@@ -14,9 +14,6 @@ namespace parallel {
 		ValueItem* createProxy_Mutex(ValueItem*, uint32_t);
 		ValueItem* createProxy_Semaphore(ValueItem*, uint32_t);
 
-		//1 arg [string]
-		ValueItem* createProxy_ConcurentFile(ValueItem*, uint32_t);
-
 		ValueItem* createProxy_EventSystem(ValueItem*, uint32_t);
 		ValueItem* createProxy_TaskLimiter(ValueItem*, uint32_t);
 

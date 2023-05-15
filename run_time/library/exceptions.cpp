@@ -11,52 +11,53 @@
 #include <Windows.h>
 
 
-
+std::string inner_exception_info(const std::exception_ptr& inner_exception) {
+    CXXExInfo ex;
+    getCxxExInfoFromException(ex, inner_exception);
+#ifdef _WIN64
+    if(ex.ex_ptr == nullptr) {
+        switch (ex.native_id) {
+        case EXCEPTION_ACCESS_VIOLATION:
+            return "\nAccessViolation: NATIVE EXCEPTION";
+        case EXCEPTION_STACK_OVERFLOW:
+            return "\nStackOverflow: NATIVE EXCEPTION";
+        case EXCEPTION_INT_DIVIDE_BY_ZERO:
+        case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+            return "\nDivideByZero: NATIVE EXCEPTION";
+        case EXCEPTION_INT_OVERFLOW:
+        case EXCEPTION_FLT_OVERFLOW:
+        case EXCEPTION_FLT_STACK_CHECK:
+        case EXCEPTION_FLT_UNDERFLOW:
+            return "\nNumericOverflow: NATIVE EXCEPTION";
+        case EXCEPTION_BREAKPOINT: 
+            return "\nBreakpoint: NATIVE EXCEPTION";
+        case EXCEPTION_ILLEGAL_INSTRUCTION:
+            return "\nIllegalInstruction: NATIVE EXCEPTION";
+        case EXCEPTION_PRIV_INSTRUCTION:
+            return "\nPrivilegedInstruction: NATIVE EXCEPTION";
+        default:
+            return "\nUnknownNativeException: NATIVE EXCEPTION";
+        }
+#else
+#endif
+	} else {
+        try{
+            std::rethrow_exception(inner_exception);
+        }catch(const AttachARuntimeException& e) {
+            return "\n" + e.full_info();
+        }catch(const std::exception& e) {
+            return "\nC++Exception: " + std::string(e.what());
+        }catch(...) {
+            return "\nC++Exception: UNKNOWN";
+        }
+    }
+}
+    
 
 std::string AttachARuntimeException::full_info() const {
     std::string result = name() + std::string(": ") + what();
-    if (inner_exception != nullptr) {
-        CXXExInfo ex;
-        getCxxExInfoFromException(ex, inner_exception);
-#ifdef _WIN64
-        if(ex.ex_ptr == nullptr) {
-            switch (ex.native_id) {
-            case EXCEPTION_ACCESS_VIOLATION:
-                result += "\nAccessViolation: NATIVE EXCEPTION";
-            case EXCEPTION_STACK_OVERFLOW:
-                result += "\nStackOverflow: NATIVE EXCEPTION";
-            case EXCEPTION_INT_DIVIDE_BY_ZERO:
-            case EXCEPTION_FLT_DIVIDE_BY_ZERO:
-                result += "\nDivideByZero: NATIVE EXCEPTION";
-            case EXCEPTION_INT_OVERFLOW:
-            case EXCEPTION_FLT_OVERFLOW:
-            case EXCEPTION_FLT_STACK_CHECK:
-            case EXCEPTION_FLT_UNDERFLOW:
-                result += "\nNumericOverflow: NATIVE EXCEPTION";
-            case EXCEPTION_BREAKPOINT: 
-                result += "\nBreakpoint: NATIVE EXCEPTION";
-            case EXCEPTION_ILLEGAL_INSTRUCTION:
-                result += "\nIllegalInstruction: NATIVE EXCEPTION";
-            case EXCEPTION_PRIV_INSTRUCTION:
-                result += "\nPrivilegedInstruction: NATIVE EXCEPTION";
-            default:
-                result += "\nUnknownNativeException: NATIVE EXCEPTION";
-            }
-#else
-#endif
-	    } else {
-            try{
-                std::rethrow_exception(inner_exception);
-                
-            }catch(const AttachARuntimeException& e) {
-                result += "\n" + e.full_info();
-            }catch(const std::exception& e) {
-                result += "\nC++Exception: " + std::string(e.what());
-            }catch(...) {
-                result += "\nC++Exception: UNKNOWN";
-            }
-        }
-    }
+    if (inner_exception) 
+        result += inner_exception_info(inner_exception);
     return result;
 }
 
@@ -78,3 +79,9 @@ std::string InternalException::full_info()  const {
     return result;
 }
     
+std::string RoutineHandleExceptions::full_info() const {
+    std::string res = name() + std::string(": caught two exceptions in routine: ");
+    res += inner_exception_info(get_iner_exception());
+    res += inner_exception_info(second_exception);
+    return res;
+}

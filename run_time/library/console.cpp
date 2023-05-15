@@ -9,10 +9,10 @@
 #include <Windows.h>
 #endif
 #include "exceptions.hpp"
-#include "../../library/string_convert.hpp"
 #include "../AttachA_CXX.hpp"
 #include <cstdio>
 #include <string>
+#include <utf8cpp/utf8.h>
 namespace console {
 	auto _stdin = stdin;
 	auto _stdout = stdout;
@@ -161,7 +161,6 @@ namespace console {
 	void hideCursor() {
 		print("\033[?25l");
 	}
-
 	ValueItem* readWord(ValueItem* args, uint32_t len) {
 		was_r_mode();
 		std::string str;
@@ -180,7 +179,9 @@ namespace console {
 			}
 		}
 	end:
-		return new ValueItem(ABI_IMPL::SBcast(str));
+		std::string res;
+		utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(res));
+		return new ValueItem(std::move(res));
 	}
 	ValueItem* readLine(ValueItem* args, uint32_t len) {
 		was_r_mode();
@@ -194,7 +195,9 @@ namespace console {
 			}
 			str += c;
 		}
-		return new ValueItem(new std::string(std::move(str)), VType::string, no_copy);
+		std::string res;
+		utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(res));
+		return new ValueItem(std::move(res));
 	}
 	ValueItem* readInput(ValueItem* args, uint32_t len) {
 		was_r_mode();
@@ -202,9 +205,9 @@ namespace console {
 		char c;
 		while ((c = getchar()) != EOF)
 			str += c;
-		
-		return new ValueItem(new std::string(std::move(str)), VType::string, no_copy);
-
+		std::string res;
+		utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(res));
+		return new ValueItem(std::move(res));
 	}
 	ValueItem* readValue(ValueItem* args, uint32_t len) {
 		was_r_mode();
@@ -223,7 +226,9 @@ namespace console {
 				str += c;
 			}
 		}
-		return new ValueItem(ABI_IMPL::SBcast(str));
+		std::string res;
+		utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(res));
+		return new ValueItem(ABI_IMPL::SBcast(res));
 	}
 	ValueItem* readInt(ValueItem* args, uint32_t len){
 		was_r_mode();

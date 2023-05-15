@@ -13,6 +13,7 @@
 #include "tasks.hpp"
 #include <iostream>
 #include "attacha_abi.hpp"
+#include "tools.hpp"
 
 #include "../configuration/agreement/symbols.hpp"
 
@@ -1571,16 +1572,18 @@ EXCEPTION_DISPOSITION __attacha_handle(
 	uint8_t* data = (uint8_t*)DispatcherContext->HandlerData;
 	bool execute = false;
 	bool on_unwind = ExceptionRecord->ExceptionFlags & EXCEPTION_UNWINDING;
-	while(true){
-		ScopeAction::Action action = (ScopeAction::Action)*data++;
-		if (action == ScopeAction::Action::not_action)
-			return ExceptionContinueSearch;
-		size_t start_offset = readFromArrayAsValue<size_t>(data);
-		size_t end_offset = readFromArrayAsValue<size_t>(data);
-		if (addr >= (void*)(function_start + start_offset) && addr < (void*)(function_start + end_offset)) 
-			execute = true;
-		switch(action) {
-			case ScopeAction::Action::destruct_stack: {
+	std::exception_ptr current_ex = std::current_exception();
+	try{
+		while(true){
+			ScopeAction::Action action = (ScopeAction::Action)*data++;
+			if (action == ScopeAction::Action::not_action)
+				return ExceptionContinueSearch;
+			size_t start_offset = readFromArrayAsValue<size_t>(data);
+			size_t end_offset = readFromArrayAsValue<size_t>(data);
+			if (addr >= (void*)(function_start + start_offset) && addr < (void*)(function_start + end_offset)) 
+				execute = true;
+			switch(action) {
+				case ScopeAction::Action::destruct_stack: {
 					char* stack = (char*)ContextRecord->Rbp;
 					auto destruct = readFromArrayAsValue<void(*)(void*&)>(data);
 					stack += readFromArrayAsValue<uint64_t>(data);
@@ -1590,7 +1593,7 @@ EXCEPTION_DISPOSITION __attacha_handle(
 					}
 					break;
 				}
-			case ScopeAction::Action::destruct_register: {
+				case ScopeAction::Action::destruct_register: {
 					auto destruct = readFromArrayAsValue<void(*)(void*&)>(data);
 					if(!execute || !on_unwind){
 						readFromArrayAsValue<uint32_t>(data);
@@ -1649,7 +1652,7 @@ EXCEPTION_DISPOSITION __attacha_handle(
 						return ExceptionContinueSearch;
 					}
 				}
-			case ScopeAction::Action::filter: {
+				case ScopeAction::Action::filter: {
 					auto filter = readFromArrayAsValue<bool(*)(CXXExInfo&, void*&, void*, size_t, void*)>(data);
 					if(!execute){
 						skipArray<char>(data);
@@ -1659,7 +1662,6 @@ EXCEPTION_DISPOSITION __attacha_handle(
 					size_t size = 0;
 					std::unique_ptr<char[]> stack;
 					stack.reset(readFromArrayAsArray<char>(data, size));
-
 					CXXExInfo info;
 					getCxxExInfoFromNative1(info,ExceptionRecord);
 					void* continue_from = nullptr;
@@ -1672,7 +1674,7 @@ EXCEPTION_DISPOSITION __attacha_handle(
 								UlongToPtr(ExceptionRecord->ExceptionCode),
 								DispatcherContext->ContextRecord,DispatcherContext->HistoryTable
 							);
-                			__debugbreak();
+							__debugbreak();
 							ContextRecord->Rip = (uint64_t)continue_from;
 							return ExceptionCollidedUnwind;
 						}
@@ -1681,7 +1683,7 @@ EXCEPTION_DISPOSITION __attacha_handle(
 					}
 					break;
 				}
-			case ScopeAction::Action::converter: {
+				case ScopeAction::Action::converter: {
 					auto convert = readFromArrayAsValue<void(*)(void*,size_t, void* rsp)>(data);
 					size_t size = 0;
 					std::unique_ptr<char[]> stack;
@@ -1690,9 +1692,8 @@ EXCEPTION_DISPOSITION __attacha_handle(
 					ValueItem args{"Exception converter will not return"};
 					errors.async_notify(args);
 					return ExceptionContinueSearch;
-					break;
 				}
-			case ScopeAction::Action::finally:{
+				case ScopeAction::Action::finally:{
 					auto finally = readFromArrayAsValue<void(*)(void* rsp)>(data);
 					if(!execute || !on_unwind){
 						skipArray<char>(data);
@@ -1705,16 +1706,30 @@ EXCEPTION_DISPOSITION __attacha_handle(
 					finally(stack.get());
 					break;
 				}
-			case ScopeAction::Action::not_action:
-				return ExceptionContinueSearch;
-			default:
-				throw BadOperationException();
+				case ScopeAction::Action::not_action:
+					return ExceptionContinueSearch;
+				default:
+					throw BadOperationException();
+			}
+		}
+	}catch(...){
+		switch(exception_on_language_routine_action){
+			case ExceptionOnLanguageRoutineAction::invite_to_debugger:{
+				std::exception_ptr second_ex = std::current_exception();
+				invite_to_debugger("In this program caught exception on language routine handle");
+				break;
+			}
+			case ExceptionOnLanguageRoutineAction::nest_exception:
+				throw RoutineHandleExceptions(current_ex, std::current_exception());
+			case ExceptionOnLanguageRoutineAction::swap_exception:
+				throw;
+			case ExceptionOnLanguageRoutineAction::ignore:
+				break;
 		}
 	}
-	//printf("hello!");
 	return ExceptionContinueSearch;
 }
-bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* rsp) {
+bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro) {
 	uint8_t* data_info = (uint8_t*)data;
 	list_array<std::string> exceptions;
 	switch (*data_info++) {
@@ -1733,7 +1748,7 @@ bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t s
 		}
 		case 1: {
 			uint16_t value = readFromArrayAsValue<uint16_t>(data_info);
-			ValueItem* item = (ValueItem*)rsp + (uint32_t(value)<<1);
+			ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
 			exceptions.push_back((std::string)*item);
 			break;
 		}
@@ -1742,7 +1757,7 @@ bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t s
 			exceptions.reserve_push_back(handle_count);
 			for (size_t i = 0; i < handle_count; i++) {
 				uint16_t value = readFromArrayAsValue<uint16_t>(data_info);
-				ValueItem* item = (ValueItem*)rsp + (uint32_t(value)<<1);
+				ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
 				exceptions.push_back((std::string)*item);
 			}
 			break;
@@ -1762,7 +1777,7 @@ bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t s
 				}
 				else {
 					uint16_t value = readFromArrayAsValue<uint16_t>(data_info);
-					ValueItem* item = (ValueItem*)rsp + (uint32_t(value)<<1);
+					ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
 					exceptions.push_back((std::string)*item);
 				}
 			}

@@ -11,9 +11,11 @@ extern "C" {
 	//symbol '#' in names represent multiple constructors ex '# net ip#v6' is constructor for 
 	//L>   '# net ip' that recuive only ip6 address in string, btw what contains afetr '#' is not important, that can be just numbers
 
-	void initStandardLib();//init all,except CMath
-	void initStandardLib_safe();//init all,except CMath and internal
+	void initStandardLib();//init all,except CMath and debug
+	void initStandardLib_safe();//init all,except CMath, internal, debug and start_debug
+
 	void initCMathLib();
+	void initStandardLib_bytes();
 	void initStandardLib_console();
 	void initStandardLib_math();
 	void initStandardLib_file();
@@ -24,4 +26,7 @@ extern "C" {
 	void initStandardLib_internal_run_time_native();
 	void initStandardLib_internal_stack();
 	void initStandardLib_net();
+	void initStandardLib_debug();//debug tools
+	void initStandardLib_start_debug();//allow enable debug tools
+
 }

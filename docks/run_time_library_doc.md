@@ -31,6 +31,11 @@
             desc: 'same as auto_notify(function), but ignore n results'
         returns: proxy<auto_notify_chanel>
 
+    fun: auto_event
+        arguments: proxy<event_system>
+            desc: 'put every notify to event_system'
+        returns: proxy<auto_notify_chanel>
+
     fun: create_handle
         arguments: ignored
         returns: proxy<chanel_handle>
@@ -43,6 +48,11 @@
     fun: remove_auto_notify
         arguments: proxy<auto_notify_chanel>
         returns: noting
+
+    fun: remove_auto_event
+        arguments: proxy<auto_event_chanel>
+        returns: noting
+
 
     fun: add_handle
         arguments: proxy<chanel_handle>
@@ -79,6 +89,10 @@
             desc: 'true if recived value'
 
 ## auto_notify_chanel
+    constructor: none
+    desc: 'act as dummy handle, and hold internal data'
+
+## auto_event_chanel
     constructor: none
     desc: 'act as dummy handle, and hold internal data'
     
@@ -336,19 +350,19 @@
     everyiting here throws 'class NotImplementedException'
 
 # paralel
-    fun: createThread
+    fun: create_thread
         arguments: function, any...
         returns: noting
 
-    fun: createThreadAndWait
+    fun: create_thread_and_wait
         arguments: function, any...
         returns: noting
 
-    fun: createThreadAwaiter
+    fun: create_thread_awaiter
         arguments: function, any...
         returns: async_res
     
-    fun: createTask
+    fun: create_task
         arguments: s/farr[function, {opt}function'fault_function',{opt}time_point'timeout', boolean'used_task_local'], any'arguments'
         returns: async_res
 ## mutex
@@ -621,11 +635,12 @@
     constructor: '# net tcp_server'
         arguments: function'handler', proxy<universal_address>, {opt, def: 1ui8'write_deleayed'}ui8'manage_type', {opt, def: 10}integer'acceptors'
             desc: 'enum manage_type{ blocking = 0, write_deleayed = 1 }'
-        returns: proxy<universal_address>
+            desc'handler': 'function(proxy<tcp_network_stream || tcp_network_blocking>, proxy<universal_address>'local_ip', proxy<universal_address>'client ip') -> void'
+        returns: proxy<tcp_server>
 
     fun: start
-        arguments: {opt}integer'pool_size'
-            desc: 'if pool_size == 0, then pool size will be set to number of cores'
+        arguments: ignored
+        desc: 'start server'
         returns: noting
 
     fun: pause
@@ -643,9 +658,9 @@
         desc: 'stop and close all connections'
         returns: noting
     
-    fun: mainline
+    fun: await
         arguments: ignored
-        desc: 'start handling, and use the current thread to handle connections, also can be used afer start to wait server to stop'
+        desc: 'wait until server will be stopped'
         returns: noting
     
     fun: is_running
@@ -662,12 +677,6 @@
         arguments: ignored
         desc: 'check if the server is paused'
         returns: boolean
-    
-    fun: set_pool_size
-        arguments: {opt, def: 0}integer'pool_size'
-            desc: 'if pool_size == 0, then pool size will be set to number of cores'
-        desc: 'change pool size, if server is running'
-        returns: noting
 
     fun: server_port
         arguments: ignored
@@ -683,4 +692,715 @@
         arguments: ignored
         desc: 'get address of the server'
         returns: proxy<universal_address>
+### tcp_network_stream
+    desc: 'delay write to the network, when has available read data'
+    constructor: none
+        desc: 'can get in tcp_server when used write_deleayed flag'
 
+    fun: read_available_ref
+        arguments: ignored
+        desc: 'get reference internal buffer for reading'
+        returns: ref<raw_array_ui8>
+    
+	fun: read_available
+        arguments: ignored
+        returns: raw_array_ui8
+    
+	fun: data_available
+        arguments: ignored
+        returns: boolean
+
+	fun: write
+        arguments: raw_array_ui8
+        returns: noting
+        
+	fun: write_file
+        arguments: string'file_path', {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
+        arguments: proxy<file_handle>, {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
+        desc: 'send up to end of file if bytes == 0'
+        warn: 'this function is like force_write, available read data will be lost'
+        returns: noting
+
+	fun: force_write
+        arguments: ignored
+        desc: 'flush write buffer to socket, all available read data will be lost'
+        returns: noting
+
+	fun: force_write_and_close
+        arguments: raw_array_ui8
+        desc: 'ignore all buffers and send data, then close socket, useful to close connection without waiting for all data to be sent'
+        returns: noting
+
+	fun: close
+        arguments: ignored
+        desc: 'close socket'
+        returns: noting
+
+	fun: is_closed
+        arguments: ignored
+        desc: 'check if socket is closed'
+        returns: boolean
+
+	fun: error
+        arguments: ignored
+        desc: 'get error code of socket'
+        returns: ui8
+            desc: 'enum tcp_error{none = 0, remote_close = 1, local_close = 2, undefined_error = 0xFF}'
+
+### tcp_network_blocking
+    constructor: none
+        desc: 'can get in tcp_server when used blocking flag'
+        desc: 'every function is forcibly and not use internal buffers'
+
+    fun: read
+        arguments: ui32'bytes'
+        returns: raw_array_ui8
+            desc: 'return count of bytes that was readed'
+
+	fun: available_bytes
+        arguments: ignored
+        returns: ui32
+            desc: 'return count of bytes that can be readed'
+
+	fun: write
+        arguments: raw_array_ui8'buffer'
+        returns: ui32
+            desc: 'return count of bytes that was sent'
+
+	fun: write_file
+        arguments: string'file_path', {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
+        arguments: proxy<file_handle>, {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
+        desc: 'send up to end of file if bytes == 0'
+        returns: noting
+
+	fun: close
+        arguments: ignored
+        desc: 'close socket'
+        returns: noting
+
+	fun: is_closed
+        arguments: ignored
+        desc: 'check if socket is closed'
+        returns: boolean
+
+	fun: error
+        arguments: ignored
+        desc: 'get error code of socket'
+        returns: ui8
+            desc: 'enum tcp_error{none = 0, remote_close = 1, local_close = 2, undefined_error = 0xFF}'
+
+## tcp_client
+    desc: 'tcp client abstraction to mimic posix socket api but not 100% compatible'
+    compare'table': '
+        |---------------------------|-------------------------------|
+        | posix sync				| attacha tcp_client async	    |
+        |---------------------------|-------------------------------|
+        | socket()					| (inlined in connect)			|
+        | connect(socket,ip, port)	| connect(ip_port)				|
+        | recv(socket,data, size)	| .recv(data, size)				|
+        | send(socket,data, size)	| .send(data, size)				|
+        | 							| .send_file(file_path,...)		|
+        | 							| .send_file(file handle,...)	|
+        | close(socket)				| .close()						|
+        |---------------------------|-------------------------------|'
+
+    compare'desc': '
+        send_file functions used in http server, and in file transfer protocols
+        attacha cannot use sync functions, because it block workers threads and
+        tcp_client abstraction created to provide sync like api but internaly
+        is async send function cache data in internal buffer if socket has incoming data,
+        and send when read buffer is empty'
+    
+    oem'windows': 'use winsock2 with iocp'
+    oem: 'not implemented'
+    creator: 'net tcp_client_connect'
+        arguments: proxy<universal_address>, {opt, def: 0, constraint: v>0}i32'timeout_ms'
+        arguments: proxy<universal_address>, raw_array_ui8'on_connect_data', {opt, def: 0, constraint: v>0}i32'timeout_ms'
+        arguments: proxy<universal_address>, raw_array_i8'on_connect_data', {opt, def: 0, constraint: v>0}i32'timeout_ms'
+        returns: proxy<tcp_client>
+
+    fun: recv
+        arguments: raw_array_ui8'buffer', ui32'bytes'
+        returns: i32
+            desc: 'return -1 if connection closed, 0 if no data, else count of bytes'
+    
+    fun: send
+        arguments: raw_array_ui8'buffer', ui32'bytes'
+        returns: boolean
+            desc: 'return false if connection closed, else true'
+
+    fun: send_file
+        arguments: string'file_path', {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
+        arguments: proxy<file_handle>, {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
+        desc: 'send up to end of file if bytes == 0'
+        returns: boolean
+            desc: 'return false if connection closed, else true'
+
+    fun: close
+        arguments: ignored
+        desc: 'close connection'
+        returns: noting
+
+## udp_socket
+    oem'windows': 'use winsock2 with iocp'
+    oem: 'not implemented'
+    constructor: '# net udp_socket'
+        arguments: proxy<universal_address>, {opt, def: 0}ui32'timeout_ms'
+            desc: 'adress will be used for recv operations'
+        returns: proxy<udp_socket>
+
+    fun: recv
+        arguments: raw_array_ui8'buffer', ui32'bytes', {result}proxy<universal_address>
+        returns: boolean
+            desc: 'recuived bytes'
+
+    fun: send
+        arguments: raw_array_ui8'buffer', ui32'bytes', proxy<universal_address>
+        returns: boolean
+            desc: 'sended bytes'
+
+# file
+
+## file_handle
+    desc: 'file handle abstraction on top of native file api'
+    oem'windows': 'use win32 api'
+    oem: 'not implemented'
+    constructor: '# file file_handle'
+        arguments: 
+            string'file_path',
+            {opt, def:true}boolean'is_async',
+            {opt, def:2'read_write'}ui8'open_mode',
+            {opt, def:0'open'}ui8'on_open_action',
+            {opt, def:0}ui8'async_flags/sync_flags',
+            {opt, def:3"{1'read' | 2'write'}"}ui8'share_mode',
+            {opt, def:1'combined'}ui8'pointer_mode'
+            desc:
+                "open_mode:
+                    0'read' - open file for read
+                    1'write' - open file for write
+                    2'read_write' - open file for read and write
+                    3'append' - open file for append
+                on_open_action:
+                    0'open' - open file if exists, create if not
+                    1'always_new' - create file if not exists, recreate if exists
+                    2'create_new' - create only if not exists, fail if exists
+                    3'open_exists' - just open file if exists, fail if not exists
+                    4'truncate_exists' - truncate file if exists, fail if not exists
+                async_flags:
+                    1'delete_on_close' - delete file on close
+                    2'posix_semantics' - posix semantics
+                    4'random_access' - hinit to cache manager to optimize for random access
+                    8'sequential_scan' - hinit to cache manager to optimize for sequential scan
+                sync_flags:
+                    1'delete_on_close' - delete file on close
+                    2'posix_semantics' - posix semantics
+                    4'random_access' - hinit to cache manager to optimize for random access
+                    8'sequential_scan' - hinit to cache manager to optimize for sequential scan
+                    16'no_buffering' - hinit to cache manager, affect seec and read write operations, like disc page size aligned operations
+                    32'write_through' - hinit to cache manager to optimize for write through
+                share_mode:
+                    0'none' - no share
+                    1'read' - share read
+                    2'write' - share write
+                    4'delete' - share delete
+                pointer_mode:
+                    0'seprated' - pointer separated for read and write
+                    1'combined' - pointer is same for read and write"
+        returns: proxy<file_handle>
+
+    fun: read
+        arguments: ui32'bytes'
+            returns: 'farr[raw_array_ui8] if success, else farr[raw_array_ui8, ui8'io_error'] first element is readed bytes, second element is error code'
+                desc: 'if raw_array_ui8 less than queried bytes, then that is end of file'
+        arguments: raw_array_ui8'buffer', ui32'bytes'
+            returns: ui32
+                desc: 'return readed bytes count, if failed return 0'
+    
+    fun: read_fixed
+        arguments: ui32'bytes'
+            returns: raw_array_ui8
+            throws: FileException
+                desc: 'return raw_array_ui8 if success, else throw FileException'
+        arguments: raw_array_ui8'buffer', ui32'bytes'
+            returns: ui32'readed bytes count'
+            throws: FileException
+                desc: 'throw FileException if failed'
+                
+    fun: write
+        arguments: raw_array_ui8'buffer'
+            returns: ui32'writed bytes count'
+            throws: FileException
+                desc: 'throw FileException if failed'
+            
+    fun: append
+        arguments: raw_array_ui8'buffer'
+        desc: 'append to end of file, not affected by pointer and not affect pointer'
+        returns: ui32'writed bytes count'
+        throws: FileException
+            desc: 'throw FileException if failed'
+    
+    fun: seek_pos
+        arguments: ui64'offset', {opt, def:0'begin'}pointer_offset'pointer_offset', {opt, def:0}pointer'pointer'
+            desc: 'seek to offset from specified pointer offset in pointer type,pointer_offset{begin, current, end}, pointer{read, write}'
+        arguments: ui64'offset', {opt, def:0'begin'}pointer_offset'pointer_offset'
+            desc: 'seek to offset from specified pointer offset in both pointers, basic pointer is write, pointer_offset{begin, current, end}'
+        returns: noting
+
+    fun: tell_pos
+        arguments: {opt, def:0}pointer'pointer'
+            desc: 'get current pointer position in pointer type, pointer{read, write}'
+        returns: ui64'offset'
+
+    fun: flush
+        arguments: ignored
+        desc: 'flush file buffers'
+        returns: boolean
+    
+    fun: size
+        arguments: ignored
+        desc: 'get file size'
+        returns: ui64'size' | noting
+            desc: 'return noting if failed to get size, otherwise return size'
+        
+    fun: get_native_handle
+        access: intern
+        arguments: ignored
+        returns: 'implementation defined'
+            oem'windows': 'return undefined_ptr'
+
+## blocking_file_handle
+    thread_block
+    desc: 'a lower file handle abstraction on top of native file api, it is blocking, it is not recommended to use in task, useful for comunicating with old libraries'
+    oem'windows': 'use win32 api'
+    oem: 'not implemented'
+    constructor: '# file blocking_file_handle'
+        arguments: 
+            string'file_path',
+            {opt, def:2'read_write'}ui8'open_mode',
+            {opt, def:0'open'}ui8'on_open_action',
+            {opt, def:0}ui8'sync_flags',
+            {opt, def:3}ui8'share_mode',
+            desc:
+                "open_mode:
+                    0'read' - open file for read
+                    1'write' - open file for write
+                    2'read_write' - open file for read and write
+                    3'append' - open file for append
+                on_open_action:
+                    0'open' - open file if exists, create if not
+                    1'always_new' - create file if not exists, recreate if exists
+                    2'create_new' - create only if not exists, fail if exists
+                    3'open_exists' - just open file if exists, fail if not exists
+                    4'truncate_exists' - truncate file if exists, fail if not exists
+                sync_flags:
+                    1'delete_on_close' - delete file on close
+                    2'posix_semantics' - posix semantics
+                    4'random_access' - hinit to cache manager to optimize for random access
+                    8'sequential_scan' - hinit to cache manager to optimize for sequential scan
+                    16'no_buffering' - hinit to cache manager, affect seec and read write operations, like disc page size aligned operations
+                    32'write_through' - hinit to cache manager to optimize for write through
+                share_mode:
+                    0'none' - no share
+                    1'read' - share read
+                    2'write' - share write
+                    4'delete' - share delete"
+        returns: proxy<blocking_file_handle>
+
+    fun: read
+        arguments: raw_array_ui8'buffer'
+        returns: ui32
+            desc: 'return readed bytes count, if failed return 0'
+    
+    fun: write
+        arguments: raw_array_ui8'buffer'
+        returns: ui32'writed bytes count'
+            desc: 'return writed bytes count, if failed return 0'
+
+    fun: seek_pos
+        arguments: ui64'offset', {opt, def:0'begin'}pointer_offset'pointer_offset'
+            desc: 'seek to offset from specified pointer offset, pointer_offset{begin, current, end}'
+        returns: boolean
+    
+    fun: tell_pos
+        arguments: ignored
+        returns: ui64'offset'
+    
+    fun: flush
+        arguments: ignored
+        desc: 'flush file buffers'
+        returns: boolean
+    
+    fun: size
+        arguments: ignored
+        desc: 'get file size'
+        returns: ui64'size' | noting
+            desc: 'return noting if failed to get size, otherwise return size'
+    
+    fun: eof_state
+        arguments: ignored
+        desc: 'get end of file state'
+        returns: boolean'is_eof'
+    
+    fun: valid
+        arguments: ignored
+        desc: 'check if file handle is valid'
+        returns: boolean'is_valid'
+    
+    fun: get_native_handle
+        access: intern
+        arguments: ignored
+        returns: 'implementation defined'
+            oem'windows': 'return undefined_ptr'
+    
+## text_file
+    desc: 'high level abstraction on top of file_handle with text encoding support'
+    constructor: '# file text_file'
+        arguments: proxy<file_handle>'file_handle', {opt,def: utf8}ui8'encoding, {opt,def: native} ui8'endian'
+            desc: 'encoding:
+                    0'utf8' - use utf8 encoding
+                    1'utf16' - use utf16 encoding
+                    2'utf32' - use utf32 encoding
+                    3'ascii' - use ascii encoding
+                endian:
+                    0'little' - use little endian
+                    1'big' - use big endian'
+        returns: proxy<text_file>
+
+    fun: read_line
+        arguments:  ignored
+            desc: 'read line from file'
+        returns: string
+    
+    fun: read_word
+        arguments: ignored
+            desc: 'read word from file'
+        returns: string
+    
+    fun: read_symbol
+        arguments: {opt, def:false}boolean'skip_spaces'
+            desc: 'read symbol from file'
+        returns: string
+    
+    fun: write
+        arguments: string | any
+            desc: 'write string to file, if argument is not string, then convert it to string'
+        returns: noting
+
+    fun: read_bom
+        arguments: ignored
+            desc: 'determine file endian, work only if read pointer is at file begin'
+        returns: noting
+
+    fun: init_bom
+        arguments: ignored
+            desc: 'write file endian to file begin, work only if write pointer is at file begin'
+        returns: noting
+
+# bytes
+
+    fun: current_endian
+        arguments: ignored
+            desc: 'get current endian'
+        returns: ui8'endian'
+            desc: '0'little' - little endian
+                  1'big' - big endian'
+
+    fun: convert_endian
+        arguments: any, integer'endian'
+            desc: 'convert value to specified endian'
+        arguments: any, string'endian'
+            desc: 'convert value to specified endian, endian: "little" | "big" | "native"'
+        returns: noting
+    
+    fun: swap_bytes
+        arguments: any
+            desc: 'swap bytes in value'
+        returns: noting
+    
+    fun: to_bytes
+        arguments: any
+            desc: 'convert value to bytes'
+        returns: raw_array_ui8'bytes'
+    
+    fun: from_bytes
+        arguments: raw_array_ui8'bytes', type_identifier
+            desc: 'convert bytes to value'
+        returns: any'value'
+
+# math
+    fun: abs
+        arguments: number
+            desc: 'get absolute value'
+        arguments: raw_array'numbers'
+            desc: 'get absolute values'
+        arguments: uarr'numbers' | farr'numbers' | sarr'numbers'
+            desc: 'get absolute values, not modify non number values'
+        
+        returns: {argument}
+    
+    fun: min
+        arguments: uarr'numbers' | farr'numbers' | sarr'numbers' | raw_array'numbers'
+            desc: 'get minimum value from array'
+        arguments: number...
+            desc: 'get minimum value from arguments'
+        returns: number
+    
+    fun: max
+        arguments: uarr'numbers' | farr'numbers' | sarr'numbers' | raw_array'numbers'
+            desc: 'get maximum value from array'
+        arguments: number...
+            desc: 'get maximum value from arguments'
+        returns: number
+
+    fun: median
+        arguments: uarr'numbers' | farr'numbers' | sarr'numbers' | raw_array'numbers'
+            desc: 'get median value from array'
+        arguments: number...
+            desc: 'get median value from arguments'
+        returns: number
+
+    fun: range
+        arguments: uarr'numbers' | farr'numbers' | sarr'numbers' | raw_array'numbers'
+            desc: 'get min max value from array and return difference'
+        arguments: number...
+            desc: 'get min max value from arguments and return difference'
+        returns: number
+
+    fun: mode
+        arguments: uarr'numbers' | farr'numbers' | sarr'numbers' | raw_array'numbers'
+            desc: 'get mode value from array'
+        arguments: number...
+            desc: 'get mode value from arguments'
+        returns: number
+    
+    fun: round
+        arguments: floatings
+            desc: 'round value'
+        arguments: raw_array'floatings'
+            desc: 'round values'
+        arguments: uarr'floatings' | farr'floatings' | sarr'floatings'
+            desc: 'round values, not modify non number values'
+        returns: {argument}
+
+    fun: floor
+        arguments: floatings
+            desc: 'floor value'
+        arguments: raw_array'floatings'
+            desc: 'floor values'
+        arguments: uarr'floatings' | farr'floatings' | sarr'floatings'
+            desc: 'floor values, not modify non number values'
+        returns: {argument}
+    
+    fun: ceil
+        arguments: floatings
+            desc: 'ceil value'
+        arguments: raw_array'floatings'
+            desc: 'ceil values'
+        arguments: uarr'floatings' | farr'floatings' | sarr'floatings'
+            desc: 'ceil values, not modify non number values'
+        returns: {argument}
+
+    fun: trunc
+        arguments: floatings
+            desc: 'trunc value'
+        arguments: raw_array'floatings'
+            desc: 'trunc values'
+        arguments: uarr'floatings' | farr'floatings' | sarr'floatings'
+            desc: 'trunc values, not modify non number values'
+        returns: {argument}
+
+    fun: factorial
+        arguments: number
+            desc: 'get factorial value'
+        arguments: raw_array'numbers'
+            desc: 'get factorial values'
+        arguments: uarr'numbers' | farr'numbers' | sarr'numbers'
+            desc: 'get factorial values, not modify non number values'
+        returns: {argument}
+
+    fun: sin
+        arguments: floating | integer
+            desc: 'get sin value'
+        returns: floating
+
+    fun: asin
+        arguments: floating | integer
+            desc: 'get asin value'
+        returns: floating
+
+    fun: cos
+        arguments: floating | integer
+            desc: 'get cos value'
+        returns: floating
+    
+    fun: acos
+        arguments: floating | integer
+            desc: 'get acos value'
+        returns: floating
+    
+    fun: tan
+        arguments: floating | integer
+            desc: 'get tan value'
+        returns: floating
+    
+    fun: atan
+        arguments: floating | integer
+            desc: 'get atan value'
+        returns: floating
+    
+    fun: sec
+        arguments: floating | integer
+            desc: 'get sec value'
+        returns: floating
+    
+    fun: asec
+        arguments: floating | integer
+            desc: 'get asec value'
+        returns: floating
+
+    fun: csc
+        arguments: floating | integer
+            desc: 'get csc value'
+        returns: floating
+
+    fun: acsc
+        arguments: floating | integer
+            desc: 'get acsc value'
+        returns: floating
+    
+    fun: cot
+        arguments: floating | integer
+            desc: 'get cot value'
+        returns: floating
+    
+    fun: acot
+        arguments: floating | integer
+            desc: 'get acot value'
+        returns: floating
+    
+    fun: sinh
+        arguments: floating | integer
+            desc: 'get sinh value'
+        returns: floating
+    
+    fun: asinh
+        arguments: floating | integer
+            desc: 'get asinh value'
+        returns: floating
+
+    fun: cosh
+        arguments: floating | integer
+            desc: 'get cosh value'
+        returns: floating
+    
+    fun: acosh
+        arguments: floating | integer
+            desc: 'get acosh value'
+        returns: floating
+    
+    fun: tanh
+        arguments: floating | integer
+            desc: 'get tanh value'
+        returns: floating
+    
+    fun: atanh
+        arguments: floating | integer
+            desc: 'get atanh value'
+        returns: floating
+    
+    fun: sech
+        arguments: floating | integer
+            desc: 'get sech value'
+        returns: floating
+    
+    fun: asech
+        arguments: floating | integer
+            desc: 'get asech value'
+        returns: floating
+
+    fun: csch
+        arguments: floating | integer
+            desc: 'get csch value'
+        returns: floating
+    
+    fun: acsch
+        arguments: floating | integer
+            desc: 'get acsch value'
+        returns: floating
+    
+    fun: coth
+        arguments: floating | integer
+            desc: 'get coth value'
+        returns: floating
+    
+    fun: acoth
+        arguments: floating | integer
+            desc: 'get acoth value'
+        returns: floating
+
+    fun: sqrt
+        arguments: floating | integer
+            desc: 'get sqrt value'
+        returns: floating
+    
+    fun: cbrt
+        arguments: floating | integer
+            desc: 'get cbrt value'
+        returns: floating
+    
+    fun: pow
+        arguments: uarr'numbers' | farr'numbers' | sarr'numbers' | raw_array'numbers' | number...
+            desc: 'get pow value'
+        returns: {argument}
+
+    fun: log
+        arguments: floating | integer
+            desc: 'get log value'
+        returns: floating
+    
+    fun: log2
+        arguments: floating | integer
+            desc: 'get log2 value'
+        returns: floating
+    
+    fun: log10
+        arguments: floating | integer
+            desc: 'get log10 value'
+        returns: floating
+    
+# debug
+
+    fun: start
+        desc: 'initialize debug, can be unavailable when used initStandardLib_safe'
+        returns: noting
+
+    fun: thread_id
+        desc: 'get current thread id'
+        returns: integer
+
+    fun: set_thread_name
+        arguments: string
+            desc: 'set current thread name'
+        returns: noting
+    
+    fun: get_thread_name
+        arguments: ignored
+        desc: 'get current thread name'
+        returns: string
+    
+    fun: invite
+        arguments: string'reason'
+            desc: 'invite user to debug'
+        returns: noting
+
+# configuration
+
+    fun: modify
+        arguments: string'key', string'value'
+            desc: 'modify configuration'
+        returns: noting
+    
+    fun: get
+        arguments: string'key'
+            desc: 'get configuration'
+        returns: string

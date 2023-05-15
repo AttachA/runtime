@@ -194,6 +194,7 @@ struct Task {
 	static void await_multiple(typed_lgr<Task>* tasks, size_t len, bool pre_started = false, bool release = false);
 	static list_array<ValueItem> await_results(typed_lgr<Task>& task);
 	static list_array<ValueItem> await_results(list_array<typed_lgr<Task>>& tasks);
+	static void notify_cancel(typed_lgr<Task>& task);
 	static class ValueEnvironment* task_local();
 	static size_t task_id();
 	static void check_cancelation();
@@ -209,6 +210,20 @@ struct Task {
 
 	//unsafe function, checker and cd must be alive during task bridge lifetime
 	static typed_lgr<Task> cxx_native_bridge(bool& checker, class std::condition_variable_any& cd);
+	
+	static typed_lgr<Task> callback_dummy(ValueItem& dummy_data, void(*on_start)(ValueItem&), void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	static typed_lgr<Task> callback_dummy(ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	
+	static typed_lgr<Task> fullifed_task(const list_array<ValueItem>& results);
+	static typed_lgr<Task> fullifed_task(list_array<ValueItem>&& results);
+	static typed_lgr<Task> fullifed_task(const ValueItem& result);
+	static typed_lgr<Task> fullifed_task(ValueItem&& result);
+
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func);
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments);
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments);
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&));
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&));
 };
 #pragma pack (pop)
 class TaskSemaphore {
@@ -227,25 +242,6 @@ public:
 	void release();
 	void release_all();
 	bool is_locked();
-};
-struct ConcurentFile {
-	TaskMutex no_race;
-	std::fstream stream;
-	bool last_op_append = false;
-	ConcurentFile(const char* path);
-	~ConcurentFile();
-
-	//all pointers below will not be released, it do automatically
-	static typed_lgr<Task> read(typed_lgr<ConcurentFile>& file, uint32_t len, uint64_t pos = -1);
-	static typed_lgr<Task> write(typed_lgr<ConcurentFile>& file, char* arr, uint32_t len, uint64_t pos = -1);
-	static typed_lgr<Task> append(typed_lgr<ConcurentFile>& file, char* arr, uint32_t len);
-
-	static typed_lgr<Task> read_long(typed_lgr<ConcurentFile>& file, uint64_t len, uint64_t pos = -1);
-	static typed_lgr<Task> write_long(typed_lgr<ConcurentFile>& file, list_array<uint8_t>*, uint64_t pos = -1);
-	static typed_lgr<Task> append_long(typed_lgr<ConcurentFile>& file, list_array<uint8_t>*);
-
-	static bool is_open(typed_lgr<ConcurentFile>& file);
-	static void close(typed_lgr<ConcurentFile>& file);
 };
 class EventSystem {
 	friend ValueItem* __async_notify(ValueItem* vals, uint32_t);
@@ -357,6 +353,9 @@ public:
 	static void back_unwind(Generator* generator_weak_ref, std::exception_ptr&& ex_ptr);
 	static void return_(Generator* generator_weak_ref, ValueItem* result);
 };
+
+
+
 
 //internal
 namespace _Task_unsafe{

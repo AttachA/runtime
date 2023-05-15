@@ -4,11 +4,13 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "library/bytes.hpp"
 #include "library/console.hpp"
 #include "library/parallel.hpp"
 #include "library/chanel.hpp"
 #include "library/internal.hpp"
 #include "library/net.hpp"
+#include "library/file.hpp"
 #include "AttachA_CXX.hpp"
 #include <cmath>
 #include <math.h>
@@ -829,7 +831,7 @@ ValueItem* math_pow(ValueItem* args, uint32_t args_len) {
 				list_array<ValueItem> new_uarr;
 				new_uarr.reserve_push_back((((list_array<ValueItem>*)args->getSourcePtr())->size()));
 				for (auto& it : *(list_array<ValueItem>*)args->getSourcePtr())
-					new_uarr.push_back(pow((double)it, power));
+					new_uarr.push_back(ValueItem(pow((double)it, power)));
 				return new ValueItem(std::move(new_uarr));
 			}
 			case VType::faarr:
@@ -869,6 +871,15 @@ ValueItem* math_pow(ValueItem* args, uint32_t args_len) {
 #pragma endregion
 
 #define INIT_CHECK static bool is_init = false; if (is_init) return; is_init = true;
+
+extern "C" void initStandardLib_bytes(){
+	INIT_CHECK
+	FuncEnviropment::AddNative(bytes::to_bytes, "bytes to_bytes", false);
+	FuncEnviropment::AddNative(bytes::from_bytes, "bytes from_bytes", false);
+	FuncEnviropment::AddNative(bytes::convert_endian, "bytes convert_endian", false);
+	FuncEnviropment::AddNative(bytes::current_endian, "bytes current_endian", false);
+	FuncEnviropment::AddNative(bytes::swap_bytes, "bytes swap_bytes", false);
+}
 extern "C" void initStandardLib_console(){
 	INIT_CHECK
 	FuncEnviropment::AddNative(console::printLine, "console print_line", false);
@@ -957,6 +968,11 @@ extern "C" void initStandardLib_math(){
 }
 extern "C" void initStandardLib_file(){
 	INIT_CHECK
+	file::init();
+	FuncEnviropment::AddNative(file::constructor::createProxy_FileHandle, "# file file_handle", false);
+	FuncEnviropment::AddNative(file::constructor::createProxy_BlockingFileHandle, "# file blocking_file_handle", false);
+	FuncEnviropment::AddNative(file::constructor::createProxy_TextFile, "# file text_file", false);
+	FuncEnviropment::AddNative(file::remove, "file remove", false);
 }
 extern "C" void initStandardLib_paralel(){
 	INIT_CHECK
@@ -964,7 +980,6 @@ extern "C" void initStandardLib_paralel(){
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_Mutex, "# parallel mutex", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_ConditionVariable, "# parallel condition_variable", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_Semaphore, "# parallel semaphore", false);
-	FuncEnviropment::AddNative(parallel::constructor::createProxy_ConcurentFile, "# parallel concurent_file", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_EventSystem, "# parallel event_system", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskLimiter, "# parallel task_limiter", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskQuery, "# parallel task_query", false);
@@ -1018,16 +1033,95 @@ extern "C" void initStandardLib_net(){
 	INIT_CHECK
 	net::init();
 	FuncEnviropment::AddNative(net::constructor::createProxy_TcpServer, "# net tcp_server", false);
-	FuncEnviropment::AddNative(net::constructor::createProxy_TcpClient, "# net tcp_client", false);
-	FuncEnviropment::AddNative(net::constructor::createProxy_UdpServer, "# net udp_server", false);
-	FuncEnviropment::AddNative(net::constructor::createProxy_UdpClient, "# net udp_client", false);
 	FuncEnviropment::AddNative(net::constructor::createProxy_Address, "# net ip#address", false);
+	FuncEnviropment::AddNative(net::constructor::createProxy_UdpSocket, "# net udp_socket", false);
 	FuncEnviropment::AddNative(net::constructor::createProxy_IP4, "# net ip#v4", false);
 	FuncEnviropment::AddNative(net::constructor::createProxy_IP6, "# net ip#v6", false);
 	FuncEnviropment::AddNative(net::constructor::createProxy_IP, "# net ip", false);
+	FuncEnviropment::AddNative(net::ipv6_supported, "net ipv6_supported", false);
+	FuncEnviropment::AddNative(net::tcp_client_connect, "net tcp_client_connect", false);
+}
+namespace configuration{
+	ValueItem* modify_configuration(ValueItem* args, uint32_t len){
+		if(len < 2)
+			throw InvalidArguments("configuration modify_configuration: invalid arguments count, expected 2");
+		if(args[0].meta.vtype == VType::string){
+			if(args[1].meta.vtype == VType::string)
+				modify_run_time_config((const std::string&)args[0].getSourcePtr(), (const std::string&)args[1].getSourcePtr());
+			else 
+				modify_run_time_config((const std::string&)args[0].getSourcePtr(), (std::string)args[1]);
+		}
+		else{
+			std::string key = (std::string)args[0];
+			if(args[1].meta.vtype == VType::string)
+				modify_run_time_config(key, (const std::string&)args[1].getSourcePtr());
+			else 
+				modify_run_time_config(key, (std::string)args[1]);
+		}
+		return nullptr;
+	}
+	ValueItem* get_configuration(ValueItem* args, uint32_t len){
+		if(len < 1)
+			throw InvalidArguments("configuration get_configuration: invalid arguments count, expected 1");
+		if(args[0].meta.vtype == VType::string)
+			return new ValueItem(get_run_time_config((const std::string&)args[0].getSourcePtr()));
+		else 
+			return new ValueItem(get_run_time_config((std::string)args[0]));
+	}
+}
+extern "C" void initStandardLib_configuration(){
+	INIT_CHECK
+	FuncEnviropment::AddNative(configuration::modify_configuration, "configuration modify", false);
+	FuncEnviropment::AddNative(configuration::get_configuration, "configuration get", false);
+}
+
+namespace debug{
+	ValueItem* thread_id(ValueItem*, uint32_t){
+		return new ValueItem(_thread_id());
+	}
+	ValueItem* set_thread_name(ValueItem* args, uint32_t len){
+		if(len >= 1)
+			throw InvalidArguments("debug set_thread_name: invalid arguments count, expected 1");
+		if(args[0].meta.vtype == VType::string)
+			_set_name_thread_dbg((const std::string&)args[0].getSourcePtr());
+		else 
+			_set_name_thread_dbg((std::string)args[0]);
+		return nullptr;
+	}
+	ValueItem* get_thread_name(ValueItem* args, uint32_t len){
+		if(len > 1)
+			return new ValueItem(_get_name_thread_dbg(_thread_id()));
+		else
+			return new ValueItem(_get_name_thread_dbg((int)args[0]));
+	}
+
+	ValueItem* invite(ValueItem* args, uint32_t len){
+		if(args[0].meta.vtype == VType::string)
+			invite_to_debugger((const std::string&)args[0].getSourcePtr());
+		else 
+			invite_to_debugger((std::string)args[0]);
+		return nullptr;
+	}
+}
+extern "C" void initStandardLib_debug(){
+	INIT_CHECK
+	FuncEnviropment::AddNative(debug::thread_id, "debug thread_id", false);
+	FuncEnviropment::AddNative(debug::set_thread_name, "debug set_thread_name", false);
+	FuncEnviropment::AddNative(debug::get_thread_name, "debug get_thread_name", false);
+	FuncEnviropment::AddNative(debug::invite, "debug invite", false);
+}
+
+ValueItem* start_debug(ValueItem*, uint32_t){
+	initStandardLib_debug();
+	return nullptr;
+}
+extern "C" void initStandardLib_start_debug(){
+	INIT_CHECK
+	FuncEnviropment::AddNative(start_debug, "debug start", false);
 }
 
 extern "C" void initStandardLib() {
+	initStandardLib_bytes();
 	initStandardLib_console();
 	initStandardLib_math();
 	initStandardLib_file();
@@ -1038,9 +1132,12 @@ extern "C" void initStandardLib() {
 	initStandardLib_internal_run_time_native();
 	initStandardLib_internal_stack();
 	initStandardLib_net();
+	initStandardLib_start_debug();
+	initStandardLib_configuration();
 }
 
 extern "C" void initStandardLib_safe(){
+	initStandardLib_bytes();
 	initStandardLib_console();
 	initStandardLib_math();
 	initStandardLib_file();

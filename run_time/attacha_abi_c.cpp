@@ -294,6 +294,8 @@ void throwInvalidType() {
 	throw InvalidType("Requested specifed type but recuived another");
 }
 ValueItem* getAsyncValueItem(void* val) {
+	if(!val)
+		return nullptr;
 	typed_lgr<Task>& tmp = *(typed_lgr<Task>*)val;
 	return Task::get_result(tmp);
 }
@@ -328,10 +330,11 @@ void getAsyncResult(void*& value, ValueMeta& meta) {
 		ValueItem* vaal = (ValueItem*)&value;
 		ValueItem* res = nullptr;
 		try {
-			auto res = getAsyncValueItem(meta.use_gc ? ((lgr*)value)->getPtr() : value);
-			*vaal = std::move(*res);
-			if (res)
+			res = getAsyncValueItem(meta.use_gc ? ((lgr*)value)->getPtr() : value);
+			if(res){
+				*vaal = std::move(*res);
 				delete res;
+			}
 		}
 		catch (...) {
 			if (res)
@@ -346,6 +349,8 @@ void* copyValue(void*& val, ValueMeta& meta) {
 	void* actual_val = val;
 	if (meta.use_gc)
 		actual_val = ((lgr*)val)->getPtr();
+	if(actual_val == nullptr)
+		return nullptr;
 	if (needAllocType(meta.vtype)) {
 		switch (meta.vtype) {
 		case VType::raw_arr_i8:
@@ -882,7 +887,7 @@ std::pair<bool, bool> compareRawArrAInterface(ValueMeta cmp1, ValueMeta cmp2, vo
 //return equal,lower bool result
 std::pair<bool, bool> compareValue(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2) {
 	bool cmp_int;
-	if (cmp_int = (is_integer(cmp1.vtype) || cmp1.vtype == VType::undefined_ptr) != (is_integer(cmp2.vtype) || cmp1.vtype == VType::undefined_ptr))
+	if ((cmp_int = (is_integer(cmp1.vtype) || cmp1.vtype == VType::undefined_ptr) != (is_integer(cmp2.vtype) || cmp1.vtype == VType::undefined_ptr)))
 		return { false,false };
 
 	if (cmp_int) {
@@ -896,130 +901,150 @@ std::pair<bool, bool> compareValue(ValueMeta cmp1, ValueMeta cmp2, void* val1, v
 		else if (temp1)
 			switch (cmp2.vtype) {
 			case VType::i8:
-				return { false, uint64_t(val1) < int8_t(val2) };
+				return { false, uint64_t(val1) < int8_t((ptrdiff_t)val2) };
 			case VType::i16:
-				return { false, uint64_t(val1) < int16_t(val2) };
+				return { false, uint64_t(val1) < int16_t((ptrdiff_t)val2) };
 			case VType::i32:
-				return { false, uint64_t(val1) < int32_t(val2) };
+				return { false, uint64_t(val1) < int32_t((ptrdiff_t)val2) };
 			case VType::i64:
 				return { false, int64_t(val2) < 0 ? false : uint64_t(val1) < uint64_t(val2) };
 			case VType::flo:
 				return { false, uint64_t(val1) < *(float*)&val2 };
 			case VType::doub:
 				return { false, uint64_t(val1) < *(double*)&val2 };
+				default:
+					break;
 			}
 		else if (temp2)
 			switch (cmp1.vtype) {
 			case VType::i8:
-				return { false, int8_t(val1) < uint64_t(val2) };
+				return { false, int8_t((ptrdiff_t)val1) < uint64_t(val2) };
 			case VType::i16:
-				return { false, int16_t(val1) < uint64_t(val2) };
+				return { false, int16_t((ptrdiff_t)val1) < uint64_t(val2) };
 			case VType::i32:
-				return { false, int32_t(val1) < uint64_t(val2) };
+				return { false, int32_t((ptrdiff_t)val1) < uint64_t(val2) };
 			case VType::i64:
 				return { false, int64_t(val1) < 0 ? true : uint64_t(val1) < uint64_t(val2) };
 			case VType::flo:
 				return { false, *(float*)&val1 < uint64_t(val2) };
 			case VType::doub:
 				return { false, *(double*)&val1 < uint64_t(val2) };
+			default:
+				break;
 			}
 		else
 			switch (cmp1.vtype) {
 			case VType::i8:
 				switch (cmp2.vtype) {
 				case VType::i8:
-					return { false, int8_t(val1) < int8_t(val2) };
+					return { false, int8_t((ptrdiff_t)val1) < int8_t((ptrdiff_t)val2) };
 				case VType::i16:
-					return { false, int8_t(val1) < int16_t(val2) };
+					return { false, int8_t((ptrdiff_t)val1) < int16_t((ptrdiff_t)val2) };
 				case VType::i32:
-					return { false, int8_t(val1) < int32_t(val2) };
+					return { false, int8_t((ptrdiff_t)val1) < int32_t((ptrdiff_t)val2) };
 				case VType::i64:
-					return { false, int8_t(val1) < int64_t(val2) };
+					return { false, int8_t((ptrdiff_t)val1) < int64_t((ptrdiff_t)val2) };
 				case VType::flo:
-					return { false, int8_t(val1) < *(float*)&(val2) };
+					return { false, int8_t((ptrdiff_t)val1) < *(float*)&(val2) };
 				case VType::doub:
-					return { false, int8_t(val1) < *(double*)&(val2) };
+					return { false, int8_t((ptrdiff_t)val1) < *(double*)&(val2) };
+				default:
+					break;
 				}
 				break;
 			case VType::i16:
 				switch (cmp2.vtype) {
 				case VType::i8:
-					return { false, int16_t(val1) < int8_t(val2) };
+					return { false, int16_t((ptrdiff_t)val1) < int8_t((ptrdiff_t)val2) };
 				case VType::i16:
-					return { false, int16_t(val1) < int16_t(val2) };
+					return { false, int16_t((ptrdiff_t)val1) < int16_t((ptrdiff_t)val2) };
 				case VType::i32:
-					return { false, int16_t(val1) < int32_t(val2) };
+					return { false, int16_t((ptrdiff_t)val1) < int32_t((ptrdiff_t)val2) };
 				case VType::i64:
-					return { false, int16_t(val1) < int64_t(val2) };
+					return { false, int16_t((ptrdiff_t)val1) < int64_t((ptrdiff_t)val2) };
 				case VType::flo:
-					return { false, int16_t(val1) < *(float*)&(val2) };
+					return { false, int16_t((ptrdiff_t)val1) < *(float*)&(val2) };
 				case VType::doub:
-					return { false, int16_t(val1) < *(double*)&(val2) };
+					return { false, int16_t((ptrdiff_t)val1) < *(double*)&(val2) };
+				default:
+					break;
 				}
 				break;
 			case VType::i32:
 				switch (cmp2.vtype) {
 				case VType::i8:
-					return { false, int32_t(val1) < int8_t(val2) };
+					return { false, int32_t((ptrdiff_t)val1) < int8_t((ptrdiff_t)val2) };
 				case VType::i16:
-					return { false, int32_t(val1) < int16_t(val2) };
+					return { false, int32_t((ptrdiff_t)val1) < int16_t((ptrdiff_t)val2) };
 				case VType::i32:
-					return { false, int32_t(val1) < int32_t(val2) };
+					return { false, int32_t((ptrdiff_t)val1) < int32_t((ptrdiff_t)val2) };
 				case VType::i64:
-					return { false, int32_t(val1) < int64_t(val2) };
+					return { false, int32_t((ptrdiff_t)val1) < int64_t((ptrdiff_t)val2) };
 				case VType::flo:
-					return { false, int32_t(val1) < *(float*)&(val2) };
+					return { false, int32_t((ptrdiff_t)val1) < *(float*)&(val2) };
 				case VType::doub:
-					return { false, int32_t(val1) < *(double*)&(val2) };
+					return { false, int32_t((ptrdiff_t)val1) < *(double*)&(val2) };
+				default:
+					break;
 				}
+				
 				break;
 			case VType::i64:
 				switch (cmp2.vtype) {
 				case VType::i8:
-					return { false, int64_t(val1) < int8_t(val2) };
+					return { false, int64_t(val1) < int8_t((ptrdiff_t)val2) };
 				case VType::i16:
-					return { false, int64_t(val1) < int16_t(val2) };
+					return { false, int64_t(val1) < int16_t((ptrdiff_t)val2) };
 				case VType::i32:
-					return { false, int64_t(val1) < int32_t(val2) };
+					return { false, int64_t(val1) < int32_t((ptrdiff_t)val2) };
 				case VType::i64:
-					return { false, int64_t(val1) < int64_t(val2) };
+					return { false, int64_t(val1) < int64_t((ptrdiff_t)val2) };
 				case VType::flo:
 					return { false, int64_t(val1) < *(float*)&(val2) };
 				case VType::doub:
 					return { false, int64_t(val1) < *(double*)&(val2) };
+				default:
+					break;
 				}
 				break;
 			case VType::flo:
 				switch (cmp2.vtype) {
 				case VType::i8:
-					return { false, *(float*)&val1 < int8_t(val2) };
+					return { false, *(float*)&val1 < int8_t((ptrdiff_t)val2) };
 				case VType::i16:
-					return { false, *(float*)&val1 < int16_t(val2) };
+					return { false, *(float*)&val1 < int16_t((ptrdiff_t)val2) };
 				case VType::i32:
-					return { false, *(float*)&val1 < int32_t(val2) };
+					return { false, *(float*)&val1 < int32_t((ptrdiff_t)val2) };
 				case VType::i64:
-					return { false, *(float*)&val1 < int64_t(val2) };
+					return { false, *(float*)&val1 < int64_t((ptrdiff_t)val2) };
 				case VType::flo:
 					return { false, *(float*)&val1 < *(float*)&(val2) };
 				case VType::doub:
 					return { false, *(float*)&val1 < *(double*)&(val2) };
+				default:
+					break;
 				}
 				break;
 			case VType::doub:
 				switch (cmp2.vtype) {
 				case VType::i8:
-					return { false, *(double*)&val1 < int8_t(val2) };
+					return { false, *(double*)&val1 < int8_t((ptrdiff_t)val2) };
 				case VType::i16:
-					return { false, *(double*)&val1 < int16_t(val2) };
+					return { false, *(double*)&val1 < int16_t((ptrdiff_t)val2) };
 				case VType::i32:
-					return { false, *(double*)&val1 < int32_t(val2) };
+					return { false, *(double*)&val1 < int32_t((ptrdiff_t)val2) };
 				case VType::i64:
-					return { false, *(double*)&val1 < int64_t(val2) };
+					return { false, *(double*)&val1 < int64_t((ptrdiff_t)val2) };
 				case VType::flo:
 					return { false, *(double*)&val1 < *(float*)&(val2) };
 				case VType::doub:
 					return { false, *(double*)&val1 < *(double*)&(val2) };
+				default:
+					break;
 				}
+			
+			default:
+				break;
 			}
 		return { false, false };
 	}
@@ -2138,7 +2163,7 @@ void* AsArg(void** val) {
 		return value->getSourcePtr();
 	}
 	else {
-		*value = ValueItem(std::initializer_list{ std::move(*(ValueItem*)(val)) });
+		*value = ValueItem({ std::move(*(ValueItem*)(val)) });
 		return value->getSourcePtr();
 	}
 }
@@ -2721,7 +2746,7 @@ ValueItem::ValueItem(VType type) {
 	}
 }
 ValueItem::ValueItem(ValueMeta type) {
-	val = &type;
+	val = (void*)type.encoded;
 	meta = VType::type_identifier;
 }
 #pragma endregion
@@ -2911,7 +2936,7 @@ ValueItem::operator list_array<ValueItem>() {
 }
 ValueItem::operator ClassValue&() {
 	if(meta.vtype == VType::async_res)
-			getAsync();
+		getAsync();
 	if (meta.vtype == VType::class_)
 		return *(ClassValue*)getSourcePtr();
 	else
@@ -2919,7 +2944,7 @@ ValueItem::operator ClassValue&() {
 }
 ValueItem::operator MorphValue&() {
 	if(meta.vtype == VType::async_res)
-			getAsync();
+		getAsync();
 	if (meta.vtype == VType::morph)
 		return *(MorphValue*)getSourcePtr();
 	else
@@ -2927,15 +2952,24 @@ ValueItem::operator MorphValue&() {
 }
 ValueItem::operator ProxyClass&() {
 	if(meta.vtype == VType::async_res)
-			getAsync();
+		getAsync();
 	if (meta.vtype == VType::proxy)
 		return *(ProxyClass*)getSourcePtr();
 	else
 		throw InvalidCast("This type is not proxy");
 }
+
+ValueItem::operator ValueMeta(){
+	if(meta.vtype == VType::async_res)
+		getAsync();
+	if(meta.vtype == VType::type_identifier)
+		return *(ValueMeta*)getSourcePtr();
+	else
+		return meta.vtype;
+}
 ValueItem::operator std::exception_ptr() {
 	if(meta.vtype == VType::async_res)
-			getAsync();
+		getAsync();
 	if (meta.vtype == VType::except_value)
 		return *(std::exception_ptr*)getSourcePtr();
 	else {
@@ -3004,7 +3038,145 @@ size_t array_hash(T* arr, size_t len) {
 		hash ^= std::hash<T>()(arr[i]) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
 	return hash;
 }
-
+void ValueItem::make_gc(){
+	if(meta.use_gc)
+		return;
+	if(needAllocType(meta.vtype)){
+		void(*destructor)(void*) = nullptr;
+		bool(*deph)(void*) = nullptr;
+		switch (meta.vtype) {
+		case VType::raw_arr_i8:
+		case VType::raw_arr_ui8:
+			destructor = arrayDestructor<uint8_t>;
+			break;
+		case VType::raw_arr_i16:
+		case VType::raw_arr_ui16:
+			destructor = arrayDestructor<uint16_t>;
+			break;
+		case VType::raw_arr_i32:
+		case VType::raw_arr_ui32:
+		case VType::raw_arr_flo:
+			destructor = arrayDestructor<uint32_t>;
+			break;
+		case VType::raw_arr_i64:
+		case VType::raw_arr_ui64:
+		case VType::raw_arr_doub:
+			destructor = arrayDestructor<uint64_t>;
+			break;
+		case VType::uarr:
+			destructor = defaultDestructor<list_array<ValueItem>>;
+			deph = calc_safe_deph_arr;
+			break;
+		case VType::string:
+			destructor = defaultDestructor<std::string>;
+			break;
+		case VType::except_value:
+			destructor = defaultDestructor<std::exception_ptr>;
+			break;
+		case VType::faarr:
+			destructor = arrayDestructor<ValueItem>;
+			break;
+		case VType::class_:
+			destructor = defaultDestructor<ClassValue>;
+			break;
+		case VType::morph:
+			destructor = defaultDestructor<MorphValue>;
+			break;
+		default:
+			break;
+		}
+		val = new lgr(val, deph, destructor);
+	}else{
+		void(*destructor)(void*) = nullptr;
+		void* new_val = nullptr;
+		switch(meta.vtype){
+		case VType::noting:
+			break;
+		case VType::i8:
+			new_val = new int8_t(*(int8_t*)val);
+			destructor = defaultDestructor<uint8_t>;
+			break;
+		case VType::ui8:
+			new_val = new uint8_t(*(uint8_t*)val);
+			destructor = defaultDestructor<uint8_t>;
+			break;
+		case VType::i16:
+			new_val = new int16_t(*(int16_t*)val);
+			destructor = defaultDestructor<uint16_t>;
+			break;
+		case VType::ui16:
+			new_val = new uint16_t(*(uint16_t*)val);
+			destructor = defaultDestructor<uint16_t>;
+			break;
+		case VType::i32:
+			new_val = new int32_t(*(int32_t*)val);
+			destructor = defaultDestructor<uint32_t>;
+			break;
+		case VType::ui32:
+			new_val = new uint32_t(*(uint32_t*)val);
+			destructor = defaultDestructor<uint32_t>;
+			break;
+		case VType::flo:
+			new_val = new float(*(float*)val);
+			destructor = defaultDestructor<uint32_t>;
+			break;
+		case VType::i64:
+			new_val = new int64_t(*(int64_t*)val);
+			destructor = defaultDestructor<uint64_t>;
+			break;
+		case VType::ui64:
+			new_val = new uint64_t(*(uint64_t*)val);
+			destructor = defaultDestructor<uint64_t>;
+			break;
+		case VType::undefined_ptr:
+			new_val = new void*(*(void**)val);
+			destructor = defaultDestructor<uint64_t>;
+			break;
+		case VType::doub:
+			new_val = new double(*(double*)val);
+			destructor = defaultDestructor<uint64_t>;
+			break;
+		case VType::type_identifier:
+			new_val = new ValueMeta(*(ValueMeta*)val);
+			destructor = defaultDestructor<uint64_t>;
+			break;
+		case VType::saarr:
+			*this = ValueItem((ValueItem*)val,meta.val_len);
+			make_gc();
+			return;
+		}
+		val = new lgr(new_val, nullptr, destructor);
+	}
+}
+void ValueItem::localize_gc(){
+	if(meta.use_gc && val != nullptr) {
+		ValueMeta fake_meta = meta;
+		fake_meta.use_gc = false;
+		void* new_val = copyValue(getSourcePtr(), fake_meta);
+		new_val = new lgr(new_val, ((lgr*)val)->getCalcDepth(),((lgr*)val)->getDestructor());
+		delete (lgr*)val;
+		val = new_val;
+	}
+}
+void ValueItem::ungc(){
+	if(meta.use_gc && val != nullptr) {
+		meta.use_gc = false;
+		lgr* tmp = (lgr*)val;
+		if(tmp->is_deleted()) {
+			meta.encoded = 0;
+			val = nullptr;
+			delete tmp;
+			return;
+		}
+		void* new_val = tmp->try_take_ptr();
+		if(new_val == nullptr){
+			void* new_val = copyValue(getSourcePtr(), meta);
+			delete (lgr*)val;
+			val = new_val;
+		}
+		
+	}
+}
 size_t ValueItem::hash() const{
 	return const_cast<ValueItem&>(*this).hash();
 }
@@ -3093,17 +3265,16 @@ typed_lgr<class FuncEnviropment> ClassValue::callFnPtr(const std::string & str, 
 					return tmp.fn;
 				break;
 			case ClassAccess::priv:
-				if (tmp.access != ClassAccess::deriv)
+				if (tmp.access != ClassAccess::intern)
 					return tmp.fn;
 				break;
 			case ClassAccess::prot:
 				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
 					return tmp.fn;
 				break;
-			case ClassAccess::deriv:
-				if (tmp.access != ClassAccess::priv)
-					return tmp.fn;
-				break;
+			case ClassAccess::intern:
+				if(allow_intern_access) return tmp.fn;
+				else throw InvalidOperation("Internal access not allowed by configuration");
 			default:
 				throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 			}
@@ -3143,17 +3314,16 @@ ValueItem& ClassValue::getValue(const std::string& str, ClassAccess access) {
 				return tmp.val;
 			break;
 		case ClassAccess::priv:
-			if (tmp.access != ClassAccess::deriv)
+			if (tmp.access != ClassAccess::intern)
 				return tmp.val;
 			break;
 		case ClassAccess::prot:
 			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
 				return tmp.val;
 			break;
-		case ClassAccess::deriv:
-			if (tmp.access != ClassAccess::priv)
-				return tmp.val;
-			break;
+		case ClassAccess::intern:
+			if(allow_intern_access) return tmp.val;
+			else throw InvalidOperation("Internal access not allowed by configuration");
 		default:
 			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 		}
@@ -3181,17 +3351,16 @@ typed_lgr<class FuncEnviropment> MorphValue::callFnPtr(const std::string & str, 
 				return tmp.fn;
 			break;
 		case ClassAccess::priv:
-			if (tmp.access != ClassAccess::deriv)
+			if (tmp.access != ClassAccess::intern)
 				return tmp.fn;
 			break;
 		case ClassAccess::prot:
 			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
 				return tmp.fn;
 			break;
-		case ClassAccess::deriv:
-			if (tmp.access != ClassAccess::priv)
-				return tmp.fn;
-			break;
+		case ClassAccess::intern:
+			if(allow_intern_access) return tmp.fn;
+			else throw InvalidOperation("Internal access not allowed by configuration");
 		default:
 			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 		}
@@ -3222,17 +3391,16 @@ ValueItem& MorphValue::getValue(const std::string& str, ClassAccess access) {
 				return tmp.val;
 			break;
 		case ClassAccess::priv:
-			if (tmp.access != ClassAccess::deriv)
+			if (tmp.access != ClassAccess::intern)
 				return tmp.val;
 			break;
 		case ClassAccess::prot:
 			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
 				return tmp.val;
 			break;
-		case ClassAccess::deriv:
-			if (tmp.access != ClassAccess::priv)
-				return tmp.val;
-			break;
+		case ClassAccess::intern:			
+			if(allow_intern_access) return tmp.val;
+			else throw InvalidOperation("Internal access not allowed by configuration");
 		default:
 			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 		}
@@ -3257,7 +3425,7 @@ void MorphValue::setValue(const std::string& str, ClassAccess access, ValueItem&
 			}
 			else break;
 		case ClassAccess::priv:
-			if (tmp.access != ClassAccess::deriv) {
+			if (tmp.access != ClassAccess::intern) {
 				tmp.val = set_val;
 				return;
 			}
@@ -3268,12 +3436,10 @@ void MorphValue::setValue(const std::string& str, ClassAccess access, ValueItem&
 				return;
 			}
 			else break;
-		case ClassAccess::deriv:
-			if (tmp.access != ClassAccess::priv) {
-				tmp.val = set_val;
-				return;
-			}
-			else break;
+		case ClassAccess::intern:
+			if(allow_intern_access)tmp.val = set_val;
+			else throw InvalidOperation("Internal access not allowed by configuration");
+			return;
 		default:
 			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 		}
@@ -3328,17 +3494,16 @@ typed_lgr<class FuncEnviropment> ProxyClass::callFnPtr(const std::string& str, C
 					return tmp.fn;
 				break;
 			case ClassAccess::priv:
-				if (tmp.access != ClassAccess::deriv)
+				if (tmp.access != ClassAccess::intern)
 					return tmp.fn;
 				break;
 			case ClassAccess::prot:
 				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
 					return tmp.fn;
 				break;
-			case ClassAccess::deriv:
-				if (tmp.access != ClassAccess::priv)
-					return tmp.fn;
-				break;
+			case ClassAccess::intern:
+				if(allow_intern_access) return tmp.fn;
+				else throw InvalidOperation("Internal access not allowed by configuration");				
 			default:
 				throw InvalidOperation("Undefined access type: " + enum_to_string(access));
 			}

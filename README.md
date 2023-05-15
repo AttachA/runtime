@@ -17,5 +17,6 @@ Basically, this project was made for another project, because no C++ implementat
 Since this is a small VM implementation and unlike .NET/JVM does not do any runtime optimizations and delegates this optimization responsibility to compilers in exchange for more freedom providing a reimagined implementation of asynchrony, file operations, networking, hot reloading, and the ability to combine static and dynamic typing.
 
 # Notes for compiling project
-- This project uses [Boost.context](www.boost.org) and [asmjit](https://github.com/asmjit/asmjit) libs, compile these projects and link before compiling
+- Use cmake for compiling, in visual studio use vcpkg toolchain for cmake, in visual studio code everything is already configured, just run
+- If you wanna port to another platform use this libraries for compilation: [boost-context](https://www.boost.org), [boost-preprocessor](https://www.boost.org), [boost-lockfree](https://www.boost.org), [boost-uuid](https://www.boost.org), [asmjit](https://github.com/asmjit/asmjit) and [utccpp](#)
 - curenly supported only x64 Windows

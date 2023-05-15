@@ -34,11 +34,21 @@ namespace chanel {
 		TaskMutex no_race;
 		size_t handle_from = 0;
 	};
-
+	struct AutoEventChanel{
+		typed_lgr<EventSystem> notifier_event;
+		enum class NotifyType {
+			default_,
+			sync,
+			async,
+			await
+		} ntype;
+		bool notify(const ValueItem&);
+	};
 	class Chanel {
 		TaskMutex no_race;
 		std::list<typed_lgr<ChanelHandler>> suber;
 		std::list<typed_lgr<AutoNotifyChanel>> auto_notifyer;
+		std::list<typed_lgr<AutoEventChanel>> auto_events;
 	public:
 		Chanel();
 		~Chanel();
@@ -48,10 +58,13 @@ namespace chanel {
 		typed_lgr<AutoNotifyChanel> auto_notify_continue(typed_lgr<Task>& val);
 		typed_lgr<AutoNotifyChanel> auto_notify_skip(typed_lgr<Task>& val, size_t start_from);
 		
+		typed_lgr<AutoEventChanel> auto_event(typed_lgr<EventSystem>& val, AutoEventChanel::NotifyType type);
+
 		typed_lgr<ChanelHandler> create_handle();
 		typed_lgr<ChanelHandler> add_handle(typed_lgr<ChanelHandler> handler);
 		void remove_handle(typed_lgr<ChanelHandler> handle);
 		void remove_auto_notify(typed_lgr<AutoNotifyChanel> notifyer);
+		void remove_auto_event(typed_lgr<AutoEventChanel> notifyer);
 	};
 
 

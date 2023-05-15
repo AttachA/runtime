@@ -14,14 +14,10 @@ namespace net {
 		ValueItem* createProxy_IP(ValueItem*, uint32_t);//[string ip], [port=0]
 		ValueItem* createProxy_Address(ValueItem*, uint32_t);//[string ip:port]
 
-
 		ValueItem* createProxy_TcpServer(ValueItem*, uint32_t);//[function], [ip:port], [manage_type = write_delayed(0)], [acceptors = 10], [accept_mode = task(0)]
-		ValueItem* createProxy_UdpServer(ValueItem*, uint32_t);//[function], [port], [ip = localhost]
 		ValueItem* createProxy_HttpServer(ValueItem*, uint32_t);//[function], [http version], [ip = localhost], [port = 443],  [encryption = ssl], [certificate = 0]
 
-		ValueItem* createProxy_TcpClient(ValueItem*, uint32_t);//[function], [port], [ip = localhost]
-		ValueItem* createProxy_UdpClient(ValueItem*, uint32_t);//[function], [port], [ip = localhost]
-		ValueItem* createProxy_HttpClient(ValueItem*, uint32_t);//[function], [http version], [ip = localhost], [port = 443],  [encryption = ssl], [certificate = 0]
+		ValueItem* createProxy_UdpSocket(ValueItem*, uint32_t);//[ip:port], [timeout_ms = 0]
 	}
 	namespace api {
 		namespace constructor {
@@ -30,6 +26,8 @@ namespace net {
 		}
 		ValueItem* httpRequest(ValueItem*, uint32_t);//[adress + query, format] return any
 	}
+	ValueItem* ipv6_supported(ValueItem*, uint32_t);
 
+	ValueItem* tcp_client_connect(ValueItem*, uint32_t);//[ip:port], [timeout_ms = 0] or [ip:port], [data], [timeout_ms = 0]
 	void init();
 }

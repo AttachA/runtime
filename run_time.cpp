@@ -11,7 +11,8 @@
 #include <Psapi.h>
 #include <format>
 #include <chrono>
-#include "library/string_convert.hpp"
+#include <utf8cpp/utf8.h>
+#include "configuration/run_time.hpp"
 size_t page_size = []() {
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
@@ -29,11 +30,18 @@ unsigned long fault_reserved_stack_size = 0;// 524288;
 unsigned long fault_reserved_pages = fault_reserved_stack_size / page_size + (fault_reserved_stack_size % page_size ? 1 : 0);
 thread_local unsigned long stack_size_tmp = 0;
 thread_local bool need_stack_restore = false;
-bool enable_thread_naming = true;
+bool enable_thread_naming = configuration::tasks::enable_thread_naming;
+bool allow_intern_access = configuration::run_time::allow_intern_access;
+
+
+FaultAction default_fault_action = (FaultAction)configuration::run_time::default_fault_action;
+BreakPointAction break_point_action = (BreakPointAction)configuration::run_time::break_point_action;
+ExceptionOnLanguageRoutineAction exception_on_language_routine_action = (ExceptionOnLanguageRoutineAction)configuration::run_time::exception_on_language_routine_action;
 
 bool _set_name_thread_dbg(const std::string& name) {
-	auto data = stringC::utf8::convert(name);
-	return SUCCEEDED(SetThreadDescription(GetCurrentThread(), data.c_str()));
+	std::u16string result;
+	utf8::utf8to16(name.begin(), name.end(), std::back_inserter(result));
+	return SUCCEEDED(SetThreadDescription(GetCurrentThread(), (wchar_t*)result.c_str()));
 }
 
 std::string _get_name_thread_dbg(int thread_id) {
@@ -42,14 +50,14 @@ std::string _get_name_thread_dbg(int thread_id) {
 		return "";
 	WCHAR* res;
 	if (SUCCEEDED(GetThreadDescription(thread, &res))) {
-		std::string str = stringC::utf8::convert(res);
+		std::string result;
+		utf8::utf16to8(res, res + wcslen(res), std::back_inserter(result));
 		LocalFree(res);
 		CloseHandle(thread);
-		return str;
+		return result;
 	}
-	else {
+	else 
 		return "";
-	}
 }
 
 int _thread_id() {
@@ -60,14 +68,8 @@ int _thread_id() {
 EventSystem unhandled_exception;
 EventSystem ex_fault;
 EventSystem errors;
+EventSystem warning;
 EventSystem info;
-#if _DEBUG
-FaultActionByDefault default_fault_action = FaultActionByDefault::invite_to_debugger;
-BreakPointActionByDefault break_point_action = BreakPointActionByDefault::invite_to_debugger;
-#else 
-FaultActionByDefault default_fault_action = FaultActionByDefault::make_dump;
-BreakPointActionByDefault break_point_action = BreakPointActionByDefault::throw_exception;
-#endif
 
 LONG NTAPI win_exception_handler(LPEXCEPTION_POINTERS e) {
 	if (e->ExceptionRecord->ExceptionFlags == EXCEPTION_NONCONTINUABLE)
@@ -107,15 +109,13 @@ LONG NTAPI win_exception_handler(LPEXCEPTION_POINTERS e) {
 		throw NumericOverflowException();
 	case EXCEPTION_BREAKPOINT: 
 		switch (break_point_action){
-		case BreakPointActionByDefault::invite_to_debugger: {
-			auto test = "Oops!,\n This program caught unhandled breakpoint, \nif you need debug program,\n attach to process with id: " + std::to_string(GetCurrentProcessId()) + ",\n then switch to thread id: " + std::to_string(GetCurrentThreadId()) + " and click OK";
-			MessageBoxA(NULL, test.c_str(), "Debug invite", MB_ICONQUESTION);
+		case BreakPointAction::invite_to_debugger: 
+			invite_to_debugger("Oops!,\n This program caught unhandled breakpoint");
 			break;
-		}
-		case BreakPointActionByDefault::throw_exception:
+		case BreakPointAction::throw_exception:
 			throw UnusedDebugPointException();
 		default:
-		case BreakPointActionByDefault::ignore:
+		case BreakPointAction::ignore:
 #ifdef _AMD64_
 			e->ContextRecord->Rip++;
 #else
@@ -228,22 +228,21 @@ LONG WINAPI win_fault_handler(LPEXCEPTION_POINTERS e) {
 			unhandled_exception.sync_notify(val);
 		}
 		switch (default_fault_action) {
-		case FaultActionByDefault::show_error:
+		case FaultAction::show_error:
 			show_err(cxx);
 			break;
-		case FaultActionByDefault::dump_and_show_error:
+		case FaultAction::dump_and_show_error:
 			make_dump(e, &cxx);
 			show_err(cxx);
 			break;
-		case FaultActionByDefault::make_dump: 
+		case FaultAction::make_dump: 
 			make_dump(e, &cxx);
 			break;
-		case FaultActionByDefault::invite_to_debugger: {
-			auto test = "Hello! In this program unhandled exception occoured,\n if you wanna debug it, attach to process with id: " + std::to_string(GetCurrentProcessId()) + ",\n then switch to thread id: " + std::to_string(GetCurrentThreadId()) + " and click OK";
-			MessageBoxA(NULL, test.c_str(), "Debug invite", MB_ICONQUESTION);
+		case FaultAction::invite_to_debugger: {
+			invite_to_debugger("In this program unhandled exception occoured");
 			break;
 		}
-		case FaultActionByDefault::system_default:
+		case FaultAction::system_default:
 		default:
 			break;
 		}
@@ -252,22 +251,21 @@ LONG WINAPI win_fault_handler(LPEXCEPTION_POINTERS e) {
 		ValueItem noting;
 		ex_fault.sync_notify(noting);
 		switch (default_fault_action) {
-		case FaultActionByDefault::show_error:
+		case FaultAction::show_error:
 			show_err(e);
 			break;
-		case FaultActionByDefault::dump_and_show_error:
+		case FaultAction::dump_and_show_error:
 			make_dump(e, nullptr);
 			show_err(e);
 			break;
-		case FaultActionByDefault::make_dump:
+		case FaultAction::make_dump:
 			make_dump(e, nullptr);
 			break;
-		case FaultActionByDefault::invite_to_debugger: {
-			auto test = "Hello! In this program unhandled exception occoured,\n if you wanna debug it, attach to process with id: " + std::to_string(GetCurrentProcessId()) + ",\n then switch to thread id: " + std::to_string(GetCurrentThreadId()) + " and click to yes to look callstack";
-			MessageBoxA(NULL, test.c_str(), "Debug invite", MB_YESNO | MB_ICONQUESTION);
+		case FaultAction::invite_to_debugger: {
+			invite_to_debugger("In this program unhandled exception occoured");
 			break;
 		}
-		case FaultActionByDefault::system_default:
+		case FaultAction::system_default:
 		default:
 			break;
 		}
@@ -275,6 +273,16 @@ LONG WINAPI win_fault_handler(LPEXCEPTION_POINTERS e) {
 	return EXCEPTION_CONTINUE_SEARCH;
 }
 
+void invite_to_debugger(const std::string& reason){
+	std::string decorated = 
+					reason 
+					+ ",\n if you wanna debug it, attach to process with id: " 
+					+ std::to_string(GetCurrentProcessId()) 
+					+ ",\n then switch to thread id: " 
+					+ std::to_string(GetCurrentThreadId()) 
+					+ " and click OK";
+	MessageBoxA(NULL, decorated.c_str(), "Debug invite", MB_ICONQUESTION);
+}
 
 void ini_current() {
 	bool cur_siz = SetThreadStackGuarantee(&stack_size_tmp);
@@ -292,29 +300,32 @@ thread_local bool ex_proxy_enabled = []() {
 }();
 
 
-NativeLib::NativeLib(const char* libray_path) {
-	hGetProcIDDLL = LoadLibraryW(stringC::utf8::convert(libray_path).c_str());
+NativeLib::NativeLib(const std::string& libray_path) {
+	std::u16string res;
+	utf8::utf8to16(libray_path.begin(), libray_path.end(), std::back_inserter(res));
+
+	hGetProcIDDLL = LoadLibraryW((wchar_t*)res.c_str());
 	if (!hGetProcIDDLL)
 		throw LibrayNotFoundException();
 }
-CALL_FUNC NativeLib::get_func(const char* func_name) {
-	auto tmp = GetProcAddress((HMODULE)hGetProcIDDLL, func_name);
+CALL_FUNC NativeLib::get_func(const std::string& func_name) {
+	auto tmp = GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 	if (!tmp)
 		throw LibrayFunctionNotFoundException();
 	return (CALL_FUNC)tmp;
 }
-typed_lgr<FuncEnviropment> NativeLib::get_func_enviro(const char* func_name, const DynamicCall::FunctionTemplate& templ) {
+typed_lgr<FuncEnviropment> NativeLib::get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ) {
 	auto& env = envs[func_name];
 	if (!env) {
-		DynamicCall::PROC tmp = (DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name);
+		DynamicCall::PROC tmp = (DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 		if (!tmp)
 			throw LibrayFunctionNotFoundException();
 		return env = new FuncEnviropment(tmp, templ, true);
 	}
 	return env;
 }
-size_t NativeLib::get_pure_func(const char* func_name) {
-	size_t tmp = (size_t)GetProcAddress((HMODULE)hGetProcIDDLL, func_name);
+size_t NativeLib::get_pure_func(const std::string& func_name) {
+	size_t tmp = (size_t)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 	if (!tmp)
 		throw LibrayFunctionNotFoundException();
 	return tmp;
@@ -359,3 +370,136 @@ size_t page_size = sysconf(_SC_PAGESIZE);
 
 
 #endif
+
+std::unordered_map<std::string, std::string> run_time_configuration;
+#include "configuration/tasks.hpp"
+void modify_run_time_config(const std::string& name, const std::string& value){
+	if(name == "default_fault_action"){
+#if _configuration_run_time_fault_action_modifable
+		if(value == "make_dump" || value == "0")
+			default_fault_action = FaultAction::make_dump;
+		else if(value == "show_error" || value == "1")
+			default_fault_action = FaultAction::show_error;
+		else if(value == "dump_and_show_error" || value == "2")
+			default_fault_action = FaultAction::dump_and_show_error;
+		else if(value == "invite_to_debugger" || value == "3")
+			default_fault_action = FaultAction::invite_to_debugger;
+		else if(value == "system_default" || value == "4")
+			default_fault_action = FaultAction::system_default;
+		else if(value == "ignore" || value == "4")
+			default_fault_action = FaultAction::ignore;
+		else
+			throw InvalidArguments("unrecognized value for default_fault_action");
+#else
+		throw AttachARuntimeException("default_fault_action is not modifable")
+#endif
+
+	}else if(name == "break_point_action"){
+#if _configuration_run_time_break_point_action_modifable
+		if(value == "invite_to_debugger" || value == "0")
+			break_point_action = BreakPointAction::invite_to_debugger;
+		if(value == "throw_exception" || value == "1")
+			break_point_action = BreakPointAction::throw_exception;
+		if(value == "ignore" || value == "2")
+			break_point_action = BreakPointAction::ignore;
+		else
+			throw InvalidArguments("unrecognized value for break_point_action");
+#else
+		throw AttachARuntimeException("break_point_action is not modifable")
+#endif
+	}else if(name == "exception_on_language_routine_action"){
+#if _configuration_run_time_exception_on_language_routine_action_modifable
+		if(value == "invite_to_debugger" || value == "0")
+			exception_on_language_routine_action = ExceptionOnLanguageRoutineAction::invite_to_debugger;
+		if(value == "nest_exception" || value == "1")
+			exception_on_language_routine_action = ExceptionOnLanguageRoutineAction::nest_exception;
+		if(value == "swap_exception" || value == "2")
+			exception_on_language_routine_action = ExceptionOnLanguageRoutineAction::swap_exception;
+		if(value == "ignore" || value == "3")
+			exception_on_language_routine_action = ExceptionOnLanguageRoutineAction::ignore;
+		else
+			throw InvalidArguments("unrecognized value for exception_on_language_routine_action");
+#else
+		throw AttachARuntimeException("exception_on_language_routine_action is not modifable")
+#endif
+	}else if(name == "enable_thread_naming"){
+#if _configuration_tasks_enable_thread_naming_modifable
+		if(value == "true" || value == "1")
+			enable_thread_naming = true;
+		else if(value == "false" || value == "0")
+			enable_thread_naming = false;
+		else
+			throw InvalidArguments("unrecognized value for enable_thread_naming");
+#else
+		throw AttachARuntimeException("enable_thread_naming is not modifable");
+#endif
+	}else if(name == "allow_intern_access"){
+#if _configuration_run_time_allow_intern_access_modifable
+		if(value == "true" || value == "1")
+			allow_intern_access = true;
+		else if(value == "false" || value == "0")
+			allow_intern_access = false;
+		else
+			throw InvalidArguments("unrecognized value for allow_intern_access");
+#else
+		throw AttachARuntimeException("allow_intern_access is not modifable");
+#endif
+	}else if(name == "max_running_tasks"){
+#if _configuration_tasks_max_running_tasks_modifable
+		if(value == "0")
+			Task::max_running_tasks = 0;
+		else{
+			try{
+				Task::max_running_tasks = std::stoull(value);
+			}catch(...){
+				throw InvalidArguments("unrecognized value for max_running_tasks");
+			}
+		}
+#else
+		throw AttachARuntimeException("max_running_tasks is not modifable");
+#endif
+	}else if(name == "max_planned_tasks"){
+#if _configuration_tasks_max_planned_tasks_modifable
+		if(value == "0")
+			Task::max_planned_tasks = 0;
+		else{
+			try{
+				Task::max_planned_tasks = std::stoull(value);
+			}catch(...){
+				throw InvalidArguments("unrecognized value for max_planned_tasks");
+			}
+		}
+#else
+		throw AttachARuntimeException("max_planned_tasks is not modifable");
+#endif
+	}else{
+		if(value.empty())
+			run_time_configuration.erase(name);
+		else{
+			run_time_configuration[name] = value;
+		}
+	}
+}
+std::string get_run_time_config(const std::string& name){
+	if(name == "default_fault_action")
+		return enum_to_string(default_fault_action);
+	else if(name == "break_point_action")
+		return enum_to_string(break_point_action);
+	else if(name == "exception_on_language_routine_action")
+		return enum_to_string(exception_on_language_routine_action);
+	else if(name == "enable_thread_naming")
+		return enable_thread_naming ? "true" : "false";
+	else if(name == "allow_intern_access")
+		return allow_intern_access ? "true" : "false";
+	else if(name == "max_running_tasks")
+		return std::to_string(Task::max_running_tasks);
+	else if(name == "max_planned_tasks")
+		return std::to_string(Task::max_planned_tasks);
+	else{
+		auto it = run_time_configuration.find(name);
+		if(it == run_time_configuration.end())
+			return "";
+		return it->second;
+	}
+	
+}

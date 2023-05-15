@@ -8,10 +8,10 @@
 #include "run_time/library/exceptions.hpp"
 #include "library/list_array.hpp"
 #include "run_time/tasks.hpp"
-#include "library/string_convert.hpp"
 #include "run_time/cxxException.hpp"
 #include <thread>
 #include "run_time/dynamic_call.hpp"
+#include "run_time/util/enum_helper.hpp"
 typedef void* (*CALL_FUNC)(...);
 
 thread_local extern bool ex_proxy_enabled;
@@ -21,49 +21,63 @@ extern EventSystem unhandled_exception;
 extern EventSystem ex_fault;
 extern EventSystem errors;
 
+#define DISABLE_RUNTIME_WARNING
+extern EventSystem warning;
+
 #define DISABLE_RUNTIME_INFO
 extern EventSystem info;
 
-enum class FaultActionByDefault {
-	make_dump,
-	show_error,
-	dump_and_show_error,
-	invite_to_debugger,
-	system_default,
-	ignore = system_default
-};
-enum class BreakPointActionByDefault {
-	invite_to_debugger,
-	throw_exception,
-	ignore
-};
+ENUM_ta(FaultAction,uint8_t, 
+	(make_dump)
+	(show_error)
+	(dump_and_show_error)
+	(invite_to_debugger)
+	(system_default)
+	,
+	(ignore = system_default)
+);
+ENUM_t(BreakPointAction, uint8_t,
+	(invite_to_debugger)
+	(throw_exception)
+	(ignore)
+);
+ENUM_t(ExceptionOnLanguageRoutineAction, uint8_t,
+    (invite_to_debugger)
+    (nest_exception)
+    (swap_exception)
+    (ignore)
+);
+
 
 
 
 extern unsigned long fault_reserved_stack_size;
 extern unsigned long fault_reserved_pages;
-extern FaultActionByDefault default_fault_action;
-extern BreakPointActionByDefault break_point_action;
+extern FaultAction default_fault_action;
+extern BreakPointAction break_point_action;
+extern ExceptionOnLanguageRoutineAction exception_on_language_routine_action;
 extern bool enable_thread_naming;
+extern bool allow_intern_access;
+
 bool restore_stack_fault();
 bool need_restore_stack_fault();
 
+void invite_to_debugger(const std::string& reason);
 bool _set_name_thread_dbg(const std::string& name);
-
 std::string _get_name_thread_dbg(int thread_id);
-
 int _thread_id();
 
 void ini_current();
-
+void modify_run_time_config(const std::string& name, const std::string& value);
+std::string get_run_time_config(const std::string& name);
 
 class NativeLib {
 	void* hGetProcIDDLL;
 	std::unordered_map<std::string, typed_lgr<class FuncEnviropment>> envs;
 public:
-	NativeLib(const char* libray_path);
-	CALL_FUNC get_func(const char* func_name);
-	typed_lgr<class FuncEnviropment> get_func_enviro(const char* func_name, const DynamicCall::FunctionTemplate& templ);
-	size_t get_pure_func(const char* func_name);
+	NativeLib(const std::string& libray_path);
+	CALL_FUNC get_func(const std::string& func_name);
+	typed_lgr<class FuncEnviropment> get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ);
+	size_t get_pure_func(const std::string& func_name);
 	~NativeLib();
 };

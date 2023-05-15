@@ -284,6 +284,16 @@ public:
 	}
 	std::string full_info() const override;
 };
+class RoutineHandleExceptions : public AttachARuntimeException {
+	std::exception_ptr second_exception;
+public:
+	RoutineHandleExceptions(std::exception_ptr first_exception, std::exception_ptr second_exception) : AttachARuntimeException(first_exception), second_exception(second_exception) {}
+	const char* name() const override {
+		return "MultipleExceptions";
+	}
+	std::string full_info() const override;
+};
+
 #pragma endregion
 
 

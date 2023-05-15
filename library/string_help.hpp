@@ -36,4 +36,13 @@ namespace string_help {
             return "0";
         return rc;
     }
+    //case insensitive string comparison
+    inline bool iequals(const std::string& a, const std::string& b) {
+        return std::equal(a.begin(), a.end(), b.begin(), b.end(),
+            [](char a, char b) {
+                return tolower(a) == tolower(b);
+            });
+    }
+    
+
 }

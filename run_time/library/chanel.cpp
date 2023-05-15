@@ -11,7 +11,7 @@
 #include "chanel.hpp"
 namespace chanel {
 	template<class Class_>
-	inline typed_lgr<Class_> getClass(ValueItem* vals) {
+	inline typed_lgr<Class_>& getClass(ValueItem* vals) {
 		vals->getAsync();
 		if(vals->meta.vtype == VType::proxy)
 			return (*(typed_lgr<Class_>*)(((ProxyClass*)vals->getSourcePtr()))->class_ptr);
@@ -102,7 +102,18 @@ namespace chanel {
 		std::unique_lock ul(mu);
 		return ChanelHandler__wait_item(ul, res_cache, allow_sub, res_await);
 	}
-	
+	bool AutoEventChanel::notify(const ValueItem& val) {
+		if(!notifier_event.is_deleted()){
+			switch (ntype) {
+				case NotifyType::default_: return notifier_event->notify(const_cast<ValueItem&>(val));
+				case NotifyType::sync: return notifier_event->sync_notify(const_cast<ValueItem&>(val));
+				case NotifyType::async: return notifier_event->async_notify(const_cast<ValueItem&>(val));
+				case NotifyType::await: return notifier_event->await_notify(const_cast<ValueItem&>(val));
+				default: return false;
+			}
+		}
+		else return false;
+	}
 
 	Chanel::Chanel() {}
 	Chanel::~Chanel() {
@@ -123,30 +134,58 @@ namespace chanel {
 	}
 	void Chanel::notify(const ValueItem& val) {
 		std::lock_guard guard(no_race);
-		auto begin = suber.begin();
-		auto end = suber.end();
-		while (begin != end) {
-			if (begin->totalLinks() == 1)
-				begin = suber.erase(begin);
-			else
-				(*begin++)->put(val);
+		{
+			auto begin = suber.begin();
+			auto end = suber.end();
+			while (begin != end) {
+				if (begin->totalLinks() == 1)
+					begin = suber.erase(begin);
+				else
+					(*begin++)->put(val);
+			}
+		}
+		{
+			auto begin = auto_events.begin();
+			auto end = auto_events.end();
+			while (begin != end) {
+				if ((*begin)->notifier_event.is_deleted())
+					begin = auto_events.erase(begin);
+				else
+					(*begin++)->notify(val);
+			}
 		}
 	}
 	void Chanel::notify(ValueItem* vals, uint32_t len) {
 		std::lock_guard guard(no_race);
-		auto begin = suber.begin();
-		auto end = suber.end();
-		while (begin != end) {
-			if (begin->totalLinks() == 1)
-				begin = suber.erase(begin);
-			else {
-				auto ibegin = vals;
-				auto iend = vals + len;
-				auto& cache = (*begin++)->res_cache;
-				while (ibegin != iend)
-					cache.push(*ibegin++);
+		{	
+			auto begin = suber.begin();
+			auto end = suber.end();
+			while (begin != end) {
+				if (begin->totalLinks() == 1)
+					begin = suber.erase(begin);
+				else {
+					auto ibegin = vals;
+					auto iend = vals + len;
+					auto& cache = (*begin++)->res_cache;
+					while (ibegin != iend)
+						cache.push(*ibegin++);
+				}
+				(*begin)->res_await.notify_all();
 			}
-			(*begin)->res_await.notify_all();
+		}
+		{
+			auto begin = auto_events.begin();
+			auto end = auto_events.end();
+			while (begin != end) {
+				if ((*begin)->notifier_event.is_deleted())
+					begin = auto_events.erase(begin);
+				else {
+					auto ibegin = vals;
+					auto iend = vals + len;
+					while (ibegin != iend)
+						(*begin++)->notify(*ibegin++);
+				}
+			}
 		}
 	}
 
@@ -208,7 +247,14 @@ namespace chanel {
 		auto_notifyer.emplace_back(res);
 		return res;
 	}
-
+	typed_lgr<AutoEventChanel> Chanel::auto_event(typed_lgr<EventSystem>& event, AutoEventChanel::NotifyType type){
+		AutoEventChanel* res = new AutoEventChanel();
+		res->notifier_event = event;
+		res->ntype = type;
+		std::lock_guard guard(no_race);
+		auto_events.emplace_back(res);
+		return res;
+	}
 
 	typed_lgr<ChanelHandler> Chanel::create_handle() {
 		std::lock_guard guard(no_race);
@@ -242,18 +288,26 @@ namespace chanel {
 			return;
 		auto_notifyer.erase(found);
 	}
-
+	void Chanel::remove_auto_event(typed_lgr<AutoEventChanel> eventer){
+		std::lock_guard guard(no_race);
+		auto end = auto_events.end();
+		auto found = std::find(auto_events.begin(), end, eventer);
+		if (found == end)
+			return;
+		auto_events.erase(found);
+	}
 
 
 
 	ProxyClassDefine define_Chanel;
 	ProxyClassDefine define_ChanelHandler;
 	ProxyClassDefine define_AutoNotifyChanel;
+	ProxyClassDefine define_AutoEventChanel;
 
 
 	ValueItem* funs_Chanel_notify(ValueItem* vals, uint32_t len) {
 		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
+			throw InvalidArguments("That function recuive [class ptr] [any...]");
 		else if (len == 2)
 			getClass<Chanel>(vals)->notify(vals[1]);
 		else
@@ -261,66 +315,78 @@ namespace chanel {
 		return nullptr;
 	}
 	ValueItem* funs_Chanel_auto_notify(ValueItem* vals, uint32_t len){
-		if (len != 2)
-			throw InvalidArguments("That function recuive only [class ptr] [async res / function]");
+		if (len < 2)
+			throw InvalidArguments("That function recuive [class ptr] [async res / function]");
 		switch (vals[1].meta.vtype) {
 		case VType::async_res:{
 			auto task = *(typed_lgr<Task>*)vals[1].getSourcePtr();
-			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify(task)), &define_AutoNotifyChanel));
+			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify(task)), &define_AutoNotifyChanel), VType::proxy, no_copy);
 		}
 		case VType::function: {
 			auto func = *(typed_lgr<FuncEnviropment>*)vals[1].getSourcePtr();
 			ValueItem noting;
 			typed_lgr task = new Task(func, noting);
-			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify(task)), &define_AutoNotifyChanel));
+			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify(task)), &define_AutoNotifyChanel), VType::proxy, no_copy);
 		}
 		default:
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
+			throw InvalidArguments("That function recuive [class ptr] [any...]");
 		}
 	}
 	ValueItem* funs_Chanel_auto_notify_continue(ValueItem* vals, uint32_t len){
-		if (len != 2)
-			throw InvalidArguments("That function recuive only [class ptr] [async res / function]");
+		if (len < 2)
+			throw InvalidArguments("That function recuive [class ptr] [async res / function]");
 		switch (vals[1].meta.vtype) {
 		case VType::async_res:{
 			auto task = *(typed_lgr<Task>*)vals[1].getSourcePtr();
-			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_continue(task)), &define_AutoNotifyChanel));
+			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_continue(task)), &define_AutoNotifyChanel), VType::proxy, no_copy);
 		}
 		case VType::function: {
 			auto& func = *vals[1].funPtr();
 			ValueItem noting;
 			typed_lgr task = new Task(func, noting);
-			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_continue(task)), &define_AutoNotifyChanel));
+			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_continue(task)), &define_AutoNotifyChanel), VType::proxy, no_copy);
 		}
 		default:
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
+			throw InvalidArguments("That function recuive [class ptr] [any...]");
 		}
 	}
 	ValueItem* funs_Chanel_auto_notify_skip(ValueItem* vals, uint32_t len){
-		if (len != 3)
-			throw InvalidArguments("That function recuive only [class ptr] [async res / function] [start from]");
+		if (len < 3)
+			throw InvalidArguments("That function recuive [class ptr] [async res / function] [start from]");
 		size_t start_from = (size_t)vals[2];
 		switch (vals[1].meta.vtype) {
 		case VType::async_res:{
 			auto task = *(typed_lgr<Task>*)vals[1].getSourcePtr();
-			return new ValueItem(new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_skip(task,start_from)), &define_AutoNotifyChanel));
+			return new ValueItem(new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_skip(task,start_from)), &define_AutoNotifyChanel), VType::proxy, no_copy);
 		}
 		case VType::function: {
 			auto& func = *vals[1].funPtr();
 			ValueItem noting;
 			typed_lgr task = new Task(func, noting);
-			return new ValueItem(new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_skip(task,start_from)), &define_AutoNotifyChanel));
+			return new ValueItem(new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_skip(task,start_from)), &define_AutoNotifyChanel), VType::proxy, no_copy);
 		}
 		default:
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
+			throw InvalidArguments("That function recuive [class ptr] [any...]");
 		}
 	}
-	
+	ValueItem* funs_Chanel_auto_event(ValueItem* vals, uint32_t len){
+		if (len < 3)
+			throw InvalidArguments("That function recuive [class ptr] [any...]");
+		else {
+			return new ValueItem(new ProxyClass(new typed_lgr(
+				getClass<Chanel>(vals)->auto_event(getClass<EventSystem>(vals + 1),(AutoEventChanel::NotifyType)(uint8_t)vals[2])
+				), &define_AutoEventChanel), VType::proxy, no_copy);
+
+			;
+			return nullptr;
+		}
+	}
+
 	ValueItem* funs_Chanel_create_handle(ValueItem* vals, uint32_t len) {
 		if (len < 1)
 			throw InvalidArguments("That function recuive only [class ptr] [any...]");
 		else
-			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->create_handle()), &define_ChanelHandler));
+			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->create_handle()), &define_ChanelHandler), VType::proxy, no_copy);
 	}
 	ValueItem* funs_Chanel_remove_handle(ValueItem* vals, uint32_t len) {
 		if (len < 2)
@@ -335,6 +401,14 @@ namespace chanel {
 			throw InvalidArguments("That function recuive only [class ptr] [any...]");
 		else {
 			getClass<Chanel>(vals)->remove_auto_notify(getClass<AutoNotifyChanel>(vals + 1));
+			return nullptr;
+		}
+	}
+	ValueItem* funs_Chanel_remove_auto_event(ValueItem* vals, uint32_t len) {
+		if (len < 2)
+			throw InvalidArguments("That function recuive only [class ptr] [any...]");
+		else {
+			getClass<Chanel>(vals)->remove_auto_event(getClass<AutoEventChanel>(vals + 1));
 			return nullptr;
 		}
 	}
@@ -390,9 +464,11 @@ namespace chanel {
 		define_Chanel.funs["remove_handle"] = { new FuncEnviropment(funs_Chanel_remove_handle,false),false,ClassAccess::pub };
 		define_Chanel.funs["add_handle"] = { new FuncEnviropment(funs_Chanel_add_handle,false),false,ClassAccess::pub };
 		define_Chanel.funs["auto_notify"] = { new FuncEnviropment(funs_Chanel_auto_notify,false),false,ClassAccess::pub };
+		define_Chanel.funs["auto_event"] = { new FuncEnviropment(funs_Chanel_auto_event,false),false,ClassAccess::pub };
 		define_Chanel.funs["auto_notify_continue"] = { new FuncEnviropment(funs_Chanel_auto_notify_continue,false),false,ClassAccess::pub };
 		define_Chanel.funs["auto_notify_skip"] = { new FuncEnviropment(funs_Chanel_auto_notify_skip,false),false,ClassAccess::pub };
 		define_Chanel.funs["remove_auto_notify"] = { new FuncEnviropment(funs_Chanel_remove_auto_notify,false),false,ClassAccess::pub };
+		define_Chanel.funs["remove_auto_event"] = { new FuncEnviropment(funs_Chanel_remove_auto_event,false),false,ClassAccess::pub };
 
 
 		define_ChanelHandler.copy = AttachA::Interface::special::proxyCopy<ChanelHandler, true>;
@@ -407,14 +483,18 @@ namespace chanel {
 		define_AutoNotifyChanel.copy = AttachA::Interface::special::proxyCopy<AutoNotifyChanel, true>;
 		define_AutoNotifyChanel.destructor = AttachA::Interface::special::proxyDestruct<AutoNotifyChanel, true>;
 		define_AutoNotifyChanel.name = "auto_notify_chanel";
+
+		define_AutoEventChanel.copy = AttachA::Interface::special::proxyCopy<AutoEventChanel, true>;
+		define_AutoEventChanel.destructor = AttachA::Interface::special::proxyDestruct<AutoEventChanel, true>;
+		define_AutoEventChanel.name = "auto_event_chanel";
 	}
 
 	namespace constructor {
 		ValueItem* createProxy_Chanel(ValueItem*, uint32_t) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new Chanel()), &define_Chanel), VType::proxy);
+			return new ValueItem(new ProxyClass(new typed_lgr(new Chanel()), &define_Chanel), VType::proxy, no_copy);
 		}
 		ValueItem* createProxy_ChanelHandler(ValueItem*, uint32_t) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new ChanelHandler()), &define_ChanelHandler), VType::proxy);
+			return new ValueItem(new ProxyClass(new typed_lgr(new ChanelHandler()), &define_ChanelHandler), VType::proxy, no_copy);
 		}
 	}
 }
