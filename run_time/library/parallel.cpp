@@ -4,7 +4,6 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#pragma once
 #include "../AttachA_CXX.hpp"
 #include "../../configuration/agreement/symbols.hpp"
 namespace parallel {

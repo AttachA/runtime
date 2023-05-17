@@ -4,7 +4,6 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#pragma once
 #include <bit>
 #include <stdint.h>
 #include "tools.hpp"

@@ -50,19 +50,50 @@ namespace AttachA {
 			delete res;
 			return m;
 		}
-		template<class ...Types>
-		ValueItem makeCall(ClassAccess access, ClassValue& c, const std::string& fun_name, const Types&... types) {
-			ValueItem args[] = { ValueItem(&c,VType::class_, as_refrence), ABI_IMPL::BVcast(types)... };
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
+		inline ValueItem makeCall(ClassAccess access, MorphValue& c, const std::string& fun_name) {
+			ValueItem args(&c, VType::morph, as_refrence);
+			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&args, 1);
 			if (res == nullptr)
 				return {};
 			ValueItem m(std::move(*res));
 			delete res;
 			return m;
 		}
-		inline ValueItem makeCall(ClassAccess access, MorphValue& c, const std::string& fun_name) {
-			ValueItem args(&c, VType::morph, as_refrence);
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&args, 1);
+		inline ValueItem makeCall(ClassAccess access, ProxyClass& c, const std::string& fun_name) {
+			ValueItem arg(&c, VType::proxy, as_refrence);
+			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&arg, 1);
+			if (res == nullptr)
+				return {};
+			ValueItem m(std::move(*res));
+			delete res;
+			return m;
+		}
+		inline ValueItem makeCall(ClassAccess access, ValueItem& c, const std::string& fun_name) {
+			ValueItem* res;
+			switch (c.meta.vtype) {
+			case VType::class_:
+				res = ((ClassValue&)c).callFnPtr(fun_name, access)->syncWrapper(&c, 1);
+				break;
+			case VType::morph:
+				res = ((MorphValue&)c).callFnPtr(fun_name, access)->syncWrapper(&c, 1);
+				break;
+			case VType::proxy:
+				res = ((ProxyClass&)c).callFnPtr(fun_name, access)->syncWrapper(&c, 1);
+				break;
+			default:
+				throw NotImplementedException();
+			}
+			if (res == nullptr)
+				return {};
+			ValueItem m(std::move(*res));
+			delete res;
+			return m;
+		}
+		
+		template<class ...Types>
+		ValueItem makeCall(ClassAccess access, ClassValue& c, const std::string& fun_name, const Types&... types) {
+			ValueItem args[] = { ValueItem(&c,VType::class_, as_refrence), ABI_IMPL::BVcast(types)... };
+			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
 			if (res == nullptr)
 				return {};
 			ValueItem m(std::move(*res));
@@ -79,41 +110,10 @@ namespace AttachA {
 			delete res;
 			return m;
 		}
-		inline ValueItem makeCall(ClassAccess access, ProxyClass& c, const std::string& fun_name) {
-			ValueItem arg(&c, VType::proxy, as_refrence);
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&arg, 1);
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
 		template<class ...Types>
 		ValueItem makeCall(ClassAccess access, ProxyClass& c, const std::string& fun_name, const Types&... types) {
 			ValueItem args[] = { ValueItem(&c,VType::proxy, as_refrence), ABI_IMPL::BVcast(types)... };
 			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
-
-		inline ValueItem makeCall(ClassAccess access, ValueItem& c, const std::string& fun_name) {
-			ValueItem* res;
-			switch (c.meta.vtype) {
-			case VType::class_:
-				res = ((ClassValue&)c).callFnPtr(fun_name, access)->syncWrapper(&c, 1);
-				break;
-			case VType::morph:
-				res = ((MorphValue&)c).callFnPtr(fun_name, access)->syncWrapper(&c, 1);
-				break;
-			case VType::proxy:
-				res = ((ProxyClass&)c).callFnPtr(fun_name, access)->syncWrapper(&c, 1);
-				break;
-			default:
-				throw NotImplementedException();
-			}
 			if (res == nullptr)
 				return {};
 			ValueItem m(std::move(*res));
