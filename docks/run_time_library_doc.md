@@ -692,6 +692,7 @@
         arguments: ignored
         desc: 'get address of the server'
         returns: proxy<universal_address>
+        
 ### tcp_network_stream
     desc: 'delay write to the network, when has available read data'
     constructor: none
@@ -717,13 +718,14 @@
 	fun: write_file
         arguments: string'file_path', {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
         arguments: proxy<file_handle>, {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
+        arguments: proxy<blocking_file_handle>, {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
         desc: 'send up to end of file if bytes == 0'
-        warn: 'this function is like force_write, available read data will be lost'
+        warn: 'this function erase available read data, will be lost'
         returns: noting
 
 	fun: force_write
         arguments: ignored
-        desc: 'flush write buffer to socket, all available read data will be lost'
+        desc: 'flush write buffer to socket, all available read data will be cached'
         returns: noting
 
 	fun: force_write_and_close
@@ -734,6 +736,11 @@
 	fun: close
         arguments: ignored
         desc: 'close socket'
+        returns: noting
+
+	fun: reset
+        arguments: ignored
+        desc: 'close socket without waiting for all data to be sent, usefull when need close bad connection'
         returns: noting
 
 	fun: is_closed
@@ -770,6 +777,7 @@
 	fun: write_file
         arguments: string'file_path', {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
         arguments: proxy<file_handle>, {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
+        arguments: proxy<blocking_file_handle>, {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
         desc: 'send up to end of file if bytes == 0'
         returns: noting
 
@@ -777,6 +785,12 @@
         arguments: ignored
         desc: 'close socket'
         returns: noting
+
+	fun: reset
+        arguments: ignored
+        desc: 'close socket without waiting for all data to be sent, usefull when need close bad connection'
+        returns: noting
+
 
 	fun: is_closed
         arguments: ignored
@@ -832,6 +846,7 @@
     fun: send_file
         arguments: string'file_path', {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
         arguments: proxy<file_handle>, {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
+        arguments: proxy<blocking_file_handle>, {opt, def: 0}ui64'offset', {opt, def: 0}ui64'bytes', {opt, def: 0}ui32'block_size'
         desc: 'send up to end of file if bytes == 0'
         returns: boolean
             desc: 'return false if connection closed, else true'
@@ -840,6 +855,12 @@
         arguments: ignored
         desc: 'close connection'
         returns: noting
+
+	fun: reset
+        arguments: ignored
+        desc: 'close connection without waiting for all data to be sent, usefull when need close bad connection'
+        returns: noting
+
 
 ## udp_socket
     oem'windows': 'use winsock2 with iocp'

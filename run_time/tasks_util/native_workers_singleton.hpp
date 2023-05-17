@@ -34,7 +34,6 @@ class NativeWorkersSingleton {
     static inline NativeWorkersSingleton* instance = nullptr;
     static inline std::mutex instance_mutex;
     std::shared_ptr<void> m_hCompletionPort;
-    
     NativeWorkersSingleton(){
         m_hCompletionPort.reset(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0), CloseHandle);
         if(!m_hCompletionPort)
@@ -44,18 +43,14 @@ class NativeWorkersSingleton {
     }
 
     void dispatch() {
+        if(enable_thread_naming)
+            _set_name_thread_dbg("NativeWorkersSingleton::dispatch");
         while(true){
             DWORD dwBytesTransferred = 0;
             ULONG_PTR data = 0;
             NativeWorkerHandle* lpOverlapped = nullptr;
 
             auto status = GetQueuedCompletionStatus(m_hCompletionPort.get(), &dwBytesTransferred, &data, (OVERLAPPED**)&lpOverlapped, INFINITE);
-            if(!status)
-            {
-                ValueItem notify{ "GetQueuedCompletionStatus failed with error ", (uint32_t)GetLastError(), m_hCompletionPort.get() };
-                errors.async_notify(notify);
-                continue;
-            }
             
             if(NULL == data){
                 ValueItem notify{ "GetQueuedCompletionStatus data is null" };
@@ -75,7 +70,7 @@ class NativeWorkersSingleton {
     bool _register_handle(HANDLE hFile, void* data){
         if(!CreateIoCompletionPort(hFile, m_hCompletionPort.get(), (ULONG_PTR)data, 0)){
             ValueItem notify{ "CreateIoCompletionPort failed with error ", (uint32_t)GetLastError() };
-            errors.async_notify(notify);
+            errors.sync_notify(notify);
             return false;
         }
         return true;
@@ -86,6 +81,7 @@ class NativeWorkersSingleton {
             std::lock_guard<std::mutex> lock(instance_mutex);
             if(!instance)
                 instance = new NativeWorkersSingleton();
+            return *instance;
         }
     }
 public:

@@ -13,12 +13,16 @@ class i_p_optional {
         char dummy;
         T value;
         no_construct() : dummy() {}
+        no_construct(const T& v) : value(v) {}
+        no_construct(T&& v) : value(std::move(v)) {}
+
         ~no_construct() {}
     } v;
     bool contains_value;
 public:
     i_p_optional() : contains_value(false) {}
-    i_p_optional(T value) : value(v.value), contains_value(true) {}
+    i_p_optional(const T& value) : v(value), contains_value(true) {}
+    i_p_optional(T&& value) : v(std::move(value)), contains_value(true) {}
     i_p_optional(const i_p_optional& other) : contains_value(other.contains_value) {
         if (contains_value) 
             new (&v.value) T(other.value);
@@ -74,11 +78,11 @@ public:
     T& operator*() {
         if(!contains_value)
             throw std::runtime_error("i_p_optional does not contain value");
-        return value;
+        return v.value;
     }
     T* operator&(){
         if(contains_value)
-            return &value;
+            return &v.value;
         else
             return nullptr;
     }
@@ -86,7 +90,7 @@ public:
         return contains_value;
     }
     template<typename... Args>
-    void make_construct(){
+    void make_construct(Args... args){
         if(contains_value)
             throw std::runtime_error("i_p_optional already contains value");
         new (&v.value) T(std::forward<Args>(args)...);

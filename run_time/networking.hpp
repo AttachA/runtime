@@ -8,10 +8,9 @@
 #define RUN_TIME_NETWORKING
 #include "link_garbage_remover.hpp"
 #include "attacha_abi_structs.hpp"
-namespace{
-	namespace files{
-		class FileHandle;
-	}
+namespace files{
+	class FileHandle;
+	class BlockingFileHandle;
 }
 class TcpNetworkServer {
 	struct TcpNetworkManager* handle;
@@ -54,8 +53,9 @@ public:
 	bool send(uint8_t* data, int32_t size);
 	bool send_file(const char* file_path, size_t file_path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size);
 	bool send_file(class ::files::FileHandle& file_path, uint64_t data_len, uint64_t offset, uint32_t chunks_size);
-	
+	bool send_file(class ::files::BlockingFileHandle& file, uint64_t data_len, uint64_t offset, uint32_t chunks_size);
 	void close();
+	void reset();
 };
 struct udp_socket{
 	class udp_handle* handle;

@@ -32,6 +32,8 @@ void init_define_TcpNetworkBlocking();
 LPFN_ACCEPTEX _AcceptEx;
 LPFN_GETACCEPTEXSOCKADDRS _GetAcceptExSockaddrs;
 LPFN_CONNECTEX _ConnectEx;
+LPFN_TRANSMITFILE _TransmitFile;
+LPFN_DISCONNECTEX _DisconnectEx;
 WSADATA wsaData;
 
 void init_win_fns(SOCKET sock){
@@ -41,6 +43,8 @@ void init_win_fns(SOCKET sock){
 	GUID GuidAcceptEx = WSAID_ACCEPTEX;
 	GUID GuidGetAcceptExSockaddrs = WSAID_GETACCEPTEXSOCKADDRS;
 	GUID GuidConnectEx = WSAID_CONNECTEX;
+	GUID GuidTransmitFile = WSAID_TRANSMITFILE;
+	GUID GuidDisconnectEx = WSAID_DISCONNECTEX;
 	DWORD dwBytes = 0;
 
 	if (SOCKET_ERROR == WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &GuidAcceptEx, sizeof(GuidAcceptEx), &_AcceptEx, sizeof(_AcceptEx), &dwBytes, NULL, NULL))
@@ -49,6 +53,12 @@ void init_win_fns(SOCKET sock){
 		throw std::runtime_error("WSAIoctl failed get GetAcceptExSockaddrs");
 	if (SOCKET_ERROR == WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &GuidConnectEx, sizeof(GuidConnectEx), &_ConnectEx, sizeof(_ConnectEx), &dwBytes, NULL, NULL))
 		throw std::runtime_error("WSAIoctl failed get ConnectEx");
+	if(SOCKET_ERROR == WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &GuidTransmitFile, sizeof(GuidTransmitFile), &_TransmitFile, sizeof(_TransmitFile), &dwBytes, NULL, NULL))
+		throw std::runtime_error("WSAIoctl failed get TransmitFile");
+	if(SOCKET_ERROR == WSAIoctl(sock, SIO_GET_EXTENSION_FUNCTION_POINTER, &GuidDisconnectEx, sizeof(GuidDisconnectEx), &_DisconnectEx, sizeof(_DisconnectEx), &dwBytes, NULL, NULL))
+		throw std::runtime_error("WSAIoctl failed get DisconnectEx");
+
+
 	inited = true;
 }
 
@@ -319,6 +329,7 @@ void get_address_from_valueItem(ValueItem& ip_port, sockaddr_storage& addr_stora
 #pragma region TCP
 struct tcp_handle : public NativeWorkerHandle {
 	std::list<std::tuple<char*, size_t>> write_queue;
+	std::list<std::tuple<char*, size_t>> read_queue;
 	typed_lgr<Task> notify_task;
 	SOCKET socket;
 	WSABUF buffer;
@@ -327,21 +338,28 @@ struct tcp_handle : public NativeWorkerHandle {
     int sent_bytes;
 	int readed_bytes;
 	int data_len;
+	bool force_mode;
 	HANDLE file_handle;
+	uint32_t max_read_queue_size;
 	enum class error : uint8_t{
 		none = 0,
 		remote_close = 1,
 		local_close = 2,
+		local_reset = 3,
+		read_queue_overflow = 4,
+		invalid_state = 5,
 		undefined_error = 0xFF
 	} invalid_reason = error::none;
 	enum class Opcode : uint8_t{
 		ACCEPT,
 		READ,
 		WRITE,
-		TRANSMIT_FILE
+		TRANSMIT_FILE,
+		INTERNAL_READ,
+		INTERNAL_CLOSE
 	} opcode = Opcode::ACCEPT;
 
-	tcp_handle(SOCKET socket, size_t buffer_len, NativeWorkerManager* manager) : socket(socket), NativeWorkerHandle(manager){
+	tcp_handle(SOCKET socket, size_t buffer_len, NativeWorkerManager* manager, uint32_t read_queue_size = 10) : socket(socket), NativeWorkerHandle(manager), max_read_queue_size(read_queue_size){
 		SecureZeroMemory(&overlapped, sizeof(OVERLAPPED));
 		data = new char[buffer_len];
 		buffer.buf = data;
@@ -350,6 +368,7 @@ struct tcp_handle : public NativeWorkerHandle {
 		total_bytes = 0;
 		sent_bytes = 0;
 		readed_bytes = 0;
+		force_mode = false;
 	}
 	~tcp_handle(){
 		close();
@@ -431,12 +450,13 @@ struct tcp_handle : public NativeWorkerHandle {
 		if(!to_write)
 			return -1;
 
-
+		force_mode = true;
 		if(data_len < to_write_len){
 			buffer.len = data_len;
 			buffer.buf = this->data;
 			if(!send_await())
 				return -1;
+			force_mode = false;
 			return sent_bytes;
 		}
 		else{
@@ -445,6 +465,7 @@ struct tcp_handle : public NativeWorkerHandle {
 			memcpy(this->data, to_write, to_write_len);
 			if(!send_await())
 				return -1;
+			force_mode = false;
 			return sent_bytes;
 		}
 	}
@@ -453,32 +474,9 @@ struct tcp_handle : public NativeWorkerHandle {
 	void read_data(){
 		if(!data)
 			return;
-		buffer.len = data_len;
-		buffer.buf = data;
-
-		DWORD flags = 0;
 		typed_lgr<Task> task_await = notify_task = Task::dummy_task();
 		opcode = Opcode::READ;
-		int result = WSARecv(socket, &buffer, 1, NULL, &flags, &overlapped, NULL);
-		if ((SOCKET_ERROR == result)){
-			auto error = WSAGetLastError();
-			if(WSA_IO_PENDING != error){
-				switch (error){
-				case WSAECONNRESET:
-					invalid_reason = error::remote_close;
-					break;
-				case WSAECONNABORTED:
-				case WSA_OPERATION_ABORTED:
-					invalid_reason = error::local_close;
-					break;
-				default:
-					invalid_reason = error::undefined_error;
-					break;
-				}
-				close();
-				return;
-			}
-		}
+		read();
 		Task::await_task(task_await, false);
 		notify_task = nullptr;
 	}
@@ -499,8 +497,21 @@ struct tcp_handle : public NativeWorkerHandle {
 		}
 	}
 	void read_available(char* extern_buffer, int buffer_len, int& readed){
-		if(!readed_bytes)
-			read_data();
+		if(!readed_bytes){
+			if(read_queue.empty())
+				read_data();
+			else{
+				auto item = read_queue.front();
+				read_queue.pop_front();
+				auto& read_data = std::get<0>(item);
+				auto& val_len = std::get<1>(item);
+				std::unique_ptr<char[]> read_data_ptr(read_data);
+				buffer.buf  = data;
+				buffer.len = data_len;
+				readed_bytes = val_len;
+				memcpy(data, read_data, val_len);
+			}
+		}
 		if(readed_bytes < buffer_len){
 			readed = readed_bytes;
 			memcpy(extern_buffer, data, readed_bytes);
@@ -523,26 +534,11 @@ struct tcp_handle : public NativeWorkerHandle {
 	}
 
 
-	void close(){
+	void close(error err = error::local_close){
 		if(!data)
 			return;
-		if(!HasOverlappedIoCompleted(&overlapped)){
-			CancelIoEx((HANDLE)socket, &overlapped);
-			WaitForSingleObjectEx((HANDLE)socket, INFINITE, TRUE);
-		}
-		std::list<std::tuple<char*, size_t>> clear_write_queue;
-		write_queue.swap(clear_write_queue);
-		for(auto& item : clear_write_queue)
-			delete[] std::get<0>(item);
-		readed_bytes = 0;
-		sent_bytes = 0;
-		closesocket(socket);
-		delete[] data;
-		data = nullptr;
-		invalid_reason = error::local_close;
-		if(notify_task)
-			Task::start(notify_task);
-		notify_task = nullptr;
+		pre_close(err);
+		internal_close();
 	}
 
 	void handle(unsigned long dwBytesTransferred){
@@ -559,18 +555,57 @@ struct tcp_handle : public NativeWorkerHandle {
 			if(sent_bytes < total_bytes){
 				buffer.buf = data + sent_bytes;
 				buffer.len = total_bytes - sent_bytes;
-				if(!data_available())
-					send();
+				if(!data_available()){
+					if(!send())
+						Task::start(notify_task);
+				}
 				else{
 					char* data = new char[buffer.len];
 					memcpy(data, buffer.buf, buffer.len);
 					write_queue.push_front(std::make_tuple(data, buffer.len));
-					Task::start(notify_task);
+					if(force_mode){
+						opcode = Opcode::INTERNAL_READ;
+						read();
+					}
+					else
+						Task::start(notify_task);
 				}
 			}
 			else Task::start(notify_task);
 		case Opcode::TRANSMIT_FILE:
 			Task::start(notify_task);
+			break;
+		case Opcode::INTERNAL_READ:
+			if(dwBytesTransferred){
+				char* buffer = new char[dwBytesTransferred];
+				memcpy(buffer, data, dwBytesTransferred);
+				read_queue.push_back(std::make_tuple(buffer, dwBytesTransferred));
+			}
+			if(!data_available()){
+				if(read_queue.size() > max_read_queue_size)
+					 close(error::read_queue_overflow);
+				else read();
+			}
+			else{
+				if(write_queue.empty())
+					close(error::invalid_state);
+				else{
+					auto item = write_queue.front();
+					write_queue.pop_front();
+					auto& write_data = std::get<0>(item);
+					auto& val_len = std::get<1>(item);
+					memcpy(data, write_data, val_len);
+					delete[] write_data;
+					buffer.buf = data;
+					buffer.len = val_len;
+					if(!send())
+						Task::start(notify_task);
+				}
+			}
+			break;
+		case Opcode::INTERNAL_CLOSE:
+			closesocket(socket);
+			socket = INVALID_SOCKET;
 			break;
 		default:
 			break;
@@ -582,6 +617,8 @@ struct tcp_handle : public NativeWorkerHandle {
 			return;
 		buffer.len = data_len;
 		buffer.buf = this->data;
+		write_queue ={};
+		force_mode = true;
 		while(data_len < len) {
 			memcpy(buffer.buf, data, buffer.len);
 			if(!send_await())
@@ -595,13 +632,14 @@ struct tcp_handle : public NativeWorkerHandle {
 			buffer.len = len;
 			send_await();
 		}
+		force_mode = false;
 		close();
 	}
 
 
 	bool send_file(void* file, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
 		if(!data)
-			return;
+			return false;
 		if(chunks_size == 0)
 			chunks_size = 0x1000;
 		if(data_len == 0){
@@ -630,7 +668,7 @@ struct tcp_handle : public NativeWorkerHandle {
 	}
 	bool send_file(const char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
 		if(!data)
-			return;
+			return false;
 		if(chunks_size == 0)
 			chunks_size = 0x1000;
 		std::u16string wpath;
@@ -653,46 +691,80 @@ struct tcp_handle : public NativeWorkerHandle {
 		return data != nullptr;
 	}
 
-
+	void reset(){
+		if(!data)
+			return;
+		pre_close(error::local_reset);
+		closesocket(socket);//with iocp socket not send everything and cancel all operations
+	}
 	void connection_reset(){
 		data = nullptr;
 		invalid_reason = error::remote_close;
 		if(notify_task)
 			Task::start(notify_task);
 		notify_task = nullptr;
-		if(!HasOverlappedIoCompleted(&overlapped)){
-			CancelIoEx((HANDLE)socket, &overlapped);
-			WaitForSingleObjectEx((HANDLE)socket, INFINITE, TRUE);
-		}
 		readed_bytes = 0;
-		closesocket(socket);
+		internal_close();
 	}
 private:
+	void pre_close(error err){
+		std::list<std::tuple<char*, size_t>> clear_write_queue;
+		write_queue.swap(clear_write_queue);
+		for(auto& item : clear_write_queue)
+			delete[] std::get<0>(item);
+		readed_bytes = 0;
+		sent_bytes = 0;
+		delete[] data;
+		data = nullptr;
+		invalid_reason = err;
+		if(notify_task)
+			Task::start(notify_task);
+		notify_task = nullptr;
+	}
+	void internal_close(){
+		opcode = Opcode::INTERNAL_CLOSE;
+		if(!_DisconnectEx(socket, nullptr, TF_REUSE_SOCKET, 0)){
+			if(WSAGetLastError() != ERROR_IO_PENDING)
+				invalid_reason = error::local_close;
+		}
+	}
+	bool handle_error(){
+		auto error = WSAGetLastError();
+		if(WSA_IO_PENDING == error) return true;
+		else {
+			switch (error){
+			case WSAECONNRESET:
+				invalid_reason = error::remote_close;
+				break;
+			case WSAECONNABORTED:
+			case WSA_OPERATION_ABORTED:
+			case WSAENETRESET:
+				invalid_reason = error::local_close;
+				break;
+			case WSAEWOULDBLOCK: return false;//try later
+			default:
+				invalid_reason = error::undefined_error;
+				break;
+			}
+			close();
+			return false;
+		}
+	}
+	void read(){
+		DWORD flags = 0;
+		buffer.buf = this->data;
+		buffer.len = data_len;
+		int result = WSARecv(socket, &buffer, 1, NULL, &flags, &overlapped, NULL);
+		if ((SOCKET_ERROR == result)){
+			handle_error();
+			return;
+		}
+	}
 	bool send(){
 		DWORD flags = 0;
 		opcode = Opcode::WRITE;
 		int result = WSASend(socket, &buffer, 1, NULL, flags, &overlapped, NULL);
-		if ((SOCKET_ERROR == result)){
-			auto error = WSAGetLastError();
-			if(WSA_IO_PENDING != error){
-				switch (error){
-				case WSAECONNRESET:
-					invalid_reason = error::remote_close;
-					break;
-				case WSAECONNABORTED:
-				case WSA_OPERATION_ABORTED:
-				case WSAENETRESET:
-					invalid_reason = error::local_close;
-					break;
-				case WSAEWOULDBLOCK: return false;//try later
-				default:
-					invalid_reason = error::undefined_error;
-					break;
-				}
-				close();
-				return false;
-			}
-		}
+		if ((SOCKET_ERROR == result))return handle_error();
 		return true;
 	}
 	bool send_await(){
@@ -707,7 +779,8 @@ private:
 		overlapped.Offset = offset & 0xFFFFFFFF;
 		overlapped.OffsetHigh = offset >> 32;
 		typed_lgr<Task> task_await = notify_task = Task::dummy_task();
-		bool res = TransmitFile(sock, FILE, block, chunks_size, &overlapped, NULL, TF_USE_KERNEL_APC);
+		opcode = Opcode::TRANSMIT_FILE;
+		bool res = _TransmitFile(sock, FILE, block, chunks_size, &overlapped, NULL, TF_USE_KERNEL_APC);
 		if(!res && WSAGetLastError() != WSA_IO_PENDING)
 			res = false;
 		Task::await_task(task_await);
@@ -765,7 +838,6 @@ public:
 			return handle->data_available();
 		return false;
 	}
-	//put data to queue
 	void write(char* data, size_t size){
 		std::lock_guard lg(mutex);
 		if(handle){
@@ -784,11 +856,11 @@ public:
 		}
 		return false;
 	}
-	bool write_file(::files::FileHandle& fhandle, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
+	bool write_file(void* fhandle, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
 		std::lock_guard lg(mutex);
 		if(handle){
 			while(handle->valid())if(!handle->send_queue_item())break;
-			return handle->send_file(fhandle.internal_get_handle(), data_len, offset, chunks_size);
+			return handle->send_file(fhandle, data_len, offset, chunks_size);
 		}
 		return false;
 	}
@@ -805,10 +877,21 @@ public:
 	}
 	void close(){
 		std::lock_guard lg(mutex);
-		if(handle)
+		if(handle){
 			handle->close();
+			delete handle;
+		}
+		handle = nullptr;
+	}	
+	void reset(){
+		std::lock_guard lg(mutex);
+		if(handle){
+			handle->reset();
+			delete handle;
+		}
 		handle = nullptr;
 	}
+	
 	bool is_closed(){
 		std::lock_guard lg(mutex);
 		if(handle){
@@ -884,11 +967,12 @@ ValueItem* funs_TcpNetworkStream_write_file(ValueItem* args, uint32_t len){
 			chunks_size = (uint32_t)args[4];
 
 		if(arg1.meta.vtype == VType::proxy){
-			auto& proxy = *((ProxyClass*)args[1].val);
+			auto& proxy = *((ProxyClass*)args[1].getSourcePtr());
 			if(proxy.declare_ty){
 				if(proxy.declare_ty->name == "file_handle"){
-					return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->write_file(*(::files::FileHandle*)proxy.class_ptr, data_len, offset, chunks_size));
-				}
+					return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->write_file((*(typed_lgr<::files::FileHandle>*)proxy.class_ptr)->internal_get_handle(), data_len, offset, chunks_size));
+				}else if(proxy.declare_ty->name == "blocking_file_handle")
+					return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->write_file((*(typed_lgr<::files::BlockingFileHandle>*)proxy.class_ptr)->internal_get_handle(), data_len, offset, chunks_size));
 			}
 			throw InvalidArguments("The second argument must be a file handle or a file path.");
 		}
@@ -926,6 +1010,15 @@ ValueItem* funs_TcpNetworkStream_close(ValueItem* args, uint32_t len){
 	}else
 		throw InvalidArguments("The number of arguments must be 1.");
 }
+ValueItem* funs_TcpNetworkStream_reset(ValueItem* args, uint32_t len){
+	if(len == 1){
+		if(args[0].meta.vtype != VType::proxy)
+			throw InvalidArguments("The first argument must be a client_context.");
+		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->reset();
+		return nullptr;
+	}else
+		throw InvalidArguments("The number of arguments must be 1.");
+}
 ValueItem* funs_TcpNetworkStream_is_closed(ValueItem* args, uint32_t len){
 	if(len == 1){
 		if(args[0].meta.vtype != VType::proxy)
@@ -959,6 +1052,7 @@ void init_define_TcpNetworkStream(){
 	define_TcpNetworkStream.funs["force_write"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_force_write, false), false, ClassAccess::pub};
 	define_TcpNetworkStream.funs["force_write_and_close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_force_write_and_close, false), false, ClassAccess::pub};
 	define_TcpNetworkStream.funs["close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_close, false), false, ClassAccess::pub};
+	define_TcpNetworkStream.funs["reset"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_close, false), false, ClassAccess::pub};
 	define_TcpNetworkStream.funs["is_closed"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_is_closed, false), false, ClassAccess::pub};
 	define_TcpNetworkStream.funs["error"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_error, false), false, ClassAccess::pub};
 }
@@ -1011,16 +1105,24 @@ public:
 			return handle->send_file(path, len, data_len, offset, block_size);
 		return nullptr;
 	}
-	ValueItem write_file(::files::FileHandle& fhandle, uint64_t data_len, uint64_t offset, uint32_t block_size){
+	ValueItem write_file(void* fhandle, uint64_t data_len, uint64_t offset, uint32_t block_size){
 		std::lock_guard lg(mutex);
 		if(handle)
-			return handle->send_file(fhandle.internal_get_handle(), data_len, offset, block_size);
+			return handle->send_file(fhandle, data_len, offset, block_size);
 		return nullptr;
 	}
 
 	void close(){
 		std::lock_guard lg(mutex);
 		if(handle){
+			delete handle;
+			handle = nullptr;
+		}
+	}
+	void reset(){
+		std::lock_guard lg(mutex);
+		if(handle){
+			handle->reset();
 			delete handle;
 			handle = nullptr;
 		}
@@ -1096,9 +1198,10 @@ ValueItem* funs_TcpNetworkBlocing_write_file(ValueItem* args, uint32_t len){
 		if(arg1.meta.vtype == VType::proxy){
 			auto& proxy = *((ProxyClass*)args[1].val);
 			if(proxy.declare_ty){
-				if(proxy.declare_ty->name == "file_handle"){
-					return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->write_file(*(::files::FileHandle*)proxy.class_ptr, data_len, offset, chunks_size));
-				}
+				if(proxy.declare_ty->name == "file_handle")
+					return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->write_file((*(typed_lgr<::files::FileHandle>*)proxy.class_ptr)->internal_get_handle(), data_len, offset, chunks_size));
+				else if(proxy.declare_ty->name == "blocking_file_handle")
+					return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->write_file((*(typed_lgr<::files::BlockingFileHandle>*)proxy.class_ptr)->internal_get_handle(), data_len, offset, chunks_size));
 			}
 			throw InvalidArguments("The second argument must be a file handle or a file path.");
 		}
@@ -1112,6 +1215,14 @@ ValueItem* funs_TcpNetworkBlocing_close(ValueItem* args, uint32_t len){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
 		((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->close();
+		return nullptr;
+	}else throw InvalidArguments("The first argument must be a client_context.");
+}
+ValueItem* funs_TcpNetworkBlocing_reset(ValueItem* args, uint32_t len){
+	if(len >= 1){
+		if(args[0].meta.vtype != VType::proxy)
+			throw InvalidArguments("The first argument must be a client_context.");
+		((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->reset();
 		return nullptr;
 	}else throw InvalidArguments("The first argument must be a client_context.");
 }
@@ -1141,6 +1252,7 @@ void init_define_TcpNetworkBlocking(){
 	define_TcpNetworkBlocking.funs["write"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_write, false), false, ClassAccess::pub};
 	define_TcpNetworkBlocking.funs["write_file"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_write_file, false), false, ClassAccess::pub};
 	define_TcpNetworkBlocking.funs["close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_close, false), false, ClassAccess::pub};
+	define_TcpNetworkBlocking.funs["reset"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_reset, false), false, ClassAccess::pub};
 	define_TcpNetworkBlocking.funs["is_closed"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_is_closed, false), false, ClassAccess::pub};
 	define_TcpNetworkBlocking.funs["error"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_error, false), false, ClassAccess::pub};
 }
@@ -1154,7 +1266,7 @@ class TcpNetworkManager : public NativeWorkerManager {
     sockaddr_in6 connectionAddress;
 	SOCKET main_socket;
 public:
-	int32_t default_len = 4096;
+	int32_t default_len = 8192;
 private:
 	bool allow_new_connections = false;
 	bool disabled = true;
@@ -1216,6 +1328,65 @@ private:
 		}));
 	}
 
+
+	void new_connection(tcp_handle& data){
+		make_acceptEx();
+		
+		universal_address* pClientAddr = NULL;
+        universal_address* pLocalAddr = NULL;
+        int remoteLen = sizeof(universal_address);
+        int localLen = sizeof(universal_address);
+        _GetAcceptExSockaddrs(data.buffer.buf,
+                                     0,
+                                     sizeof(universal_address) + 16,
+                                     sizeof(universal_address) + 16,
+                                     (LPSOCKADDR*)&pLocalAddr,
+                                     &localLen,
+                                     (LPSOCKADDR*)&pClientAddr,
+                                     &remoteLen);
+		ValueItem clientAddress(new ProxyClass(new universal_address(*pClientAddr),&define_UniversalAddress), VType::proxy, no_copy);
+		ValueItem localAddress(new ProxyClass(new universal_address(*pLocalAddr),&define_UniversalAddress), VType::proxy, no_copy);
+		if(accept_filter){
+			if(AttachA::cxxCall(accept_filter,clientAddress,localAddress)){
+				closesocket(data.socket);
+				#ifndef DISABLE_RUNTIME_INFO
+				auto tmp = UniversalAddress::_define_to_string(&clientAddress,1);
+				ValueItem notify{ "Client: " + (std::string)*tmp + " not accepted due filter" };
+				delete tmp;
+				info.async_notify(notify);
+				#endif
+				delete &data;
+				return;
+			}
+		}
+		
+		#ifndef DISABLE_RUNTIME_INFO
+		{
+			auto tmp = UniversalAddress::_define_to_string(&clientAddress,1);
+			ValueItem notify{ "Client connected from: " + (std::string)*tmp };
+			delete tmp;
+			info.async_notify(notify);
+		}
+		#endif
+		setsockopt(data.socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&main_socket, sizeof(main_socket) );
+		{
+			std::lock_guard lock(safety);
+			if(!NativeWorkersSingleton::register_handle((HANDLE)data.socket, &data)){
+				closesocket(data.socket);
+				#ifndef DISABLE_RUNTIME_INFO
+				auto tmp = UniversalAddress::_define_to_string(&clientAddress,1);
+				ValueItem notify{ "Client: " + (std::string)*tmp + " not accepted because register handle failed " + std::to_string(data.socket) };
+				delete tmp;
+				info.sync_notify(notify);
+				#endif
+				delete &data;
+				return;
+			}
+		}
+		
+		accepted(&data, std::move(clientAddress), std::move(localAddress));
+		return;
+	}
 public:
 	TcpNetworkManager(universal_address& ip_port, size_t acceptors,TcpNetworkServer::ManageType manage_type, int32_t timeout_ms) : acceptors(acceptors),manage_type(manage_type) {
     	memcpy(&connectionAddress, &ip_port, sizeof(sockaddr_in6));
@@ -1264,7 +1435,6 @@ public:
 			return;
 		}
 
-
 		init_win_fns(main_socket);
 		if (bind(main_socket, (sockaddr*)&connectionAddress, sizeof(sockaddr_in6)) == SOCKET_ERROR){
 			ValueItem error = std::string("Failed bind: ") + std::to_string(WSAGetLastError());
@@ -1284,77 +1454,17 @@ public:
 	
 	void handle(void* _data, NativeWorkerHandle* overlapped, unsigned long dwBytesTransferred, bool status) override {
 		auto& data = *(tcp_handle*)overlapped;
-
-		if(data.opcode == tcp_handle::Opcode::ACCEPT){
-			make_acceptEx();
-			
-			universal_address* pClientAddr = NULL;
-            universal_address* pLocalAddr = NULL;
-            int remoteLen = sizeof(universal_address);
-            int localLen = sizeof(universal_address);
-            _GetAcceptExSockaddrs(data.buffer.buf,
-                                         0,
-                                         sizeof(universal_address) + 16,
-                                         sizeof(universal_address) + 16,
-                                         (LPSOCKADDR*)&pLocalAddr,
-                                         &localLen,
-                                         (LPSOCKADDR*)&pClientAddr,
-                                         &remoteLen);
-			ValueItem clientAddress(new ProxyClass(new universal_address(*pClientAddr),&define_UniversalAddress), VType::proxy, no_copy);
-			ValueItem localAddress(new ProxyClass(new universal_address(*pLocalAddr),&define_UniversalAddress), VType::proxy, no_copy);
-			if(accept_filter){
-				if(AttachA::cxxCall(accept_filter,clientAddress,localAddress)){
-					closesocket(data.socket);
-					#ifndef DISABLE_RUNTIME_INFO
-					auto tmp = UniversalAddress::_define_to_string(&clientAddress,1);
-					ValueItem notify{ "Client: " + (std::string)*tmp + " not accepted due filter" };
-					delete tmp;
-					info.async_notify(notify);
-					#endif
-					return;
-				}
-			}
-			
+		if(data.opcode == tcp_handle::Opcode::ACCEPT) new_connection(data);
+		else if (!((FALSE == status) || ((true == status) && (0 == dwBytesTransferred)))) data.handle(dwBytesTransferred);
+		else {
 			#ifndef DISABLE_RUNTIME_INFO
 			{
-				auto tmp = UniversalAddress::_define_to_string(&clientAddress,1);
-				ValueItem notify{ "Client connected from: " + (std::string)*tmp };
-				delete tmp;
-				info.async_notify(notify);
-			}
-			#endif
-
-			setsockopt(data.socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&main_socket, sizeof(main_socket) );
-			{
-				std::lock_guard lock(safety);
-				if(!NativeWorkersSingleton::register_handle((HANDLE)data.socket, &data)){
-					closesocket(data.socket);
-					#ifndef DISABLE_RUNTIME_INFO
-					auto tmp = UniversalAddress::_define_to_string(&clientAddress,1);
-					ValueItem notify{ "Client: " + (std::string)*tmp + " not accepted because register handle failed" };
-					delete tmp;
-					info.async_notify(notify);
-					#endif
-					return;
-				}
-			}
-			
-			accepted(&data, std::move(clientAddress), std::move(localAddress));
-			return;
-		}
-		else if ((FALSE == status) || ((true == status) && (0 == dwBytesTransferred))) {
-			#ifndef DISABLE_RUNTIME_INFO
-			{
-				auto tmp = UniversalAddress::_define_to_string(&clientAddress,1);
-				ValueItem notify{ "Client disconnected" + (std::string)*tmp };
-				delete tmp;
+				ValueItem notify{ "Client disconnected (client hash: " + std::to_string(std::hash<void*>()(overlapped))+')' };
 				info.async_notify(notify);
 			}
 			#endif
 			data.connection_reset();
-			return;
 		}
-		data.handle(dwBytesTransferred);
 	}
 	void set_on_connect(typed_lgr<class FuncEnviropment> handler_fn, TcpNetworkServer::ManageType manage_type){
 		if(corrupted)
@@ -1574,19 +1684,25 @@ public:
 			if(!_handle->send_queue_item())break;
 		return _handle->send_file(path, len, data_len, offset, chunks_size);
 	}
-	bool write_file(::files::FileHandle& file_path, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
+	bool write_file(void* handle, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
 		if(corrupted)
 			throw std::runtime_error("TcpClientManager::write_file, corrupted");
 		std::lock_guard<TaskMutex> lock(mutex);
 		while(!_handle->available_bytes())
 			if(!_handle->send_queue_item())break;
-		return _handle->send_file(file_path.internal_get_handle(), data_len, offset, chunks_size);
+		return _handle->send_file(handle, data_len, offset, chunks_size);
 	}
 	void close(){
 		if(corrupted)
 			throw std::runtime_error("TcpClientManager::close, corrupted");
 		std::lock_guard<TaskMutex> lock(mutex);
 		_handle->close();
+	}
+	void reset(){
+		if(corrupted)
+			throw std::runtime_error("TcpClientManager::close, corrupted");
+		std::lock_guard<TaskMutex> lock(mutex);
+		_handle->reset();
 	}
 	bool is_corrupted(){
 		return corrupted;
@@ -1622,7 +1738,6 @@ public:
 	void recv(uint8_t* data, uint32_t size, sockaddr_storage& sender, int& sender_len){
 		if(socket == INVALID_SOCKET)
 			throw InvalidOperation("Socket not connected");
-		sockaddr_in6 sender;
 		WSABUF buf;
 		buf.buf = (char*)data;
 		buf.len = size;
@@ -1796,14 +1911,23 @@ bool TcpClientSocket::send_file(const char* file_path, size_t file_path_len, uin
 		throw InvalidOperation("Socket not connected");
 	return handle->write_file(file_path, file_path_len, data_len, offset, chunks_size);
 }
-bool TcpClientSocket::send_file(::files::FileHandle& file, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
+bool TcpClientSocket::send_file(class ::files::FileHandle& file, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
 	if(!handle)
 		throw InvalidOperation("Socket not connected");
-	return handle->write_file(file, data_len, offset, chunks_size);
+	return handle->write_file(file.internal_get_handle(), data_len, offset, chunks_size);
 }
-
+bool TcpClientSocket::send_file(class ::files::BlockingFileHandle& file, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
+	if(!handle)
+		throw InvalidOperation("Socket not connected");
+	return handle->write_file(file.internal_get_handle(), data_len, offset, chunks_size);
+}
 void TcpClientSocket::close(){
 	handle->close();
+	delete handle;
+	handle = nullptr;
+}
+void TcpClientSocket::reset(){
+	handle->reset();
 	delete handle;
 	handle = nullptr;
 }

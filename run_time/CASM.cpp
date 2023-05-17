@@ -249,7 +249,7 @@ std::vector<uint16_t> convert(FrameResult& frame) {
 		}
 		pushInVectorAsValue(handler_info, ScopeAction::Action::not_action);
 		if(handler_info.size() & 1){
-			handler_info.push_back(0xFFFF);
+			handler_info.push_back(0xFF);
 			pushInVectorAsArray(info, handler_info.data(), handler_info.size());
 		}else{
 			pushInVectorAsArray(info, handler_info.data(), handler_info.size());

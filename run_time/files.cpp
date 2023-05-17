@@ -23,24 +23,6 @@ namespace files {
         char* buffer = nullptr;
         bool fullifed = false;
         bool is_canceled = false;
-        bool error_filter(){
-            switch (GetLastError()) {
-                case ERROR_IO_PENDING: return false;
-                case ERROR_HANDLE_EOF: {
-                    if(is_read && !required_full){
-                        now_fullifed();
-                        return false;
-                    }else{
-                        exception(io_errors::eof);
-                        return true;
-                    }
-                }
-                case ERROR_NOT_ENOUGH_MEMORY: exception(io_errors::no_enough_memory); return true;
-                case ERROR_INVALID_USER_BUFFER: exception(io_errors::invalid_user_buffer); return true;
-                case ERROR_NOT_ENOUGH_QUOTA: exception(io_errors::no_enough_quota); return true;
-                default: exception(io_errors::unknown_error); return true;
-            }
-        }
     public:
         typed_lgr<Task> awaiter;
         uint32_t fullifed_bytes = 0;
@@ -77,7 +59,7 @@ namespace files {
                 fullifed = true;
                 if(awaiter){
                     if(is_read && !required_full)
-                        awaiter->fres.finalResult(ValueItem((uint8_t*)buffer, buffer_size, no_copy), lock);
+                        awaiter->fres.finalResult(ValueItem(), lock);
                     else
                         awaiter->fres.finalResult(ValueItem(), lock);
                 }
@@ -97,9 +79,9 @@ namespace files {
             fullifed = true;
             if(awaiter) {
                 if(is_read)
-                    awaiter->fres.finalResult(ValueItem((uint8_t*)buffer, buffer_size, no_copy), lock);
+                    awaiter->fres.finalResult(ValueItem((uint8_t*)buffer, buffer_size), lock);
                 else 
-                    awaiter->fres.finalResult(ValueItem(fullifed_bytes), lock);
+                    awaiter->fres.finalResult(fullifed_bytes, lock);
             }
             awaiters.notify_all();
         }
@@ -110,9 +92,9 @@ namespace files {
             if(awaiter) {
                 if(fullifed_bytes){
                     if(is_read)
-                        awaiter->fres.yieldResult(ValueItem((uint8_t*)buffer, fullifed_bytes, no_copy), lock);
+                        awaiter->fres.yieldResult(ValueItem((uint8_t*)buffer, fullifed_bytes), lock);
                     else 
-                        awaiter->fres.yieldResult(ValueItem(fullifed_bytes), lock);
+                        awaiter->fres.yieldResult(fullifed_bytes, lock);
                 }
                 awaiter->fres.finalResult((uint8_t)e, lock);
             }
@@ -155,7 +137,8 @@ namespace files {
         void start(){
             if(is_read){
                 if(!ReadFile(handle, buffer, buffer_size, NULL, &overlapped)){
-                    switch (GetLastError()) {
+                    auto err = GetLastError();
+                    switch (err) {
                         case ERROR_IO_PENDING: return;
                         case ERROR_HANDLE_EOF: throw AException("FileException", "End of file");
                         case ERROR_NOT_ENOUGH_MEMORY: throw AException("FileException", "Not enough memory");
@@ -167,7 +150,8 @@ namespace files {
             }
             else{
                 if(!WriteFile(handle, buffer, buffer_size, NULL, &overlapped)){
-                    switch (GetLastError()) {
+                    auto err = GetLastError();
+                    switch (err) {
                         case ERROR_IO_PENDING: return;
                         case ERROR_HANDLE_EOF: throw AException("FileException", "End of file");
                         case ERROR_NOT_ENOUGH_MEMORY: throw AException("FileException", "Not enough memory");
@@ -178,14 +162,31 @@ namespace files {
                 }
             }
         }
+    
+        bool error_filter(){
+            switch (GetLastError()) {
+                case ERROR_IO_PENDING: return false;
+                case ERROR_HANDLE_EOF: {
+                    if(is_read && !required_full){
+                        now_fullifed();
+                        return false;
+                    }else{
+                        exception(io_errors::eof);
+                        return true;
+                    }
+                }
+                case ERROR_NOT_ENOUGH_MEMORY: exception(io_errors::no_enough_memory); return true;
+                case ERROR_INVALID_USER_BUFFER: exception(io_errors::invalid_user_buffer); return true;
+                case ERROR_NOT_ENOUGH_QUOTA: exception(io_errors::no_enough_quota); return true;
+                default: exception(io_errors::unknown_error); return true;
+            }
+        }
     };
     void file_overlapped_on_await(ValueItem& it){
-        File_* file = (File_*)((ProxyClass*)it.getSourcePtr())->class_ptr;
-        file->await();
+        ((File_*)(void*)it)->await();
     }
     void file_overlapped_on_cancel(ValueItem& it){
-        File_* file = (File_*)((ProxyClass*)it.getSourcePtr())->class_ptr;
-        file->cancel();
+        ((File_*)(void*)it)->cancel();
     }
 
 
@@ -210,6 +211,8 @@ namespace files {
         }
     public:
         FileManager(const char* path, size_t path_len, open_mode open, on_open_action action, share_mode share, _sync_flags flags, enum class pointer_mode pointer_mode) noexcept(false) : pointer_mode(pointer_mode) {
+            read_pointer = 0;
+            write_pointer = 0;
             std::u16string wpath;
             utf8::utf8to16(path, path + path_len, std::back_inserter(wpath));
             DWORD wshare_mode = 0;
@@ -252,27 +255,28 @@ namespace files {
                 default:
                     throw InvalidArguments("Invalid open mode, excepted read, write, read_write or append, but got " + std::to_string((int)open));
             }
+            DWORD creation_mode = 0;
             switch (action) {
                 case on_open_action::open:
-                    wflags |= OPEN_ALWAYS;
+                    creation_mode = OPEN_ALWAYS;
                     break;
                 case on_open_action::always_new:
-                    wflags |= CREATE_ALWAYS;
+                    creation_mode = CREATE_ALWAYS;
                     break;
                 case on_open_action::create_new:
-                    wflags |= CREATE_NEW;
+                    creation_mode = CREATE_NEW;
                     break;
                 case on_open_action::open_exists:
-                    wflags |= OPEN_EXISTING;
+                    creation_mode = OPEN_EXISTING;
                     break;
                 case on_open_action::truncate_exists:
-                    wflags |= TRUNCATE_EXISTING;
+                    creation_mode = TRUNCATE_EXISTING;
                     break;
                 default:
                     throw InvalidArguments("Invalid on open action, excepted open, always_new, create_new, open_exists or truncate_exists, but got " + std::to_string((int)open));
             }
             
-            _handle = CreateFileW((wchar_t*)wpath.c_str(), wopen, wshare_mode, NULL, NULL , wflags, NULL);
+            _handle = CreateFileW((wchar_t*)wpath.c_str(), wopen, wshare_mode, NULL, creation_mode , wflags, NULL);
             if(_handle == INVALID_HANDLE_VALUE){
                     _handle = nullptr;
                     switch(GetLastError()){
@@ -295,7 +299,7 @@ namespace files {
                             throw AException("FileException", "Unknown error");
                     }
                 }
-
+            NativeWorkersSingleton::register_handle(_handle, this);
         }
         ~FileManager(){
             if(_handle != nullptr)
@@ -314,7 +318,6 @@ namespace files {
             ValueItem args((void*)file);
             try{
                 file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr);
-                NativeWorkersSingleton::register_handle(file, file);
                 file->start();
             }catch(...){
                 delete file;
@@ -335,10 +338,9 @@ namespace files {
             ValueItem args((void*)file);
             try{
                 file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr);
-                NativeWorkersSingleton::register_handle(file, file);
                 file->start();
                 auto res = Task::get_result(file->awaiter);
-                if(res->meta.vtype == VType::ui8) io_error_to_exception((io_errors)(uint8_t)res->val);
+                if(res->meta.vtype == VType::ui8) {io_error_to_exception((io_errors)(uint8_t)(size_t)res->val); return nullptr;}
                 else if (res->meta.vtype == VType::raw_arr_ui8){
                     auto arr = (uint8_t*)res->getSourcePtr();
                     uint32_t len = res->meta.val_len;
@@ -373,7 +375,6 @@ namespace files {
             ValueItem args((void*)file);
             try{
                 file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr);
-                NativeWorkersSingleton::register_handle(file, file);
                 file->start();
             }catch(...){
                 delete file;
@@ -386,7 +387,6 @@ namespace files {
             ValueItem args((void*)file);
             try{
                 file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr);
-                NativeWorkersSingleton::register_handle(file, file);
                 file->start();
             }catch(...){
                 delete file;
@@ -501,7 +501,7 @@ namespace files {
         void handle(void* data, class NativeWorkerHandle* overlapped, unsigned long dwBytesTransferred, bool status){
             auto file = (File_*)overlapped;
             if(!status)
-                file->cancel();
+                file->error_filter();
             else
                 file->operation_fullifed(dwBytesTransferred);
         }
@@ -541,7 +541,7 @@ namespace files {
             std::lock_guard<TaskMutex> lock(*mimic_non_async);
             ValueItem res = handle->read(size, false);
             res.getAsync();
-            if(res.meta.vtype == VType::ui8) io_error_to_exception((io_errors)(uint8_t)res.val);
+            if(res.meta.vtype == VType::ui8){ io_error_to_exception((io_errors)(uint8_t)(size_t)res.val); return nullptr; }
             else return res;
         }else return handle->read(size, false);
     }
@@ -556,7 +556,7 @@ namespace files {
             std::lock_guard<TaskMutex> lock(*mimic_non_async);
             ValueItem res = handle->read(size, true);
             res.getAsync();
-            if(res.meta.vtype == VType::ui8) io_error_to_exception((io_errors)(uint8_t)res.val);
+            if(res.meta.vtype == VType::ui8) { io_error_to_exception((io_errors)(uint8_t)(size_t)res.val); return nullptr; }
             else return res;
         }else return handle->read(size, true);
     }
@@ -571,7 +571,7 @@ namespace files {
             std::lock_guard<TaskMutex> lock(*mimic_non_async);
             ValueItem res = handle->write(data, size);
             res.getAsync();
-            if(res.meta.vtype == VType::ui8) io_error_to_exception((io_errors)(uint8_t)res.val);
+            if(res.meta.vtype == VType::ui8) { io_error_to_exception((io_errors)(uint8_t)(size_t)res.val); return nullptr; }
             else return res;
         }else return handle->write(data, size);
     }
@@ -626,7 +626,7 @@ namespace files {
         return (bool)DeleteFileW((wchar_t*)wpath.c_str());
     }
 
-    BlockingFileHandle::BlockingFileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _sync_flags flags, share_mode share = {}) noexcept(false) : open(open), flags(flags){
+    BlockingFileHandle::BlockingFileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _sync_flags flags, share_mode share) noexcept(false) : open(open), flags(flags){
         std::u16string wpath;
         utf8::utf8to16(path, path + path_len, std::back_inserter(wpath));
         DWORD wshare_mode = 0;
@@ -668,27 +668,28 @@ namespace files {
             default:
                 throw InvalidArguments("Invalid open mode, excepted read, write, read_write or append, but got " + std::to_string((int)open));
         }
+        DWORD creation_mode = 0;
         switch (action) {
             case on_open_action::open:
-                wflags |= OPEN_ALWAYS;
+                creation_mode = OPEN_ALWAYS;
                 break;
             case on_open_action::always_new:
-                wflags |= CREATE_ALWAYS;
+                creation_mode = CREATE_ALWAYS;
                 break;
             case on_open_action::create_new:
-                wflags |= CREATE_NEW;
+                creation_mode = CREATE_NEW;
                 break;
             case on_open_action::open_exists:
-                wflags |= OPEN_EXISTING;
+                creation_mode = OPEN_EXISTING;
                 break;
             case on_open_action::truncate_exists:
-                wflags |= TRUNCATE_EXISTING;
+                creation_mode = TRUNCATE_EXISTING;
                 break;
             default:
                 throw InvalidArguments("Invalid on open action, excepted open, always_new, create_new, open_exists or truncate_exists, but got " + std::to_string((int)open));
         }
         
-        handle = CreateFileW((wchar_t*)wpath.c_str(), wopen, wshare_mode, NULL, NULL , wflags, NULL);
+        handle = CreateFileW((wchar_t*)wpath.c_str(), wopen, wshare_mode, NULL, creation_mode , wflags, NULL);
         if(handle == INVALID_HANDLE_VALUE){
             handle = nullptr;
             switch(GetLastError()){
@@ -828,7 +829,7 @@ namespace files {
         return handle != nullptr;
     }
     
-    ::std::fstream BlockingFileHandle::get_fstream() const noexcept{
+    ::std::fstream BlockingFileHandle::get_fstream() const {
         if (handle != INVALID_HANDLE_VALUE) {
             int file_descriptor = _open_osfhandle((intptr_t)handle, 0);
             if (file_descriptor != -1) {
@@ -861,9 +862,9 @@ namespace files {
                     return std::fstream(file);
                 else {
                     _close(file_descriptor);
-                    throw AException("FileException", "Can't open file");
                 }
             }
         }
+        throw AException("FileException", "Can't open file");
     }
 }

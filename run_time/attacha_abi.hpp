@@ -5,6 +5,8 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
+#ifndef RUN_TIME_ATTACHA_ABI
+#define RUN_TIME_ATTACHA_ABI
 #include "../run_time.hpp"
 #include "../library/string_help.hpp"
 #include "link_garbage_remover.hpp"
@@ -41,39 +43,39 @@ void Allocate(void** a) {
 
 template<class T>
 constexpr VType Type_as_VType() {
-	if constexpr (std::is_same<T, void>) return VType::noting;
-	else if constexpr (std::is_same<T, bool>) return VType::boolean;
-	else if constexpr (std::is_same<T, int8_t>) return VType::i8;
-	else if constexpr (std::is_same<T, int16_t>) return VType::i16;
-	else if constexpr (std::is_same<T, int32_t>) return VType::i32;
-	else if constexpr (std::is_same<T, int64_t>) return VType::i64;
-	else if constexpr (std::is_same<T, uint8_t>) return VType::ui8;
-	else if constexpr (std::is_same<T, uint16_t>) return VType::ui16;
-	else if constexpr (std::is_same<T, uint32_t>) return VType::ui32;
-	else if constexpr (std::is_same<T, uint64_t>) return VType::ui64;
-	else if constexpr (std::is_same<T, float>) return VType::flo;
-	else if constexpr (std::is_same<T, double>) return VType::doub;
-	else if constexpr (std::is_same<T, int8_t*>) return VType::raw_arr_i8;
-	else if constexpr (std::is_same<T, int16_t*>) return VType::raw_arr_i16;
-	else if constexpr (std::is_same<T, int32_t*>) return VType::raw_arr_i32;
-	else if constexpr (std::is_same<T, int64_t*>) return VType::raw_arr_i64;
-	else if constexpr (std::is_same<T, uint8_t*>) return VType::raw_arr_ui8;
-	else if constexpr (std::is_same<T, uint16_t*>) return VType::raw_arr_ui16;
-	else if constexpr (std::is_same<T, uint32_t*>) return VType::raw_arr_ui32;
-	else if constexpr (std::is_same<T, uint64_t*>) return VType::raw_arr_ui64;
-	else if constexpr (std::is_same<T, float*>) return VType::raw_arr_flo;
-	else if constexpr (std::is_same<T, double*>) return VType::raw_arr_doub;
-	else if constexpr (std::is_same<T, list_array<ValueItem>>) return VType::uarr;
-	else if constexpr (std::is_same<T, std::string>) return VType::string;
-	else if constexpr (std::is_same<T, typed_lgr<Task>>) return VType::async_res;
-	else if constexpr (std::is_same<T, void*>) return VType::undefined_ptr;
-	else if constexpr (std::is_same<T, std::exception_ptr*>) return VType::except_value;
-	else if constexpr (std::is_same<T, ValueItem*>) return VType::faarr;
-	else if constexpr (std::is_same<T, ClassValue>) return VType::class_;
-	else if constexpr (std::is_same<T, MorphValue>) return VType::morph;
-	else if constexpr (std::is_same<T, ProxyClass>) return VType::proxy;
-	else if constexpr (std::is_same<T, ValueMeta>) return VType::type_identifier;
-	else if constexpr (std::is_same<T, typed_lgr<class FuncEnviropment>>) return VType::function;
+	if constexpr (std::is_same_v<T, void>) return VType::noting;
+	else if constexpr (std::is_same_v<T, bool>) return VType::boolean;
+	else if constexpr (std::is_same_v<T, int8_t>) return VType::i8;
+	else if constexpr (std::is_same_v<T, int16_t>) return VType::i16;
+	else if constexpr (std::is_same_v<T, int32_t>) return VType::i32;
+	else if constexpr (std::is_same_v<T, int64_t>) return VType::i64;
+	else if constexpr (std::is_same_v<T, uint8_t>) return VType::ui8;
+	else if constexpr (std::is_same_v<T, uint16_t>) return VType::ui16;
+	else if constexpr (std::is_same_v<T, uint32_t>) return VType::ui32;
+	else if constexpr (std::is_same_v<T, uint64_t>) return VType::ui64;
+	else if constexpr (std::is_same_v<T, float>) return VType::flo;
+	else if constexpr (std::is_same_v<T, double>) return VType::doub;
+	else if constexpr (std::is_same_v<T, int8_t*>) return VType::raw_arr_i8;
+	else if constexpr (std::is_same_v<T, int16_t*>) return VType::raw_arr_i16;
+	else if constexpr (std::is_same_v<T, int32_t*>) return VType::raw_arr_i32;
+	else if constexpr (std::is_same_v<T, int64_t*>) return VType::raw_arr_i64;
+	else if constexpr (std::is_same_v<T, uint8_t*>) return VType::raw_arr_ui8;
+	else if constexpr (std::is_same_v<T, uint16_t*>) return VType::raw_arr_ui16;
+	else if constexpr (std::is_same_v<T, uint32_t*>) return VType::raw_arr_ui32;
+	else if constexpr (std::is_same_v<T, uint64_t*>) return VType::raw_arr_ui64;
+	else if constexpr (std::is_same_v<T, float*>) return VType::raw_arr_flo;
+	else if constexpr (std::is_same_v<T, double*>) return VType::raw_arr_doub;
+	else if constexpr (std::is_same_v<T, list_array<ValueItem>>) return VType::uarr;
+	else if constexpr (std::is_same_v<T, std::string>) return VType::string;
+	else if constexpr (std::is_same_v<T, typed_lgr<Task>>) return VType::async_res;
+	else if constexpr (std::is_same_v<T, void*>) return VType::undefined_ptr;
+	else if constexpr (std::is_same_v<T, std::exception_ptr*>) return VType::except_value;
+	else if constexpr (std::is_same_v<T, ValueItem*>) return VType::faarr;
+	else if constexpr (std::is_same_v<T, ClassValue>) return VType::class_;
+	else if constexpr (std::is_same_v<T, MorphValue>) return VType::morph;
+	else if constexpr (std::is_same_v<T, ProxyClass>) return VType::proxy;
+	else if constexpr (std::is_same_v<T, ValueMeta>) return VType::type_identifier;
+	else if constexpr (std::is_same_v<T, typed_lgr<class FuncEnviropment>>) return VType::function;
 	else
 		throw AttachARuntimeException("Invalid c++ type convert");
 }
@@ -136,7 +138,7 @@ namespace ABI_IMPL {
 
 	std::string Scast(void*& val, ValueMeta& meta);
 	ValueItem SBcast(const std::string& str);
-	template<class T = int8_t>
+	template<class T>
 	ValueItem BVcast(const T& val) {
 		if constexpr (std::is_same_v<std::remove_cvref_t<T>, nullptr_t>)
 			return ValueItem();
@@ -184,6 +186,7 @@ namespace ABI_IMPL {
 			static_assert(
 				(
 					std::is_arithmetic_v<std::remove_cvref_t<T>> ||
+					std::is_same_v<std::remove_cv_t<T>, char*> ||
 					std::is_same_v<std::remove_cvref_t<T>, std::string> ||
 					std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
 					std::is_same_v<std::remove_cvref_t<T>, ValueMeta> ||
@@ -201,6 +204,11 @@ namespace ABI_IMPL {
 			throw CompileTimeException("Invalid compiler, use correct compiler for compile AttachA, //ignored static_assert//");
 		}
 	}
+	template<size_t N>
+	ValueItem BVcast(const char(&str)[N]){
+		return std::string(str);
+	}
+	
 	template <class T>
 	T Vcast(void*& ref_val, ValueMeta& meta) {
 		getAsyncResult(ref_val, meta);
@@ -830,3 +838,4 @@ namespace exception_abi {
 		}
 	}
 }
+#endif /* RUN_TIME_ATTACHA_ABI */

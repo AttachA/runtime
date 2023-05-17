@@ -70,7 +70,7 @@
 			<Item Name="[value]" Condition="meta.vtype == VType::async_res &amp;&amp; !meta.use_gc">*(Task*)val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::except_value &amp;&amp; !meta.use_gc">*(std::exception_ptr*)val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::undefined_ptr &amp;&amp; !meta.use_gc">(void*)val</Item>
-			<Item Name="[value]" Condition="meta.vtype == VType::type_identifier &amp;&amp; !meta.use_gc">(VType)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::type_identifier &amp;&amp; !meta.use_gc">*(ValueMeta*)&val</Item>
 
       <Item Name="[value]" Condition="meta.vtype == VType::class_ &amp;&amp; !meta.use_gc">*(ClassValue*)val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::morph &amp;&amp; !meta.use_gc">*(MorphValue*)val</Item>

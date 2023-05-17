@@ -846,39 +846,47 @@ void Task::start(typed_lgr<Task>&& lgr_task) {
 }
 
 bool Task::yield_iterate(typed_lgr<Task>& lgr_task) {
-	bool res = !lgr_task->started || lgr_task->is_yield_mode;
+	bool res = (!lgr_task->started || lgr_task->is_yield_mode) && lgr_task->_task_local != (ValueEnvironment*)-1;
 	if (res)
 		Task::start(lgr_task);
 	return res;
 }
 ValueItem* Task::get_result(typed_lgr<Task>& lgr_task, size_t yield_res) {
-	if (!lgr_task->started)
+	if (!lgr_task->started && lgr_task->_task_local != (ValueEnvironment*)-1)
 		Task::start(lgr_task);
 	MutexUnify uni(lgr_task->no_race);
 	std::unique_lock l(uni);
-	return lgr_task->fres.getResult(yield_res, l);
+	if(lgr_task->_task_local == (ValueEnvironment*)-1){
+		l.unlock();
+		if(!TaskCallback::await(*lgr_task)){
+			l.lock();
+			lgr_task->fres.awaitEnd(l);
+		}
+		if(lgr_task->fres.results.size() <= yield_res)
+			return new ValueItem();
+		return new ValueItem(lgr_task->fres.results[yield_res]);
+	}
+	else return lgr_task->fres.getResult(yield_res,l);
 }
 ValueItem* Task::get_result(typed_lgr<Task>&& lgr_task, size_t yield_res) {
-	if (!lgr_task->started)
-		Task::start(lgr_task);
-
-	MutexUnify uni(lgr_task->no_race);
-	std::unique_lock l(uni);
-	return lgr_task->fres.getResult(yield_res,l);
+	return get_result(lgr_task, yield_res);
 }
 bool Task::has_result(typed_lgr<Task>& lgr_task, size_t yield_res){
 	return lgr_task->fres.results.size() > yield_res;
 }
 void Task::await_task(typed_lgr<Task>& lgr_task, bool make_start) {
-	if (!lgr_task->started && make_start)
+	if (!lgr_task->started && make_start && lgr_task->_task_local != (ValueEnvironment*)-1)
 		Task::start(lgr_task);
 	MutexUnify uni(lgr_task->no_race);
 	std::unique_lock l(uni);
 	if(lgr_task->_task_local != (ValueEnvironment*)-1)
 		lgr_task->fres.awaitEnd(l);
 	else{
-		if(!TaskCallback::await(*lgr_task))
+		l.unlock();
+		if(!TaskCallback::await(*lgr_task)){
+			l.lock();
 			lgr_task->fres.awaitEnd(l);
+		}
 	}
 }
 list_array<ValueItem> Task::await_results(typed_lgr<Task>& task) {
@@ -973,47 +981,39 @@ void Task::await_end_tasks(bool be_executor) {
 }
 void Task::await_multiple(list_array<typed_lgr<Task>>& tasks, bool pre_started, bool release) {
 	if (!pre_started) {
-		for (auto& it : tasks)
-			Task::start(it);
+		for (auto& it : tasks){
+			if(it->_task_local != (ValueEnvironment*)-1)
+				Task::start(it);
+		}
 	}
 	if (release) {
 		for (auto& it : tasks) {
-			MutexUnify uni(it->no_race);
-			std::unique_lock l(uni);
-			it->fres.awaitEnd(l);
-			l.unlock();
+			await_task(it, false);
 			it = nullptr;
 		}
 	}
 	else 
-		for (auto& it : tasks) {
-			MutexUnify uni(it->no_race);
-			std::unique_lock l(uni);
-			it->fres.awaitEnd(l);
-		}
+		for (auto& it : tasks) 
+			await_task(it, false);
 }
 void Task::await_multiple(typed_lgr<Task>* tasks, size_t len, bool pre_started, bool release) {
 	if (!pre_started) {
 		typed_lgr<Task>* iter = tasks;
 		size_t count = len;
-		while (count--)
-			Task::start(*iter++);
+		while (count--){
+			if ((*iter)->_task_local != (ValueEnvironment*)-1)
+				Task::start(*iter++);
+		}
 	}
 	if (release) {
 		while (len--) {
-			MutexUnify uni((*tasks)->no_race);
-			std::unique_lock l(uni);
-			(*tasks)->fres.awaitEnd(l);
-			l.unlock();
+			await_task(*tasks, false);
 			(*tasks++) = nullptr;
 		}
 	}
 	else 
-		while (len--) {
-			MutexUnify uni((*tasks)->no_race);
-			std::unique_lock l(uni);
-			(*tasks++)->fres.awaitEnd(l);
-		}
+		while (len--) 
+			await_task(*tasks, false);
 }
 void Task::sleep(size_t milliseconds) {
 	sleep_until(std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(milliseconds));
@@ -1195,14 +1195,6 @@ typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func){
 	}
 	return shedule->task;
 }
-typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func){
-	native_task_shedule* shedule = new native_task_shedule(func);
-	if(!shedule->start()){
-		delete shedule;
-		throw AttachARuntimeException("Failed to start native task");
-	}
-	return shedule->task;
-}
 typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments){
 	native_task_shedule* shedule = new native_task_shedule(func, arguments);
 	if(!shedule->start()){
@@ -1271,7 +1263,7 @@ typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_start)(Valu
 		nullptr,
 		timeout
 	);
-	tsk->args = new TaskCallback(dummy_data, on_start, on_await, on_cancel, on_timeout);
+	tsk->args = new TaskCallback(dummy_data, on_await, on_cancel, on_timeout, on_start);
 	tsk->_task_local = (ValueEnvironment*)-1;
 	if(timeout != std::chrono::high_resolution_clock::time_point::max()){
 		std::lock_guard guard(glob.task_timer_safety);

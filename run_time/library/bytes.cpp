@@ -113,6 +113,7 @@ namespace bytes{
                 throw InvalidArguments("Invalid endian type: " + str);
         }
         convert_endian(endian, args[0]);
+        return nullptr;
     }
 
     ValueItem* swap_bytes(ValueItem* args, uint32_t len){
@@ -471,7 +472,7 @@ namespace bytes{
         default:
             throw InvalidArguments("Can't convert " + enum_to_string(value.meta.vtype) + " to bytes");
         }
-        
+        return nullptr;
     }
     ValueItem* to_bytes(ValueItem* args, uint32_t len){
         if(len < 1)

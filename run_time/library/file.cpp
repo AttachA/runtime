@@ -89,7 +89,7 @@ private:
             ValueItem item = handle->read(1024);
             typed_lgr<Task> task = *(typed_lgr<Task>*)item.val;
             auto results = Task::await_results(task);
-            ValueItem& item = results[0];
+            item = std::move(results[0]);
             if(item.meta.val_len == 0)
                 break;
             auto str = (uint8_t*)item.val;
@@ -116,7 +116,7 @@ private:
             ValueItem item = handle->read(1024);
             typed_lgr<Task> task = *(typed_lgr<Task>*)item.val;
             auto results = Task::await_results(task);
-            ValueItem& item = results[0];
+            item = std::move(results[0]);
             if(item.meta.val_len == 0)
                 break;
             auto str =  (uint8_t*)item.val;
@@ -144,7 +144,7 @@ private:
             ValueItem item = handle->read(1);
             typed_lgr<Task> task = *(typed_lgr<Task>*)item.val;
             auto results = Task::await_results(task);
-            ValueItem& item = results[0];
+            item = std::move(results[0]);
             if(item.meta.val_len == 0)
                 break;
             uint8_t c = *(uint8_t*)item.val;
@@ -152,11 +152,11 @@ private:
             case ' ':
                 if(skip_spaces)
                     break;
-                [[fallthrough]]
+                [[fallthrough]];
             default:
                 if(c < 32)
                     break;
-                [[fallthrough]]
+                [[fallthrough]];
             case '\n':
             case '\t':
             case '\b':
@@ -279,11 +279,11 @@ private:
                 case ' ':
                     if(skip_spaces)
                         break;
-                    [[fallthrough]]
+                    [[fallthrough]];
                 default:
                     if(c < 32)
                         break;
-                    [[fallthrough]]
+                    [[fallthrough]];
                 case '\n':
                 case '\t':
                 case '\b':
@@ -321,7 +321,9 @@ private:
             string_ptr += UINT32_MAX;
         }
         if(size)
-            handle->write(string_ptr, size);
+            return handle->write(string_ptr, size);
+        else
+            return nullptr;
     }
     void read_bom_utf16(){
         do{
@@ -398,11 +400,11 @@ private:
                 case ' ':
                     if(skip_spaces)
                         break;
-                    [[fallthrough]]
+                    [[fallthrough]];
                 default:
                     if(c < 32)
                         break;
-                    [[fallthrough]]
+                    [[fallthrough]];
                 case '\n':
                 case '\t':
                 case '\b':{
@@ -428,7 +430,9 @@ private:
             string_ptr += UINT32_MAX;
         }
         if(size)
-            handle->write(string_ptr, size);
+            return handle->write(string_ptr, size);
+        else 
+            return nullptr;
     }
     void read_bom_utf32(){
         do{
@@ -571,10 +575,10 @@ namespace file {
             if(is_async){
                 files::_async_flags aflags;
                 aflags.value = flags.value;
-                return new ValueItem(new ProxyClass(new typed_lgr<files::FileHandle>(new files::FileHandle(path.c_str(), path.size(), mode, action, aflags, share, pointer_mode))), VType::proxy, no_copy);
+                return new ValueItem(new ProxyClass(new typed_lgr<files::FileHandle>(new files::FileHandle(path.c_str(), path.size(), mode, action, aflags, share, pointer_mode)), &define_FileHandle), VType::proxy, no_copy);
             }
             else
-                return new ValueItem(new ProxyClass(new typed_lgr<files::FileHandle>(new files::FileHandle(path.c_str(), path.size(), mode, action, flags, share, pointer_mode))), VType::proxy, no_copy);
+                return new ValueItem(new ProxyClass(new typed_lgr<files::FileHandle>(new files::FileHandle(path.c_str(), path.size(), mode, action, flags, share, pointer_mode)), &define_FileHandle), VType::proxy, no_copy);
         }
         ValueItem* createProxy_BlockingFileHandle(ValueItem* args, uint32_t len){
             if(len < 1)
@@ -591,7 +595,7 @@ namespace file {
             files::pointer_mode pointer_mode = files::pointer_mode::combined;
             if(len >= 6)if(args[5].meta.vtype != VType::noting) pointer_mode = (files::pointer_mode)(uint8_t)args[5];
 
-            return new ValueItem(new ProxyClass(new typed_lgr<files::BlockingFileHandle>(new files::BlockingFileHandle(path.c_str(), path.size(), mode, action, flags, share))), VType::proxy, no_copy);
+            return new ValueItem(new ProxyClass(new typed_lgr<files::BlockingFileHandle>(new files::BlockingFileHandle(path.c_str(), path.size(), mode, action, flags, share)), &define_BlockingFileHandle), VType::proxy, no_copy);
         }
 
 		ValueItem* createProxy_TextFile(ValueItem* args, uint32_t len){
@@ -609,7 +613,7 @@ namespace file {
     ValueItem* funs_FileHandle_read(ValueItem* args, uint32_t len){
         auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
         ValueItem& item = args[1];
-        if(item.meta.vtype != VType::raw_arr_ui8 || item.meta.vtype != VType::raw_arr_i8)
+        if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
             return new ValueItem(handle->read((uint8_t*)item.getSourcePtr(), item.meta.val_len));
         else 
             return new ValueItem(handle->read((uint32_t)args[1]));
@@ -617,7 +621,7 @@ namespace file {
     ValueItem* funs_FileHandle_read_fixed(ValueItem* args, uint32_t len){
         auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
         ValueItem& item = args[1];
-        if(item.meta.vtype != VType::raw_arr_ui8 || item.meta.vtype != VType::raw_arr_i8)
+        if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
             return new ValueItem(handle->read_fixed((uint8_t*)item.getSourcePtr(), item.meta.val_len));
         else 
             return new ValueItem(handle->read_fixed((uint32_t)args[1]));
@@ -625,7 +629,7 @@ namespace file {
     ValueItem* funs_FileHandle_write(ValueItem* args, uint32_t len){
         auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
         ValueItem& item = args[1];
-        if(item.meta.vtype != VType::raw_arr_ui8 || item.meta.vtype != VType::raw_arr_i8)
+        if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
             return new ValueItem(handle->write((uint8_t*)item.getSourcePtr(), item.meta.val_len));
         else 
             throw InvalidArguments("excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
@@ -633,7 +637,7 @@ namespace file {
     ValueItem* funs_FileHandle_append(ValueItem* args, uint32_t len){
         auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
         ValueItem& item = args[1];
-        if(item.meta.vtype != VType::raw_arr_ui8 || item.meta.vtype != VType::raw_arr_i8)
+        if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
             return new ValueItem(handle->append((uint8_t*)item.getSourcePtr(), item.meta.val_len));
         else 
             throw InvalidArguments("excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
@@ -643,8 +647,8 @@ namespace file {
         uint64_t offset = (uint64_t)args[1];
         files::pointer_offset pointer_offset = files::pointer_offset::begin;
         if(len >= 3) if(args[2].meta.vtype != VType::noting) pointer_offset = (files::pointer_offset)(uint8_t)args[2];
-        if(len >= 4) if(args[3].meta.vtype != VType::noting) handle->seek_pos(offset, pointer_offset, (files::pointer)(uint8_t)args[3]);
-        else handle->seek_pos(offset, pointer_offset);
+        if(len >= 4) if(args[3].meta.vtype != VType::noting) return new ValueItem(handle->seek_pos(offset, pointer_offset, (files::pointer)(uint8_t)args[3]));
+        return new ValueItem(handle->seek_pos(offset, pointer_offset));
     }
     ValueItem* funs_FileHandle_tell_pos(ValueItem* args, uint32_t len){
         auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
@@ -668,7 +672,7 @@ namespace file {
     ValueItem* funs_BlockingFileHandle_read(ValueItem* args, uint32_t len){
         auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 2);
         ValueItem& item = args[1];
-        if(item.meta.vtype != VType::raw_arr_ui8 || item.meta.vtype != VType::raw_arr_i8)
+        if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
             return new ValueItem(handle->read((uint8_t*)item.getSourcePtr(), item.meta.val_len));
         else {
             uint32_t len = (uint32_t)args[1];
@@ -685,7 +689,7 @@ namespace file {
     ValueItem* funs_BlockingFileHandle_write(ValueItem* args, uint32_t len){
         auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 2);
         ValueItem& item = args[1];
-        if(item.meta.vtype != VType::raw_arr_ui8 || item.meta.vtype != VType::raw_arr_i8)
+        if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
             return new ValueItem(handle->write((uint8_t*)item.getSourcePtr(), item.meta.val_len));
         else 
             throw InvalidArguments("excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
@@ -695,7 +699,7 @@ namespace file {
         uint64_t offset = (uint64_t)args[1];
         files::pointer_offset pointer_offset = files::pointer_offset::begin;
         if(len >= 3) if(args[2].meta.vtype != VType::noting) pointer_offset = (files::pointer_offset)(uint8_t)args[2];
-        handle->seek_pos(offset, pointer_offset);
+        return new ValueItem(handle->seek_pos(offset, pointer_offset));
     }
     ValueItem* funs_BlockingFileHandle_tell_pos(ValueItem* args, uint32_t len){
         auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 1);

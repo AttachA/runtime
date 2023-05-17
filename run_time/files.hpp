@@ -119,7 +119,7 @@ namespace files {
         bool valid() const noexcept;
         void* internal_get_handle() const noexcept;
 
-        ::std::fstream get_fstream() const noexcept;//not mapped to proxy definition, can be used only in native c++ code
+        ::std::fstream get_fstream() const;//not mapped to proxy definition, can be used only in native c++ code
         //reguire explicit close, destructor will not close it,
         // BlockingFileHandle will be not used when ::std::fstream alive,
         // can cause desync, ie thread unsafe

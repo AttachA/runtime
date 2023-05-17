@@ -101,13 +101,31 @@ namespace net{
     }
     ValueItem* funs_TcpClientSocket_send_file(ValueItem* args, uint32_t len){
         if(len >= 5){
+            uint64_t data_len = 0;
+            uint64_t offset = 0;
+            uint32_t chunks_size = 0;
+            if(args[1].meta.vtype != VType::proxy && args[1].meta.vtype != VType::string)
+                throw InvalidArguments("The second argument must be a file handle or a file path.");
+            if(len >= 3)
+                data_len = (uint64_t)args[2];
+            if(len >= 4)
+                offset = (uint64_t)args[3];
+            if(len >= 5)
+                chunks_size = (uint32_t)args[4];
+
             if(args[1].meta.vtype == VType::string){
                 std::string& str = *(std::string*)args[1].getSourcePtr();
-                return new ValueItem(AIs::proxy_get_as_native<TcpClientSocket>(args[0])->send_file(str.data(), str.size(), (uint64_t)args[2], (uint64_t)args[3], (uint32_t)args[4]));
+                return new ValueItem(AIs::proxy_get_as_native<TcpClientSocket>(args[0])->send_file(str.data(), str.size(), data_len, offset, chunks_size));
             }else if(args[1].meta.vtype == VType::proxy){
-                return new ValueItem(
-                    AIs::proxy_get_as_native<TcpClientSocket>(args[0])->send_file(*AIs::proxy_get_as_native<::files::FileHandle>(args[1]), (uint64_t)args[2], (uint64_t)args[3], (uint32_t)args[4]));
-            }else throw InvalidArguments("Excepted string or proxy<FileHandle> as second argument");
+                auto& proxy = *((ProxyClass*)args[1].val);
+                if(proxy.declare_ty){
+                    if(proxy.declare_ty->name == "file_handle")
+                        return new ValueItem(((TcpClientSocket*)((ProxyClass*)args[0].val)->class_ptr)->send_file(**(typed_lgr<::files::FileHandle>*)proxy.class_ptr, data_len, offset, chunks_size));
+                    else if(proxy.declare_ty->name == "blocking_file_handle")
+                        return new ValueItem(((TcpClientSocket*)((ProxyClass*)args[0].val)->class_ptr)->send_file(**(typed_lgr<::files::BlockingFileHandle>*)proxy.class_ptr, data_len, offset, chunks_size));
+                }
+            }
+            throw InvalidArguments("Excepted string, proxy<file_handle> or proxy<blocking_file_handle> as second argument");
         }else throw InvalidArguments("This function is proxy function");
     }
     ValueItem* funs_TcpClientSocket_close(ValueItem* args, uint32_t len){
@@ -207,7 +225,7 @@ namespace net{
             else
                 return new ValueItem(new ProxyClass(new typed_lgr(TcpClientSocket::connect(ip_port,(int32_t)data)), &define_TcpClientSocket));
         }
-        else if(len >= 3){
+        else{
             auto& data = args[1];
             return new ValueItem(new ProxyClass(new typed_lgr(TcpClientSocket::connect(ip_port,(char*)data.getSourcePtr(),data.meta.val_len, (int32_t)args[2])), &define_TcpClientSocket));
         }

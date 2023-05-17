@@ -13,6 +13,7 @@
 #include <chrono>
 #include <utf8cpp/utf8.h>
 #include "configuration/run_time.hpp"
+#include "configuration/tasks.hpp"
 size_t page_size = []() {
 	SYSTEM_INFO si;
 	GetSystemInfo(&si);
