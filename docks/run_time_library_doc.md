@@ -633,7 +633,7 @@
     oem'windows': 'use winsock2 with iocp'
     oem: 'not implemented'
     constructor: '# net tcp_server'
-        arguments: function'handler', proxy<universal_address>, {opt, def: 1ui8'write_deleayed'}ui8'manage_type', {opt, def: 10}integer'acceptors'
+        arguments: function'handler', proxy<universal_address>, {opt, def: 1ui8'write_deleayed'}ui8'manage_type', {opt, def: 10}integer'acceptors', {opt, def: 8192, non_negative}i32'default_buffer'
             desc: 'enum manage_type{ blocking = 0, write_deleayed = 1 }'
             desc'handler': 'function(proxy<tcp_network_stream || tcp_network_blocking>, proxy<universal_address>'local_ip', proxy<universal_address>'client ip') -> void'
         returns: proxy<tcp_server>
@@ -692,6 +692,18 @@
         arguments: ignored
         desc: 'get address of the server'
         returns: proxy<universal_address>
+
+    fun: set_default_buffer_size
+        arguments: {non_negative}i32
+        desc: 'set default buffer size for new connections'
+        returns: noting
+
+    fun: set_accept_filter
+        arguments: function'filter'
+            desc'filter': 'function(proxy<universal_address>'client_ip',proxy<universal_address>'local_ip') -> boolean'
+        desc: 'set filter for new connections, if filter return false, connection will be closed, called before construction of client_context'
+            desc: 'client_context is proxy<tcp_network_stream || tcp_network_blocking>'
+        returns: noting
         
 ### tcp_network_stream
     desc: 'delay write to the network, when has available read data'
@@ -743,6 +755,11 @@
         desc: 'close socket without waiting for all data to be sent, usefull when need close bad connection'
         returns: noting
 
+	fun: rebuffer
+        arguments: {non_negative}i32
+        desc: 'set new buffer size for shared buffer'
+        returns: noting
+
 	fun: is_closed
         arguments: ignored
         desc: 'check if socket is closed'
@@ -752,7 +769,7 @@
         arguments: ignored
         desc: 'get error code of socket'
         returns: ui8
-            desc: 'enum tcp_error{none = 0, remote_close = 1, local_close = 2, undefined_error = 0xFF}'
+            desc: 'enum tcp_error{none = 0, remote_close = 1, local_close = 2, local_reset = 3, read_queue_overflow = 4, invalid_state = 5,undefined_error = 0xFF}'
 
 ### tcp_network_blocking
     constructor: none
@@ -791,6 +808,10 @@
         desc: 'close socket without waiting for all data to be sent, usefull when need close bad connection'
         returns: noting
 
+	fun: rebuffer
+        arguments: {non_negative}i32
+        desc: 'set new buffer size for shared buffer'
+        returns: noting
 
 	fun: is_closed
         arguments: ignored
@@ -859,6 +880,11 @@
 	fun: reset
         arguments: ignored
         desc: 'close connection without waiting for all data to be sent, usefull when need close bad connection'
+        returns: noting
+    
+	fun: rebuffer
+        arguments: {non_negative}i32
+        desc: 'set new buffer size for shared buffer'
         returns: noting
 
 

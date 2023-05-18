@@ -1,4 +1,4 @@
-// Copyright Danyil Melnytskyi 2022-2023
+﻿// Copyright Danyil Melnytskyi 2022-2023
 //
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
@@ -16,7 +16,7 @@
 #include "run_time/standard_lib.hpp"
 #include "run_time/attacha_abi_structs.hpp"
 #include "run_time/run_time_compiler.hpp"
-#include "run_time/Tasks.hpp"
+#include "run_time/tasks.hpp"
 #include <stdio.h>
 #include <typeinfo>
 #include <Windows.h>
@@ -390,7 +390,7 @@ void test_stack(){
 	alloca(100000);
 	std::cout <<light_stack::used_size() << std::endl;
 }
-int main(){
+int amain(){
 	test_stack();
 	light_stack::shrink_current();
 	std::cout <<light_stack::used_size() << std::endl;
@@ -451,3 +451,141 @@ int main(){
 	else
 		return 0;
 }
+
+std::vector<uint8_t> to_var_int(int integer){
+	std::vector<uint8_t> var_int;
+	while (true){
+		uint8_t byte = integer & 0b01111111;
+		integer >>= 7;
+		if (integer != 0){
+			byte |= 0b10000000;
+		}
+		var_int.push_back(byte);
+		if (integer == 0){
+			break;
+		}
+	}
+	return var_int;
+}
+
+std::vector<uint8_t> handshake_fn(){
+	std::vector<uint8_t> handshake;
+	handshake.push_back(0x00);
+	char handshake_data[] = "{\"version\": {\"name\": \"1.19.7\",\"protocol\": 762},"
+		"\"players\": {\"max\": 100,\"online\": 5,\"sample\":"
+		"[{\"name\": \"thinkofdeath\",\"id\": \"4566e69f-c907-48ee-8d71-d7ba5aa00d20\"}]},"
+		"\"description\": {\"text\": \"Hello world\"},\"favicon\": \"data:image/png;base64,<data>\"}";
+	std::vector<uint8_t> handshake_data_len = to_var_int(sizeof(handshake_data) - 1);
+	handshake.insert(handshake.end(), handshake_data_len.begin(), handshake_data_len.end());
+	handshake.insert(handshake.end(), handshake_data, handshake_data + sizeof(handshake_data) - 1);
+	
+	handshake_data_len = to_var_int(handshake.size());
+	handshake.insert(handshake.begin(), handshake_data_len.begin(), handshake_data_len.end());
+	return handshake;
+}
+
+
+
+
+
+
+
+ValueItem* test_server_func(ValueItem* args, uint32_t argc) {
+	ProxyClass& proxy = *(ProxyClass*)args[0].getSourcePtr();
+	ProxyClass& client_ip = *(ProxyClass*)args[1].getSourcePtr();
+	ProxyClass& local_ip = *(ProxyClass*)args[2].getSourcePtr();
+
+	std::cout << (std::string)AttachA::Interface::makeCall(ClassAccess::pub, client_ip, "to_string") << " " << (int)AttachA::Interface::makeCall(ClassAccess::pub, client_ip, "port") << std::endl;
+	std::cout << (std::string)AttachA::Interface::makeCall(ClassAccess::pub, local_ip, "to_string") << " " << (int)AttachA::Interface::makeCall(ClassAccess::pub, client_ip, "port") << std::endl;
+
+	bool sended = false;
+
+	auto handshake = handshake_fn();
+	//send handshake
+
+	if(!AttachA::Interface::makeCall(ClassAccess::pub, proxy, "is_closed")){
+		std::cout << (std::string)AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref") << std::endl;
+		if(AttachA::Interface::makeCall(ClassAccess::pub, proxy, "data_available"))
+			std::cout << (std::string)AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref") << std::endl;
+
+		AttachA::Interface::makeCall(ClassAccess::pub, proxy, "write", ValueItem(handshake.data(), ValueMeta(VType::raw_arr_ui8, false, false, handshake.size())));
+
+		AttachA::Interface::makeCall(ClassAccess::pub, proxy, "force_write");
+		ValueItem ping = AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref");
+		AttachA::Interface::makeCall(ClassAccess::pub, proxy, "write", ping);
+
+
+	}
+	AttachA::Interface::makeCall(ClassAccess::pub, proxy, "close");
+
+	return nullptr;
+}
+ValueItem* test_slow_server_http(ValueItem* args, uint32_t argc){
+	ProxyClass& proxy = *(ProxyClass*)args[0].getSourcePtr();
+	if(!AttachA::Interface::makeCall(ClassAccess::pub, proxy, "is_closed")){
+		while(AttachA::Interface::makeCall(ClassAccess::pub, proxy, "data_available"))
+			AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref");
+		ValueItem file = AttachA::cxxCall("# file file_handle", "D:\\sample_hello_world_http_response.txt");
+		ProxyClass& file_handle = (ProxyClass&)file;
+		uint64_t file_size = (uint64_t)AttachA::Interface::makeCall(ClassAccess::pub, file_handle, "size");
+		ValueItem readed = AttachA::Interface::makeCall(ClassAccess::pub, file_handle, "read", file_size);
+		readed.getAsync();
+		AttachA::Interface::makeCall(ClassAccess::pub, proxy, "write", readed);
+	}
+	return nullptr;
+}
+ValueItem file;
+
+ValueItem* test_fast_server_http(ValueItem* args, uint32_t argc){
+	ProxyClass& proxy = *(ProxyClass*)args[0].getSourcePtr();
+	if(!AttachA::Interface::makeCall(ClassAccess::pub, proxy, "is_closed")){
+		while(AttachA::Interface::makeCall(ClassAccess::pub, proxy, "data_available"))
+			AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref");
+		AttachA::Interface::makeCall(ClassAccess::pub, proxy, "write_file", file);
+	}
+	return nullptr;
+}
+
+#include "run_time/networking.hpp"
+template<const char* prefix>
+ValueItem* logger(ValueItem* args, uint32_t argc) {
+	std::string output(prefix);
+	output += ": [";
+	for(uint32_t i = 0; i < argc; i++){
+		output += (std::string)args[i];
+		if(i != argc - 1)
+			output += ", ";
+	}
+	output += "]";
+	std::cout << output << std::endl;
+	return nullptr;
+}
+constexpr int ii = '\r';
+const char _FATAL[] = "FATAL";
+const char _ERROR[] = "ERROR";
+const char _WARN[] = "WARN";
+const char _INFO[] = "INFO";
+int main(){
+	unhandled_exception.join(new FuncEnviropment(logger<_FATAL>, false));
+	errors.join(new FuncEnviropment(logger<_ERROR>, false));
+	warning.join(new FuncEnviropment(logger<_WARN>, false));
+	info.join(new FuncEnviropment(logger<_INFO>, false));
+
+	Task::create_executor(1);
+	init_networking();
+	initStandardLib_file();
+		file = AttachA::cxxCall("# file file_handle", "D:\\sample_hello_world_http_response.txt");
+
+
+	ValueItem arg("0.0.0.0:1234");
+	ValueItem arg2("0.0.0.0:1235");
+	TcpNetworkServer server(new FuncEnviropment(test_slow_server_http, false), arg, TcpNetworkServer::ManageType::write_delayed,20);
+	TcpNetworkServer server2(new FuncEnviropment(test_fast_server_http, false), arg2, TcpNetworkServer::ManageType::write_delayed,20);
+	server.start();
+	server2.start();
+	server._await();
+	server2._await();
+	return 0;
+}
+
+

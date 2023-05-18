@@ -10,7 +10,7 @@ bool inited = false;
 ProxyClassDefine define_UniversalAddress;
 ProxyClassDefine define_TcpNetworkStream;
 ProxyClassDefine define_TcpNetworkBlocking;
-
+void init_define_UniversalAddress();
 void init_define_TcpNetworkStream();
 void init_define_TcpNetworkBlocking();
 
@@ -339,7 +339,6 @@ struct tcp_handle : public NativeWorkerHandle {
 	int readed_bytes;
 	int data_len;
 	bool force_mode;
-	HANDLE file_handle;
 	uint32_t max_read_queue_size;
 	enum class error : uint8_t{
 		none = 0,
@@ -359,7 +358,9 @@ struct tcp_handle : public NativeWorkerHandle {
 		INTERNAL_CLOSE
 	} opcode = Opcode::ACCEPT;
 
-	tcp_handle(SOCKET socket, size_t buffer_len, NativeWorkerManager* manager, uint32_t read_queue_size = 10) : socket(socket), NativeWorkerHandle(manager), max_read_queue_size(read_queue_size){
+	tcp_handle(SOCKET socket, int32_t buffer_len, NativeWorkerManager* manager, uint32_t read_queue_size = 10) : socket(socket), NativeWorkerHandle(manager), max_read_queue_size(read_queue_size){
+		if(buffer_len < 0)
+			throw InvalidArguments("buffer_len must be positive");
 		SecureZeroMemory(&overlapped, sizeof(OVERLAPPED));
 		data = new char[buffer_len];
 		buffer.buf = data;
@@ -606,6 +607,7 @@ struct tcp_handle : public NativeWorkerHandle {
 		case Opcode::INTERNAL_CLOSE:
 			closesocket(socket);
 			socket = INVALID_SOCKET;
+			Task::start(notify_task);
 			break;
 		default:
 			break;
@@ -706,6 +708,17 @@ struct tcp_handle : public NativeWorkerHandle {
 		readed_bytes = 0;
 		internal_close();
 	}
+	void rebuffer(int32_t buffer_len){
+		if(!data)
+			return;
+		if(buffer_len < 0)
+			throw InvalidArguments("buffer_len must be positive");
+		char* new_data = new char[buffer_len];
+		delete[] data;
+		data = new_data;
+		data_len = buffer_len;
+	}
+
 private:
 	void pre_close(error err){
 		std::list<std::tuple<char*, size_t>> clear_write_queue;
@@ -722,11 +735,14 @@ private:
 		notify_task = nullptr;
 	}
 	void internal_close(){
+		typed_lgr<Task> task_await = notify_task = Task::dummy_task();
 		opcode = Opcode::INTERNAL_CLOSE;
 		if(!_DisconnectEx(socket, nullptr, TF_REUSE_SOCKET, 0)){
 			if(WSAGetLastError() != ERROR_IO_PENDING)
 				invalid_reason = error::local_close;
 		}
+		Task::await_task(task_await);
+		notify_task = nullptr;
 	}
 	bool handle_error(){
 		auto error = WSAGetLastError();
@@ -795,10 +811,21 @@ private:
 #pragma region TcpNetworkStream
 class TcpNetworkStream{
 	friend class TcpNetworkManager;
-	friend struct tcp_handle;
 	struct tcp_handle* handle;
 	TcpNetworkStream(tcp_handle* handle):handle(handle){}
 	TaskMutex mutex;
+	tcp_handle::error last_error;
+	bool checkup(){
+		if(!handle)
+			return false;
+		if(!handle->valid()){
+			last_error = handle->invalid_reason;
+			delete handle;
+			handle = nullptr;
+			return false;
+		}
+		return true;
+	}
 public:
 	~TcpNetworkStream(){
 		if(handle){
@@ -816,6 +843,8 @@ public:
 			if(!handle->send_queue_item())
 				break;
 		}
+		if(!checkup())
+			return ValueItem(nullptr, ValueMeta(VType::raw_arr_ui8, false, false, 0) , as_refrence);
 		int readed = 0; 
 		char* data = handle->read_available_no_copy(readed);
 		return ValueItem(data, ValueMeta(VType::raw_arr_ui8, false, false, readed) , as_refrence);
@@ -828,6 +857,9 @@ public:
 			if(!handle->send_queue_item())
 				break;
 		}
+		
+		if(!checkup())
+			return (uint32_t)0;
 		int readed = 0; 
 		handle->read_available(buffer, buffer_len, readed);
 		return ValueItem((uint32_t)readed);
@@ -846,12 +878,17 @@ public:
 				if(!handle->send_queue_item())
 					break;
 			}
+			checkup();
 		}
 	}
 	bool write_file(char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
 		std::lock_guard lg(mutex);
 		if(handle){
 			while(handle->valid())if(!handle->send_queue_item())break;
+			
+			if(!checkup())
+				return false;
+			
 			return handle->send_file(path, path_len, data_len, offset, chunks_size);
 		}
 		return false;
@@ -860,6 +897,8 @@ public:
 		std::lock_guard lg(mutex);
 		if(handle){
 			while(handle->valid())if(!handle->send_queue_item())break;
+			if(!checkup())
+				return false;
 			return handle->send_file(fhandle, data_len, offset, chunks_size);
 		}
 		return false;
@@ -867,18 +906,25 @@ public:
 	//write all data from write_queue
 	void force_write(){
 		std::lock_guard lg(mutex);
-		if(handle)
+		if(handle){
 			while(handle->valid())if(!handle->send_queue_item())break;
+			checkup();
+		}
 	}
 	void force_write_and_close(char* data, size_t size){
 		std::lock_guard lg(mutex);
-		if(handle)
+		if(handle){
 			handle->send_and_close(data, size);
+			last_error = handle->invalid_reason;
+			delete handle;
+		}
+		handle = nullptr;
 	}
 	void close(){
 		std::lock_guard lg(mutex);
 		if(handle){
 			handle->close();
+			last_error = handle->invalid_reason;
 			delete handle;
 		}
 		handle = nullptr;
@@ -887,11 +933,16 @@ public:
 		std::lock_guard lg(mutex);
 		if(handle){
 			handle->reset();
+			last_error = handle->invalid_reason;
 			delete handle;
 		}
 		handle = nullptr;
 	}
-	
+	void rebuffer(int32_t new_size){
+		std::lock_guard lg(mutex);
+		if(handle)
+			handle->rebuffer(new_size);
+	}
 	bool is_closed(){
 		std::lock_guard lg(mutex);
 		if(handle){
@@ -908,12 +959,12 @@ public:
 		std::lock_guard lg(mutex);
 		if(handle)
 			return handle->invalid_reason;
-		return tcp_handle::error::local_close;
+		return last_error;
 	}
 };
 
 ValueItem* funs_TcpNetworkStream_read_available_ref(ValueItem* args, uint32_t len){
-	if(len == 1){
+	if(len >= 1){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
 		return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->read_available_ref());
@@ -921,17 +972,17 @@ ValueItem* funs_TcpNetworkStream_read_available_ref(ValueItem* args, uint32_t le
 		throw InvalidArguments("The number of arguments must be 1.");
 }
 ValueItem* funs_TcpNetworkStream_read_available(ValueItem* args, uint32_t len){
-	if(len == 2){
+	if(len >= 2){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
-		if(args[1].meta.vtype != VType::raw_arr_ui8)
+		if(args[1].meta.vtype != VType::raw_arr_ui8 || args[1].meta.vtype != VType::raw_arr_i8)
 			throw InvalidArguments("The second argument must be a raw_arr_ui8.");
 		return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->read_available((char*)args[1].val, args[1].meta.val_len));
 	}else
 		throw InvalidArguments("The number of arguments must be 2.");
 }
 ValueItem* funs_TcpNetworkStream_data_available(ValueItem* args, uint32_t len){
-	if(len == 1){
+	if(len >= 1){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
 		return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->data_available());
@@ -939,10 +990,10 @@ ValueItem* funs_TcpNetworkStream_data_available(ValueItem* args, uint32_t len){
 		throw InvalidArguments("The number of arguments must be 1.");
 }
 ValueItem* funs_TcpNetworkStream_write(ValueItem* args, uint32_t len){
-	if(len == 2){
+	if(len >= 2){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
-		if(args[1].meta.vtype != VType::raw_arr_ui8)
+		if(args[1].meta.vtype != VType::raw_arr_ui8 || args[1].meta.vtype != VType::raw_arr_ui8)
 			throw InvalidArguments("The second argument must be a raw_arr_ui8.");
 		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->write((char*)args[1].val, args[1].meta.val_len);
 		return nullptr;
@@ -982,7 +1033,7 @@ ValueItem* funs_TcpNetworkStream_write_file(ValueItem* args, uint32_t len){
 		throw InvalidArguments("The number of arguments must be at least 2.");
 }
 ValueItem* funs_TcpNetworkStream_force_write(ValueItem* args, uint32_t len){
-	if(len == 1){
+	if(len >= 1){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
 		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->force_write();
@@ -991,7 +1042,7 @@ ValueItem* funs_TcpNetworkStream_force_write(ValueItem* args, uint32_t len){
 		throw InvalidArguments("The number of arguments must be 1.");
 }
 ValueItem* funs_TcpNetworkStream_force_write_and_close(ValueItem* args, uint32_t len){
-	if(len == 2){
+	if(len >= 2){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
 		if(args[1].meta.vtype != VType::raw_arr_ui8)
@@ -1002,7 +1053,7 @@ ValueItem* funs_TcpNetworkStream_force_write_and_close(ValueItem* args, uint32_t
 		throw InvalidArguments("The number of arguments must be 2.");
 }
 ValueItem* funs_TcpNetworkStream_close(ValueItem* args, uint32_t len){
-	if(len == 1){
+	if(len >= 1){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
 		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->close();
@@ -1011,7 +1062,7 @@ ValueItem* funs_TcpNetworkStream_close(ValueItem* args, uint32_t len){
 		throw InvalidArguments("The number of arguments must be 1.");
 }
 ValueItem* funs_TcpNetworkStream_reset(ValueItem* args, uint32_t len){
-	if(len == 1){
+	if(len >= 1){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
 		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->reset();
@@ -1019,8 +1070,17 @@ ValueItem* funs_TcpNetworkStream_reset(ValueItem* args, uint32_t len){
 	}else
 		throw InvalidArguments("The number of arguments must be 1.");
 }
+ValueItem* funs_TcpNetworkStream_rebuffer(ValueItem* args, uint32_t len){
+	if(len >= 2){
+		if(args[0].meta.vtype != VType::proxy)
+			throw InvalidArguments("The first argument must be a client_context.");
+		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->rebuffer((int32_t)args[1]);
+		return nullptr;
+	}else
+		throw InvalidArguments("The number of arguments must be 1.");
+}
 ValueItem* funs_TcpNetworkStream_is_closed(ValueItem* args, uint32_t len){
-	if(len == 1){
+	if(len >= 1){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
 		return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->is_closed());
@@ -1028,7 +1088,7 @@ ValueItem* funs_TcpNetworkStream_is_closed(ValueItem* args, uint32_t len){
 		throw InvalidArguments("The number of arguments must be 1.");
 }
 ValueItem* funs_TcpNetworkStream_error(ValueItem* args, uint32_t len){
-	if(len == 1){
+	if(len >= 1){
 		if(args[0].meta.vtype != VType::proxy)
 			throw InvalidArguments("The first argument must be a client_context.");
 		return new ValueItem((uint8_t)((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->error());
@@ -1052,7 +1112,8 @@ void init_define_TcpNetworkStream(){
 	define_TcpNetworkStream.funs["force_write"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_force_write, false), false, ClassAccess::pub};
 	define_TcpNetworkStream.funs["force_write_and_close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_force_write_and_close, false), false, ClassAccess::pub};
 	define_TcpNetworkStream.funs["close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_close, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["reset"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_close, false), false, ClassAccess::pub};
+	define_TcpNetworkStream.funs["reset"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_reset, false), false, ClassAccess::pub};
+	define_TcpNetworkStream.funs["rebuffer"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_rebuffer, false), false, ClassAccess::pub};
 	define_TcpNetworkStream.funs["is_closed"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_is_closed, false), false, ClassAccess::pub};
 	define_TcpNetworkStream.funs["error"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_error, false), false, ClassAccess::pub};
 }
@@ -1062,10 +1123,21 @@ void init_define_TcpNetworkStream(){
 #pragma region TcpNetworkBlocing
 class TcpNetworkBlocing{
 	friend class TcpNetworkManager;
-	friend struct tcp_handle;
 	tcp_handle* handle;
 	TaskMutex mutex;
+	tcp_handle::error last_error;
 	TcpNetworkBlocing(tcp_handle* handle):handle(handle){}
+	bool checkup(){
+		if(!handle)
+			return false;
+		if(!handle->valid()){
+			last_error = handle->invalid_reason;
+			delete handle;
+			handle = nullptr;
+			return false;
+		}
+		return true;
+	}
 public:
 	~TcpNetworkBlocing(){
 		std::lock_guard lg(mutex);
@@ -1077,6 +1149,7 @@ public:
 	ValueItem read(uint32_t len){
 		std::lock_guard lg(mutex);
 		if(handle){
+			if(!checkup()) return nullptr;
 			char* buf = new char[len];
 			handle->read_force(len, buf);
 			if(len == 0){
@@ -1095,26 +1168,35 @@ public:
 	}
 	ValueItem write(char* data, uint32_t len){
 		std::lock_guard lg(mutex);
-		if(handle)
+		if(handle){
+			if(!checkup()) return nullptr;
 			return handle->write_force(data, len);
+		}
 		return nullptr;
 	}
 	ValueItem write_file(char* path, size_t len, uint64_t data_len, uint64_t offset, uint32_t block_size){
 		std::lock_guard lg(mutex);
-		if(handle)
+		if(handle){
+			if(!checkup()) return nullptr;
 			return handle->send_file(path, len, data_len, offset, block_size);
+		}
 		return nullptr;
 	}
 	ValueItem write_file(void* fhandle, uint64_t data_len, uint64_t offset, uint32_t block_size){
 		std::lock_guard lg(mutex);
-		if(handle)
+		if(handle){
+			if(!checkup()) return nullptr;
 			return handle->send_file(fhandle, data_len, offset, block_size);
+		}
 		return nullptr;
 	}
+
 
 	void close(){
 		std::lock_guard lg(mutex);
 		if(handle){
+			handle->close();
+			last_error = handle->invalid_reason;
 			delete handle;
 			handle = nullptr;
 		}
@@ -1123,15 +1205,23 @@ public:
 		std::lock_guard lg(mutex);
 		if(handle){
 			handle->reset();
+			last_error = handle->invalid_reason;
 			delete handle;
 			handle = nullptr;
 		}
 	}
+	void rebuffer(size_t new_size){
+		std::lock_guard lg(mutex);
+		if(handle)
+			handle->rebuffer(new_size);
+	}
+	
 	bool is_closed(){
 		std::lock_guard lg(mutex);
 		if(handle){
 			bool res = handle->valid();
 			if(!res){
+				last_error = handle->invalid_reason;
 				delete handle;
 				handle = nullptr;
 			}
@@ -1143,7 +1233,7 @@ public:
 		std::lock_guard lg(mutex);
 		if(handle)
 			return handle->invalid_reason;
-		return tcp_handle::error::local_close;
+		return last_error;
 	}
 };
 
@@ -1226,6 +1316,14 @@ ValueItem* funs_TcpNetworkBlocing_reset(ValueItem* args, uint32_t len){
 		return nullptr;
 	}else throw InvalidArguments("The first argument must be a client_context.");
 }
+ValueItem* funs_TcpNetworkBlocing_rebuffer(ValueItem* args, uint32_t len){
+	if(len >= 2){
+		if(args[0].meta.vtype != VType::proxy)
+			throw InvalidArguments("The first argument must be a client_context.");
+		((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->rebuffer((int32_t)args[1]);
+		return nullptr;
+	}else throw InvalidArguments("The first argument must be a client_context.");
+}
 ValueItem* funs_TcpNetworkBlocing_is_closed(ValueItem* args, uint32_t len){
 	if(len >= 1){
 		if(args[0].meta.vtype != VType::proxy)
@@ -1253,6 +1351,7 @@ void init_define_TcpNetworkBlocking(){
 	define_TcpNetworkBlocking.funs["write_file"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_write_file, false), false, ClassAccess::pub};
 	define_TcpNetworkBlocking.funs["close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_close, false), false, ClassAccess::pub};
 	define_TcpNetworkBlocking.funs["reset"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_reset, false), false, ClassAccess::pub};
+	define_TcpNetworkBlocking.funs["rebuffer"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_rebuffer, false), false, ClassAccess::pub};
 	define_TcpNetworkBlocking.funs["is_closed"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_is_closed, false), false, ClassAccess::pub};
 	define_TcpNetworkBlocking.funs["error"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_error, false), false, ClassAccess::pub};
 }
@@ -1266,7 +1365,7 @@ class TcpNetworkManager : public NativeWorkerManager {
     sockaddr_in6 connectionAddress;
 	SOCKET main_socket;
 public:
-	int32_t default_len = 8192;
+	int32_t default_len;
 private:
 	bool allow_new_connections = false;
 	bool disabled = true;
@@ -1388,7 +1487,7 @@ private:
 		return;
 	}
 public:
-	TcpNetworkManager(universal_address& ip_port, size_t acceptors,TcpNetworkServer::ManageType manage_type, int32_t timeout_ms) : acceptors(acceptors),manage_type(manage_type) {
+	TcpNetworkManager(universal_address& ip_port, size_t acceptors,TcpNetworkServer::ManageType manage_type, int32_t timeout_ms, int32_t default_buffer) : acceptors(acceptors),manage_type(manage_type), default_len(default_buffer) {
     	memcpy(&connectionAddress, &ip_port, sizeof(sockaddr_in6));
 		main_socket = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 		if (main_socket == INVALID_SOCKET){
@@ -1707,6 +1806,12 @@ public:
 	bool is_corrupted(){
 		return corrupted;
 	}
+	void rebuffer(uint32_t size){
+		if(corrupted)
+			throw std::runtime_error("TcpClientManager::rebuffer, corrupted");
+		std::lock_guard<TaskMutex> lock(mutex);
+		_handle->rebuffer(size);
+	}
 };
 #pragma endregion
 
@@ -1813,13 +1918,13 @@ void deinit_networking(){
 }
 #endif
 
-TcpNetworkServer::TcpNetworkServer(typed_lgr<class FuncEnviropment> on_connect, ValueItem& ip_port, ManageType mt, size_t acceptors, int32_t timeout_ms){
+TcpNetworkServer::TcpNetworkServer(typed_lgr<class FuncEnviropment> on_connect, ValueItem& ip_port, ManageType mt, size_t acceptors, int32_t timeout_ms, int32_t default_buffer){
 	if(!inited)
 		throw InternalException("Network module not initialized");
 	sockaddr_storage address;
 	get_address_from_valueItem(ip_port, address);
 	timeout_ms = timeout_ms < 0 ? 0 : timeout_ms;
-	handle = new TcpNetworkManager(address, acceptors, mt, timeout_ms);
+	handle = new TcpNetworkManager(address, acceptors, mt, timeout_ms, default_buffer);
 	handle->set_on_connect(on_connect, mt);
 }
 TcpNetworkServer::~TcpNetworkServer(){
@@ -1861,7 +1966,17 @@ ValueItem TcpNetworkServer::server_address(){
 bool TcpNetworkServer::is_paused(){
 	return handle->is_paused();
 }
-
+void TcpNetworkServer::set_default_buffer_size(int32_t size){
+	if(handle){
+		if(size < 0)
+			throw InvalidArguments("Buffer size must be positive");
+		handle->default_len = size;
+	}
+}
+void TcpNetworkServer::set_accept_filter(typed_lgr<class FuncEnviropment> filter){
+	if(handle)
+		handle->set_accept_filter(filter);
+}
 
 TcpClientSocket::TcpClientSocket(){}
 TcpClientSocket::~TcpClientSocket(){
@@ -1899,12 +2014,17 @@ TcpClientSocket* TcpClientSocket::connect(ValueItem& ip_port, char* data, uint32
 int32_t TcpClientSocket::recv(uint8_t* data, int32_t size){
 	if(!inited)
 		throw InternalException("Network module not initialized");
-	return handle->read((char*)data, size);
+		
+	if(handle)
+		return handle->read((char*)data, size);
+	return 0;
 }
 bool TcpClientSocket::send(uint8_t* data, int32_t size){
 	if(!inited)
 		throw InternalException("Network module not initialized");
-	return handle->write((char*)data, size);
+	if(handle)
+		return handle->write((char*)data, size);
+	return false;
 }
 bool TcpClientSocket::send_file(const char* file_path, size_t file_path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size){
 	if(!handle)
@@ -1922,14 +2042,22 @@ bool TcpClientSocket::send_file(class ::files::BlockingFileHandle& file, uint64_
 	return handle->write_file(file.internal_get_handle(), data_len, offset, chunks_size);
 }
 void TcpClientSocket::close(){
-	handle->close();
-	delete handle;
-	handle = nullptr;
+	if(handle){
+		handle->close();
+		delete handle;
+		handle = nullptr;
+	}
 }
 void TcpClientSocket::reset(){
-	handle->reset();
-	delete handle;
-	handle = nullptr;
+	if(handle){
+		handle->reset();
+		delete handle;
+		handle = nullptr;
+	}
+}
+void TcpClientSocket::rebuffer(int32_t size){
+	if(handle)
+		handle->rebuffer(size);
 }
 
 

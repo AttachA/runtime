@@ -83,8 +83,22 @@ namespace net{
         }else
             throw InvalidArguments("This function is proxy function");
     }
-
-
+    ValueItem* funs_TcpNetworkServer_set_default_buffer(ValueItem* args, uint32_t len){
+        if(len >= 2){
+            AIs::proxy_get_as_native<TcpNetworkServer>(args[0])->set_default_buffer_size((int32_t)args[1]);
+            return nullptr;
+        }else
+            throw InvalidArguments("This function is proxy function");
+    }
+    ValueItem* funs_TcpNetWorkServer_set_accept_filter(ValueItem* args, uint32_t len){
+        if(len >= 2){
+            auto fun = args[1].funPtr();
+            if(fun == nullptr) throw InvalidArguments("Expected function pointer");
+            AIs::proxy_get_as_native<TcpNetworkServer>(args[0])->set_accept_filter(*fun);
+            return nullptr;
+        }else
+            throw InvalidArguments("This function is proxy function");
+    }
 #pragma endregion
 #pragma region TcpClientSocket
     ValueItem* funs_TcpClientSocket_recv(ValueItem* args, uint32_t len){
@@ -131,6 +145,13 @@ namespace net{
     ValueItem* funs_TcpClientSocket_close(ValueItem* args, uint32_t len){
         if(len >= 1){
             AIs::proxy_get_as_native<TcpClientSocket>(args[0])->close();
+            return nullptr;
+        }else
+            throw InvalidArguments("This function is proxy function");
+    }
+    ValueItem* funs_TcpClientSocket_rebuffer(ValueItem* args, uint32_t len){
+        if(len >= 2){
+            AIs::proxy_get_as_native<TcpClientSocket>(args[0])->rebuffer((int32_t)args[1]);
             return nullptr;
         }else
             throw InvalidArguments("This function is proxy function");
@@ -185,14 +206,17 @@ namespace net{
             TcpNetworkServer::ManageType manage_type = TcpNetworkServer::ManageType::write_delayed;
             size_t acceptors = 10;
             int32_t timeout_ms = 0;
+            int32_t default_buffer = 8192;
             if(len >= 3)
                 if(args[2].meta.vtype != VType::noting) manage_type = (TcpNetworkServer::ManageType)(uint8_t)args[2];
             if(len >= 4)
                 if(args[3].meta.vtype != VType::noting) acceptors = (size_t)args[3];
             if(len >= 5)
                 if(args[4].meta.vtype != VType::noting) timeout_ms = (int32_t)args[4];
-
-            return new ValueItem(new ProxyClass(new typed_lgr(new TcpNetworkServer(*fun, ip_port,manage_type, acceptors, timeout_ms)), &define_TcpNetworkServer));
+            if(len >= 6)
+                if(args[5].meta.vtype != VType::noting) default_buffer = (int32_t)args[5];
+            if(default_buffer < 1) default_buffer = 8192;
+            return new ValueItem(new ProxyClass(new typed_lgr(new TcpNetworkServer(*fun, ip_port,manage_type, acceptors, timeout_ms, default_buffer)), &define_TcpNetworkServer));
         }
 		ValueItem* createProxy_HttpServer(ValueItem*, uint32_t){
             throw NotImplementedException();
@@ -245,7 +269,8 @@ namespace net{
         define_TcpNetworkServer.funs["await"] = ClassFnDefine(new FuncEnviropment(funs_TcpNetworkServer_await, false), false, ClassAccess::pub);
         define_TcpNetworkServer.funs["pause"] = ClassFnDefine(new FuncEnviropment(funs_TcpNetworkServer_pause, false), false, ClassAccess::pub);
         define_TcpNetworkServer.funs["resume"] = ClassFnDefine(new FuncEnviropment(funs_TcpNetworkServer_resume, false), false, ClassAccess::pub);
-
+        define_TcpNetworkServer.funs["set_default_buffer"] = ClassFnDefine(new FuncEnviropment(funs_TcpNetworkServer_set_default_buffer, false), false, ClassAccess::pub);
+        define_TcpNetworkServer.funs["set_accept_filter"] = ClassFnDefine(new FuncEnviropment(funs_TcpNetWorkServer_set_accept_filter, false), false, ClassAccess::pub);
 
         define_TcpClientSocket.name = "tcp_client";
         define_TcpClientSocket.destructor = AIs::proxyDestruct<TcpClientSocket, true>;
@@ -254,12 +279,12 @@ namespace net{
         define_TcpClientSocket.funs["send"] = ClassFnDefine(new FuncEnviropment(funs_TcpClientSocket_send, false), false, ClassAccess::pub);
         define_TcpClientSocket.funs["send_file"] = ClassFnDefine(new FuncEnviropment(funs_TcpClientSocket_send_file, false), false, ClassAccess::pub);
         define_TcpClientSocket.funs["close"] = ClassFnDefine(new FuncEnviropment(funs_TcpClientSocket_close, false), false, ClassAccess::pub);
+        define_TcpClientSocket.funs["rebuffer"] = ClassFnDefine(new FuncEnviropment(funs_TcpClientSocket_rebuffer, false), false, ClassAccess::pub);    
 
         define_UdpSocket.name = "udp_socket";
         define_UdpSocket.destructor = AIs::proxyDestruct<udp_socket, true>;
         define_UdpSocket.copy = AIs::proxyCopy<udp_socket, true>;
         define_UdpSocket.funs["recv"] = ClassFnDefine(new FuncEnviropment(funs_udp_socket_recv, false), false, ClassAccess::pub);
         define_UdpSocket.funs["send"] = ClassFnDefine(new FuncEnviropment(funs_udp_socket_send, false), false, ClassAccess::pub);
-
     }
 }

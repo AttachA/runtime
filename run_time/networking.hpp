@@ -19,9 +19,8 @@ public:
 		blocking,
 		write_delayed
 	};
-	typed_lgr<class FuncEnviropment> on_connect;
 
-	TcpNetworkServer(typed_lgr<class FuncEnviropment> on_connect, ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10, int32_t timeout_ms = 0);
+	TcpNetworkServer(typed_lgr<class FuncEnviropment> on_connect, ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10, int32_t timeout_ms = 0, int32_t default_buffer = 8192);
 	~TcpNetworkServer();
 	void start();
 	void pause();
@@ -36,7 +35,8 @@ public:
 	uint16_t server_port();
 	std::string server_ip();
 	ValueItem server_address();
-
+	void set_default_buffer_size(int32_t size);
+	void set_accept_filter(typed_lgr<class FuncEnviropment> filter);
 };
 class TcpClientSocket{
 	class TcpClientManager* handle;
@@ -56,6 +56,7 @@ public:
 	bool send_file(class ::files::BlockingFileHandle& file, uint64_t data_len, uint64_t offset, uint32_t chunks_size);
 	void close();
 	void reset();
+	void rebuffer(int32_t size);
 };
 struct udp_socket{
 	class udp_handle* handle;
