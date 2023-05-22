@@ -696,6 +696,7 @@ void taskExecutor(bool end_in_task_out = false) {
 			loc.curr_task->relock_1.unlock();
 			loc.curr_task->relock_2.unlock();
 		}
+		loc.is_task_thread = false;
 		loc.curr_task = nullptr;
 		worker_mode_desk("idle");
 	}
