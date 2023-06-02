@@ -330,7 +330,8 @@ void get_address_from_valueItem(ValueItem& ip_port, sockaddr_storage& addr_stora
 struct tcp_handle : public NativeWorkerHandle {
 	std::list<std::tuple<char*, size_t>> write_queue;
 	std::list<std::tuple<char*, size_t>> read_queue;
-	typed_lgr<Task> notify_task;
+	TaskConditionVariable cv;
+	TaskMutex cv_mutex;
 	SOCKET socket;
 	WSABUF buffer;
 	char* data;
@@ -475,11 +476,11 @@ struct tcp_handle : public NativeWorkerHandle {
 	void read_data(){
 		if(!data)
 			return;
-		typed_lgr<Task> task_await = notify_task = Task::dummy_task();
+		MutexUnify mutex(cv_mutex);
+		std::unique_lock<MutexUnify> lock(mutex);
 		opcode = Opcode::READ;
 		read();
-		Task::await_task(task_await, false);
-		notify_task = nullptr;
+		cv.wait(lock);
 	}
 	void read_available_no_block(char* extern_buffer, int buffer_len, int& readed){
 		if(!readed_bytes)
@@ -547,10 +548,13 @@ struct tcp_handle : public NativeWorkerHandle {
 		if(!data)
 			return;
 		switch (opcode) {
-		case Opcode::READ:
+		case Opcode::READ:{
+			MutexUnify mutex(cv_mutex);
+			std::unique_lock<MutexUnify> lock(mutex);
 			readed_bytes = dwBytesTransferred;
-			Task::start(notify_task);
+			cv.notify_all();
 			break;
+		}
 		case Opcode::WRITE:
 			sent_bytes+=dwBytesTransferred;
 			if(sent_bytes < total_bytes){
@@ -558,7 +562,7 @@ struct tcp_handle : public NativeWorkerHandle {
 				buffer.len = total_bytes - sent_bytes;
 				if(!data_available()){
 					if(!send())
-						Task::start(notify_task);
+						cv.notify_all();
 				}
 				else{
 					char* data = new char[buffer.len];
@@ -569,12 +573,12 @@ struct tcp_handle : public NativeWorkerHandle {
 						read();
 					}
 					else
-						Task::start(notify_task);
+						cv.notify_all();
 				}
 			}
-			else Task::start(notify_task);
+			else cv.notify_all();
 		case Opcode::TRANSMIT_FILE:
-			Task::start(notify_task);
+			cv.notify_all();
 			break;
 		case Opcode::INTERNAL_READ:
 			if(dwBytesTransferred){
@@ -600,14 +604,14 @@ struct tcp_handle : public NativeWorkerHandle {
 					buffer.buf = data;
 					buffer.len = val_len;
 					if(!send())
-						Task::start(notify_task);
+						cv.notify_all();
 				}
 			}
 			break;
 		case Opcode::INTERNAL_CLOSE:
 			closesocket(socket);
 			socket = INVALID_SOCKET;
-			Task::start(notify_task);
+			cv.notify_all();
 			break;
 		default:
 			break;
@@ -700,12 +704,12 @@ struct tcp_handle : public NativeWorkerHandle {
 		closesocket(socket);//with iocp socket not send everything and cancel all operations
 	}
 	void connection_reset(){
+		MutexUnify mutex(cv_mutex);
+		std::unique_lock<MutexUnify> lock(mutex);
 		data = nullptr;
 		invalid_reason = error::remote_close;
-		if(notify_task)
-			Task::start(notify_task);
-		notify_task = nullptr;
 		readed_bytes = 0;
+		cv.notify_all();
 		internal_close();
 	}
 	void rebuffer(int32_t buffer_len){
@@ -725,24 +729,24 @@ private:
 		write_queue.swap(clear_write_queue);
 		for(auto& item : clear_write_queue)
 			delete[] std::get<0>(item);
+		MutexUnify mutex(cv_mutex);
+		std::unique_lock<MutexUnify> lock(mutex);
 		readed_bytes = 0;
 		sent_bytes = 0;
 		delete[] data;
 		data = nullptr;
 		invalid_reason = err;
-		if(notify_task)
-			Task::start(notify_task);
-		notify_task = nullptr;
+		cv.notify_all();
 	}
 	void internal_close(){
-		typed_lgr<Task> task_await = notify_task = Task::dummy_task();
+		MutexUnify mutex(cv_mutex);
+		std::unique_lock<MutexUnify> lock(mutex);
 		opcode = Opcode::INTERNAL_CLOSE;
 		if(!_DisconnectEx(socket, nullptr, TF_REUSE_SOCKET, 0)){
 			if(WSAGetLastError() != ERROR_IO_PENDING)
 				invalid_reason = error::local_close;
 		}
-		Task::await_task(task_await);
-		notify_task = nullptr;
+		cv.wait(lock);
 	}
 	bool handle_error(){
 		auto error = WSAGetLastError();
@@ -784,23 +788,23 @@ private:
 		return true;
 	}
 	bool send_await(){
-		typed_lgr<Task> task_await = notify_task = Task::dummy_task();
+		MutexUnify mutex(cv_mutex);
+		std::unique_lock<MutexUnify> lock(mutex);
 		if(!send())
 			return false;
-		Task::await_task(task_await);
-		notify_task = nullptr;
+		cv.wait(lock);
 		return data;//if data is null, then socket is closed
 	}
 	bool transfer_file(SOCKET sock, HANDLE FILE, uint32_t block, uint32_t chunks_size, uint64_t offset){
+		MutexUnify mutex(cv_mutex);
+		std::unique_lock<MutexUnify> lock(mutex);
 		overlapped.Offset = offset & 0xFFFFFFFF;
 		overlapped.OffsetHigh = offset >> 32;
-		typed_lgr<Task> task_await = notify_task = Task::dummy_task();
 		opcode = Opcode::TRANSMIT_FILE;
 		bool res = _TransmitFile(sock, FILE, block, chunks_size, &overlapped, NULL, TF_USE_KERNEL_APC);
 		if(!res && WSAGetLastError() != WSA_IO_PENDING)
 			res = false;
-		Task::await_task(task_await);
-		notify_task = nullptr;
+		cv.wait(lock);
 		return res;
 	}
 };
@@ -1681,7 +1685,7 @@ public:
 		if((FALSE == status) || ((true == status) && (0 == dwBytesTransferred)))
 			handle.connection_reset();
 		else if(handle.opcode == tcp_handle::Opcode::ACCEPT)
-			Task::start(handle.notify_task);
+			handle.cv.notify_all();
 		else
 			handle.handle(dwBytesTransferred);
 	}
@@ -1701,16 +1705,24 @@ public:
 			return;
 		}
 		_handle = new tcp_handle(clientSocket,4096, this);
-		typed_lgr<Task> task_await = _handle->notify_task = Task::dummy_task();
+		MutexUnify umutex(_handle->cv_mutex);
+		std::unique_lock<MutexUnify> lock(umutex);
 		if(!_ConnectEx(clientSocket, (sockaddr*)&connectionAddress, sizeof(connectionAddress), NULL, 0, NULL, (OVERLAPPED*)_handle)){
 			auto err = WSAGetLastError();
 			if(err != ERROR_IO_PENDING){
 				corrupted = true;
+				_handle->reset();
 				return;
 			}
 		}
-		Task::await_task(task_await);
-		_handle->notify_task = nullptr;
+		if(timeout_ms){
+			if(!_handle->cv.wait_for(lock,timeout_ms)){
+				corrupted = true;
+				_handle->reset();
+				return;
+			}
+		}else
+			_handle->cv.wait(lock);
 	}
 	TcpClientManager(sockaddr_in6& _connectionAddress, char* data, uint32_t len, int32_t timeout_ms = 0) : connectionAddress(_connectionAddress) {
 		if(timeout_ms < 0) timeout_ms = 0;
@@ -1737,7 +1749,8 @@ public:
 		_handle->buffer.len = len;
 		_handle->total_bytes = len;
 		_handle->opcode = tcp_handle::Opcode::WRITE;
-		typed_lgr<Task> task_await = _handle->notify_task = Task::dummy_task();
+		MutexUnify umutex(_handle->cv_mutex);
+		std::unique_lock<MutexUnify> lock(umutex);
 		if(!_ConnectEx(clientSocket, (sockaddr*)&connectionAddress, sizeof(connectionAddress), data, len, NULL, (OVERLAPPED*)_handle)){
 			auto err = WSAGetLastError();
 			if(err != ERROR_IO_PENDING){
@@ -1745,9 +1758,16 @@ public:
 				return;
 			}
 		}
-		Task::await_task(task_await);
+		if(timeout_ms){
+			if(!_handle->cv.wait_for(lock,timeout_ms)){
+				corrupted = true;
+				_handle->data = old_buffer;
+				_handle->reset();
+				return;
+			}
+		}else
+			_handle->cv.wait(lock);
 		_handle->data = old_buffer;
-		_handle->notify_task = nullptr;
 
 	}
 	~TcpClientManager() override {
