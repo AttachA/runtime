@@ -424,7 +424,7 @@ namespace ABI_IMPL {
 						list_array<ValueItem> res;
 						res.resize(meta.val_len);
 						for (uint32_t i = 0; i < meta.val_len; i++)
-							res[i] = ValueItem((void*)reinterpret_cast<int32_t*>(val)[i], VType::i32);
+							res[i] = ValueItem((void*)(ptrdiff_t)reinterpret_cast<int32_t*>(val)[i], VType::i32);
 						return res;
 					}
 					else return { ValueItem(val,meta) };
@@ -532,7 +532,7 @@ namespace ABI_IMPL {
 						list_array<ValueItem> res;
 						res.resize(meta.val_len);
 						for (uint32_t i = 0; i < meta.val_len; i++)
-							res[i] = ValueItem((void*)reinterpret_cast<uint32_t*>(val)[i], VType::ui32);
+							res[i] = ValueItem((void*)(size_t)reinterpret_cast<uint32_t*>(val)[i], VType::ui32);
 						return res;
 					}
 					else return { ValueItem(val,meta) };

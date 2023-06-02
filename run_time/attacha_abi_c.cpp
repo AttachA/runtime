@@ -3177,6 +3177,38 @@ void ValueItem::ungc(){
 		
 	}
 }
+bool ValueItem::is_gc(){
+	return meta.use_gc;
+}
+ValueItem ValueItem::make_slice(uint32_t start, uint32_t end) const {
+	if(meta.val_len < end) end = meta.val_len;
+	if(start > end) start = end;
+	ValueMeta res_meta = meta;
+	res_meta.val_len = end - start;
+	if(end == start) return ValueItem(nullptr, res_meta, as_refrence);
+	switch (meta.vtype) {
+	case VType::saarr:
+	case VType::faarr:
+		return ValueItem((ValueItem*)val + start, res_meta, as_refrence);
+	case VType::raw_arr_ui8:
+	case VType::raw_arr_i8:
+		return ValueItem((uint8_t*)val + start, res_meta, as_refrence);
+	case VType::raw_arr_ui16:
+	case VType::raw_arr_i16:
+		return ValueItem((uint16_t*)val + start, res_meta, as_refrence);
+	case VType::raw_arr_ui32:
+	case VType::raw_arr_i32:
+	case VType::raw_arr_flo:
+		return ValueItem((uint32_t*)val + start, res_meta, as_refrence);
+	case VType::raw_arr_ui64:
+	case VType::raw_arr_i64:
+	case VType::raw_arr_doub:
+		return ValueItem((uint64_t*)val + start, res_meta, as_refrence);
+	
+	default:
+		throw InvalidOperation("Can't make slice of this type: " + enum_to_string(meta.vtype));
+	}
+}
 size_t ValueItem::hash() const{
 	return const_cast<ValueItem&>(*this).hash();
 }

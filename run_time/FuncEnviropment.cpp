@@ -17,454 +17,6 @@
 
 #include "../configuration/agreement/symbols.hpp"
 
-ValueItem* FuncEnviropment::async_call(typed_lgr<FuncEnviropment> f, ValueItem* args, uint32_t args_len) {
-	ValueItem* res = new ValueItem();
-	res->meta = ValueMeta(VType::async_res, false, false).encoded;
-	res->val = new typed_lgr(new Task(f, ValueItem(args, ValueMeta(VType::saarr, false, true, args_len), no_copy)));
-	Task::start(*(typed_lgr<Task>*)res->val);
-	return res;
-}
-
-ValueItem* FuncEnviropment::syncWrapper(ValueItem* args, uint32_t arguments_size) {
-	if(_type == FuncEnviropment::FuncType::force_unloaded)
-		throw InvalidFunction("Function is force unloaded");
-	if (force_unload)
-		throw InvalidFunction("Function is force unloaded");
-	if (need_compile)
-		funcComp();
-	switch (_type) {
-	case FuncEnviropment::FuncType::native:
-		return NativeProxy_DynamicToStatic(args, arguments_size);
-	case FuncEnviropment::FuncType::own:{
-		ValueItem* res;
-		try {
-			res = ((Enviropment)curr_func)(args, arguments_size);
-		}
-		catch (...) {
-			if (!need_restore_stack_fault()) 
-				throw;
-			res = nullptr;
-		}
-		if (restore_stack_fault())
-			throw StackOverflowException();
-		return res;
-	}
-	case FuncEnviropment::FuncType::python:
-	case FuncEnviropment::FuncType::csharp:
-	case FuncEnviropment::FuncType::java:
-	default:
-		throw NotImplementedException();
-	}
-}
-
-void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, ValueMeta meta, void*& arg) {
-	if (!meta.allow_edit && meta.vtype == VType::string) {
-		switch (meta.vtype) {
-		case VType::noting:
-			call.AddValueArgument((void*)0);
-			break;
-		case VType::i8:
-			call.AddValueArgument(*(int8_t*)&arg);
-			break;
-		case VType::i16:
-			call.AddValueArgument(*(int16_t*)&arg);
-			break;
-		case VType::i32:
-			call.AddValueArgument(*(int32_t*)&arg);
-			break;
-		case VType::i64:
-			call.AddValueArgument(*(int64_t*)&arg);
-			break;
-		case VType::ui8:
-			call.AddValueArgument(*(uint8_t*)&arg);
-			break;
-		case VType::ui16:
-			call.AddValueArgument(*(int16_t*)&arg);
-			break;
-		case VType::ui32:
-			call.AddValueArgument(*(uint32_t*)&arg);
-			break;
-		case VType::ui64:
-			call.AddValueArgument(*(uint64_t*)&arg);
-			break;
-		case VType::flo:
-			call.AddValueArgument(*(float*)&arg);
-			break;
-		case VType::doub:
-			call.AddValueArgument(*(double*)&arg);
-			break;
-		case VType::raw_arr_i8:
-			call.AddArray((int8_t*)arg, meta.val_len);
-			break;
-		case VType::raw_arr_i16:
-			call.AddArray((int16_t*)arg, meta.val_len);
-			break;
-		case VType::raw_arr_i32:
-			call.AddArray((int32_t*)arg, meta.val_len);
-			break;
-		case VType::raw_arr_i64:
-			call.AddArray((int64_t*)arg, meta.val_len);
-			break;
-		case VType::raw_arr_ui8:
-			call.AddArray((uint8_t*)arg, meta.val_len);
-			break;
-		case VType::raw_arr_ui16:
-			call.AddArray((int16_t*)arg, meta.val_len);
-			break;
-		case VType::raw_arr_ui32:
-			call.AddArray((uint32_t*)arg, meta.val_len);
-			break;
-		case VType::raw_arr_ui64:
-			call.AddArray((uint64_t*)arg, meta.val_len);
-			break;
-		case VType::raw_arr_flo:
-			call.AddArray((float*)arg, meta.val_len);
-			break;
-		case VType::raw_arr_doub:
-			call.AddArray((double*)arg, meta.val_len);
-			break;
-		case VType::uarr:
-			call.AddPtrArgument((const list_array<ValueItem>*)arg);
-			break;
-		case VType::string:
-			call.AddArray(((std::string*)arg)->data(), ((std::string*)arg)->size());
-			break;
-		case VType::undefined_ptr:
-			call.AddPtrArgument(arg);
-			break;
-		default:
-			throw NotImplementedException();
-		}
-	}
-	else {
-		switch (meta.vtype) {
-		case VType::noting:
-			call.AddValueArgument((void*)0);
-			break;
-		case VType::i8:
-			call.AddValueArgument(*(int8_t*)&arg);
-			break;
-		case VType::i16:
-			call.AddValueArgument(*(int16_t*)&arg);
-			break;
-		case VType::i32:
-			call.AddValueArgument(*(int32_t*)&arg);
-			break;
-		case VType::i64:
-			call.AddValueArgument(*(int64_t*)&arg);
-			break;
-		case VType::ui8:
-			call.AddValueArgument(*(uint8_t*)&arg);
-			break;
-		case VType::ui16:
-			call.AddValueArgument(*(int16_t*)&arg);
-			break;
-		case VType::ui32:
-			call.AddValueArgument(*(uint32_t*)&arg);
-			break;
-		case VType::ui64:
-			call.AddValueArgument((uint64_t)arg);
-			break;
-		case VType::flo:
-			call.AddValueArgument(*(float*)&arg);
-			break;
-		case VType::doub:
-			call.AddValueArgument(*(double*)&arg);
-			break;
-		case VType::raw_arr_i8:
-			call.AddPtrArgument((int8_t*)arg);
-			break;
-		case VType::raw_arr_i16:
-			call.AddPtrArgument((int16_t*)arg);
-			break;
-		case VType::raw_arr_i32:
-			call.AddPtrArgument((int32_t*)arg);
-			break;
-		case VType::raw_arr_i64:
-			call.AddPtrArgument((int64_t*)arg);
-			break;
-		case VType::raw_arr_ui8:
-			call.AddPtrArgument((uint8_t*)arg);
-			break;
-		case VType::raw_arr_ui16:
-			call.AddPtrArgument((int16_t*)arg);
-			break;
-		case VType::raw_arr_ui32:
-			call.AddPtrArgument((uint32_t*)arg);
-			break;
-		case VType::raw_arr_ui64:
-			call.AddPtrArgument((uint64_t*)arg);
-			break;
-		case VType::raw_arr_flo:
-			call.AddPtrArgument((float*)arg);
-			break;
-		case VType::raw_arr_doub:
-			call.AddPtrArgument((double*)arg);
-			break;
-		case VType::uarr:
-			call.AddPtrArgument((list_array<ValueItem>*)arg);
-			break;
-		case VType::string:
-			call.AddPtrArgument(((std::string*)arg)->data());
-			break;
-		case VType::undefined_ptr:
-			call.AddPtrArgument(arg);
-			break;
-		default:
-			throw NotImplementedException();
-		}
-	}
-}
-ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(ValueItem* arguments, uint32_t arguments_size) {
-	using namespace DynamicCall;
-	FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
-	if (arguments) {
-		while (arguments_size--) {
-			ValueItem& it = *arguments++;
-			auto to_add = call.ToAddArgument();
-			if (to_add.is_void()) {
-				if (call.is_variadic()) {
-					void*& val = getValue(it.val, it.meta);
-					NativeProxy_DynamicToStatic_addValue(call, it.meta, val);
-					continue;
-				}
-				else
-					break;
-			}
-			void*& arg = getValue(it.val, it.meta);
-			ValueMeta meta = it.meta;
-			switch (to_add.vtype) {
-			case FunctionTemplate::ValueT::ValueType::integer:
-			case FunctionTemplate::ValueT::ValueType::signed_integer:
-			case FunctionTemplate::ValueT::ValueType::floating:
-				if (to_add.ptype == FunctionTemplate::ValueT::PlaceType::as_value) {
-					switch (meta.vtype) {
-					case VType::i8:
-						call.AddValueArgument(*(int8_t*)&arg);
-						break;
-					case VType::i16:
-						call.AddValueArgument(*(int16_t*)&arg);
-						break;
-					case VType::i32:
-						call.AddValueArgument(*(int32_t*)&arg);
-						break;
-					case VType::i64:
-						call.AddValueArgument(*(int64_t*)&arg);
-						break;
-					case VType::ui8:
-						call.AddValueArgument(*(uint8_t*)&arg);
-						break;
-					case VType::ui16:
-						call.AddValueArgument(*(int16_t*)&arg);
-						break;
-					case VType::ui32:
-						call.AddValueArgument(*(uint32_t*)&arg);
-						break;
-					case VType::ui64:
-						call.AddValueArgument((uint64_t)arg);
-						break;
-					case VType::flo:
-						call.AddValueArgument(*(float*)&arg);
-						break;
-					case VType::doub:
-						call.AddValueArgument(*(double*)&arg);
-						break;
-					default:
-						throw InvalidType("Required integer or floating family type but requived another");
-					}
-				}
-				else {
-					switch (meta.vtype) {
-					case VType::i8:
-						call.AddValueArgument((int8_t*)&arg);
-						break;
-					case VType::i16:
-						call.AddValueArgument((int16_t*)&arg);
-						break;
-					case VType::i32:
-						call.AddValueArgument((int32_t*)&arg);
-						break;
-					case VType::i64:
-						call.AddValueArgument((int64_t*)&arg);
-						break;
-					case VType::ui8:
-						call.AddValueArgument((uint8_t*)&arg);
-						break;
-					case VType::ui16:
-						call.AddValueArgument((uint16_t*)&arg);
-						break;
-					case VType::ui32:
-						call.AddValueArgument((uint32_t*)&arg);
-						break;
-					case VType::ui64:
-						call.AddValueArgument((uint64_t*)&arg);
-						break;
-					case VType::flo:
-						call.AddValueArgument((float*)&arg);
-						break;
-					case VType::doub:
-						call.AddValueArgument((double*)&arg);
-						break;
-					case VType::raw_arr_i8:
-						call.AddValueArgument((int8_t*)arg);
-						break;
-					case VType::raw_arr_i16:
-						call.AddValueArgument((int16_t*)arg);
-						break;
-					case VType::raw_arr_i32:
-						call.AddValueArgument((int32_t*)arg);
-						break;
-					case VType::raw_arr_i64:
-						call.AddValueArgument((int64_t*)arg);
-						break;
-					case VType::raw_arr_ui8:
-						call.AddValueArgument((uint8_t*)arg);
-						break;
-					case VType::raw_arr_ui16:
-						call.AddValueArgument((uint16_t*)arg);
-						break;
-					case VType::raw_arr_ui32:
-						call.AddValueArgument((uint32_t*)arg);
-						break;
-					case VType::raw_arr_ui64:
-						call.AddValueArgument((uint64_t*)arg);
-						break;
-					case VType::raw_arr_flo:
-						call.AddValueArgument((float*)arg);
-						break;
-					case VType::raw_arr_doub:
-						call.AddValueArgument((double*)arg);
-						break;
-					case VType::string:
-						call.AddValueArgument(((std::string*)arg)->data());
-						break;
-					default:
-						throw InvalidType("Required integer or floating family type but requived another");
-					}
-				}
-				break;
-			case FunctionTemplate::ValueT::ValueType::pointer:
-				switch (meta.vtype) {
-				case VType::raw_arr_i8:
-					call.AddValueArgument((int8_t*)arg);
-					break;
-				case VType::raw_arr_i16:
-					call.AddValueArgument((int16_t*)arg);
-					break;
-				case VType::raw_arr_i32:
-					call.AddValueArgument((int32_t*)arg);
-					break;
-				case VType::raw_arr_i64:
-					call.AddValueArgument((int64_t*)arg);
-					break;
-				case VType::raw_arr_ui8:
-					call.AddValueArgument((uint8_t*)arg);
-					break;
-				case VType::raw_arr_ui16:
-					call.AddValueArgument((uint16_t*)arg);
-					break;
-				case VType::raw_arr_ui32:
-					call.AddValueArgument((uint32_t*)arg);
-					break;
-				case VType::raw_arr_ui64:
-					call.AddValueArgument((uint64_t*)arg);
-					break;
-				case VType::raw_arr_flo:
-					call.AddValueArgument((float*)arg);
-					break;
-				case VType::raw_arr_doub:
-					call.AddValueArgument((double*)arg);
-					break;
-				case VType::string:
-					if (to_add.vsize == 1) {
-						if (to_add.is_modifable)
-							call.AddPtrArgument(((std::string*)arg)->data());
-						else
-							call.AddArray(((std::string*)arg)->c_str(), ((std::string*)arg)->size());
-					}
-					else if (to_add.vsize == 2) {
-
-
-					}
-					else if (to_add.vsize == sizeof(std::string))
-						call.AddPtrArgument((std::string*)arg);
-					break;
-				case VType::undefined_ptr:
-					call.AddPtrArgument(arg);
-					break;
-				default:
-					throw InvalidType("Required pointer family type but requived another");
-				}
-				break;
-			case FunctionTemplate::ValueT::ValueType::_class:
-			default:
-				break;
-			}
-		}
-	}
-	void* res = nullptr;
-	try {
-		res = call.Call();
-	}
-	catch (...) {
-		if(!need_restore_stack_fault())
-			throw;
-	}
-	if (restore_stack_fault())
-		throw StackOverflowException();
-
-	if (nat_templ.result.is_void())
-		return nullptr;
-	if (nat_templ.result.ptype == DynamicCall::FunctionTemplate::ValueT::PlaceType::as_ptr)
-		return new ValueItem(res, VType::undefined_ptr);
-	switch (nat_templ.result.vtype) {
-	case DynamicCall::FunctionTemplate::ValueT::ValueType::integer:
-		switch (nat_templ.result.vsize) {
-		case 1:
-			return new ValueItem(res, VType::ui8);
-		case 2:
-			return new ValueItem(res, VType::ui16);
-		case 4:
-			return new ValueItem(res, VType::ui32);
-		case 8:
-			return new ValueItem(res, VType::ui64);
-		default:
-			throw InvalidCast("Invalid type for convert");
-		}
-	case DynamicCall::FunctionTemplate::ValueT::ValueType::signed_integer:
-		switch (nat_templ.result.vsize) {
-		case 1:
-			return new ValueItem(res, VType::i8);
-		case 2:
-			return new ValueItem(res, VType::i16);
-		case 4:
-			return new ValueItem(res, VType::i32);
-		case 8:
-			return new ValueItem(res, VType::i64);
-		default:
-			throw InvalidCast("Invalid type for convert");
-		}
-	case DynamicCall::FunctionTemplate::ValueT::ValueType::floating:
-		switch (nat_templ.result.vsize) {
-		case 1:
-			return new ValueItem(res, VType::ui8);
-		case 2:
-			return new ValueItem(res, VType::ui16);
-		case 4:
-			return new ValueItem(res, VType::flo);
-		case 8:
-			return new ValueItem(res, VType::doub);
-		default:
-			throw InvalidCast("Invalid type for convert");
-		}
-	case DynamicCall::FunctionTemplate::ValueT::ValueType::pointer:
-		return new ValueItem(res, VType::undefined_ptr);
-	case DynamicCall::FunctionTemplate::ValueT::ValueType::_class:
-	default:
-		throw NotImplementedException();
-	}
-}
-
 
 using namespace run_time;
 asmjit::JitRuntime jrt;
@@ -533,7 +85,7 @@ list_array<std::pair<uint64_t, Label>> prepareJumpList(CASM& a, const std::vecto
 			labels |= data[to_be_skiped++];
 			break;
 		default:
-			throw InvalidFunction("Invalid function header, label count size missmatch");
+			throw InvalidFunction("Invalid function header, unsupported label size: " + std::to_string(size) + " bytes, supported: 1,2,4,8");
 		}
 		list_array<std::pair<uint64_t, Label>> res;
 		res.resize(labels);
@@ -543,6 +95,7 @@ list_array<std::pair<uint64_t, Label>> prepareJumpList(CASM& a, const std::vecto
 	}
 	return {};
 }
+#pragma region CompilerFabric helpers
 template<bool use_result = true, bool do_cleanup = true>
 void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values) {
 	CallFlags flags;
@@ -649,7 +202,7 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 	else {
 		uint32_t fnn = readData<uint32_t>(data, data_len, i);
 		if (env->localFnSize() >= fnn) {
-			throw CompileTimeException("Not found local function");
+			throw InvalidIL("Invalid function index");
 		}
 		if (flags.async_mode) {
 			_compilerFabric_call_local_any(a, env, true, fnn);
@@ -852,7 +405,7 @@ void compilerFabric_static_value_call(CASM& a, const std::vector<uint8_t>& data,
 		if (!flags.use_result)
 			inlineReleaseUnused(a, resr);
 }
-
+#pragma endregion
 
 void setSize(void** value, size_t res) {
 	void*& set = getValue(*value, *(ValueMeta*)(value + 1));
@@ -1148,7 +701,7 @@ void inlineIndexArraySetCopyStatic(BuildCall& b, VType type) {
 		b.finalize(IndexArraySetStaticInterface<0>);
 		break;
 	default:
-		throw CompileTimeException("Invalid opcode, unsupported static type for this operation");
+		throw InvalidIL("Invalid opcode, unsupported static type for this operation");
 	}
 }
 template<char typ>
@@ -1192,7 +745,7 @@ void inlineIndexArraySetMoveStatic(BuildCall& b, VType type) {
 		b.finalize(IndexArraySetMoveStatic<typ, ValueItem>);
 		break;
 	default:
-		throw CompileTimeException("Invalid opcode, unsupported static type for this operation");
+		throw InvalidIL("Invalid opcode, unsupported static type for this operation");
 	}
 }
 
@@ -1242,7 +795,7 @@ void inlineIndexArrayCopyStatic(BuildCall& b, VType type) {
 		b.finalize(IndexArrayStaticInterface<0>);
 		break;
 	default:
-		throw CompileTimeException("Invalid opcode, unsupported static type for this operation");
+		throw InvalidIL("Invalid opcode, unsupported static type for this operation");
 	}
 }
 template<char typ>
@@ -1286,7 +839,7 @@ void inlineIndexArrayMoveStatic(BuildCall& b, VType type) {
 		b.finalize(IndexArrayMoveStatic<typ, ValueItem>);
 		break;
 	default:
-		throw CompileTimeException("Invalid opcode, unsupported static type for this operation");
+		throw InvalidIL("Invalid opcode, unsupported static type for this operation");
 	}
 }
 
@@ -1481,16 +1034,7 @@ void IndexArraySetMoveDynamic(void** value, ValueItem* arr, uint64_t pos) {
 	}
 }
 #pragma endregion
-
-
-
-
-
-
-
-
-
-
+#pragma region Compiler Runtime Helper Functions
 void takeStart(list_array<ValueItem>* dest, void** insert) {
 	reinterpret_cast<ValueItem&>(insert) = dest->take_front();
 }
@@ -1535,6 +1079,45 @@ void setValue(void*& val, void* set, ValueMeta meta) {
 void getInterfaceValue(ClassAccess access, ValueItem* val, const std::string* val_name, ValueItem* res) {
 	*res = AttachA::Interface::getValue(access, *val, *val_name);
 }
+void* prepareStack(void** stack, size_t size) {
+	while (size)
+		stack[--size] = nullptr;
+	return stack;
+}
+
+template<typename T>
+void valueDestruct(void*& val){
+	if (val != nullptr) {
+		((T*)val)->~T();
+		val = nullptr;
+	}
+}
+void valueDestructDyn(void** val){
+	if (val != nullptr) {
+		((ValueItem*)val)->~ValueItem();
+		val = nullptr;
+	}
+}
+ValueItem* ValueItem_is_gc_proxy(ValueItem* val){
+	return new ValueItem(val->meta.use_gc);
+}
+void ValueItem_xmake_slice00(ValueItem* result, ValueItem* val, uint32_t start, uint32_t end){
+	*result = val->make_slice(start, end);
+}
+void ValueItem_xmake_slice10(ValueItem* result, ValueItem* val, ValueItem* start, uint32_t end){
+	*result = val->make_slice((uint32_t)*start, end);
+}
+void ValueItem_xmake_slice01(ValueItem* result, ValueItem* val, uint32_t start, ValueItem* end){
+	*result = val->make_slice(start, (uint32_t)*end);
+}
+void ValueItem_xmake_slice11(ValueItem* result, ValueItem* val, ValueItem* start, ValueItem* end){
+	*result = val->make_slice((uint32_t)*start, (uint32_t)*end);
+}
+void Unchecked_make_slice00(ValueItem* result, ValueItem* arr, uint32_t start, uint32_t end){
+	*result = ValueItem(arr + start, ValueMeta(VType::faarr,false,true, end - start), as_refrence);
+}
+#pragma endregion
+#pragma region ScopeAction
 #ifdef _WIN64
 #include <dbgeng.h>
 
@@ -1560,7 +1143,6 @@ void skipArray(uint8_t*& arr) {
 	size_t size = readFromArrayAsValue<size_t>(arr);
 	arr += sizeof(T) * size;
 }
-
 EXCEPTION_DISPOSITION __attacha_handle(
 	IN PEXCEPTION_RECORD ExceptionRecord,
 	IN ULONG64 EstablisherFrame,
@@ -1833,26 +1415,9 @@ void __attacha_handle(void//not implemented
 }
 
 #endif
+#pragma endregion
 
-void* prepareStack(void** stack, size_t size) {
-	while (size)
-		stack[--size] = nullptr;
-	return stack;
-}
-
-template<typename T>
-void valueDestruct(void*& val){
-	if (val != nullptr) {
-		((T*)val)->~T();
-		val = nullptr;
-	}
-}
-void valueDestructDyn(void** val){
-	if (val != nullptr) {
-		((ValueItem*)val)->~ValueItem();
-		val = nullptr;
-	}
-}
+#pragma region Compiler
 struct ScopeManagerMap{
 	std::unordered_map<uint64_t, size_t> handle_id_map;
 	std::unordered_map<uint64_t, size_t> value_hold_id_map;
@@ -1887,7 +1452,6 @@ struct ScopeManagerMap{
 			return it->second;
 	}
 };
-
 struct CompilerFabric{
 	Command cmd;
 	CASM& a;
@@ -1898,7 +1462,9 @@ struct CompilerFabric{
 	std::vector<uint8_t>& data;
 	size_t data_len;
 	size_t i;
-	list_array<std::pair<uint64_t, Label>> jump_list;
+	size_t skip_count;
+	std::unordered_map<uint64_t, Label> label_bind_map;
+	std::unordered_map<uint64_t, Label*> label_map;
 	list_array<ValueItem>& values;
 	bool do_jump_to_ret = false;
 	bool in_debug;
@@ -1917,7 +1483,21 @@ struct CompilerFabric{
 		list_array<ValueItem>& values,
 		bool in_debug,
 		FuncEnviropment* build_func
-		) : a(a), scope(scope), scope_map(scope_map), prolog(prolog), self_function(self_function), data(data), data_len(data_len), i(start_from), jump_list(jump_list), values(values), in_debug(in_debug), build_func(build_func) {}
+		) : a(a), scope(scope), scope_map(scope_map), prolog(prolog), self_function(self_function), data(data), data_len(data_len), i(start_from),skip_count(start_from), values(values), in_debug(in_debug), build_func(build_func) {
+			label_bind_map.reserve(jump_list.size());
+			label_map.reserve(jump_list.size());
+			size_t i = 0;
+			for(auto& it : jump_list){
+				label_map[i++] = &(label_bind_map[it.first] = it.second);
+			}
+		}
+
+	asmjit::Label& resolve_label(uint64_t id) {
+		auto label = label_map.find(id);
+		if (label == label_map.end())
+			throw InvalidFunction("Invalid function header, not found jump position for label: " + std::to_string(id));
+		return *label->second;
+	}
 	
 #pragma region dynamic opcodes
 #pragma region set/remove/move/copy
@@ -2186,41 +1766,45 @@ struct CompilerFabric{
 		a.pop_flags();
 	}
 	void dynamic_jump(){
-		uint64_t to_find = readData<uint64_t>(data, data_len, i);
-		auto found = std::find_if(jump_list.begin(), jump_list.end(), [to_find](std::pair<uint64_t, Label>& it) { return it.first == to_find;  });
-		if (found == jump_list.end())
-			throw InvalidFunction("Invalid function header, not found jump position");
-		switch (readData<JumpCondition>(data, data_len, i))
-		{
+		auto& label = resolve_label(readData<uint64_t>(data, data_len, i));
+		switch (readData<JumpCondition>(data, data_len, i)) {
 		default:
-		case JumpCondition::no_condition: {
-			a.jmp(found->second);
+		case JumpCondition::no_condition: 
+			a.jmp(label);
 			break;
-		}
-		case JumpCondition::is_equal: {
-			a.jmp_eq(found->second);
+		case JumpCondition::is_zero: 
+			a.jmp_zero(label);
 			break;
-		}
-		case JumpCondition::is_not_equal: {
-			a.jmp_not_eq(found->second);
+		case JumpCondition::is_equal: 
+			a.jmp_equal(label);
 			break;
-		}
-		case JumpCondition::is_more: {
-			a.jmp_more(found->second);
+		case JumpCondition::is_not_equal: 
+			a.jmp_not_equal(label);
 			break;
-		}
-		case JumpCondition::is_lower: {
-			a.jmp_lower(found->second);
+		case JumpCondition::is_unsigned_more:
+			a.jmp_unsigned_more(label);
 			break;
-		}
-		case JumpCondition::is_more_or_eq: {
-			a.jmp_more_or_eq(found->second);
+		case JumpCondition::is_unsigned_lower:
+			a.jmp_unsigned_lower(label);
 			break;
-		}
-		case JumpCondition::is_lower_or_eq: {
-			a.jmp_lower_or_eq(found->second);
+		case JumpCondition::is_unsigned_more_or_eq:
+			a.jmp_unsigned_more_or_eq(label);
 			break;
-		}
+		case JumpCondition::is_unsigned_lower_or_eq:
+			a.jmp_unsigned_lower_or_eq(label);
+			break;
+		case JumpCondition::is_signed_more: 
+			a.jmp_signed_more(label);
+			break;
+		case JumpCondition::is_signed_lower:
+			a.jmp_signed_lower(label);
+			break;
+		case JumpCondition::is_signed_more_or_eq:
+			a.jmp_signed_more_or_eq(label);
+			break;
+		case JumpCondition::is_signed_lower_or_eq:
+			a.jmp_signed_lower_or_eq(label);
+			break;
 		}
 	}
 #pragma endregion
@@ -2237,7 +1821,7 @@ struct CompilerFabric{
 		CallFlags flags;
 		flags.encoded = readData<uint8_t>(data, data_len, i);
 		if (flags.async_mode)
-			throw CompileTimeException("Fail compile async 'call_self', for asynchonly call self use 'call' command");
+			throw InvalidIL("Fail compile async 'call_self', for asynchonly call self use 'call' command");
 		BuildCall b(a, 0);
 		b.addArg(arg_ptr);
 		b.addArg(arg_len_32);
@@ -2255,7 +1839,7 @@ struct CompilerFabric{
 		CallFlags flags;
 		flags.encoded = readData<uint8_t>(data, data_len, i);
 		if (flags.async_mode)
-			throw CompileTimeException("Fail compile async 'call_self', for asynchonly call self use 'call' command");
+			throw InvalidIL("Fail compile async 'call_self', for asynchonly call self use 'call' command");
 		BuildCall b(a, 3);
 		b.addArg(this);
 		b.addArg(arg_ptr);
@@ -2713,14 +2297,14 @@ struct CompilerFabric{
 			break;
 		}
 		default:
-			throw CompileTimeException("Invalid array operation");
+			throw InvalidIL("Invalid array operation");
 		}
 	}
 
 	void dynamic_handle_catch(){
 		size_t handle = scope_map.try_mapHandle(readData<uint64_t>(data, data_len, i));
 		if (handle == -1)
-			throw CompileTimeException("Undefined handle");
+			throw InvalidIL("Undefined handle");
 		ScopeAction* scope_action = scope.setExceptionHandle(handle, _attacha_filter);
 		//switch (readData<char>(data, data_len, i)) {
 		//case 0:
@@ -2745,8 +2329,171 @@ struct CompilerFabric{
 		//	data->filter_data = nullptr;
 		//};
 	}
-#pragma endregion
 
+	void dynamic_is_gc(){
+		BuildCall b(a, 1);
+		bool use_result = readData<bool>(data, data_len, i);
+		b.movEnviro(readData<uint16_t>(data, data_len, i));
+		if(use_result){
+			b.finalize(ValueItem_is_gc_proxy);
+			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.addArg(resr);
+			b.finalize(getValueItem);
+		}else{
+			b.finalize(&ValueItem::is_gc);
+			a.test(resr_8l, resr_8l);
+		}
+	}
+	void dynamic_to_gc(){
+		BuildCall b(a, 1);
+		b.movEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(&ValueItem::make_gc);
+	}
+	void dynamic_from_gc(){
+		BuildCall b(a, 1);
+		b.movEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(&ValueItem::ungc);
+	}
+	void dynamic_localize_gc(){
+		BuildCall b(a, 1);
+		b.movEnviro(readData<uint16_t>(data, data_len, i));
+		b.finalize(&ValueItem::localize_gc);
+	}
+	template<bool direction>
+	void _dynamic_table_jump_bound_check(TableJumpFlags flags, TableJumpCheckFailAction action, uint32_t table_size, uint64_t index, const char* action_name) {
+		static const auto exception_name = std::string("IndexError");
+		static const auto exception_description = std::string("Index out of range");
+
+		switch (action) {
+		case TableJumpCheckFailAction::jump_specified:
+			if constexpr (direction) {
+				a.cmp(resr, table_size);
+				if (flags.is_signed) 
+					a.jmp_signed_more(resolve_label(index));
+				else 
+					a.jmp_unsigned_more(resolve_label(index));
+			}
+			else {
+				assert(flags.is_signed);
+				a.cmp(resr, 0);
+				a.jmp_signed_lower(resolve_label(index));
+			}
+			break;
+		case TableJumpCheckFailAction::throw_exception: {
+			asmjit::Label no_exception_label = a.newLabel();
+			if constexpr (direction) {
+				a.cmp(resr, table_size);
+				if (flags.is_signed)
+					a.jmp_signed_lower(no_exception_label);
+				else
+					a.jmp_unsigned_lower(no_exception_label);
+			}
+			else {
+				assert(flags.is_signed);
+				a.cmp(resr, 0);
+				a.jmp_signed_more(no_exception_label);
+			}
+			BuildCall b(a, 2);
+			b.addArg(&exception_name);
+			b.addArg(&exception_description);
+			b.finalize(&throwEx);
+			a.label_bind(no_exception_label);
+			break;
+		}
+		case TableJumpCheckFailAction::unchecked:
+			return;
+		default:
+			throw InvalidIL(std::string("Invalid opcode, unsupported table jump check fail action for ") + action_name + ": " + enum_to_string(action));
+		}
+	}
+	void dynamic_table_jump() {
+		std::vector<asmjit::Label> table;
+		TableJumpFlags flags = readData<TableJumpFlags>(data, data_len, i);
+
+		uint64_t fail_too_large = 0;
+		uint64_t fail_too_small = 0;
+		if (flags.too_large == TableJumpCheckFailAction::jump_specified)
+			fail_too_large = readData<uint64_t>(data, data_len, i);
+		if(flags.too_small == TableJumpCheckFailAction::jump_specified && flags.is_signed)
+			fail_too_small = readData<uint64_t>(data, data_len, i);
+
+		uint16_t value = readData<uint16_t>(data, data_len, i);
+		uint32_t table_size = readData<uint32_t>(data, data_len, i);
+		table.reserve(table_size);
+		for (uint32_t j = 0; j < table_size; j++)
+			table.push_back(resolve_label(readData<uint64_t>(data, data_len, i)));
+		
+		auto table_label = a.add_table(table);
+		BuildCall b(a, 1);
+		b.leaEnviro(value);
+		if(flags.is_signed)
+			b.finalize(&ValueItem::operator int64_t);
+		else
+			b.finalize(&ValueItem::operator uint64_t);
+
+
+		_dynamic_table_jump_bound_check<true>(flags, flags.too_large, table_size, fail_too_large, "too_large");
+		if (flags.is_signed)
+			_dynamic_table_jump_bound_check<false>(flags, flags.too_small, table_size, fail_too_small, "too_small");
+		a.lea(argr0, table_label);
+		a.mov(resr, argr0, resr, 3,0,8);
+		a.jmp(resr);
+	}
+	void dynamic_xarray_slice(){
+		uint16_t result_index = readData<uint16_t>(data, data_len, i);
+		uint16_t slice_index = readData<uint16_t>(data, data_len, i);
+		uint8_t slice_flags = readData<uint8_t>(data, data_len, i);
+
+		uint8_t slice_type = slice_flags & 0x0F;
+		uint8_t slice_offset_used = slice_flags >> 4;
+		BuildCall b(a, 4);
+		b.movEnviro(result_index);
+		b.movEnviro(slice_index);
+		switch(slice_type){
+			case 1: {
+				if(slice_offset_used & 1)
+					b.addArg(readData<uint32_t>(data, data_len, i));
+				else
+					b.addArg(0);
+				if(slice_offset_used & 2)
+					b.addArg(readData<uint32_t>(data, data_len, i));
+				else
+					b.addArg(0);
+				b.finalize(ValueItem_xmake_slice00);
+				break;
+			}
+			case 2: {
+				if(slice_offset_used & 1)
+					b.addArg(readData<uint32_t>(data, data_len, i));
+				else
+					b.addArg(0);
+				b.movEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(ValueItem_xmake_slice01);
+				break;
+			}
+			case 3: {
+				b.movEnviro(readData<uint16_t>(data, data_len, i));
+				if(slice_offset_used & 2)
+					b.addArg(readData<uint32_t>(data, data_len, i));
+				else
+					b.addArg(0);
+				b.finalize(ValueItem_xmake_slice10);
+				break;
+			}
+			case 4: {
+				b.movEnviro(readData<uint16_t>(data, data_len, i));
+				b.movEnviro(readData<uint16_t>(data, data_len, i));
+				b.finalize(ValueItem_xmake_slice11);
+				break;
+			}
+			default:
+				throw InvalidIL("Invalid opcode, unsupported slice type");
+		}
+	}
+#pragma endregion
+#pragma region static opcodes
+
+#pragma endregion
 
 	void static_build(){
 		switch (cmd.code) {
@@ -3189,12 +2936,12 @@ struct CompilerFabric{
 					break;
 				}
 				default:
-					throw CompileTimeException("Invalid array operation");
+					throw InvalidIL("Invalid array operation");
 				}
 				break;
 			}
 			default:
-				throw CompileTimeException("Invalid opcode");
+				throw InvalidIL("Invalid opcode");
 		}
 	}
 	
@@ -3271,6 +3018,11 @@ struct CompilerFabric{
 			case Opcode::set_structure_value: dynamic_set_structure_value(); break;
 			case Opcode::get_structure_value: dynamic_get_structure_value(); break;
 			case Opcode::explicit_await: dynamic_explicit_await(); break;
+			case Opcode::async_get:
+			case Opcode::generator_next:
+			case Opcode::yield:
+				throw NotImplementedException();
+			//[TODO]
 			case Opcode::handle_begin:
 				scope_map.mapHandle(readData<uint64_t>(data, data_len, i));
 				break;
@@ -3280,23 +3032,30 @@ struct CompilerFabric{
 			case Opcode::handle_convert:
 			case Opcode::value_hold:
 			case Opcode::value_unhold:
+				throw NotImplementedException();
 
 			
-			case Opcode::async_get:
-			case Opcode::generator_next:
+			
+			case Opcode::is_gc: dynamic_is_gc(); break;
+			
+			case Opcode::to_gc: dynamic_to_gc(); break;
+			case Opcode::localize_gc: dynamic_localize_gc(); break;
+			case Opcode::from_gc: dynamic_from_gc(); break;
+			case Opcode::table_jump: dynamic_table_jump(); break;
+			case Opcode::xarray_slice: dynamic_xarray_slice(); break;
 			default:
-				throw CompileTimeException("Invalid opcode");
+				throw InvalidIL("Invalid opcode");
 		}
 	}
 
 	void build(){
 		for (; i < data_len; ) {
-			for (auto& it : jump_list)
-				if (it.first == i)
-					a.label_bind(it.second);
-
 			if (do_jump_to_ret)
 				a.jmp(prolog);
+			auto label = label_bind_map.find(i - skip_count);
+			if (label != label_bind_map.end()) 
+				a.label_bind(label->second);
+
 			do_jump_to_ret = false;
 			cmd = Command(data[i++]);
 			!cmd.static_mode ? dynamic_build() : static_build();
@@ -3304,12 +3063,21 @@ struct CompilerFabric{
 	}
 };
 
+class RuntimeCompileException : public asmjit::ErrorHandler {
+public:
+	void handleError(Error err, const char* message, asmjit::BaseEmitter* origin) override {
+		throw CompileTimeException(asmjit::DebugUtils::errorAsString(err) +  std::string(message));
+	}
+};
 void FuncEnviropment::RuntimeCompile() {
 	if (curr_func != nullptr)
 		FrameResult::deinit(frame, curr_func, jrt);
 	values.clear();
+	RuntimeCompileException error_handler;
 	CodeHolder code;
+	code.setErrorHandler(&error_handler);
 	code.init(jrt.environment());
+		
 	CASM a(code);
 	Label self_function = a.newLabel();
 	a.label_bind(self_function);
@@ -3373,13 +3141,461 @@ void FuncEnviropment::RuntimeCompile() {
 	
 	auto& tmp = bprolog.finalize_epilog();
 	tmp.use_handle = true;
-	tmp.exHandleOff = a.offset() <= UINT32_MAX ? (uint32_t)a.offset() : throw CompileTimeException("Too big function");
-	a.jmp(__attacha_handle);
-	
+	tmp.exHandleOff = a.offset() <= UINT32_MAX ? (uint32_t)a.offset() : throw InvalidFunction("Too big function");
+	a.jmp((uint64_t)__attacha_handle);
+	a.finalize();
 	curr_func = (Enviropment)tmp.init(frame, a.code(), jrt, try_resolve_frame(this));
 }
-
+#pragma endregion
 #pragma region FuncEnviropment
+ValueItem* FuncEnviropment::async_call(typed_lgr<FuncEnviropment> f, ValueItem* args, uint32_t args_len) {
+	ValueItem* res = new ValueItem();
+	res->meta = ValueMeta(VType::async_res, false, false).encoded;
+	res->val = new typed_lgr(new Task(f, ValueItem(args, ValueMeta(VType::saarr, false, true, args_len), no_copy)));
+	Task::start(*(typed_lgr<Task>*)res->val);
+	return res;
+}
+
+ValueItem* FuncEnviropment::syncWrapper(ValueItem* args, uint32_t arguments_size) {
+	if(_type == FuncEnviropment::FuncType::force_unloaded)
+		throw InvalidFunction("Function is force unloaded");
+	if (force_unload)
+		throw InvalidFunction("Function is force unloaded");
+	if (need_compile)
+		funcComp();
+	switch (_type) {
+	case FuncEnviropment::FuncType::native:
+		return NativeProxy_DynamicToStatic(args, arguments_size);
+	case FuncEnviropment::FuncType::own:{
+		ValueItem* res;
+		try {
+			res = ((Enviropment)curr_func)(args, arguments_size);
+		}
+		catch (...) {
+			if (!need_restore_stack_fault()) 
+				throw;
+			res = nullptr;
+		}
+		if (restore_stack_fault())
+			throw StackOverflowException();
+		return res;
+	}
+	case FuncEnviropment::FuncType::python:
+	case FuncEnviropment::FuncType::csharp:
+	case FuncEnviropment::FuncType::java:
+	default:
+		throw NotImplementedException();
+	}
+}
+
+void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, ValueMeta meta, void*& arg) {
+	if (!meta.allow_edit && meta.vtype == VType::string) {
+		switch (meta.vtype) {
+		case VType::noting:
+			call.AddValueArgument((void*)0);
+			break;
+		case VType::i8:
+			call.AddValueArgument(*(int8_t*)&arg);
+			break;
+		case VType::i16:
+			call.AddValueArgument(*(int16_t*)&arg);
+			break;
+		case VType::i32:
+			call.AddValueArgument(*(int32_t*)&arg);
+			break;
+		case VType::i64:
+			call.AddValueArgument(*(int64_t*)&arg);
+			break;
+		case VType::ui8:
+			call.AddValueArgument(*(uint8_t*)&arg);
+			break;
+		case VType::ui16:
+			call.AddValueArgument(*(int16_t*)&arg);
+			break;
+		case VType::ui32:
+			call.AddValueArgument(*(uint32_t*)&arg);
+			break;
+		case VType::ui64:
+			call.AddValueArgument(*(uint64_t*)&arg);
+			break;
+		case VType::flo:
+			call.AddValueArgument(*(float*)&arg);
+			break;
+		case VType::doub:
+			call.AddValueArgument(*(double*)&arg);
+			break;
+		case VType::raw_arr_i8:
+			call.AddArray((int8_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_i16:
+			call.AddArray((int16_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_i32:
+			call.AddArray((int32_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_i64:
+			call.AddArray((int64_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_ui8:
+			call.AddArray((uint8_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_ui16:
+			call.AddArray((int16_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_ui32:
+			call.AddArray((uint32_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_ui64:
+			call.AddArray((uint64_t*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_flo:
+			call.AddArray((float*)arg, meta.val_len);
+			break;
+		case VType::raw_arr_doub:
+			call.AddArray((double*)arg, meta.val_len);
+			break;
+		case VType::uarr:
+			call.AddPtrArgument((const list_array<ValueItem>*)arg);
+			break;
+		case VType::string:
+			call.AddArray(((std::string*)arg)->data(), ((std::string*)arg)->size());
+			break;
+		case VType::undefined_ptr:
+			call.AddPtrArgument(arg);
+			break;
+		default:
+			throw NotImplementedException();
+		}
+	}
+	else {
+		switch (meta.vtype) {
+		case VType::noting:
+			call.AddValueArgument((void*)0);
+			break;
+		case VType::i8:
+			call.AddValueArgument(*(int8_t*)&arg);
+			break;
+		case VType::i16:
+			call.AddValueArgument(*(int16_t*)&arg);
+			break;
+		case VType::i32:
+			call.AddValueArgument(*(int32_t*)&arg);
+			break;
+		case VType::i64:
+			call.AddValueArgument(*(int64_t*)&arg);
+			break;
+		case VType::ui8:
+			call.AddValueArgument(*(uint8_t*)&arg);
+			break;
+		case VType::ui16:
+			call.AddValueArgument(*(int16_t*)&arg);
+			break;
+		case VType::ui32:
+			call.AddValueArgument(*(uint32_t*)&arg);
+			break;
+		case VType::ui64:
+			call.AddValueArgument((uint64_t)arg);
+			break;
+		case VType::flo:
+			call.AddValueArgument(*(float*)&arg);
+			break;
+		case VType::doub:
+			call.AddValueArgument(*(double*)&arg);
+			break;
+		case VType::raw_arr_i8:
+			call.AddPtrArgument((int8_t*)arg);
+			break;
+		case VType::raw_arr_i16:
+			call.AddPtrArgument((int16_t*)arg);
+			break;
+		case VType::raw_arr_i32:
+			call.AddPtrArgument((int32_t*)arg);
+			break;
+		case VType::raw_arr_i64:
+			call.AddPtrArgument((int64_t*)arg);
+			break;
+		case VType::raw_arr_ui8:
+			call.AddPtrArgument((uint8_t*)arg);
+			break;
+		case VType::raw_arr_ui16:
+			call.AddPtrArgument((int16_t*)arg);
+			break;
+		case VType::raw_arr_ui32:
+			call.AddPtrArgument((uint32_t*)arg);
+			break;
+		case VType::raw_arr_ui64:
+			call.AddPtrArgument((uint64_t*)arg);
+			break;
+		case VType::raw_arr_flo:
+			call.AddPtrArgument((float*)arg);
+			break;
+		case VType::raw_arr_doub:
+			call.AddPtrArgument((double*)arg);
+			break;
+		case VType::uarr:
+			call.AddPtrArgument((list_array<ValueItem>*)arg);
+			break;
+		case VType::string:
+			call.AddPtrArgument(((std::string*)arg)->data());
+			break;
+		case VType::undefined_ptr:
+			call.AddPtrArgument(arg);
+			break;
+		default:
+			throw NotImplementedException();
+		}
+	}
+}
+ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(ValueItem* arguments, uint32_t arguments_size) {
+	using namespace DynamicCall;
+	FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
+	if (arguments) {
+		while (arguments_size--) {
+			ValueItem& it = *arguments++;
+			auto to_add = call.ToAddArgument();
+			if (to_add.is_void()) {
+				if (call.is_variadic()) {
+					void*& val = getValue(it.val, it.meta);
+					NativeProxy_DynamicToStatic_addValue(call, it.meta, val);
+					continue;
+				}
+				else
+					break;
+			}
+			void*& arg = getValue(it.val, it.meta);
+			ValueMeta meta = it.meta;
+			switch (to_add.vtype) {
+			case FunctionTemplate::ValueT::ValueType::integer:
+			case FunctionTemplate::ValueT::ValueType::signed_integer:
+			case FunctionTemplate::ValueT::ValueType::floating:
+				if (to_add.ptype == FunctionTemplate::ValueT::PlaceType::as_value) {
+					switch (meta.vtype) {
+					case VType::i8:
+						call.AddValueArgument(*(int8_t*)&arg);
+						break;
+					case VType::i16:
+						call.AddValueArgument(*(int16_t*)&arg);
+						break;
+					case VType::i32:
+						call.AddValueArgument(*(int32_t*)&arg);
+						break;
+					case VType::i64:
+						call.AddValueArgument(*(int64_t*)&arg);
+						break;
+					case VType::ui8:
+						call.AddValueArgument(*(uint8_t*)&arg);
+						break;
+					case VType::ui16:
+						call.AddValueArgument(*(int16_t*)&arg);
+						break;
+					case VType::ui32:
+						call.AddValueArgument(*(uint32_t*)&arg);
+						break;
+					case VType::ui64:
+						call.AddValueArgument((uint64_t)arg);
+						break;
+					case VType::flo:
+						call.AddValueArgument(*(float*)&arg);
+						break;
+					case VType::doub:
+						call.AddValueArgument(*(double*)&arg);
+						break;
+					default:
+						throw InvalidType("Required integer or floating family type but requived another");
+					}
+				}
+				else {
+					switch (meta.vtype) {
+					case VType::i8:
+						call.AddValueArgument((int8_t*)&arg);
+						break;
+					case VType::i16:
+						call.AddValueArgument((int16_t*)&arg);
+						break;
+					case VType::i32:
+						call.AddValueArgument((int32_t*)&arg);
+						break;
+					case VType::i64:
+						call.AddValueArgument((int64_t*)&arg);
+						break;
+					case VType::ui8:
+						call.AddValueArgument((uint8_t*)&arg);
+						break;
+					case VType::ui16:
+						call.AddValueArgument((uint16_t*)&arg);
+						break;
+					case VType::ui32:
+						call.AddValueArgument((uint32_t*)&arg);
+						break;
+					case VType::ui64:
+						call.AddValueArgument((uint64_t*)&arg);
+						break;
+					case VType::flo:
+						call.AddValueArgument((float*)&arg);
+						break;
+					case VType::doub:
+						call.AddValueArgument((double*)&arg);
+						break;
+					case VType::raw_arr_i8:
+						call.AddValueArgument((int8_t*)arg);
+						break;
+					case VType::raw_arr_i16:
+						call.AddValueArgument((int16_t*)arg);
+						break;
+					case VType::raw_arr_i32:
+						call.AddValueArgument((int32_t*)arg);
+						break;
+					case VType::raw_arr_i64:
+						call.AddValueArgument((int64_t*)arg);
+						break;
+					case VType::raw_arr_ui8:
+						call.AddValueArgument((uint8_t*)arg);
+						break;
+					case VType::raw_arr_ui16:
+						call.AddValueArgument((uint16_t*)arg);
+						break;
+					case VType::raw_arr_ui32:
+						call.AddValueArgument((uint32_t*)arg);
+						break;
+					case VType::raw_arr_ui64:
+						call.AddValueArgument((uint64_t*)arg);
+						break;
+					case VType::raw_arr_flo:
+						call.AddValueArgument((float*)arg);
+						break;
+					case VType::raw_arr_doub:
+						call.AddValueArgument((double*)arg);
+						break;
+					case VType::string:
+						call.AddValueArgument(((std::string*)arg)->data());
+						break;
+					default:
+						throw InvalidType("Required integer or floating family type but requived another");
+					}
+				}
+				break;
+			case FunctionTemplate::ValueT::ValueType::pointer:
+				switch (meta.vtype) {
+				case VType::raw_arr_i8:
+					call.AddValueArgument((int8_t*)arg);
+					break;
+				case VType::raw_arr_i16:
+					call.AddValueArgument((int16_t*)arg);
+					break;
+				case VType::raw_arr_i32:
+					call.AddValueArgument((int32_t*)arg);
+					break;
+				case VType::raw_arr_i64:
+					call.AddValueArgument((int64_t*)arg);
+					break;
+				case VType::raw_arr_ui8:
+					call.AddValueArgument((uint8_t*)arg);
+					break;
+				case VType::raw_arr_ui16:
+					call.AddValueArgument((uint16_t*)arg);
+					break;
+				case VType::raw_arr_ui32:
+					call.AddValueArgument((uint32_t*)arg);
+					break;
+				case VType::raw_arr_ui64:
+					call.AddValueArgument((uint64_t*)arg);
+					break;
+				case VType::raw_arr_flo:
+					call.AddValueArgument((float*)arg);
+					break;
+				case VType::raw_arr_doub:
+					call.AddValueArgument((double*)arg);
+					break;
+				case VType::string:
+					if (to_add.vsize == 1) {
+						if (to_add.is_modifable)
+							call.AddPtrArgument(((std::string*)arg)->data());
+						else
+							call.AddArray(((std::string*)arg)->c_str(), ((std::string*)arg)->size());
+					}
+					else if (to_add.vsize == 2) {
+
+
+					}
+					else if (to_add.vsize == sizeof(std::string))
+						call.AddPtrArgument((std::string*)arg);
+					break;
+				case VType::undefined_ptr:
+					call.AddPtrArgument(arg);
+					break;
+				default:
+					throw InvalidType("Required pointer family type but requived another");
+				}
+				break;
+			case FunctionTemplate::ValueT::ValueType::_class:
+			default:
+				break;
+			}
+		}
+	}
+	void* res = nullptr;
+	try {
+		res = call.Call();
+	}
+	catch (...) {
+		if(!need_restore_stack_fault())
+			throw;
+	}
+	if (restore_stack_fault())
+		throw StackOverflowException();
+
+	if (nat_templ.result.is_void())
+		return nullptr;
+	if (nat_templ.result.ptype == DynamicCall::FunctionTemplate::ValueT::PlaceType::as_ptr)
+		return new ValueItem(res, VType::undefined_ptr);
+	switch (nat_templ.result.vtype) {
+	case DynamicCall::FunctionTemplate::ValueT::ValueType::integer:
+		switch (nat_templ.result.vsize) {
+		case 1:
+			return new ValueItem(res, VType::ui8);
+		case 2:
+			return new ValueItem(res, VType::ui16);
+		case 4:
+			return new ValueItem(res, VType::ui32);
+		case 8:
+			return new ValueItem(res, VType::ui64);
+		default:
+			throw InvalidCast("Invalid type for convert");
+		}
+	case DynamicCall::FunctionTemplate::ValueT::ValueType::signed_integer:
+		switch (nat_templ.result.vsize) {
+		case 1:
+			return new ValueItem(res, VType::i8);
+		case 2:
+			return new ValueItem(res, VType::i16);
+		case 4:
+			return new ValueItem(res, VType::i32);
+		case 8:
+			return new ValueItem(res, VType::i64);
+		default:
+			throw InvalidCast("Invalid type for convert");
+		}
+	case DynamicCall::FunctionTemplate::ValueT::ValueType::floating:
+		switch (nat_templ.result.vsize) {
+		case 1:
+			return new ValueItem(res, VType::ui8);
+		case 2:
+			return new ValueItem(res, VType::ui16);
+		case 4:
+			return new ValueItem(res, VType::flo);
+		case 8:
+			return new ValueItem(res, VType::doub);
+		default:
+			throw InvalidCast("Invalid type for convert");
+		}
+	case DynamicCall::FunctionTemplate::ValueT::ValueType::pointer:
+		return new ValueItem(res, VType::undefined_ptr);
+	case DynamicCall::FunctionTemplate::ValueT::ValueType::_class:
+	default:
+		throw NotImplementedException();
+	}
+}
+
 std::string FuncEnviropment::to_string(){
 	if(!curr_func)
 		return "fn(unknown)@0";

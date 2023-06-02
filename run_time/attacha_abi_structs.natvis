@@ -1,14 +1,12 @@
-<!--
-// Copyright Danyil Melnytskyi 2022-2023
-//
-// Distributed under the Boost Software License, Version 1.0.
-// (See accompanying file LICENSE or copy at
-// http://www.boost.org/LICENSE_1_0.txt)
--->
-
-
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+	<!--
+	// Copyright Danyil Melnytskyi 2022-2023
+	//
+	// Distributed under the Boost Software License, Version 1.0.
+	// (See accompanying file LICENSE or copy at
+	// http://www.boost.org/LICENSE_1_0.txt)
+	-->
 	<Type Name="ValueItem">
 		<DisplayString Condition="meta.vtype == VType::boolean &amp;&amp; !meta.use_gc">{{ type=boolean, value={(bool)val} }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::i8 &amp;&amp; !meta.use_gc">{{ type=i8, value={(int8_t)val} }}</DisplayString>
@@ -70,7 +68,7 @@
 			<Item Name="[value]" Condition="meta.vtype == VType::async_res &amp;&amp; !meta.use_gc">*(Task*)val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::except_value &amp;&amp; !meta.use_gc">*(std::exception_ptr*)val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::undefined_ptr &amp;&amp; !meta.use_gc">(void*)val</Item>
-			<Item Name="[value]" Condition="meta.vtype == VType::type_identifier &amp;&amp; !meta.use_gc">*(ValueMeta*)&val</Item>
+			<!--<Item Name="[value]" Condition="meta.vtype == VType::type_identifier &amp;&amp; !meta.use_gc">*(ValueMeta*)&val</Item>-->
 
       <Item Name="[value]" Condition="meta.vtype == VType::class_ &amp;&amp; !meta.use_gc">*(ClassValue*)val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::morph &amp;&amp; !meta.use_gc">*(MorphValue*)val</Item>

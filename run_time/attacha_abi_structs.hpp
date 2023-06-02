@@ -5,8 +5,8 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
-#ifndef ATTACHA_ABI_STRUCTS_HPP
-#define ATTACHA_ABI_STRUCTS_HPP
+#ifndef RUN_TIME_ATTACHA_ABI_STRUCTS
+#define RUN_TIME_ATTACHA_ABI_STRUCTS
 
 #include <cstdint>
 #include <unordered_map>
@@ -77,6 +77,12 @@ ENUM_t(Opcode,uint8_t,
 
 	(value_hold)
 	(value_unhold)
+	(is_gc)
+	(to_gc)
+	(localize_gc)
+	(from_gc)
+	(table_jump)
+	(xarray_slice)//farray and sarray slice by creating reference to original array with moved pointer and new size
 )
 
 
@@ -116,6 +122,12 @@ ENUM_t(ArrCheckMode, uint8_t,
 	(check)
 	(no_throw_check)
 )
+ENUM_t(TableJumpCheckFailAction, uint8_t,
+	(jump_specified)
+	(throw_exception)
+	(unchecked)
+)
+
 union OpArrFlags {
 	struct {
 		uint8_t move_mode : 1;
@@ -124,15 +136,36 @@ union OpArrFlags {
 	};
 	uint8_t raw;
 };
+union TableJumpFlags {
+	struct {
+		uint8_t is_signed : 1;
+		TableJumpCheckFailAction too_large : 2;
+		TableJumpCheckFailAction too_small : 2;
+	};
+	uint8_t raw;
+};
 
-ENUM(JumpCondition,
+ENUM_ta(JumpCondition, uint8_t,
 	(no_condition)
 	(is_equal)
 	(is_not_equal)
-	(is_more)
-	(is_lower)
-	(is_lower_or_eq)
-	(is_more_or_eq)
+
+	(is_unsigned_more)
+	(is_unsigned_lower)
+	(is_unsigned_lower_or_eq)
+	(is_unsigned_more_or_eq)
+
+	(is_signed_more)
+	(is_signed_lower)
+	(is_signed_lower_or_eq)
+	(is_signed_more_or_eq)
+
+	(is_zero)
+	,
+	(is_more = is_unsigned_more)
+	(is_lower = is_unsigned_lower)
+	(is_lower_or_eq = is_unsigned_lower_or_eq)
+	(is_more_or_eq = is_unsigned_more_or_eq)
 )
 
 struct Command {
@@ -436,9 +469,11 @@ struct ValueItem {
 	void make_gc();
 	void localize_gc();
 	void ungc();
+	bool is_gc();
 	
 	size_t hash() const;
 	size_t hash();
+	ValueItem make_slice(uint32_t start, uint32_t end) const;
 };
 typedef ValueItem* (*Enviropment)(ValueItem* args, uint32_t len);
 
@@ -538,4 +573,4 @@ namespace std {
 		}
 	};
 }
-#endif
+#endif /* RUN_TIME_ATTACHA_ABI_STRUCTS */

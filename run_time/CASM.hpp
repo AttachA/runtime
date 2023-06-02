@@ -177,12 +177,23 @@ constexpr creg128 vec15 = asmjit::x86::xmm15;
 #define casm_stack_align_check_align
 #define casm_stack_align_check
 #endif
+#define casm_asmjit_direct_proxy_jump(function_, actual_function_)\
+	void function_(asmjit::Label op){\
+		a. actual_function_(op);\
+	}
 class CASM {
 	asmjit::x86::Assembler a;
+	asmjit::Section* text;
+	asmjit::Section* data = nullptr;
 	casm_stack_align_check_v;
 public:
 	bool resr_used = false;
-	CASM(asmjit::CodeHolder& holder) :a(&holder) {}
+	CASM(asmjit::CodeHolder& holder) :a(&holder) {
+		text = holder.textSection();
+		Error err = holder.newSection(&data, ".data",SIZE_MAX, asmjit::Section::Flags::kFlagImplicit, 8);
+		if (err)
+			throw CompileTimeException("Failed to create data section due: " + std::string(asmjit::DebugUtils::errorAsString(err)));
+	}
 	void movEnviro(uint16_t off, creg64 res) {
 		a.mov(asmjit::x86::ptr_64(enviro_ptr, (int32_t(off) << 1) * 8), res);
 	}
@@ -257,6 +268,7 @@ public:
 	void getEnviro(creg64 c0) {
 		a.mov(c0, enviro_ptr);
 	}
+#pragma region mov reg reg
 	void movA(creg c0, creg c1) {
 		a.mov(c0, c1);
 	}
@@ -272,82 +284,130 @@ public:
 	void mov(creg8 c0, creg8 c1) {
 		a.mov(c0, c1);
 	}
-	void mov_byte(creg8 res, creg64 base, int32_t off) {
-		a.mov(res, asmjit::x86::ptr_8(base, off));
-	}
-	void mov_short(creg16 res, creg64 base, int32_t off) {
-		a.mov(res, asmjit::x86::ptr_16(base, off));
-	}
-	void mov_int(creg32 res, creg64 base, int32_t off) {
-		a.mov(res, asmjit::x86::ptr_32(base, off));
-	}
-	void mov_long(creg64 res, creg64 base, int32_t off) {
-		a.mov(res, asmjit::x86::ptr_64(base, off));
-	}
-	void mov_vector(creg128 res, creg64 base, int32_t off) {
-		a.movdqu(res, asmjit::x86::ptr_128(base, off));
-	}
-	void mov_default(creg res, creg64 base, int32_t off, uint32_t v_siz) {
-		a.mov(res, asmjit::x86::ptr(base, off, v_siz));
-	}
-	void mov_byte(creg8 res, int32_t off, creg64 base) {
-		a.mov(asmjit::x86::ptr_8(res, off), base);
-	}
-	void mov_short(creg16 res, int32_t off, creg64 base) {
-		a.mov(asmjit::x86::ptr_16(res, off), base);
-	}
-	void mov_int(creg32 res, int32_t off, creg64 base) {
-		a.mov(asmjit::x86::ptr_8(res, off), base);
-	}
-	void mov_long(creg64 res, int32_t off, creg64 base) {
-		a.mov(asmjit::x86::ptr_8(res, off), base);
-	}
-	void mov_default(creg res, int32_t off, uint32_t v_siz, creg64 base) {
-		a.mov(asmjit::x86::ptr(res, off, v_siz), base);
-	}
-	void mov(creg64 res, creg64 base, int32_t off) {
-		a.mov(res, asmjit::x86::ptr_64(base, off));
-	}
-	void mov(creg128 res, const asmjit::Imm& v) {
+#pragma endregion
+#pragma region mov reg imm
+	void mov(creg128 res, const asmjit::Imm& set) {
 		if (resr_used)
 			a.push(resr);
 
-		a.mov(resr, v);
+		a.mov(resr, set);
 		casm_stack_align_check;
 		a.vmovq(res, resr);
 
 		if (resr_used)
 			a.pop(resr);
 	}
-	void mov(creg res, const asmjit::Imm& v) {
+	void mov(creg res, const asmjit::Imm& set) {
 		if (res.isVec())
 			throw CompileTimeException("Invalid operation");
-		a.mov(res, v);
+		a.mov(res, set);
 	}
-	void mov(creg64 res, int32_t res_off, int32_t vsize, const asmjit::Imm& v) {
-		a.mov(asmjit::x86::ptr(res, res_off, vsize), v);
+#pragma endregion
+#pragma region mov reg (base:reg,off:int32_t)
+	void mov_byte(creg8 res, creg64 get, int32_t get_off) {
+		a.mov(res, asmjit::x86::ptr_8(get, get_off));
 	}
-	void mov(creg64 res, int32_t res_off, creg128 v) {
-		a.movdqu(asmjit::x86::ptr(res, res_off, 16), v);
+	void mov_short(creg16 res, creg64 get, int32_t get_off) {
+		a.mov(res, asmjit::x86::ptr_16(get, get_off));
 	}
-	void mov(creg64 res, int32_t res_off, creg64 v) {
-		a.mov(asmjit::x86::ptr(res, res_off, 8), v);
+	void mov_int(creg32 res, creg64 get, int32_t get_off) {
+		a.mov(res, asmjit::x86::ptr_32(get, get_off));
 	}
-	void mov(creg64 res, int32_t res_off, creg32 v) {
-		a.mov(asmjit::x86::ptr(res, res_off, 4), v);
+	void mov_long(creg64 res, creg64 get, int32_t get_off) {
+		a.mov(res, asmjit::x86::ptr_64(get, get_off));
 	}
-	void mov(creg64 res, int32_t res_off, creg16 v) {
-		a.mov(asmjit::x86::ptr(res, res_off, 2), v);
+	void mov_vector(creg128 res, creg64 get, int32_t get_off) {
+		a.movdqu(res, asmjit::x86::ptr_128(get, get_off));
 	}
-	void mov(creg64 res, int32_t res_off, creg8 v) {
-		a.mov(asmjit::x86::ptr(res, res_off, 1), v);
+	void mov_default(creg res, creg64 get, int32_t get_off, uint32_t v_siz) {
+		a.mov(res, asmjit::x86::ptr(get, get_off, v_siz));
 	}
+#pragma endregion
+#pragma region mov reg (base:label,off:int32_t)
+	void mov_byte(creg8 res, asmjit::Label get, int32_t get_off) {
+		a.mov(res, asmjit::x86::ptr_8(get, get_off));
+	}
+	void mov_short(creg16 res, asmjit::Label get, int32_t get_off) {
+		a.mov(res, asmjit::x86::ptr_16(get, get_off));
+	}
+	void mov_int(creg32 res, asmjit::Label get, int32_t get_off) {
+		a.mov(res, asmjit::x86::ptr_32(get, get_off));
+	}
+	void mov_long(creg64 res, asmjit::Label get, int32_t get_off) {
+		a.mov(res, asmjit::x86::ptr_64(get, get_off));
+	}
+	void mov_vector(creg128 res, asmjit::Label get, int32_t get_off) {
+		a.movdqu(res, asmjit::x86::ptr_128(get, get_off));
+	}
+	void mov_default(creg res, asmjit::Label get, int32_t get_off, uint32_t v_siz) {
+		a.mov(res, asmjit::x86::ptr(get, get_off, v_siz));
+	}
+#pragma endregion
+#pragma region mov reg (base:label,off:reg)
+	void mov_byte(creg8 res, asmjit::Label get, creg8 get_off) {
+		a.mov(res, asmjit::x86::ptr_8(get, get_off));
+	}
+	void mov_short(creg16 res, asmjit::Label get, creg16 get_off) {
+		a.mov(res, asmjit::x86::ptr_16(get, get_off));
+	}
+	void mov_int(creg32 res, asmjit::Label get, creg32 get_off) {
+		a.mov(res, asmjit::x86::ptr_32(get, get_off));
+	}
+	void mov_long(creg64 res, asmjit::Label get, creg64 get_off) {
+		a.mov(res, asmjit::x86::ptr_64(get, get_off));
+	}
+	void mov_default(creg res, asmjit::Label get, creg get_index, uint32_t get_index_shift = 0, uint32_t offset = 0, uint32_t v_siz = 0) {
+		a.mov(res, asmjit::x86::ptr(get, get_index, get_index_shift, v_siz));
+	}
+#pragma endregion
+#pragma region mov reg (base:reg,off:reg)
+	void mov_byte(creg8 res, asmjit::Label get, creg get_off) {
+		a.mov(res, asmjit::x86::ptr_8(get, get_off));
+	}
+	void mov_short(creg16 res, asmjit::Label get, creg get_off) {
+		a.mov(res, asmjit::x86::ptr_16(get, get_off));
+	}
+	void mov_int(creg32 res, asmjit::Label get, creg get_off) {
+		a.mov(res, asmjit::x86::ptr_32(get, get_off));
+	}
+	void mov_long(creg64 res, asmjit::Label get, creg get_off) {
+		a.mov(res, asmjit::x86::ptr_64(get, get_off));
+	}
+	void mov_vector(creg128 res, asmjit::Label get, creg get_off) {
+		a.movdqu(res, asmjit::x86::ptr_128(get, get_off));
+	}
+	void mov_default(creg res, asmjit::Label get, creg get_off, uint32_t v_siz) {
+		a.mov(res, asmjit::x86::ptr(get, get_off,0,0, v_siz));
+	}
+#pragma endregion
 
-	void mov(creg64 res, int32_t res_off, int32_t vsize, creg v) {
-		a.mov(asmjit::x86::ptr(res, res_off, vsize), v);
+#pragma region mov (res:reg,res_off:int32_t) set(reg|imm)
+	void mov(creg64 res, int32_t res_off, creg128 set) {
+		a.movdqu(asmjit::x86::ptr(res, res_off, 16), set);
 	}
+	void mov(creg64 res, int32_t res_off, creg64 set) {
+		a.mov(asmjit::x86::ptr(res, res_off, 8), set);
+	}
+	void mov(creg64 res, int32_t res_off, creg32 set) {
+		a.mov(asmjit::x86::ptr(res, res_off, 4), set);
+	}
+	void mov(creg64 res, int32_t res_off, creg16 set) {
+		a.mov(asmjit::x86::ptr(res, res_off, 2), set);
+	}
+	void mov(creg64 res, int32_t res_off, creg8 set) {
+		a.mov(asmjit::x86::ptr(res, res_off, 1), set);
+	}
+	void mov(creg64 res, int32_t res_off, int32_t set_size, creg set) {
+		a.mov(asmjit::x86::ptr(res, res_off, set_size), set);
+	}
+	void mov(creg64 res, int32_t res_off, int32_t set_size, const asmjit::Imm& set) {
+		a.mov(asmjit::x86::ptr(res, res_off, set_size), set);
+	}
+#pragma endregion
 
-
+	void mov(creg res, creg base, creg index, uint8_t shift, int32_t offset, uint32_t v_siz) {
+		a.mov(res, asmjit::x86::ptr(base, index, shift, offset, v_siz));
+	}
 	void shift_left(creg64 c0, creg64 c1) {
 		a.shl(c0, c1);
 	}
@@ -436,13 +496,19 @@ public:
 			throw CompileTimeException("Invalid operation");
 		a.cmp(reg, v);
 	}
-	void cmp(creg64 res, int32_t res_off, int32_t vsize, const asmjit::Imm& v) {
-		a.cmp(asmjit::x86::ptr(res, res_off, vsize), v);
+	void cmp(creg64 res, int32_t res_off, int32_t set_size, const asmjit::Imm& set) {
+		a.cmp(asmjit::x86::ptr(res, res_off, set_size), set);
 	}
 
 
-	void lea(creg64 res, creg64 base, int32_t off = 0, uint8_t vsize = 0) {
-		a.lea(res, asmjit::x86::Mem(base, off, vsize));
+	void lea(creg64 res, creg64 set, int32_t set_off = 0, uint8_t set_size = 0) {
+		a.lea(res, asmjit::x86::Mem(set, set_off, set_size));
+	}
+	void lea(creg64 res, asmjit::Label set) {
+		a.lea(res, asmjit::x86::ptr(set));
+	}
+	void lea(creg64 res, asmjit::Label set, creg64 set_off) {
+		a.lea(res, asmjit::x86::ptr(set, set_off,3));
 	}
 
 	void push(const asmjit::Imm& val) {
@@ -471,7 +537,6 @@ public:
 		casm_stack_align_check;
 		a.call((*(void**)(&fun)));
 	}
-
 	void jmp(const asmjit::Imm& pos) {
 		a.jmp(pos);
 	}
@@ -479,32 +544,49 @@ public:
 		a.jmp(pos);
 	}
 	void jmp(asmjit::Label label) {
-		a.jmp(label);
+		a.jmp((const asmjit::Label&)label);
 	}
-	void jmp_eq(asmjit::Label label) {
-		a.je(label);
-	}
-	void jmp_not_eq(asmjit::Label label) {
-		a.jne(label);
-	}
-	void jmp_more(asmjit::Label label) {
-		a.ja(label);
-	}
-	void jmp_lower(asmjit::Label label) {
-		a.jb(label);
-	}
-	void jmp_more_or_eq(asmjit::Label label) {
-		a.jae(label);
-	}
-	void jmp_lower_or_eq(asmjit::Label label) {
-		a.jbe(label);
+	void jmp_equal(asmjit::Label op) {
+		a.je(op);
 	}
 
-	void jmp_zero(asmjit::Label label) {
-		a.jz(label);
+
+	void jmp_not_equal(asmjit::Label op) {
+		a.jne(op);
 	}
-	void jmp_not_zero(asmjit::Label label) {
-		a.jnz(label);
+
+	
+	void jmp_unsigned_more(asmjit::Label op) {
+		a.ja(op);
+	}
+	void jmp_signed_more(asmjit::Label op) {
+		a.jg(op);
+	}
+	void jmp_unsigned_lower(asmjit::Label op) {
+		a.jb(op);
+	}
+	void jmp_signed_lower(asmjit::Label op) {
+		a.jl(op);
+	}
+
+	void jmp_unsigned_more_or_eq(asmjit::Label op) {
+		a.jae(op);
+	}
+	void jmp_signed_more_or_eq(asmjit::Label op) {
+		a.jge(op);
+	}
+	void jmp_unsigned_lower_or_eq(asmjit::Label op) {
+		a.jbe(op);
+	}
+	void jmp_signed_lower_or_eq(asmjit::Label op) {
+		a.jle(op);
+	}
+
+	void jmp_zero(asmjit::Label op) {
+		a.jz(op);
+	}
+	void jmp_not_zero(asmjit::Label op) {
+		a.jnz(op);
 	}
 
 	void push_flags() {
@@ -640,7 +722,7 @@ public:
 		a.ret();
 	}
 
-	void label_bind(asmjit::Label label) {
+	void label_bind(const asmjit::Label& label) {
 		a.bind(label);
 	}
 
@@ -650,8 +732,28 @@ public:
 	asmjit::Label newLabel() {
 		return a.newLabel();
 	}
+	void offsettable(asmjit::Label table, creg index, creg result) {
+		a.mov(result,asmjit::x86::ptr(table, index,0,0,result.size()));
+	}
 
 	asmjit::CodeHolder* code() { return a.code(); };
+	asmjit::Label add_data(char* bytes, size_t size) {
+		a.section(data);
+		asmjit::Label label = a.newLabel();
+		a.bind(label);
+		a.embed(bytes, size);
+		a.section(text);
+		return label;
+	}
+	asmjit::Label add_table(const std::vector<asmjit::Label>& labels) {
+		a.section(data);
+		asmjit::Label label = a.newLabel();
+		a.bind(label);
+		for (auto& l : labels)
+			a.embedLabel(l);
+		a.section(text);
+		return label;
+	}
 
 	size_t offset() {
 		return a.offset();
@@ -687,11 +789,28 @@ public:
 		a.add(asmjit::x86::ptr(res, off, vsize), val);
 	}
 
+	void mul(creg res, creg val, creg val2) {
+		a.mul(res, val, val2);
+	}
+	void imul(creg res, creg val, creg val2) {
+		a.imul(res, val, val2);
+	}
+	void div(creg res, creg val, creg val2) {
+		a.div(res, val, val2);
+	}
+	void idiv(creg res, creg val, creg val2) {
+		a.idiv(res, val, val2);
+	}
+
+
 	void add(creg res, creg64 val, int32_t off, uint8_t vsize = 0) {
 		a.add(asmjit::x86::ptr(res, off, vsize), val);
 	}
 	void insertNative(uint8_t* opcodes,uint32_t len){
 		a.embed(opcodes, len);
+	}
+	void finalize(){
+		a.section(data);
 	}
 };
 
@@ -1087,36 +1206,36 @@ public:
 		callStart();
 		switch (arg_c++) {
 		case 0:
-			csm.mov(argr0, reg, off);
+			csm.mov_long(argr0, reg, off);
 			break;
 		case 1:
-			csm.mov(argr1, reg, off);
+			csm.mov_long(argr1, reg, off);
 			break;
 		case 2:
-			csm.mov(argr2, reg, off);
+			csm.mov_long(argr2, reg, off);
 			break;
 		case 3:
-			csm.mov(argr3, reg, off);
+			csm.mov_long(argr3, reg, off);
 			break;
 #ifndef _WIN64
 		case 4:
-			csm.mov(argr4, reg, off);
+			csm.mov_long(argr4, reg, off);
 			break;
 		case 5:
-			csm.mov(argr5, reg, off);
+			csm.mov_long(argr5, reg, off);
 			break;
 #endif
 		default:
 			if (off) {
 				if (allow_use_resr) {
-					csm.mov(resr, reg, off);
+					csm.mov_long(resr, reg, off);
 					csm.push(resr);
 				}
 				else {
 					csm.stackIncrease(8);
 					csm.push(reg);
-					csm.mov(reg, reg, off);
-					csm.mov_long(stack_ptr,-2, reg);
+					csm.mov_long(reg, reg, off);
+					csm.mov(stack_ptr,-2, reg);
 					csm.pop(reg);
 				}
 			}

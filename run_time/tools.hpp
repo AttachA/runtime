@@ -80,7 +80,6 @@ namespace run_time {
 			res.val = (void*)readData<int64_t>(data, data_len, i);
 			break;
 		case VType::ui8:
-		case VType::type_identifier:
 			res.val = (void*)(0ull+readData<uint8_t>(data, data_len, i));
 			break;
 		case VType::ui16:
@@ -91,6 +90,8 @@ namespace run_time {
 			break;
 		case VType::ui64:
 		case VType::undefined_ptr:
+		case VType::time_point:
+		case VType::type_identifier:
 			res.val = (void*)readData<uint64_t>(data, data_len, i);
 			break;
 		case VType::flo: {
@@ -139,24 +140,11 @@ namespace run_time {
 		case VType::string:
 			res.val = new std::string(readString(data, data_len, i));
 			break;
-		case VType::except_value:
-			break;
 		case VType::faarr:
 			res.val = readRawAny(data, data_len, i, readLen(data, data_len, i));
 			break;
-		case VType::class_:
-			break;
-		case VType::morph:
-			break;
-		case VType::proxy:
-			break;
-		case VType::function:
-
-
-
-			break;
 		default:
-			break;
+			throw NotImplementedException();
 		}
 		if (meta.use_gc)
 			res.val = new lgr(res.val);
@@ -203,67 +191,44 @@ namespace run_time {
 			switch (it.meta.vtype) {
 			case VType::noting:
 				break;
-			case VType::i8:
-				write(data,(int8_t)it);
-				break;
-			case VType::i16:
-				write(data, (int16_t)it);
-				break;
-			case VType::i32:
-				write(data, (int32_t)it);
-				break;
-			case VType::i64:
-				write(data, (int64_t)it);
-				break;
 			case VType::ui8:
-			case VType::type_identifier:
+			case VType::i8:
 				write(data, (uint8_t)it);
 				break;
 			case VType::ui16:
+			case VType::i16:
 				write(data, (uint16_t)it);
 				break;
 			case VType::ui32:
+			case VType::i32:
+			case VType::flo:
 				write(data, (uint32_t)it);
 				break;
 			case VType::ui64:
+			case VType::i64:
 			case VType::undefined_ptr:
+			case VType::time_point:
+			case VType::type_identifier:
+			case VType::doub:
 				write(data, (uint64_t)it);
 				break;
-			case VType::flo:
-				write(data, (float)it);
-				break;
-			case VType::doub:
-				write(data, (double)it);
-				break;
-			case VType::raw_arr_i8:
-				writeRaw(data, (int8_t*)it.getSourcePtr(), it.meta.val_len);
-				break;
-			case VType::raw_arr_i16:
-				writeRaw(data, (int16_t*)it.getSourcePtr(), it.meta.val_len);
-				break;
-			case VType::raw_arr_i32:
-				writeRaw(data, (int32_t*)it.getSourcePtr(), it.meta.val_len);
-				break;
-			case VType::raw_arr_i64:
-				writeRaw(data, (int64_t*)it.getSourcePtr(), it.meta.val_len);
-				break;
 			case VType::raw_arr_ui8:
+			case VType::raw_arr_i8:
 				writeRaw(data, (uint8_t*)it.getSourcePtr(), it.meta.val_len);
 				break;
 			case VType::raw_arr_ui16:
+			case VType::raw_arr_i16:
 				writeRaw(data, (uint16_t*)it.getSourcePtr(), it.meta.val_len);
 				break;
 			case VType::raw_arr_ui32:
+			case VType::raw_arr_i32:
+			case VType::raw_arr_flo:
 				writeRaw(data, (uint32_t*)it.getSourcePtr(), it.meta.val_len);
 				break;
 			case VType::raw_arr_ui64:
-				writeRaw(data, (uint64_t*)it.getSourcePtr(), it.meta.val_len);
-				break;
-			case VType::raw_arr_flo:
-				writeRaw(data, (float*)it.getSourcePtr(), it.meta.val_len);
-				break;
+			case VType::raw_arr_i64:
 			case VType::raw_arr_doub:
-				writeRaw(data, (double*)it.getSourcePtr(), it.meta.val_len);
+				writeRaw(data, (uint64_t*)it.getSourcePtr(), it.meta.val_len);
 				break;
 			case VType::uarr:
 				writeAnyUarr(data, *(list_array<ValueItem>*)it.getSourcePtr());
@@ -271,24 +236,12 @@ namespace run_time {
 			case VType::string:
 				writeString(data, *(std::string*)it.getSourcePtr());
 				break;
-			case VType::except_value:
-				break;
 			case VType::faarr:
 				writeAnyRaw(data, (ValueItem*)it.val, it.meta.val_len);
 				break;
-			case VType::class_:
-				break;
-			case VType::morph:
-				break;
-			case VType::proxy:
-				break;
-			case VType::function:
 
-
-
-				break;
 			default:
-				break;
+				throw NotImplementedException();
 			}
 		}
 	}

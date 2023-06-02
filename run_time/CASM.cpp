@@ -22,7 +22,9 @@ void _______dbgOut(const char* str) {
 size_t alocate_and_prepare_code(uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size) {
 	res = 0;
 	CONV_ASMJIT(code->flatten());
-	CONV_ASMJIT(code->resolveUnresolvedLinks());
+	if(code->hasUnresolvedLinks()){
+		CONV_ASMJIT(code->resolveUnresolvedLinks());
+	}
 
 	size_t estimatedCodeSize = code->codeSize();
 	if (ASMJIT_UNLIKELY(estimatedCodeSize == 0))
@@ -43,31 +45,39 @@ size_t alocate_and_prepare_code(uint8_t*& res, CodeHolder* code, asmjit::JitAllo
 	// in case that some relocations didn't require records in an address table.
 	size_t codeSize = code->codeSize();
 
+	
+
+	for (asmjit::Section* section : code->_sections) {
+		size_t offset = size_t(section->offset());
+		size_t bufferSize = size_t(section->bufferSize());
+		size_t virtualSize = size_t(section->virtualSize());
+
+		assert(offset + bufferSize <= codeSize);
+		memcpy(rw + offset, section->data(), bufferSize);
+
+		if (virtualSize > bufferSize) {
+			assert(offset + virtualSize <= codeSize);
+			memset(rw + offset + bufferSize, 0, virtualSize - bufferSize);
+		}
+	}
 	if (codeSize < estimatedCodeSize)
 		alloc->shrink(rx, codeSize + additional_size);
 
-	{
-		//asmjit deprecated
-		//asmjit::VirtMem::ProtectJitReadWriteScope rwScope(rx, codeSize);
-
-		for (asmjit::Section* section : code->_sections) {
-			size_t offset = size_t(section->offset());
-			size_t bufferSize = size_t(section->bufferSize());
-			size_t virtualSize = size_t(section->virtualSize());
-
-			assert(offset + bufferSize <= codeSize);
-			memcpy(rw + offset, section->data(), bufferSize);
-
-			if (virtualSize > bufferSize) {
-				assert(offset + virtualSize <= codeSize);
-				memset(rw + offset + bufferSize, 0, virtualSize - bufferSize);
-			}
-		}
-	}
-
+#if defined(_M_X64) || defined(__x86_64__)
+#else
+# if defined(_WIN32)
+  // Windows has a built-in support in `kernel32.dll`.
+  ::FlushInstructionCache(::GetCurrentProcess(), rx, codeSize + additional_size);
+# elif defined(__GNUC__)
+  char* start = static_cast<char*>(const_cast<void*>(rx));
+  char* end = start + codeSize + additional_size;
+  __builtin___clear_cache(start, end);
+# else
+  DebugUtils::unused(p, size);
+# endif
+#endif
 	res = rx;
 	return codeSize;
-    
 }
 
 
@@ -277,6 +287,11 @@ void* FrameResult::init(uint8_t*& frame,CodeHolder* code, asmjit::JitRuntime& ru
 
 	uint8_t* baseaddr;
 	size_t fun_size = alocate_and_prepare_code(baseaddr, code, runtime.allocator(), unwindInfoSize + sizeof(RUNTIME_FUNCTION));
+	if(!baseaddr){
+		const char* err = asmjit::DebugUtils::errorAsString(asmjit::Error(fun_size));
+		throw CompileTimeException(err);
+	}
+	
 	uint8_t* startaddr = baseaddr;
 	uint8_t* unwindptr = baseaddr + (((fun_size + 15) >> 4) << 4);
 	memcpy(unwindptr, unwindInfo.data(), unwindInfoSize);

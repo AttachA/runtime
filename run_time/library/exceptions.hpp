@@ -332,6 +332,14 @@ public:
 		return "InvalidFunction";
 	}
 };
+class InvalidIL : public InvalidFunction {
+public:
+	InvalidIL(const std::string& msq) : InvalidFunction(msq) {}
+	InvalidIL(const std::string& msq, std::exception_ptr inner_exception) : InvalidFunction(msq, inner_exception) {}
+	const char* name() const override {
+		return "InvalidIL";
+	}
+};
 class InvalidType : public CompileTimeException {
 public:
 	InvalidType(const std::string& msq) : CompileTimeException(msq) {}

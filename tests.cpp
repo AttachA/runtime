@@ -565,7 +565,7 @@ const char _FATAL[] = "FATAL";
 const char _ERROR[] = "ERROR";
 const char _WARN[] = "WARN";
 const char _INFO[] = "INFO";
-int main(){
+int smain(){
 	unhandled_exception.join(new FuncEnviropment(logger<_FATAL>, false));
 	errors.join(new FuncEnviropment(logger<_ERROR>, false));
 	warning.join(new FuncEnviropment(logger<_WARN>, false));
@@ -589,3 +589,48 @@ int main(){
 }
 
 
+
+ValueItem* table_jump(int8_t default_c){
+	FuncEviroBuilder builder;
+	builder.set_constant(0, ValueItem(default_c));
+	builder.table_jump(
+		{
+			0,1,2,3
+		},
+		0,
+		true,
+		TableJumpCheckFailAction::jump_specified,
+		4,
+		TableJumpCheckFailAction::jump_specified,
+		5
+	);
+	builder.bind_pos();//0
+	builder.ret();
+	builder.bind_pos();//1
+	builder.set_constant(0, ValueItem(7));
+	builder.ret(0);
+	builder.bind_pos();//2
+	builder.set_constant(0, ValueItem(6));
+	builder.ret(0);
+	builder.bind_pos();//3
+	builder.set_constant(0, ValueItem(5));
+	builder.ret(0);
+	builder.bind_pos();//4
+	builder.set_constant(0, ValueItem(10));
+	builder.ret(0);
+	builder.bind_pos();//5
+	builder.set_constant(0, ValueItem(30));
+	builder.ret(0);
+	return FuncEnviropment::sync_call(builder.prepareFunc(), nullptr, 0);
+}
+int main(){
+	ValueItem* res = table_jump(33);
+	std::cout << (std::string)*res << std::endl;
+	if(res)
+		delete res;
+	res = table_jump(-33);
+	std::cout << (std::string)*res << std::endl;
+	if (res)
+		delete res;
+	return 0;
+}

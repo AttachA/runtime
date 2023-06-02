@@ -28,7 +28,7 @@ void FuncEviroBuilder::set_stack_any_array(uint16_t val, uint32_t len) {
 }
 void FuncEviroBuilder::remove(uint16_t val, ValueMeta m) {
 	code.push_back(Command(Opcode::remove,false,true).toCmd());
-	builder::write(code, m.vtype);
+	builder::write(code, m);
 	builder::write(code, val);
 	useVal(val);
 }
@@ -842,7 +842,7 @@ void FuncEviroBuilder::arr_resize_default(uint16_t arr, uint64_t new_size, uint1
 	OpArrFlags flags;
 	flags.by_val_mode = false;
 	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::resize);
+	code.push_back((uint8_t)OpcodeArray::resize_default);
 	builder::write(code, new_size);
 	builder::write(code, default_init_val);
 }
@@ -852,7 +852,7 @@ void FuncEviroBuilder::arr_resize_defaultByVal(uint16_t arr, uint16_t new_size, 
 	OpArrFlags flags;
 	flags.by_val_mode = true;
 	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::resize);
+	code.push_back((uint8_t)OpcodeArray::resize_default);
 	builder::write(code, new_size);
 	builder::write(code, default_init_val);
 }
@@ -1012,6 +1012,7 @@ void FuncEviroBuilder::get_interface_value(ClassAccess access, uint16_t class_va
 	code.push_back(Command(Opcode::get_structure_value).toCmd());
 	code.push_back(0);
 	builder::write(code, val_name);
+	builder::write(code, access);
 	builder::write(code, class_val);
 	builder::write(code, res);
 }
@@ -1019,6 +1020,7 @@ void FuncEviroBuilder::get_interface_value(ClassAccess access, uint16_t class_va
 	code.push_back(Command(Opcode::get_structure_value).toCmd());
 	code.push_back(1);
 	builder::writeString(code, val_name);
+	builder::write(code, access);
 	builder::write(code, class_val);
 	builder::write(code, res);
 }
@@ -1026,6 +1028,7 @@ void FuncEviroBuilder::set_interface_value(ClassAccess access, uint16_t class_va
 	code.push_back(Command(Opcode::set_structure_value).toCmd());
 	code.push_back(0);
 	builder::write(code, val_name);
+	builder::write(code, access);
 	builder::write(code, class_val);
 	builder::write(code, set_val);
 }
@@ -1033,6 +1036,7 @@ void FuncEviroBuilder::set_interface_value(ClassAccess access, uint16_t class_va
 	code.push_back(Command(Opcode::set_structure_value).toCmd());
 	code.push_back(1);
 	builder::writeString(code, val_name);
+	builder::write(code, access);
 	builder::write(code, class_val);
 	builder::write(code, set_val);
 }
@@ -1042,6 +1046,33 @@ void FuncEviroBuilder::explicit_await(uint16_t await_value) {
 	code.push_back(Command(Opcode::explicit_await).toCmd());
 	builder::write(code, await_value);
 }
+void FuncEviroBuilder::table_jump(
+	std::vector<uint64_t> table, 
+	uint16_t index,
+	bool is_signed,
+	TableJumpCheckFailAction too_large,
+	uint64_t too_large_index,
+	TableJumpCheckFailAction too_small,
+	uint64_t too_small_index
+){
+	code.push_back(Command(Opcode::table_jump).toCmd());
+	TableJumpFlags f;
+	f.is_signed = is_signed;
+	f.too_large = too_large;
+	f.too_small = too_small;
+	builder::write(code, f.raw);
+	if (too_large == TableJumpCheckFailAction::jump_specified)
+		builder::write(code, too_large_index);
+	if (too_small == TableJumpCheckFailAction::jump_specified && is_signed)
+		builder::write(code, too_small_index);
+	builder::write(code, index);
+	if((uint32_t)table.size() != table.size())
+		throw CompileTimeException("table size is too big");
+	builder::write(code, (uint32_t)table.size());
+	for (auto& i : table)
+		builder::write(code, i);
+}
+
 #pragma endregion
 #pragma endregion
 
@@ -1051,19 +1082,19 @@ typed_lgr<FuncEnviropment> FuncEviroBuilder::prepareFunc(bool can_be_unloaded) {
 	if (jump_pos.size() == 0) {
 		builder::write(fn, 0ui8);
 	}
-	else if (jump_pos.size() >= UINT8_MAX) {
+	else if (jump_pos.size() <= UINT8_MAX) {
 		builder::write(fn, 1ui8);
 		builder::write(fn, (uint8_t)jump_pos.size());
 	}
-	else if (jump_pos.size() >= UINT16_MAX) {
+	else if (jump_pos.size() <= UINT16_MAX) {
 		builder::write(fn, 2ui8);
 		builder::write(fn, (uint16_t)jump_pos.size());
 	}
-	else if (jump_pos.size() >= UINT32_MAX) {
+	else if (jump_pos.size() <= UINT32_MAX) {
 		builder::write(fn, 4ui8);
 		builder::write(fn, (uint32_t)jump_pos.size());
 	}
-	else if (jump_pos.size() >= UINT64_MAX) {
+	else if (jump_pos.size() <= UINT64_MAX) {
 		builder::write(fn, 8ui8);
 		builder::write(fn, (uint64_t)jump_pos.size());
 	}

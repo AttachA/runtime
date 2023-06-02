@@ -189,6 +189,15 @@ public:
 	void set_interface_value(ClassAccess access, uint16_t class_val, const std::string& val_name, uint16_t set_val);
 
 	void explicit_await(uint16_t await_value);
+	void table_jump(
+		std::vector<uint64_t> table,
+		uint16_t index,
+		bool is_signed = false,
+		TableJumpCheckFailAction too_large = TableJumpCheckFailAction::jump_specified,
+		uint64_t too_large_index = 0,
+		TableJumpCheckFailAction too_small = TableJumpCheckFailAction::jump_specified,
+		uint64_t too_small_index = 0
+	);
 
 	typed_lgr<FuncEnviropment> prepareFunc(bool can_be_unloaded = true);
 	void loadFunc(const std::string& symbol_name, bool can_be_unloaded = true);
