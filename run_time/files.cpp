@@ -3,7 +3,10 @@
 #include "tasks_util/native_workers_singleton.hpp"
 #include <Windows.h>
 #include <io.h>
+#include "../configuration/compatibility.hpp"
+#if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
 #include <fstream>
+#endif
 #include <utf8cpp/utf8.h>
 namespace files {
     void io_error_to_exception(io_errors error){
@@ -828,7 +831,7 @@ namespace files {
     bool BlockingFileHandle::valid() const noexcept{
         return handle != nullptr;
     }
-    
+#if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
     ::std::fstream BlockingFileHandle::get_fstream() const {
         if (handle != INVALID_HANDLE_VALUE) {
             int file_descriptor = _open_osfhandle((intptr_t)handle, 0);
@@ -867,4 +870,5 @@ namespace files {
         }
         throw AException("FileException", "Can't open file");
     }
+#endif
 }

@@ -3,7 +3,10 @@
 #include "tasks.hpp"
 #include "util/in_place_optonal.hpp"
 #include "attacha_abi_structs.hpp"
+#include "../configuration/compatibility.hpp"
+#if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
 #include <fstream>
+#endif
 
 namespace files {
     enum open_mode : uint8_t {
@@ -119,7 +122,9 @@ namespace files {
         bool valid() const noexcept;
         void* internal_get_handle() const noexcept;
 
+#if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
         ::std::fstream get_fstream() const;//not mapped to proxy definition, can be used only in native c++ code
+#endif
         //reguire explicit close, destructor will not close it,
         // BlockingFileHandle will be not used when ::std::fstream alive,
         // can cause desync, ie thread unsafe

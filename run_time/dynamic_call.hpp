@@ -7,7 +7,6 @@
 #pragma once
 #include <thread>
 #include "..\library\list_array.hpp"
-#include <functional>
 
 namespace DynamicCall {
 	typedef size_t(__stdcall* PROC)();

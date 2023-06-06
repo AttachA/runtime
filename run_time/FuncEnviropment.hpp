@@ -16,11 +16,19 @@ public:
 	enum class FuncType : uint32_t {
 		own,
 		native,
+		native_lambda_wrapper,
 		python,
 		csharp,
 		java,
+		_,
+		__,
+		___,
+		____,
+		_____,
 		______,
 		_______,
+		________,
+		_________,
 		force_unloaded
 	};
 private:
@@ -34,11 +42,10 @@ private:
 	Enviropment curr_func = nullptr;
 	uint8_t* frame = nullptr;
 	uint32_t max_values : 16;
-	FuncType _type : 3;
+	FuncType _type : 4;
 	uint32_t need_compile : 1 = true;
 	uint32_t in_debug : 1 = false;
 	uint32_t can_be_unloaded : 1 = true;
-	uint32_t use_cache : 1 = false;
 	uint32_t force_unload : 1 = false;
 	void RuntimeCompile();
 	void funcComp() {

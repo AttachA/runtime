@@ -6,8 +6,6 @@
 #include "AttachA_CXX.hpp"
 #include "../configuration/agreement/symbols.hpp"
 #include <string>
-#include <sstream>
-#include <mutex>
 
 
 
@@ -274,24 +272,8 @@ void universalAlloc(void** value, ValueMeta meta) {
 	}
 	*(value + 1) = (void*)meta.encoded;
 }
-
-void initEnviropement(void** res, uint32_t vals_count) {
-	for (uint32_t i = 0; i < vals_count; i++)
-		res[i] = nullptr;
-}
-void removeEnviropement(void** env, uint16_t vals_count) {
-	uint32_t max_vals = uint32_t(vals_count) << 1;
-	for (uint32_t i = 0; i < max_vals; i += 2)
-		universalRemove(env + i);
-}
 void removeArgsEnviropement(list_array<ValueItem>* env) {
 	delete env;
-}
-char* getStrBegin(std::string* str) {
-	return &(str->operator[](0));
-}
-void throwInvalidType() {
-	throw InvalidType("Requested specifed type but recuived another");
 }
 ValueItem* getAsyncValueItem(void* val) {
 	if(!val)
@@ -411,7 +393,7 @@ void* copyValue(void*& val, ValueMeta& meta) {
 
 
 void** preSetValue(void** value, ValueMeta set_meta, bool match_gc_dif) {
-	void** res = getValueLink(value);
+	void** res = &getValue(value);
 	ValueMeta& meta = *(ValueMeta*)(value + 1);
 	if (!needAlloc(meta)) {
 		if (match_gc_dif) {
@@ -425,7 +407,7 @@ void** preSetValue(void** value, ValueMeta set_meta, bool match_gc_dif) {
 	if(!meta.as_ref)
 		universalRemove(value);
 	*(value + 1) = (void*)set_meta.encoded;
-	return getValueLink(value);
+	return &getValue(value);
 }
 void*& getValue(void*& value, ValueMeta& meta) {
 	if (meta.vtype == VType::async_res)
@@ -473,9 +455,6 @@ void** getSpecificValueLink(void** value, VType typ) {
 			meta = ValueMeta(0);
 		}
 	return meta.use_gc ? (&**(lgr*)value) : value;
-}
-void** getValueLink(void** value) {
-	return &getValue(value);
 }
 
 bool is_integer(VType typ) {
@@ -1167,7 +1146,7 @@ namespace ABI_IMPL {
 			res += ']';
 			return res;
 		}
-		case VType::undefined_ptr: return "0x" + (std::ostringstream() << val).str();
+		case VType::undefined_ptr: return "0x" + string_help::hexstr(val);
 		case VType::type_identifier: return enum_to_string(*(VType*)&val);
 		case VType::function: return reinterpret_cast<FuncEnviropment*>(val)->to_string();
 		case VType::map:{
@@ -2163,7 +2142,7 @@ void* AsArg(void** val) {
 		return value->getSourcePtr();
 	}
 	else {
-		*value = ValueItem({ std::move(*(ValueItem*)(val)) });
+		*value = ValueItem(std::initializer_list<ValueItem>{ std::move(*(ValueItem*)(val)) });
 		return value->getSourcePtr();
 	}
 }
@@ -2312,93 +2291,6 @@ void setBoolValue(bool boolean,void** value) {
 		universalRemove(value);
 		meta = VType::boolean;
 		*value = (void*)1;
-	}
-}
-
-namespace exception_abi {
-	bool is_except(void** val) {
-		return ((ValueMeta*)(val + 1))->vtype == VType::except_value;
-	}
-	void ignore_except(void** val) {
-		if (!is_except(val))
-			return;
-		universalRemove(val);
-		(*val) = (*(val + 1)) = nullptr;
-	}
-	void continue_unwind(void** val) {
-		std::rethrow_exception(*((std::exception_ptr*)getSpecificValueLink(val, VType::except_value)));
-	}
-	bool call_except_handler(void** val, bool(*func_symbol)(void** val), bool ignore_fault) {
-		try {
-			if (func_symbol(getSpecificValueLink(val, VType::except_value))) {
-				universalRemove(val);
-				(*val) = (*(val + 1)) = nullptr;
-			}
-			return true;
-		}
-		catch (...) {
-			if (!ignore_fault)
-				throw;
-		}
-		return false;
-	}
-
-	//for static catch block
-	jump_point switch_jump_handle_except(void** val, jump_handle_except* handlers, size_t handlers_c) {
-		if (!handlers_c)
-			continue_unwind(val);
-
-		auto& ex = *((std::exception_ptr*)getSpecificValueLink(val, VType::except_value));
-		if (handlers_c != 1) {
-			try {
-				std::rethrow_exception(ex);
-			}
-			catch (const AttachARuntimeException& ex) {
-				std::string str = ex.name();
-				for (size_t i = 1; i < handlers_c; i++)
-					if (str == handlers[i].type_name)
-						return handlers[i].jump_off;
-			}
-			catch (...) {}
-			CXXExInfo info;
-			getCxxExInfoFromException(info, ex);
-			for (size_t i = 1; i < handlers_c; i++)
-				if (info.ty_arr.contains_one([handlers, i](const CXXExInfo::Tys& ty) {return ty.ty_info->name() == handlers[i].type_name; }))
-					return handlers[i].jump_off;
-		}
-		return handlers[0].jump_off;
-	}
-	//for dynamic catch block
-	jump_point switch_jump_handle_except(void** val, list_array<jump_handle_except>* handlers) {
-		if (!handlers) {
-			continue_unwind(val);
-			std::unreachable();
-		}
-
-		if (!handlers->size()) {
-			continue_unwind(val);
-			std::unreachable();
-		}
-
-		auto& ex = *((std::exception_ptr*)getSpecificValueLink(val, VType::except_value));
-		if (handlers->size() != 1) {
-			try {
-				std::rethrow_exception(ex);
-			}
-			catch (const AttachARuntimeException& ex) {
-				std::string str = ex.name();
-				size_t jmp = handlers->find_it([&str](const jump_handle_except& it) { return it.type_name == str; }, 1);
-				if (jmp != list_array<jump_handle_except>::npos)
-					return handlers->operator[](jmp).jump_off;
-			}
-			catch (...) {}
-			CXXExInfo info;
-			getCxxExInfoFromException(info, ex);
-			for (auto& it : handlers->range(1, handlers->size())) 
-				if (info.ty_arr.contains_one([&it](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == it.type_name; }))
-					return it.jump_off;
-		}
-		return handlers->operator[](0).jump_off;
 	}
 }
 

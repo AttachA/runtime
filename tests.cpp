@@ -7,9 +7,7 @@
 
 #include "run_time.hpp"
 #include <atomic>
-#include <iostream>
 #include <thread>
-#include <mutex>
 #include <vector>
 #include <cassert>
 #include <unordered_map>
@@ -22,6 +20,8 @@
 #include <Windows.h>
 #include "run_time/CASM.hpp"
 #include "run_time/tasks_util/light_stack.hpp"
+#include "run_time/library/console.hpp"
+#include "run_time/AttachA_CXX.hpp"
 struct test_struct {
 	uint64_t a, b;
 };
@@ -35,7 +35,8 @@ void SOVER() {
 
 
 void TestCall() {
-	std::cout << "Hello from proxy" << std::endl;
+	ValueItem msq("Hello from proxy\n");
+	console::printLine(&msq, 1);
 }
 void ThrowCall() {
 	throw std::exception();
@@ -44,25 +45,29 @@ void ThrowCall() {
 TaskMutex tsk_mtx;
 size_t executed = 0;
 void gvfdasf() {
+	ValueItem msq("Hello,");
+
 	for (size_t i = 0; i < 100; i++) {
 		tsk_mtx.lock();
-		std::cout << "Hello, " << std::flush;
+		console::print(&msq, 1);
 		executed++;
 		tsk_mtx.unlock();
 	}
 }
 
 void sdagfsgsfdg() {
+	ValueItem msq("World");
 	for (size_t i = 0; i < 100; i++) {
 		tsk_mtx.lock();
-		std::cout << "World" << std::flush;
+		console::print(&msq, 1);
 		tsk_mtx.unlock();
 	}
 }
 void fvbzxcbxcv() {
+	ValueItem msq("!\n");
 	for (size_t i = 0; i < 100; i++) {
 		tsk_mtx.lock();
-		std::cout << "!\n" << std::flush;
+		console::print(&msq, 1);
 		tsk_mtx.unlock();
 	}
 }
@@ -76,16 +81,17 @@ size_t idsaDAS = 0;
 
 void cout_test() {
 	//std::this_thread::sleep_for(std::chrono::nanoseconds(1));
-	++idsaDAS;
-	std::cout << idsaDAS << std::endl;
+	ValueItem msq(++idsaDAS);
+	console::print(&msq, 1);
 	Task::sleep(1000);
 }
 void sleep_test() {
 	//light_stack::dump_current_out();
 	auto started = std::chrono::high_resolution_clock::now();
 	Task::sleep(1000);
-	std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count() << std::endl;
-	
+	uint64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count();
+	ValueItem msq(time);
+	console::printLine(&msq, 1);	
 	//light_stack::dump_current_out();
 }
 struct test_lgr {
@@ -116,7 +122,9 @@ ValueItem* paralelize_test_0(ValueItem*, uint32_t) {
 		tasks.push_back(new Task(func, noting));
 
 	Task::await_multiple(tasks);
-	std::cout << "lock speed: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count() << std::endl;
+	uint64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count();
+	ValueItem msq("lock speed: " + std::to_string(time));
+	console::printLine(&msq, 1);
 	return nullptr;
 }
 
@@ -134,7 +142,9 @@ ValueItem* paralelize_test_1(ValueItem*, uint32_t) {
 		tasks.push_back(new Task(func, noting));
 
 	Task::await_multiple(tasks);
-	std::cout << "sleep 1 sec speed: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count() << std::endl;
+	uint64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count();
+	ValueItem msq("sleep 1 sec speed: " + std::to_string(time));
+	console::printLine(&msq, 1);
 	return nullptr;
 }
 
@@ -146,15 +156,15 @@ ValueItem* timeout_test(ValueItem*, uint32_t) {
 		}
 	}
 	catch (const TaskCancellation&) {
-		std::cout << "task canceled: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count() << std::endl;
+		uint64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count();
+		ValueItem msq("task canceled: " + std::to_string(time));
+		console::printLine(&msq, 1);
 		throw;
 	}
 	return nullptr;
 }
 
 
-#include "run_time/library/console.hpp"
-#include "run_time/AttachA_CXX.hpp"
 
 
 
@@ -204,7 +214,8 @@ void proxyTest() {
 
 
 void __ex_handle_test() {
-	std::cout << (std::string)AttachA::cxxCall("internal stack trace") << std::endl;
+	ValueItem msq(AttachA::cxxCall("internal stack trace"));
+	console::printLine(&msq, 1);
 	throw 0;
 }
 #pragma optimize("",off)
@@ -219,7 +230,8 @@ void ex_handle_test() {
 			callFunction("ex_handle_test", false);
 		}
 		catch (...) {
-			std::cout << "Passed ex_handle_test 0" << std::endl;
+			ValueItem msq("Passed ex_handle_test 0");
+			console::printLine(&msq, 1);
 		}
 		FuncEnviropment::ForceUnload("ex_handle_test");
 	}
@@ -229,8 +241,8 @@ void interface_test() {
 	FuncEviroBuilder build;
 	build.set_constant(0, "D:\\helloWorld.bin");
 	build.arg_set(0);
-	build.call("# parallel concurent_file", 1, false);
-	build.set_constant(0, { 123ui16, 212ui16, 4213ui16 });
+	build.call("# file file_handle", 1, false);
+	build.set_constant(0, { 123ui8, 45ui8, 67ui8 });
 	build.arg_set(0);
 	build.call_value_interface(ClassAccess::pub, 1, "write", 1, false, false);
 	build.explicit_await(1);
@@ -277,7 +289,8 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 
 	console::setBgColor(123, 21, 2);
 	console::setTextColor(0, 230,0);
-	std::cout << "test";
+	ValueItem msq("test");
+	console::print(&msq, 1);
 
 
 	FuncEviroBuilder build;
@@ -339,13 +352,16 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 		callFunction("start", false);
 	}
 	catch (const std::exception&) {
-		std::cout << "Catched!\n";
+		msq = "Catched!\n";
+		console::print(&msq, 1);
 	}
 	catch (const StackOverflowException&) {
-		std::cout << "Catched!\n";
+		msq = "Catched!\n";
+		console::print(&msq, 1);
 	}
 
-	//std::cout << "Hello!\n";
+	//msq = "Hello!\n";
+	//console::print(&msq, 1);
 	int e = 0;
 	Task::await_end_tasks(true);
 	{
@@ -354,7 +370,6 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	}
 
 	list_array<typed_lgr<Task>> tasks;
-
 
 	//for (size_t i = 0; i < 10000; i++) {
 	//	tasks.push_back(new Task(FuncEnviropment::enviropment("start"), noting));
@@ -386,14 +401,19 @@ ValueItem* empty_fun(ValueItem* args, uint32_t argc) {
 	return nullptr;
 }
 void test_stack(){
-	std::cout <<light_stack::used_size() << std::endl;
+	ValueItem msq;
+	msq = light_stack::used_size();
+	console::printLine(&msq, 1);
 	alloca(100000);
-	std::cout <<light_stack::used_size() << std::endl;
+	msq = light_stack::used_size();
+	console::printLine(&msq, 1);
 }
-int amain(){
+int main(){
+	ValueItem msq;
 	test_stack();
 	light_stack::shrink_current();
-	std::cout <<light_stack::used_size() << std::endl;
+	msq = light_stack::used_size();
+	console::printLine(&msq, 1);
 
 	//std::cout << 1 << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
 	//light_stack::dump_current_out();
@@ -494,19 +514,23 @@ ValueItem* test_server_func(ValueItem* args, uint32_t argc) {
 	ProxyClass& proxy = *(ProxyClass*)args[0].getSourcePtr();
 	ProxyClass& client_ip = *(ProxyClass*)args[1].getSourcePtr();
 	ProxyClass& local_ip = *(ProxyClass*)args[2].getSourcePtr();
-
-	std::cout << (std::string)AttachA::Interface::makeCall(ClassAccess::pub, client_ip, "to_string") << " " << (int)AttachA::Interface::makeCall(ClassAccess::pub, client_ip, "port") << std::endl;
-	std::cout << (std::string)AttachA::Interface::makeCall(ClassAccess::pub, local_ip, "to_string") << " " << (int)AttachA::Interface::makeCall(ClassAccess::pub, client_ip, "port") << std::endl;
-
+	ValueItem msq;
+	msq = ((std::string)AttachA::Interface::makeCall(ClassAccess::pub, client_ip, "to_string")) + " " + (std::string)AttachA::Interface::makeCall(ClassAccess::pub, client_ip, "port");
+	console::printLine(&msq, 1);
+	msq = ((std::string)AttachA::Interface::makeCall(ClassAccess::pub, local_ip, "to_string")) + " " + (std::string)AttachA::Interface::makeCall(ClassAccess::pub, local_ip, "port");
+	console::printLine(&msq, 1);
 	bool sended = false;
 
 	auto handshake = handshake_fn();
 	//send handshake
 
 	if(!AttachA::Interface::makeCall(ClassAccess::pub, proxy, "is_closed")){
-		std::cout << (std::string)AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref") << std::endl;
-		if(AttachA::Interface::makeCall(ClassAccess::pub, proxy, "data_available"))
-			std::cout << (std::string)AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref") << std::endl;
+		msq = AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref");
+		console::printLine(&msq, 1);
+		if(AttachA::Interface::makeCall(ClassAccess::pub, proxy, "data_available")){
+			msq = AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref");
+			console::printLine(&msq, 1);
+		}
 
 		AttachA::Interface::makeCall(ClassAccess::pub, proxy, "write", ValueItem(handshake.data(), ValueMeta(VType::raw_arr_ui8, false, false, handshake.size())));
 
@@ -557,7 +581,8 @@ ValueItem* logger(ValueItem* args, uint32_t argc) {
 			output += ", ";
 	}
 	output += "]";
-	std::cout << output << std::endl;
+	ValueItem msq(output);
+	console::printLine(&msq, 1);
 	return nullptr;
 }
 constexpr int ii = '\r';
@@ -623,13 +648,13 @@ ValueItem* table_jump(int8_t default_c){
 	builder.ret(0);
 	return FuncEnviropment::sync_call(builder.prepareFunc(), nullptr, 0);
 }
-int main(){
+int amain(){
 	ValueItem* res = table_jump(33);
-	std::cout << (std::string)*res << std::endl;
+	console::printLine(res, 1);
 	if(res)
 		delete res;
 	res = table_jump(-33);
-	std::cout << (std::string)*res << std::endl;
+	console::printLine(res, 1);
 	if (res)
 		delete res;
 	return 0;

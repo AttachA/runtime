@@ -4,6 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 #pragma once
+#ifndef RUN_TIME_RUN_TIME_COMPILER
+#define RUN_TIME_RUN_TIME_COMPILER
 #include "FuncEnviropment.hpp"
 
 class FuncEviroBuilder {
@@ -97,8 +99,8 @@ public:
 	void throwEx(const std::string& name, const std::string& desck);
 	void throwEx(uint16_t name, uint16_t desck,bool values_is_only_string = false);
 
-	void as(uint16_t val, ValueMeta meta);
-	void is(uint16_t val, ValueMeta meta);
+	void as(uint16_t val, VType meta);
+	void is(uint16_t val, VType meta);
 
 
 	void store_bool(uint16_t val);
@@ -203,3 +205,4 @@ public:
 	void loadFunc(const std::string& symbol_name, bool can_be_unloaded = true);
 };
 
+#endif

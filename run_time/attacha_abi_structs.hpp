@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <chrono>
+#include <exception>
 #include "../library/list_array.hpp"
 #include "library/exceptions.hpp"
 #include "link_garbage_remover.hpp"

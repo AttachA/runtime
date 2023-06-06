@@ -5,6 +5,8 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
+#ifndef RUN_TIME_TOOLS
+#define RUN_TIME_TOOLS
 #include <vector>
 #include <string>
 #include "library/exceptions.hpp"
@@ -246,3 +248,4 @@ namespace run_time {
 		}
 	}
 }
+#endif

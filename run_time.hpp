@@ -10,7 +10,6 @@
 #include "run_time/tasks.hpp"
 #include "run_time/cxxException.hpp"
 #include <thread>
-#include "run_time/dynamic_call.hpp"
 #include "run_time/util/enum_helper.hpp"
 typedef void* (*CALL_FUNC)(...);
 
@@ -21,10 +20,10 @@ extern EventSystem unhandled_exception;
 extern EventSystem ex_fault;
 extern EventSystem errors;
 
-#define DISABLE_RUNTIME_WARNING
+//#define DISABLE_RUNTIME_WARNING
 extern EventSystem warning;
 
-#define DISABLE_RUNTIME_INFO
+//#define DISABLE_RUNTIME_INFO
 extern EventSystem info;
 
 ENUM_ta(FaultAction,uint8_t, 
@@ -70,6 +69,9 @@ int _thread_id();
 void ini_current();
 void modify_run_time_config(const std::string& name, const std::string& value);
 std::string get_run_time_config(const std::string& name);
+namespace DynamicCall {
+	class FunctionTemplate;
+}
 
 class NativeLib {
 	void* hGetProcIDDLL;

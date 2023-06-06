@@ -9,8 +9,6 @@
 #include <Windows.h>
 #include <Dbghelp.h>
 #include <Psapi.h>
-#include <format>
-#include <chrono>
 #include <utf8cpp/utf8.h>
 #include "configuration/run_time.hpp"
 #include "configuration/tasks.hpp"
@@ -21,11 +19,10 @@ size_t page_size = []() {
 }();
 
 #include "run_time.hpp"
-#include <sstream>
 #include "library/string_help.hpp"
-#include <filesystem>
 #include "run_time/FuncEnviropment.hpp"
 #include "run_time/tasks.hpp"
+#include "run_time/dynamic_call.hpp"
 
 unsigned long fault_reserved_stack_size = 0;// 524288;
 unsigned long fault_reserved_pages = fault_reserved_stack_size / page_size + (fault_reserved_stack_size % page_size ? 1 : 0);
@@ -156,22 +153,29 @@ void show_err(CXXExInfo& cxx) {
 	std::exit(-1);
 }
 void show_err(LPEXCEPTION_POINTERS e) {
-	std::stringstream ss;
-	ss << "Caught to unhandled seh exception.\n";
-	ss << "Ex code: "  << e->ExceptionRecord->ExceptionCode <<'\n';
-	ss << "Ex addr: " << e->ExceptionRecord->ExceptionAddress << '\n';
+	std::string ss;
+	ss.reserve(256);
+	ss.append("Caught to unhandled seh exception.\n", 36);
+	ss.append("Ex code: ", 9);
+	ss.append(std::to_string(e->ExceptionRecord->ExceptionCode));
+	ss.append("\nEx addr: ", 10);
+	ss.append(string_help::hexstr(e->ExceptionRecord->ExceptionAddress));
 	DWORD maxi = e->ExceptionRecord->NumberParameters;
-	ss << "Params: " << maxi << '\n';
-	for (size_t i = 0; i < maxi; i++) 
-		ss << "\tp" << i << ':' << e->ExceptionRecord->ExceptionInformation[i] << '\n';
-
-	MessageBoxA(NULL, ss.str().c_str(), "Unhandled seh exception", MB_ICONERROR);
+	ss.append("\nParams: ", 9);
+	ss.append(std::to_string(maxi));
+	for (size_t i = 0; i < maxi; i++) {
+		ss.append("\n\tp", 3);
+		ss.append(std::to_string(i));
+		ss.append(": ", 2);
+		ss.append(string_help::hexstr(e->ExceptionRecord->ExceptionInformation[i]));
+	}
+	MessageBoxA(NULL, ss.c_str(), "Unhandled seh exception", MB_ICONERROR);
 	std::exit(-1);
 }
 
 
 void make_dump(LPEXCEPTION_POINTERS e, CXXExInfo* cxx) {
-	std::filesystem::path path;
+	std::wstring path;
 	{
 		constexpr uint16_t limit = 65535;
 		wchar_t* tmp;
@@ -183,25 +187,51 @@ void make_dump(LPEXCEPTION_POINTERS e, CXXExInfo* cxx) {
 		}
 		DWORD len = GetEnvironmentVariableW(L"AttachA_dump_path", tmp, limit);
 		if (!len) {
-			path = std::filesystem::current_path();
-		}
-		else {
+			DWORD len = GetCurrentDirectoryW(0,NULL);
+			if(len > limit){
+				wchar_t* tmp = new wchar_t[len];
+				GetCurrentDirectoryW(len, tmp);
+				path = std::wstring(tmp, tmp + len);
+				delete[] tmp;
+			}else{
+				GetCurrentDirectoryW(len, tmp);
+				path = std::wstring(tmp, tmp + len);
+			}
+		}else{
 			path = std::wstring(tmp, tmp + len);
 		}
-		len = GetModuleFileNameExW(GetCurrentProcess(), nullptr, tmp, limit);
+		
+		len = GetModuleFileNameW(NULL, tmp, limit);
 		if (!len) {
-			path /= "AttachA";
+			path += L"\\Unresolved_AttachA";
 		}
 		else {
-			path /= std::filesystem::path(std::wstring(tmp, tmp + len)).stem();
+			std::wstring tmp2(tmp, tmp + len);
+			path += tmp2.substr(tmp2.find_last_of(L"\\") + 1);
 		}
 		delete[] tmp;
 	}
-	path += " exception fault ";
-	if(cxx)
-		path += cxx->ty_arr[0].ty_info->name();
-	path += std::format(" {}.dmp", (uint16_t)std::hash<long long>()(std::chrono::system_clock::now().time_since_epoch().count()));
-	HANDLE hndl = CreateFileW(path.native().c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_ARCHIVE, 0);
+	path += L" exception fault ";
+	if(cxx){
+		const char* type_name = cxx->ty_arr[0].ty_info->name();
+		size_t len = strlen(type_name);
+		wchar_t* tmp = new wchar_t[len];
+		size_t wlen = MultiByteToWideChar(CP_UTF8, 0, type_name, len, tmp, len);
+		if(!wlen)
+			path += L"FAILED_TO_CONVERT_EXCEPTION_NAME";
+		else
+			path.append(tmp, tmp + wlen);
+		delete[] tmp;
+	}
+	path += L" ";
+	{
+		LARGE_INTEGER ticks;
+		if(!QueryPerformanceCounter(&ticks))
+			ticks.QuadPart = -1;
+		path += std::to_wstring(std::hash<long long>()(ticks.QuadPart));
+	}
+	path += L".dmp";
+	HANDLE hndl = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_ARCHIVE, 0);
 	if (hndl == INVALID_HANDLE_VALUE)
 		return;
 	auto flags =

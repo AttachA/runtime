@@ -5,6 +5,8 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
+#ifndef RUN_TIME_CXX_EXCEPTION
+#define RUN_TIME_CXX_EXCEPTION
 #include "../library/list_array.hpp"
 #include <typeinfo>
 #include <exception>
@@ -25,3 +27,4 @@ void getCxxExInfoFromNative(CXXExInfo& res, void*);
 void getCxxExInfoFromNative1(CXXExInfo& res, void*);
 bool hasClassInEx(CXXExInfo& cxx, const char* class_nam);
 bool isBadAlloc(CXXExInfo& cxx);
+#endif

@@ -5,10 +5,9 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
-#include <mutex>
-#include <fstream>
+#ifndef RUN_TIME_TASKS
+#include "threading.hpp"
 #include <list>
-#include <queue>
 #include "link_garbage_remover.hpp"
 #include "../library/list_array.hpp"
 #include "attacha_abi_structs.hpp"
@@ -31,12 +30,11 @@ public:
 
 
 
-
-
-
+#pragma pack (push)
+#pragma pack (1)
 class TaskMutex {
-	std::timed_mutex no_race;
 	std::list<typed_lgr<struct Task>> resume_task;
+	run_time::threading::timed_mutex no_race;
 	struct Task* current_task = nullptr;
 public:
 	TaskMutex() {}
@@ -61,30 +59,28 @@ ENUM_t(MutexUnifyType, uint8_t,
 	(umut)
 	(mmut)
 );
-#pragma pack (push)
-#pragma pack (1)
 struct MutexUnify {
 	union {
-		std::mutex* nmut = nullptr;
-		std::timed_mutex* ntimed;
-		std::recursive_mutex* nrec;
+		run_time::threading::mutex* nmut = nullptr;
+		run_time::threading::timed_mutex* ntimed;
+		run_time::threading::recursive_mutex* nrec;
 		TaskMutex* umut;
 		struct MultiplyMutex* mmut;
 	};
 	MutexUnify();
 	MutexUnify(const MutexUnify& mut);
-	MutexUnify(std::mutex& smut);
-	MutexUnify(std::timed_mutex& smut);
-	MutexUnify(std::recursive_mutex& smut);
+	MutexUnify(run_time::threading::mutex& smut);
+	MutexUnify(run_time::threading::timed_mutex& smut);
+	MutexUnify(run_time::threading::recursive_mutex& smut);
 	MutexUnify(TaskMutex& smut);
 	MutexUnify(struct MultiplyMutex& mmut);
 	MutexUnify(nullptr_t);
 
 
 	MutexUnify& operator=(const MutexUnify& mut);
-	MutexUnify& operator=(std::mutex& smut);
-	MutexUnify& operator=(std::timed_mutex& smut);
-	MutexUnify& operator=(std::recursive_mutex& smut);
+	MutexUnify& operator=(run_time::threading::mutex& smut);
+	MutexUnify& operator=(run_time::threading::timed_mutex& smut);
+	MutexUnify& operator=(run_time::threading::recursive_mutex& smut);
 	MutexUnify& operator=(TaskMutex& smut);
 	MutexUnify& operator=(struct MultiplyMutex& mmut);
 	MutexUnify& operator=(nullptr_t);
@@ -108,7 +104,7 @@ struct MultiplyMutex {
 };
 class TaskConditionVariable {
 	std::list<typed_lgr<struct Task>> resume_task;
-	std::mutex no_race;
+	run_time::threading::mutex no_race;
 public:
 	TaskConditionVariable();
 	~TaskConditionVariable();
@@ -145,17 +141,15 @@ struct Task {
 	static size_t max_running_tasks;
 	static size_t max_planned_tasks;
 
-
 	TaskResult fres;
-	std::mutex no_race;
 	typed_lgr<class FuncEnviropment> ex_handle;//if ex_handle is nullptr then exception will be stored in fres
 	typed_lgr<class FuncEnviropment> func;
 	ValueItem args;
+	run_time::threading::mutex no_race;
 	MutexUnify relock_0;
 	MutexUnify relock_1;
 	MutexUnify relock_2;
 	class ValueEnvironment* _task_local = nullptr;
-	//size_t sleep_check = 0;
 	std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min();
 	bool time_end_flag : 1 = false;
 	bool awaked : 1 = false;
@@ -163,6 +157,7 @@ struct Task {
 	bool is_yield_mode : 1 = false;
 	bool end_of_life : 1 = false;
 	bool make_cancel : 1 = false;
+	//uint16_t sleep_check : 10 = 0;
 	Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 	Task(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 	Task(Task&& mov) noexcept;
@@ -209,7 +204,7 @@ struct Task {
 	static typed_lgr<Task> dummy_task();
 
 	//unsafe function, checker and cd must be alive during task bridge lifetime
-	static typed_lgr<Task> cxx_native_bridge(bool& checker, class std::condition_variable_any& cd);
+	static typed_lgr<Task> cxx_native_bridge(bool& checker, run_time::threading::condition_variable_any& cd);
 	
 	static typed_lgr<Task> callback_dummy(ValueItem& dummy_data, void(*on_start)(ValueItem&), void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 	static typed_lgr<Task> callback_dummy(ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
@@ -228,8 +223,8 @@ struct Task {
 #pragma pack (pop)
 class TaskSemaphore {
 	std::list<typed_lgr<Task>> resume_task;
-	std::timed_mutex no_race;
-	std::condition_variable native_notify;
+	run_time::threading::timed_mutex no_race;
+	run_time::threading::condition_variable native_notify;
 	size_t allow_treeshold = 0;
 	size_t max_treeshold = 0;
 public:
@@ -283,8 +278,8 @@ public:
 class TaskLimiter {
 	list_array<void*> lock_check;
 	std::list<typed_lgr<Task>> resume_task;
-	std::timed_mutex no_race;
-	std::condition_variable native_notify;
+	run_time::threading::timed_mutex no_race;
+	run_time::threading::condition_variable native_notify;
 	size_t allow_treeshold = 0;
 	size_t max_treeshold = 1;
 	bool locked = false;
@@ -366,3 +361,4 @@ namespace _Task_unsafe{
 	typed_lgr<Task> get_self();
 }
 #pragma pop_macro("min")
+#endif

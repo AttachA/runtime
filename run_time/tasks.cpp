@@ -14,7 +14,6 @@
 #include "ValueEnvironment.hpp"
 #include <queue>
 #include <deque>
-#include <condition_variable>
 #include "tasks_util/light_stack.hpp"
 #include "library/parallel.hpp"
 #include "tasks_util/native_workers_singleton.hpp"
@@ -33,10 +32,10 @@ ValueItem* _empty_func(ValueItem* /*ignored*/, uint32_t /*ignored*/) {
 }
 typed_lgr<FuncEnviropment> empty_func(new FuncEnviropment(_empty_func, false));
 //first arg bool& check
-//second arg std::condition_variable_any
+//second arg run_time::threading::condition_variable_any
 ValueItem* _notify_native_thread(ValueItem* args, uint32_t /*ignored*/) {
 	*((bool*)args[0].val) = true;
-	((std::condition_variable_any*)args[1].val)->notify_one();
+	((run_time::threading::condition_variable_any*)args[1].val)->notify_one();
 	return nullptr;
 }
 typed_lgr<FuncEnviropment> notify_native_thread(new FuncEnviropment(_notify_native_thread, false));
@@ -163,15 +162,15 @@ MutexUnify::MutexUnify(const MutexUnify& mut) {
 	type = mut.type;
 	nmut = mut.nmut;
 }
-MutexUnify::MutexUnify(std::mutex& smut) {
+MutexUnify::MutexUnify(run_time::threading::mutex& smut) {
 	type = MutexUnifyType::nmut;
 	nmut = std::addressof(smut);
 }
-MutexUnify::MutexUnify(std::timed_mutex& smut) {
+MutexUnify::MutexUnify(run_time::threading::timed_mutex& smut) {
 	type = MutexUnifyType::ntimed;
 	ntimed = std::addressof(smut);
 }
-MutexUnify::MutexUnify(std::recursive_mutex& smut) {
+MutexUnify::MutexUnify(run_time::threading::recursive_mutex& smut) {
 	type = MutexUnifyType::nrec;
 	nrec = std::addressof(smut);
 }
@@ -188,17 +187,17 @@ MutexUnify& MutexUnify::operator=(const MutexUnify& mut) {
 	nmut = mut.nmut;
 	return *this;
 }
-MutexUnify& MutexUnify::operator=(std::mutex& smut) {
+MutexUnify& MutexUnify::operator=(run_time::threading::mutex& smut) {
 	type = MutexUnifyType::nmut;
 	nmut = std::addressof(smut);
 	return *this;
 }
-MutexUnify& MutexUnify::operator=(std::timed_mutex& smut) {
+MutexUnify& MutexUnify::operator=(run_time::threading::timed_mutex& smut) {
 	type = MutexUnifyType::ntimed;
 	ntimed = std::addressof(smut);
 	return *this;
 }
-MutexUnify& MutexUnify::operator=(std::recursive_mutex& smut) {
+MutexUnify& MutexUnify::operator=(run_time::threading::recursive_mutex& smut) {
 	type = MutexUnifyType::nrec;
 	nrec = std::addressof(smut);
 	return *this;
@@ -366,7 +365,7 @@ TaskResult::TaskResult(TaskResult&& move) noexcept {
 struct timing {
 	std::chrono::high_resolution_clock::time_point wait_timepoint; 
 	typed_lgr<Task> awake_task; 
-	//size_t check_id;
+	//uint16_t check_id : 10;
 };
 struct {
 	TaskConditionVariable no_tasks_notifier;
@@ -376,11 +375,11 @@ struct {
 	std::queue<typed_lgr<Task>> cold_tasks;
 	std::deque<timing> timed_tasks;
 
-	std::recursive_mutex task_thread_safety;
-	std::recursive_mutex task_timer_safety;
+	run_time::threading::recursive_mutex task_thread_safety;
+	run_time::threading::recursive_mutex task_timer_safety;
 
-	std::condition_variable_any tasks_notifier;
-	std::condition_variable_any time_notifier;
+	run_time::threading::condition_variable_any tasks_notifier;
+	run_time::threading::condition_variable_any time_notifier;
 
 	size_t executors = 0;
 	size_t in_exec = 0;
@@ -420,6 +419,7 @@ struct TaskCallback {
 				self->on_timeout(self->args);
 				return;
 		}
+		sizeof(Task);
 		if(self->on_start)
 			self->on_start(self->args);
 	}
@@ -712,8 +712,7 @@ void taskTimer() {
 	if (enable_thread_naming)
 		_set_name_thread_dbg("Task time controller");
 
-	std::mutex mtx;
-	std::unique_lock ulm(mtx);
+	run_time::threading::mutex mtx;
 	while (true) {
 		{
 			if (glob.timed_tasks.size()) {
@@ -722,7 +721,10 @@ void taskTimer() {
 					timing& tmng = glob.timed_tasks.front();
 					//if (tmng.check_id != tmng.awake_task->sleep_check) {
 					//	glob.timed_tasks.pop_front();
-					//	continue;
+					//	if (glob.timed_tasks.empty())
+					//		break;
+					//	else
+					//		continue;
 					//}
 					std::lock_guard task_guard(tmng.awake_task->no_race);
 					if (tmng.awake_task->awaked) {
@@ -743,9 +745,9 @@ void taskTimer() {
 			}
 		}
 		if (glob.timed_tasks.empty())
-			glob.time_notifier.wait(ulm);
+			glob.time_notifier.wait(mtx);
 		else
-			glob.time_notifier.wait_until(ulm, glob.timed_tasks.front().wait_timepoint);
+			glob.time_notifier.wait_until(mtx, glob.timed_tasks.front().wait_timepoint);
 	}
 }
 
@@ -1084,7 +1086,7 @@ void Task::clean_up() {
 typed_lgr<Task> Task::dummy_task(){
 	return new Task(empty_func, ValueItem());
 }
-typed_lgr<Task> Task::cxx_native_bridge(bool& checker, std::condition_variable_any& cd){
+typed_lgr<Task> Task::cxx_native_bridge(bool& checker, run_time::threading::condition_variable_any& cd){
 	return new Task(notify_native_thread, ValueItem{ ValueItem(&checker, VType::undefined_ptr), ValueItem(std::addressof(cd), VType::undefined_ptr) });
 }
 
@@ -1322,7 +1324,7 @@ void TaskMutex::lock() {
 	}
 	else {
 		std::unique_lock ul(no_race);
-		std::condition_variable_any cd;
+		run_time::threading::condition_variable_any cd;
 		bool has_res = false;
 		typed_lgr<Task> task; 
 		while (current_task) {
@@ -1377,7 +1379,7 @@ bool TaskMutex::try_lock_until(std::chrono::high_resolution_clock::time_point ti
 	}
 	else {
 		bool has_res;
-		std::condition_variable_any cd;
+		run_time::threading::condition_variable_any cd;
 		while (current_task) {
 			has_res = false;
 			typed_lgr task = Task::cxx_native_bridge(has_res, cd);
@@ -1473,7 +1475,7 @@ void TaskConditionVariable::wait(std::unique_lock<MutexUnify>& mut) {
 		}
 	}
 	else {
-		std::condition_variable_any cd;
+		run_time::threading::condition_variable_any cd;
 		bool has_res = false;
 		typed_lgr task = Task::cxx_native_bridge(has_res, cd);
 		if (mut.mutex()->nmut == &no_race) {
@@ -1513,7 +1515,7 @@ bool TaskConditionVariable::wait_until(std::unique_lock<MutexUnify>& mut, std::c
 			return false;
 	}
 	else {
-		std::condition_variable_any cd;
+		run_time::threading::condition_variable_any cd;
 		bool has_res = false;
 		typed_lgr task = Task::cxx_native_bridge(has_res, cd);
 	task_not_ended:
@@ -1661,10 +1663,9 @@ re_try:
 			swapCtxRelock(glob.task_thread_safety);
 		}
 		else {
-			std::mutex mtx;
-			std::unique_lock ulm(mtx);
+			run_time::threading::mutex mtx;
 			no_race.unlock();
-			native_notify.wait(ulm);
+			native_notify.wait(mtx);
 		}
 		goto re_try;
 	}
@@ -1705,9 +1706,8 @@ re_try:
 		}
 		else {
 			no_race.unlock();
-			std::mutex mtx;
-			std::unique_lock ulm(mtx);
-			if (native_notify.wait_until(ulm, time_point) == std::cv_status::timeout)
+			run_time::threading::mutex mtx;
+			if (!native_notify.wait_until(mtx, time_point))
 				return false;
 		}
 		goto re_try;
@@ -1817,10 +1817,9 @@ re_try:
 			swapCtxRelock(glob.task_thread_safety);
 		}
 		else {
-			std::mutex mtx;
-			std::unique_lock ulm(mtx);
+			run_time::threading::mutex mtx;
 			no_race.unlock();
-			native_notify.wait(ulm);
+			native_notify.wait(mtx);
 		}
 		goto re_try;
 	}
@@ -1880,10 +1879,9 @@ re_try:
 				return false;
 		}
 		else {
-			std::mutex mtx;
-			std::unique_lock ulm(mtx);
+			run_time::threading::mutex mtx;
 			no_race.unlock();
-			if (native_notify.wait_until(ulm, time_point) == std::cv_status::timeout)
+			if (!native_notify.wait_until(mtx, time_point))
 				return false;
 		}
 		goto re_try;

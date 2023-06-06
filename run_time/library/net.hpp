@@ -19,13 +19,6 @@ namespace net {
 
 		ValueItem* createProxy_UdpSocket(ValueItem*, uint32_t);//[ip:port], [timeout_ms = 0]
 	}
-	namespace api {
-		namespace constructor {
-			ValueItem* createProxy_ApiInstance(ValueItem*, uint32_t);//function uarr[any, ui8 response format](map[string,string] query, string path)
-			ValueItem* createProxy_HttpRequestManager(ValueItem*, uint32_t);//[http version], [ip = localhost], [port = 443],  [encryption = ssl], [certificate = 0]
-		}
-		ValueItem* httpRequest(ValueItem*, uint32_t);//[adress + query, format] return any
-	}
 	ValueItem* ipv6_supported(ValueItem*, uint32_t);
 
 	ValueItem* tcp_client_connect(ValueItem*, uint32_t);//[ip:port], [timeout_ms = 0] or [ip:port], [data], [timeout_ms = 0]

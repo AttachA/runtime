@@ -4,7 +4,6 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <bit>
 #include <stdint.h>
 #include "tools.hpp"
 #include "run_time_compiler.hpp"
@@ -428,13 +427,13 @@ void FuncEviroBuilder::throwEx(uint16_t name, uint16_t desck, bool values_is_onl
 }
 
 
-void FuncEviroBuilder::as(uint16_t val, ValueMeta meta) {
+void FuncEviroBuilder::as(uint16_t val, VType meta) {
 	code.push_back(Command(Opcode::as).toCmd());
 	builder::write(code, val);
 	builder::write(code, meta);
 	useVal(val);
 }
-void FuncEviroBuilder::is(uint16_t val, ValueMeta meta) {
+void FuncEviroBuilder::is(uint16_t val, VType meta) {
 	code.push_back(Command(Opcode::is).toCmd());
 	builder::write(code, val);
 	builder::write(code, meta);

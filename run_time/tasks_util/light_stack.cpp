@@ -4,17 +4,16 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "Windows.h"
-#include <intrin.h>
+#include <Windows.h>
+#include <intrin.h>//_AddressOfReturnAddress
 #include "light_stack.hpp"
-#include <boost/assert.hpp>
-#include <cmath>
-#include <exception>
 #include "../../run_time.hpp"
 #include "../library/console.hpp"
-#include <assert.h>
-#include <exception>
+#include "../library/exceptions.hpp"
+#include <cassert>
 #include <boost/lockfree/queue.hpp>
+#include <atomic>
+#include <vector>
 typedef boost::context::stack_context stack_context;
 
 boost::lockfree::queue<light_stack::stack_context> stack_allocations(200);
@@ -30,19 +29,19 @@ stack_context create_stack(size_t size){
 
     void* vp = ::VirtualAlloc(0, size, MEM_RESERVE, PAGE_READWRITE);
     if (!vp) 
-        throw std::bad_alloc();
+        throw AllocationException("VirtualAlloc failed");
 
     // needs at least 3 pages to fully construct the coroutine and switch to it
     const auto init_commit_size = page_size * 3;
     auto pPtr = static_cast<PBYTE>(vp) + size;
     pPtr -= init_commit_size;
     if (!VirtualAlloc(pPtr, init_commit_size, MEM_COMMIT, PAGE_READWRITE)) 
-        throw std::bad_alloc();
+        throw AllocationException("VirtualAlloc failed");
 
     // create guard page so the OS can catch page faults and grow our stack
     pPtr -= guard_page_size;
     if (!VirtualAlloc(pPtr, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD))
-        throw std::bad_alloc();
+        throw AllocationException("VirtualAlloc failed");
     stack_context sctx;
     sctx.size = size;
     sctx.sp = static_cast<char*>(vp) + sctx.size;
@@ -119,31 +118,11 @@ void light_stack::set_buffer(size_t buffer_len) {
 
 
 void light_stack::deallocate(stack_context& sctx ) {
-    BOOST_ASSERT(sctx.sp);
+    assert(sctx.sp);
     if (!stack_allocations.push(sctx)) 
         ::VirtualFree(static_cast<char*>(sctx.sp) - sctx.size, 0, MEM_RELEASE);
 }
 
-
-
-template< typename T >
-struct hex_fmt_t {
-    hex_fmt_t(T x) : val(x) {}
-    friend std::ostream& operator<<(std::ostream& os, const hex_fmt_t& v) {
-        return os << std::hex
-            << std::internal
-            << std::showbase
-            << std::setw(8)
-            << std::setfill('0')
-            << v.val;
-    }
-    T val;
-};
-
-template< typename T >
-hex_fmt_t<T> fmt_hex(T x) {
-    return hex_fmt_t<T>{ x };
-}
 
 const char* fmt_state(DWORD state) {
     switch (state) {
@@ -186,7 +165,7 @@ std::string fmt_protect(DWORD prot) {
 
 
 std::string dump_stack(bool* pPtr) {
-    std::stringstream res;
+    std::string res;
     // Get the stack last page.
     MEMORY_BASIC_INFORMATION stMemBasicInfo;
     BOOST_VERIFY(VirtualQuery(pPtr, &stMemBasicInfo, sizeof(stMemBasicInfo)));
@@ -194,17 +173,16 @@ std::string dump_stack(bool* pPtr) {
     do {
         BOOST_VERIFY(VirtualQuery(pPos, &stMemBasicInfo, sizeof(stMemBasicInfo)));
         BOOST_VERIFY(stMemBasicInfo.RegionSize);
-        res << "Range: " << fmt_hex((SIZE_T)pPos)
-            << " - " << fmt_hex((SIZE_T)pPos + stMemBasicInfo.RegionSize)
-            << " Protect: " << fmt_protect(stMemBasicInfo.Protect)
-            << " State: " << fmt_state(stMemBasicInfo.State)
-            //<< " Type: " << fmt_type( stMemBasicInfo.Type )
-            << std::dec
-            << " Pages: " << stMemBasicInfo.RegionSize / page_size
-            << std::endl;
+        res += "Range: " + string_help::hexstr((SIZE_T)pPos);
+        res += " - " + string_help::hexstr((SIZE_T)pPos + stMemBasicInfo.RegionSize);
+        res += " Protect: " + fmt_protect(stMemBasicInfo.Protect);
+        res += " State: "; res += fmt_state(stMemBasicInfo.State);
+        //res += " Type: " + fmt_type(stMemBasicInfo.Type);
+        res += " Pages: " + std::to_string(stMemBasicInfo.RegionSize / page_size);
+        res += "\n";
         pPos += stMemBasicInfo.RegionSize;
     } while (pPos < pPtr);
-    return res.str();
+    return res;
 }
 
 

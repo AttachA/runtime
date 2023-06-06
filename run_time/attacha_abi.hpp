@@ -81,14 +81,8 @@ constexpr VType Type_as_VType() {
 }
 
 
-void universalFree(void** value, ValueMeta meta);
 void universalRemove(void** value);
 void universalAlloc(void** value, ValueMeta meta);
-
-void initEnviropement(void** res, uint32_t vals_count);
-void removeEnviropement(void** env, uint16_t vals_count);
-char* getStrBegin(std::string* str);
-void throwInvalidType();
 
 ValueItem* getAsyncValueItem(void* val);
 void getValueItem(void** value, ValueItem* f_res);
@@ -97,7 +91,6 @@ ValueItem* buildRes(void** value);
 
 void getAsyncResult(void*& value, ValueMeta& meta);
 void* copyValue(void*& val, ValueMeta& meta);
-void** copyEnviropement(void** env, uint16_t env_it_count);
 
 
 void** preSetValue(void** value, ValueMeta set_meta, bool match_gc_dif);
@@ -105,8 +98,6 @@ void*& getValue(void*& value, ValueMeta& meta);
 void*& getValue(void** value);
 void* getSpecificValue(void** value, VType typ);
 void** getSpecificValueLink(void** value, VType typ);
-
-void** getValueLink(void** value);
 
 bool is_integer(VType typ);
 bool integer_unsigned(VType typ);
@@ -117,8 +108,6 @@ bool has_interface(VType typ);
 std::pair<bool, bool> compareValue(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2);
 RFLAGS compare(RFLAGS old, void** value_1, void** value_2);
 RFLAGS link_compare(RFLAGS old, void** value_1, void** value_2);
-
-void copyEnviropement(void** env, uint16_t env_it_count, void*** res);
 
 
 
@@ -229,7 +218,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int8_t)(ptrdiff_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return AsPointer<T, int8_t>(val);
+					return AsPointer<std::remove_pointer_t<T>, int8_t>(val);
 				else
 					return (T)val;
 				break;
@@ -242,7 +231,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int16_t)(ptrdiff_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return AsPointer<T, int16_t>(val);
+					return AsPointer<std::remove_pointer_t<T>, int16_t>(val);
 				else
 					return (T)val;
 				break;
@@ -255,7 +244,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int32_t)(ptrdiff_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return AsPointer<T, int32_t>(val);
+					return AsPointer<std::remove_pointer_t<T>, int32_t>(val);
 				else
 					return (T)val;
 				break;
@@ -268,7 +257,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int64_t)(ptrdiff_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return AsPointer<T, int64_t>(val);
+					return AsPointer<std::remove_pointer_t<T>, int64_t>(val);
 				else
 					return (T)val;
 				break;
@@ -281,7 +270,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint8_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return AsPointer<T, uint8_t>(val);
+					return AsPointer<std::remove_pointer_t<T>, uint8_t>(val);
 				else
 					return (T)val;
 				break;
@@ -294,7 +283,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint16_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return AsPointer<T, uint16_t>(val);
+					return AsPointer<std::remove_pointer_t<T>, uint16_t>(val);
 				else
 					return (T)val;
 				break;
@@ -307,7 +296,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint32_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return AsPointer<T, uint32_t>(val);
+					return AsPointer<std::remove_pointer_t<T>, uint32_t>(val);
 				else
 					return (T)val;
 				break;
@@ -320,7 +309,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint64_t)val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return AsPointer<T, uint64_t>(val);
+					return AsPointer<std::remove_pointer_t<T>, uint64_t>(val);
 				else
 					return (T)val;
 				break;
@@ -333,7 +322,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * (float*)&val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return AsPointer<T, float>(val);
+					return AsPointer<std::remove_pointer_t<T>, float>(val);
 				else
 					return (T)val;
 				break;
@@ -346,7 +335,7 @@ namespace ABI_IMPL {
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * (double*)&val;
 				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
-					return AsPointer<T, double>(val);
+					return AsPointer<std::remove_pointer_t<T>, double>(val);
 				else
 					return (T)val;
 				break;
@@ -803,39 +792,4 @@ void asValue(void** val, VType type);
 bool isValue(void** val, VType type);
 bool isTrueValue(void** value);
 void setBoolValue(bool,void** value);
-
-namespace exception_abi {
-	bool is_except(void** val);
-	void ignore_except(void** val);
-	void continue_unwind(void** val);
-
-	//return true if val is actually exception, can be used for finally blocks
-	bool call_except_handler(void** val, bool(*func_symbol)(void** val), bool ignore_fault = true);
-
-	typedef ptrdiff_t jump_point;
-	struct jump_handle_except {
-		std::string type_name;
-		jump_point jump_off;
-	};
-	//for static catch block
-	ptrdiff_t switch_jump_handle_except(void** val, jump_handle_except* handlers, size_t handlers_c);
-	//for dynamic catch block
-	ptrdiff_t switch_jump_handle_except(void** val, list_array<jump_handle_except>* handlers);
-
-
-	template<class _FN, class ...Args>
-	ValueItem* catchCall(_FN func, Args... args) {
-		try {
-			return func(std::forward(args)...);
-		}
-		catch (...) {
-			try {
-				return new ValueItem(new std::exception_ptr(std::current_exception()), VType::except_value, no_copy);
-			}
-			catch (const std::bad_alloc& ex) {
-				throw EnviropmentRuinException();
-			}
-		}
-	}
-}
 #endif /* RUN_TIME_ATTACHA_ABI */

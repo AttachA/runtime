@@ -345,10 +345,8 @@
     fun: get_function
         arguments: string'symbolic name', proxy<native_template>
         desc: 'native_template native template used here for casting'
+        returns: function
     
-## asm
-    everyiting here throws 'class NotImplementedException'
-
 # paralel
     fun: create_thread
         arguments: function, any...

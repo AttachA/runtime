@@ -1,78 +1,23 @@
 /// this file external, used as manual for linux DWARF, not licensed
+///only for documentation purposes
 #pragma once
-#include <vector>
-#include <memory>
-#ifdef _WIN32
-#include <Windows.h>
-#include <DbgHelp.h>
-#else
-#include <execinfo.h>
-#include <cxxabi.h>
-#include <cstring>
-#include <cstdlib>
-#endif
+//#include <vector>
+//#include <memory>
+//#ifdef _WIN32
+//#include <Windows.h>
+//#include <DbgHelp.h>
+//#else
+//#include <execinfo.h>
+//#include <cxxabi.h>
+//#include <cstring>
+//#include <cstdlib>
+//#endif
 
 //#define ASMJIT_PROPAGATE(cmd) do{ if(auto tmp = (cmd)) throw CompileTimeException("Fail compile func, asmjit err code: " + std::to_string(tmp));}while(0)
 
 
 
-#undef ASMJIT_PROPAGATE
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//struct JitLineInfo
-//{
-//	ptrdiff_t InstructionIndex = 0;
-//	int32_t LineNumber = -1;
-//	asmjit::Label Label;
-//};
-//struct JitFuncInfo
-//{
-//	String name;
-//	String filename;
-//	std::vector<JitLineInfo> LineInfo;
-//	void* start;
-//	void* end;
-//};
-
-
-
-
-//static void* AllocJitMemory(size_t size)
-//{
-//	using namespace asmjit;
-//
-//	if (JitBlockPos + size <= JitBlockSize)
-//	{
-//		uint8_t* p = JitBlocks[JitBlocks.size() - 1];
-//		p += JitBlockPos;
-//		JitBlockPos += size;
-//		return p;
-//	}
-//	else
-//	{
-//		void* p;
-//		VirtMem::alloc(&p, 1024 * 1024, VirtMem::MemoryFlags::kAccessWrite | VirtMem::MemoryFlags::kAccessExecute);
-//		if (!p)
-//			return nullptr;
-//		JitBlocks.push_back((uint8_t*)p);
-//		JitBlockSize = 1024 * 1024;
-//		JitBlockPos = size;
-//		return p;
-//	}
-//}
+//#undef ASMJIT_PROPAGATE
 
 #if false
 

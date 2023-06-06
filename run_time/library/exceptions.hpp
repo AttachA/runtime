@@ -273,6 +273,14 @@ public:
 		return "SystemException";
 	}
 };
+class AllocationException : public AttachARuntimeException {
+public:
+	AllocationException(const std::string& msq) : AttachARuntimeException(msq) {}
+	AllocationException(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+	const char* name() const override {
+		return "AllocationExceptions";
+	}
+};
 
 class InternalException : public AttachARuntimeException {
 	list_array<void*> stack_trace;

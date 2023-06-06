@@ -11,9 +11,7 @@
 #include "tools.hpp"
 #include "AttachA_CXX.hpp"
 #include "tasks.hpp"
-#include <iostream>
 #include "attacha_abi.hpp"
-#include "tools.hpp"
 
 #include "../configuration/agreement/symbols.hpp"
 
@@ -3601,8 +3599,8 @@ std::string FuncEnviropment::to_string(){
 		return "fn(unknown)@0";
 	for(auto& it : enviropments)
 		if(it.second.getPtr() == this)
-			return "fn(" + it.first + ")@" + (std::ostringstream() << curr_func).str();
-	return "fn(" + FrameResult::JitResolveFrame(curr_func,true).fn_name + ")@" + (std::ostringstream() << curr_func).str();
+			return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)curr_func);
+	return "fn(" + FrameResult::JitResolveFrame(curr_func,true).fn_name + ")@" + string_help::hexstr((ptrdiff_t)curr_func);
 }
 void FuncEnviropment::fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code) {
 	auto& tmp = enviropments[func_name];

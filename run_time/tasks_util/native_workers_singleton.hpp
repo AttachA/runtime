@@ -1,10 +1,7 @@
 #ifndef RUN_TIME_TASKS_UTIL_NATIVE_WORKERS_SINGLETON
 #define RUN_TIME_TASKS_UTIL_NATIVE_WORKERS_SINGLETON
 
-#include <deque>
 #include <thread>
-#include <memory>
-#include <sstream>
 #include "../../run_time.hpp"
 
 #ifdef _WIN64
@@ -32,7 +29,7 @@ public:
 //not consume resources if not used
 class NativeWorkersSingleton {
     static inline NativeWorkersSingleton* instance = nullptr;
-    static inline std::mutex instance_mutex;
+    static inline run_time::threading::mutex instance_mutex;
     std::shared_ptr<void> m_hCompletionPort;
     NativeWorkersSingleton(){
         m_hCompletionPort.reset(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0), CloseHandle);
@@ -78,7 +75,7 @@ class NativeWorkersSingleton {
     static NativeWorkersSingleton& get_instance(){
         if(instance) return *instance;
         else {
-            std::lock_guard<std::mutex> lock(instance_mutex);
+            std::lock_guard<run_time::threading::mutex> lock(instance_mutex);
             if(!instance)
                 instance = new NativeWorkersSingleton();
             return *instance;

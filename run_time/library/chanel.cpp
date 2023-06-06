@@ -4,8 +4,6 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <list>
-#include <queue>
 #include "../tasks.hpp"
 #include "../AttachA_CXX.hpp"
 #include "chanel.hpp"

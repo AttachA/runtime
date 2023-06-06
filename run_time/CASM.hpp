@@ -5,6 +5,8 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
+#ifndef RUN_TIME_CASM
+#define RUN_TIME_CASM
 #include <asmjit/asmjit.h>
 #include <vector>
 #include <cassert>
@@ -1605,4 +1607,5 @@ public:
 
 #else
 #error INVALID BUILD ARCHITECTURE, supported only x64 or aarch64 archetectures
+#endif
 #endif

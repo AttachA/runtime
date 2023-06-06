@@ -33,7 +33,7 @@ namespace parallel {
 			if (vals->meta.vtype == VType::proxy) {
 				switch (len) {
 				case 1: {
-					std::mutex mt;
+					run_time::threading::mutex mt;
 					MutexUnify unif(mt);
 					std::unique_lock lock(unif);
 					getClass<TaskConditionVariable>(vals)->wait(lock);
@@ -53,7 +53,7 @@ namespace parallel {
 							throw  InvalidArguments("That function recuive [class ptr] and optional [mutex]");
 					}
 					else {
-						std::mutex mt;
+						run_time::threading::mutex mt;
 						MutexUnify unif(mt);
 						std::unique_lock lock(unif);
 						return new ValueItem(getClass<TaskConditionVariable>(vals)->wait_for(lock,(size_t)vals[1]));
@@ -88,7 +88,7 @@ namespace parallel {
 			if (vals->meta.vtype == VType::proxy) {
 				switch (len) {
 				case 2: {
-					std::mutex mt;
+					run_time::threading::mutex mt;
 					MutexUnify unif(mt);
 					std::unique_lock lock(unif);
 					return new ValueItem(getClass<TaskConditionVariable>(vals)->wait_until(lock, (std::chrono::high_resolution_clock::time_point)vals[1]));
