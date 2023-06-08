@@ -1,7 +1,7 @@
 #ifndef RUN_TIME_TASKS_UTIL_NATIVE_WORKERS_SINGLETON
 #define RUN_TIME_TASKS_UTIL_NATIVE_WORKERS_SINGLETON
 
-#include <thread>
+#include "../threading.hpp"
 #include "../../run_time.hpp"
 
 #ifdef _WIN64
@@ -35,8 +35,8 @@ class NativeWorkersSingleton {
         m_hCompletionPort.reset(CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0), CloseHandle);
         if(!m_hCompletionPort)
             throw std::runtime_error("CreateIoCompletionPort failed");
-        for(ptrdiff_t i = std::thread::hardware_concurrency(); i > 0; i--)
-            std::thread(&NativeWorkersSingleton::dispatch, this).detach();
+        for(ptrdiff_t i = run_time::threading::thread::hardware_concurrency(); i > 0; i--)
+            run_time::threading::thread(&NativeWorkersSingleton::dispatch, this).detach();
     }
 
     void dispatch() {

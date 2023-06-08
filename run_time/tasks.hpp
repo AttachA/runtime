@@ -86,11 +86,16 @@ struct MutexUnify {
 	MutexUnify& operator=(nullptr_t);
 
 	MutexUnifyType type;
+	run_time::threading::relock_state state;
 	void lock();
 	bool try_lock();
 	bool try_lock_for(size_t milliseconds);
 	bool try_lock_until(std::chrono::high_resolution_clock::time_point time_point);
 	void unlock();
+
+	void relock_start();
+	void relock_end();
+
 	operator bool();
 };
 struct MultiplyMutex {
@@ -140,6 +145,7 @@ struct TaskResult {
 struct Task {
 	static size_t max_running_tasks;
 	static size_t max_planned_tasks;
+	static bool enable_task_naming;
 
 	TaskResult fres;
 	typed_lgr<class FuncEnviropment> ex_handle;//if ex_handle is nullptr then exception will be stored in fres
@@ -279,7 +285,7 @@ class TaskLimiter {
 	list_array<void*> lock_check;
 	std::list<typed_lgr<Task>> resume_task;
 	run_time::threading::timed_mutex no_race;
-	run_time::threading::condition_variable native_notify;
+	run_time::threading::condition_variable_any native_notify;
 	size_t allow_treeshold = 0;
 	size_t max_treeshold = 1;
 	bool locked = false;

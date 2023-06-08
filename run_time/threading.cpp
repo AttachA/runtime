@@ -21,41 +21,51 @@ namespace run_time {
         }
         recursive_mutex::recursive_mutex() {
             count = 0;
-            owner = std::thread::id();
+            owner = run_time::threading::thread::id();
         }
         recursive_mutex::~recursive_mutex() {
             
         }
         void recursive_mutex::lock() {
-            if (owner == std::this_thread::get_id()) {
+            if (owner == run_time::threading::this_thread::get_id()) {
                 count++;
                 return;
             }
             actual_mutex.lock();
-            owner = std::this_thread::get_id();
+            owner = run_time::threading::this_thread::get_id();
             count = 1;
         }
         void recursive_mutex::unlock() {
-            if (owner != std::this_thread::get_id()) {
+            if (owner != run_time::threading::this_thread::get_id()) {
                 return;
             }
             count--;
             if (count == 0) {
-                owner = std::thread::id();
+                owner = run_time::threading::thread::id();
                 actual_mutex.unlock();
             }
         }
         bool recursive_mutex::try_lock() {
-            if (owner == std::this_thread::get_id()) {
+            if (owner == run_time::threading::this_thread::get_id()) {
                 count++;
                 return true;
             }
             if (actual_mutex.try_lock()) {
-                owner = std::this_thread::get_id();
+                owner = run_time::threading::this_thread::get_id();
                 count = 1;
                 return true;
             }
             return false;
+        }
+        
+        relock_state recursive_mutex::relock_begin(){
+            unsigned int _count = count;
+            count = 1;
+            return relock_state(_count);
+        }
+        void recursive_mutex::relock_end(relock_state state){
+            count = state._state;
+            owner = run_time::threading::this_thread::get_id();
         }
         timed_mutex::timed_mutex() {
             
@@ -91,7 +101,7 @@ namespace run_time {
         bool timed_mutex::try_lock_until(std::chrono::high_resolution_clock::time_point time){
             std::lock_guard<mutex> lock(_mutex);
             while(locked != 0)
-                if (!_cond.wait_until(_mutex,time))
+                if (_cond.wait_until(_mutex,time) == cv_status::timeout)
                     return false;
             locked = UINT_MAX;
             return true;
@@ -110,45 +120,124 @@ namespace run_time {
         }
         
         void condition_variable::wait(mutex& mtx) {
-            SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx._mutex, INFINITE, 0);
+            if(SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx._mutex, INFINITE, 0)){
+                DWORD err = GetLastError();
+                if(err)
+                    throw SystemException(err);
+            }
         }
-        bool condition_variable::wait_for(mutex& mtx, std::chrono::milliseconds ms) {
+        cv_status condition_variable::wait_for(mutex& mtx, std::chrono::milliseconds ms) {
             return wait_until(mtx, std::chrono::high_resolution_clock::now() + ms);
         }
-        bool condition_variable::wait_until(mutex& mtx, std::chrono::high_resolution_clock::time_point time) {
+        cv_status condition_variable::wait_until(mutex& mtx, std::chrono::high_resolution_clock::time_point time) {
             while(true){
                 auto sleep_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time - std::chrono::high_resolution_clock::now());
-                if (sleep_ms.count() <= 0) {
-                    return false;
-                }
+                if (sleep_ms.count() <= 0) 
+                    return cv_status::timeout;
                 DWORD wait_time = sleep_ms.count() > 0x7FFFFFFF ? 0x7FFFFFFF : (DWORD)sleep_ms.count();
                 if (SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx._mutex, wait_time, 0)) {
-                    return true;
-                }
+                    auto err = GetLastError();
+                    switch(err){
+                        case ERROR_TIMEOUT:
+                            return cv_status::timeout;
+                        case ERROR_SUCCESS:
+                            return cv_status::no_timeout;
+                        default:
+                            throw SystemException(err);
+                    }
+                }else
+                    return cv_status::no_timeout;
             }
-            return false;
         }
         
         void condition_variable::wait(recursive_mutex& mtx) {
-            size_t count = mtx.count;
-            SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx.actual_mutex, INFINITE, 0);
-            mtx.owner = std::this_thread::get_id();
-            mtx.count = count;
+            auto state = mtx.relock_begin();
+            if(SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx.actual_mutex, INFINITE, 0)){
+                mtx.relock_end(state);
+                DWORD err = GetLastError();
+                if(err)
+                    throw SystemException(err);
+                else
+                    return;
+            }
+            mtx.relock_end(state);
         }
-        bool condition_variable::wait_for(recursive_mutex& mtx, std::chrono::milliseconds ms) {
+        cv_status condition_variable::wait_for(recursive_mutex& mtx, std::chrono::milliseconds ms) {
             return wait_until(mtx, std::chrono::high_resolution_clock::now() + ms);
         }
-        bool condition_variable::wait_until(recursive_mutex& mtx, std::chrono::high_resolution_clock::time_point time) {
-            size_t count = mtx.count;
+        cv_status condition_variable::wait_until(recursive_mutex& mtx, std::chrono::high_resolution_clock::time_point time) {
+            auto state = mtx.relock_begin();
             while (true) {
                 auto sleep_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time - std::chrono::high_resolution_clock::now());
                 if (sleep_ms.count() <= 0)
-                    return false;
+                    return cv_status::timeout;
                 DWORD wait_time = sleep_ms.count() > 0x7FFFFFFF ? 0x7FFFFFFF : (DWORD)sleep_ms.count();
-                if (SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx.actual_mutex, wait_time, 0)) {
-                    mtx.owner = std::this_thread::get_id();
-                    mtx.count = count;
-                    return true;
+                bool res = SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx.actual_mutex, wait_time, 0);
+                cv_status status = cv_status::no_timeout;
+                mtx.relock_end(state);
+                if (res) {
+                    auto err = GetLastError();
+                    switch (err) {
+                    case ERROR_TIMEOUT:
+                        status = cv_status::timeout;
+                        break;
+                    default:
+                        throw SystemException(err);
+
+                    case ERROR_SUCCESS:
+                        break;
+                    }
+                }
+                return status;
+            }
+        }
+
+        
+        void* thread::create(void(*function)(void*), void* arg, unsigned int& id, size_t stack_size,bool stack_reservation, int& error_code){
+            error_code = 0;
+            void* handle = CreateThread(nullptr, stack_size, (LPTHREAD_START_ROUTINE)function, arg, stack_reservation?STACK_SIZE_PARAM_IS_A_RESERVATION:0 , (LPDWORD)&id);
+            if(!handle){
+                error_code = GetLastError();
+                return nullptr;
+            }
+            return handle;
+        }
+        [[nodiscard]] unsigned int thread::hardware_concurrency() noexcept{
+            SYSTEM_INFO sysinfo;
+            GetSystemInfo(&sysinfo);
+            int numCPU = sysinfo.dwNumberOfProcessors;
+            if(numCPU < 1)
+                numCPU = 1;
+            return (unsigned int)numCPU;
+        }
+        void thread::join(){
+            if(_thread){
+                WaitForSingleObject(_thread, INFINITE);
+                CloseHandle(_thread);
+                _thread = nullptr;
+            }
+        }
+        void thread::detach(){
+            if(_thread){
+                CloseHandle(_thread);
+                _thread = nullptr;
+            }
+        }
+        namespace this_thread{
+            thread::id get_id() noexcept{
+                return thread::id(GetCurrentThreadId());
+            }
+            void yield() noexcept{
+                SwitchToThread();
+            }
+            void sleep_for(std::chrono::milliseconds ms){
+                Sleep((DWORD)ms.count());
+            }
+            void sleep_until(std::chrono::high_resolution_clock::time_point time){
+                auto diff = time - std::chrono::high_resolution_clock::now();
+                while(diff.count() > 0){
+                    Sleep((DWORD)diff.count());
+                    diff = time - std::chrono::high_resolution_clock::now();
                 }
             }
         }
@@ -281,5 +370,33 @@ namespace run_time {
             std::lock_guard<mutex> lock(_mutex);
             _cond.notify_all();
         }
+
+
+        [[nodiscard]] thread::id thread::get_id() const noexcept{
+            return id(_id);
+        }
+        bool thread::id::operator==(const id& other) const noexcept{
+            return _id == other._id;
+        }
+        bool thread::id::operator!=(const id& other) const noexcept{
+            return _id != other._id;
+        }
+        bool thread::id::operator<(const id& other) const noexcept{
+            return _id < other._id;
+        }
+        bool thread::id::operator<=(const id& other) const noexcept{
+            return _id <= other._id;
+        }
+        bool thread::id::operator>(const id& other) const noexcept{
+            return _id > other._id;
+        }
+        bool thread::id::operator>=(const id& other) const noexcept{
+            return _id >= other._id;
+        }
+            
+        [[nodiscard]] bool thread::joinable() const noexcept{
+            return _thread != nullptr;
+        }
+        
     }
 }

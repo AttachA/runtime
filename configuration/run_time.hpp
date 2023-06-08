@@ -34,6 +34,13 @@ namespace configuration {
         constexpr ExceptionOnLanguageRoutineActionByDefault exception_on_language_routine_action = ExceptionOnLanguageRoutineActionByDefault::nest_exception;
         #endif
 
+        
+        #if defined(_DEBUG) || defined(DEBUG) || !defined(NDEBUG)
+        constexpr bool enable_thread_naming = true;
+        #else 
+        constexpr bool enable_thread_naming = false;
+        #endif
+
         constexpr bool allow_intern_access = false;
     }
 }
@@ -41,4 +48,5 @@ namespace configuration {
 #define _configuration_run_time_break_point_action_modifable true
 #define _configuration_run_time_exception_on_language_routine_action_modifable true
 #define _configuration_run_time_allow_intern_access_modifable false
+#define _configuration_run_time_enable_thread_naming_modifable true
 #endif /* CONFIGURATION_RUN_TIME */

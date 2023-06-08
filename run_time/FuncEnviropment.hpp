@@ -47,6 +47,7 @@ private:
 	uint32_t in_debug : 1 = false;
 	uint32_t can_be_unloaded : 1 = true;
 	uint32_t force_unload : 1 = false;
+	uint32_t is_cheap : 1 = false;//function without context switchs and with fast code
 	void RuntimeCompile();
 	void funcComp() {
 		std::lock_guard<TaskMutex> lguard(compile_lock);
@@ -60,27 +61,27 @@ public:
 		if (need_compile)
 			funcComp();
 	}
-	FuncEnviropment(const std::vector<uint8_t>& code, uint16_t values_count, bool _can_be_unloaded) {
+	FuncEnviropment(const std::vector<uint8_t>& code, uint16_t values_count, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
 		cross_code = code;
 		max_values = values_count;
 		can_be_unloaded = _can_be_unloaded;
 		_type = FuncType::own;
 	}
-	FuncEnviropment(const std::vector<uint8_t>& code, const std::vector<typed_lgr<FuncEnviropment>>& local_fns, uint16_t values_count, bool _can_be_unloaded) {
+	FuncEnviropment(const std::vector<uint8_t>& code, const std::vector<typed_lgr<FuncEnviropment>>& local_fns, uint16_t values_count, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
 		local_funcs = local_fns;
 		cross_code = code;
 		max_values = values_count;
 		can_be_unloaded = _can_be_unloaded;
 		_type = FuncType::own;
 	}
-	FuncEnviropment(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, bool _can_be_unloaded) {
+	FuncEnviropment(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, bool _can_be_unloaded, bool is_cheap = false): is_cheap(is_cheap) {
 		nat_templ = templ;
 		_type = FuncType::native;
 		curr_func = (Enviropment)proc;
 		need_compile = false;
 		can_be_unloaded = _can_be_unloaded;
 	}
-	FuncEnviropment(Enviropment proc, bool _can_be_unloaded) {
+	FuncEnviropment(Enviropment proc, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
 		_type = FuncType::own;
 		curr_func = (Enviropment)proc;
 		need_compile = false;
@@ -156,27 +157,27 @@ public:
 		StartBuild(Ret(*function)(Args...), DynamicCall::FunctionTemplate& templ) : res(templ) {}
 	};
 	template<class Ret>
-	static void AddNative(Ret(*function)(), const std::string& symbol_name, bool can_be_unloaded = true) {
+	static void AddNative(Ret(*function)(), const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false) {
 		DynamicCall::FunctionTemplate templ;
 		templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();
 		AddNative((DynamicCall::PROC)function, templ, symbol_name, can_be_unloaded);
 	}
 
 	template<class Ret, typename... Args>
-	static void AddNative(Ret(*function)(Args...), const std::string& symbol_name, bool can_be_unloaded = true) {
+	static void AddNative(Ret(*function)(Args...), const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false) {
 		DynamicCall::FunctionTemplate templ;
 		templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();
 		StartBuild<Ret,Args...> tmp(function, templ);
 		AddNative((DynamicCall::PROC)function, templ, symbol_name, can_be_unloaded);
 	}
 
-	static void AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded = true);
+	static void AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false);
 #pragma endregion
-	static void AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded = true);
+	static void AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false);
 
 	static bool Exists(const std::string& symbol_name);
 	static void Load(typed_lgr<FuncEnviropment> fn, const std::string& symbol_name) ;
-	static void Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded = true);
+	static void Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false);
 	static void Unload(const std::string& func_name);
 	static void ForceUnload(const std::string& func_name);
 	void ForceUnload() {
@@ -192,6 +193,9 @@ public:
 
 	bool canBeUnloaded() {
 		return can_be_unloaded;
+	}
+	bool isCheap() {
+		return is_cheap;
 	}
 	FuncType type() {
 		return _type;

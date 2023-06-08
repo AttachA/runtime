@@ -5,7 +5,6 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
-#include <thread>
 #include "..\library\list_array.hpp"
 
 namespace DynamicCall {

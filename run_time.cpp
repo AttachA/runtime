@@ -28,7 +28,7 @@ unsigned long fault_reserved_stack_size = 0;// 524288;
 unsigned long fault_reserved_pages = fault_reserved_stack_size / page_size + (fault_reserved_stack_size % page_size ? 1 : 0);
 thread_local unsigned long stack_size_tmp = 0;
 thread_local bool need_stack_restore = false;
-bool enable_thread_naming = configuration::tasks::enable_thread_naming;
+bool enable_thread_naming = configuration::run_time::enable_thread_naming;
 bool allow_intern_access = configuration::run_time::allow_intern_access;
 
 
@@ -37,6 +37,8 @@ BreakPointAction break_point_action = (BreakPointAction)configuration::run_time:
 ExceptionOnLanguageRoutineAction exception_on_language_routine_action = (ExceptionOnLanguageRoutineAction)configuration::run_time::exception_on_language_routine_action;
 
 bool _set_name_thread_dbg(const std::string& name) {
+	if(!enable_thread_naming)
+		return false;
 	std::u16string result;
 	utf8::utf8to16(name.begin(), name.end(), std::back_inserter(result));
 	return SUCCEEDED(SetThreadDescription(GetCurrentThread(), (wchar_t*)result.c_str()));
@@ -87,9 +89,9 @@ LONG NTAPI win_exception_handler(LPEXCEPTION_POINTERS e) {
 		
 			}else{
 				if (e->ExceptionRecord->ExceptionInformation[1] < UINT16_MAX)
-					throw NullPointerException("Thread " + string_help::hexsstr(std::hash<std::thread::id>()(std::this_thread::get_id())) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in null pointer region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+					throw NullPointerException("Thread " + string_help::hexsstr(std::hash<run_time::threading::thread::id>()(run_time::threading::this_thread::get_id())) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in null pointer region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
 				else 
-					throw SegmentationFaultException("Thread " + string_help::hexsstr(std::hash<std::thread::id>()(std::this_thread::get_id())) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in non mapped region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+					throw SegmentationFaultException("Thread " + string_help::hexsstr(std::hash<run_time::threading::thread::id>()(run_time::threading::this_thread::get_id())) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in non mapped region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
 			}
 		}
 		else 
@@ -351,7 +353,7 @@ typed_lgr<FuncEnviropment> NativeLib::get_func_enviro(const std::string& func_na
 		DynamicCall::PROC tmp = (DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 		if (!tmp)
 			throw LibrayFunctionNotFoundException();
-		return env = new FuncEnviropment(tmp, templ, true);
+		return env = new FuncEnviropment(tmp, templ, true, false);
 	}
 	return env;
 }
@@ -464,6 +466,17 @@ void modify_run_time_config(const std::string& name, const std::string& value){
 #else
 		throw AttachARuntimeException("enable_thread_naming is not modifable");
 #endif
+	}else if(name == "enable_task_naming"){
+#if _configuration_tasks_enable_task_naming_modifable
+		if(value == "true" || value == "1")
+			Task::enable_task_naming = true;
+		else if(value == "false" || value == "0")
+			Task::enable_task_naming = false;
+		else
+			throw InvalidArguments("unrecognized value for enable_task_naming");
+#else
+		throw AttachARuntimeException("enable_task_naming is not modifable");
+#endif
 	}else if(name == "allow_intern_access"){
 #if _configuration_run_time_allow_intern_access_modifable
 		if(value == "true" || value == "1")
@@ -520,6 +533,8 @@ std::string get_run_time_config(const std::string& name){
 		return enum_to_string(exception_on_language_routine_action);
 	else if(name == "enable_thread_naming")
 		return enable_thread_naming ? "true" : "false";
+	else if(name == "enable_task_naming")
+		return Task::enable_task_naming ? "true" : "false";
 	else if(name == "allow_intern_access")
 		return allow_intern_access ? "true" : "false";
 	else if(name == "max_running_tasks")

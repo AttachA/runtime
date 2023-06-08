@@ -3612,7 +3612,7 @@ void FuncEnviropment::fastHotPath(const std::string& func_name, const std::vecto
 	uint16_t max_vals = new_cross_code[1];
 	max_vals <<= 8;
 	max_vals |= new_cross_code[0];
-	tmp = typed_lgr(new FuncEnviropment{ { new_cross_code.begin() + 2, new_cross_code.end()}, max_vals, true });
+	tmp = typed_lgr(new FuncEnviropment{ { new_cross_code.begin() + 2, new_cross_code.end()}, max_vals, true, false });
 	
 }
 void FuncEnviropment::fastHotPath(const std::string& func_name, typed_lgr<FuncEnviropment>& new_enviro) {
@@ -3636,16 +3636,16 @@ ValueItem* FuncEnviropment::callFunc(const std::string& func_name, ValueItem* ar
 	}
 	throw NotImplementedException();
 }
-void FuncEnviropment::AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded) {
+void FuncEnviropment::AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
 	if (enviropments.contains(symbol_name))
 		throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
-	enviropments[symbol_name] = typed_lgr(new FuncEnviropment(function, can_be_unloaded));
+	enviropments[symbol_name] = typed_lgr(new FuncEnviropment(function, can_be_unloaded, is_cheap));
 }
 
-void FuncEnviropment::AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded) {
+void FuncEnviropment::AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
 	if (enviropments.contains(symbol_name))
 		throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
-	enviropments[symbol_name] = typed_lgr(new FuncEnviropment(proc, templ, can_be_unloaded));
+	enviropments[symbol_name] = typed_lgr(new FuncEnviropment(proc, templ, can_be_unloaded, is_cheap));
 }
 
 bool FuncEnviropment::Exists(const std::string& symbol_name) {
@@ -3656,7 +3656,7 @@ void FuncEnviropment::Load(typed_lgr<FuncEnviropment> fn, const std::string& sym
 		throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
 	enviropments[symbol_name] = fn;
 }
-void FuncEnviropment::Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded) {
+void FuncEnviropment::Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
 	if (enviropments.contains(symbol_name))
 		throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
 	if (func_templ.size() < 2)
@@ -3664,7 +3664,7 @@ void FuncEnviropment::Load(const std::vector<uint8_t>& func_templ, const std::st
 	uint16_t max_vals = func_templ[1];
 	max_vals <<= 8;
 	max_vals |= func_templ[0];
-	enviropments[symbol_name] = typed_lgr(new FuncEnviropment{ { func_templ.begin() + 2, func_templ.end()}, max_vals, can_be_unloaded });
+	enviropments[symbol_name] = typed_lgr(new FuncEnviropment{ { func_templ.begin() + 2, func_templ.end()}, max_vals, can_be_unloaded, is_cheap });
 }
 void FuncEnviropment::Unload(const std::string& func_name) {
 	std::lock_guard guard(enviropments_lock);

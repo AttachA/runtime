@@ -60,7 +60,6 @@ struct light_stack {
 
 
     //set light_stack buffer, can non`t reduce
-    // NOT THREAD SAFE
     static void set_buffer(size_t buffer_len);
 
     //set in stack bytes from buffer to 0xCCCC, by default false

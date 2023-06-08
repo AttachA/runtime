@@ -7,7 +7,6 @@
 
 #include "run_time.hpp"
 #include <atomic>
-#include <thread>
 #include <vector>
 #include <cassert>
 #include <unordered_map>
@@ -80,7 +79,7 @@ void a3tgr4at() {
 size_t idsaDAS = 0;
 
 void cout_test() {
-	//std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+	Task::sleep(1);
 	ValueItem msq(++idsaDAS);
 	console::print(&msq, 1);
 	Task::sleep(1000);
@@ -116,7 +115,7 @@ ValueItem* paralelize_test_0_0(ValueItem*,uint32_t) {
 ValueItem* paralelize_test_0(ValueItem*, uint32_t) {
 	auto started = std::chrono::high_resolution_clock::now();
 	list_array<typed_lgr<Task>> tasks;
-	typed_lgr<FuncEnviropment> func = new FuncEnviropment(paralelize_test_0_0,true);
+	typed_lgr<FuncEnviropment> func = new FuncEnviropment(paralelize_test_0_0,true, false);
 	ValueItem noting;
 	for (size_t i = 0; i < 10000; i++)
 		tasks.push_back(new Task(func, noting));
@@ -136,7 +135,7 @@ ValueItem* paralelize_test_1_0(ValueItem*, uint32_t) {
 ValueItem* paralelize_test_1(ValueItem*, uint32_t) {
 	auto started = std::chrono::high_resolution_clock::now();
 	list_array<typed_lgr<Task>> tasks;
-	typed_lgr<FuncEnviropment> func = new FuncEnviropment(paralelize_test_1_0, true);
+	typed_lgr<FuncEnviropment> func = new FuncEnviropment(paralelize_test_1_0, true, false);
 	ValueItem noting;
 	for (size_t i = 0; i < 50000; i++)
 		tasks.push_back(new Task(func, noting));
@@ -380,23 +379,28 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	//Task::await_multiple(tasks);
 	//Task::clean_up();
 	//tasks.clear();
+	///for (size_t i = 0; i < 10000; i++)
+	///	tasks.push_back(new Task(env, noting));
+	///Task::await_multiple(tasks);
+	///Task::clean_up();
+	///tasks.clear();
+	///for (size_t i = 0; i < 10000; i++)
+	///	tasks.push_back(new Task(env, noting));
+	///Task::await_multiple(tasks);
+	///tasks.clear();
 	for (size_t i = 0; i < 10000; i++)
 		tasks.push_back(new Task(env, noting));
 	Task::await_multiple(tasks);
+	tasks.clear();
 	Task::clean_up();
-	tasks.clear();
-	for (size_t i = 0; i < 10000; i++)
-		tasks.push_back(new Task(env, noting));
-	Task::await_multiple(tasks);
-	tasks.clear();
 
 	console::resetBgColor();
+	Task::sleep(1000);
 	return new ValueItem(e);
 }
 
 ValueItem* empty_fun(ValueItem* args, uint32_t argc) {
-
-	std::this_thread::sleep_for(std::chrono::seconds(1));
+	Task::sleep(1000);
 	Task::yield();
 	return nullptr;
 }
@@ -441,15 +445,15 @@ int main(){
 	FuncEnviropment::AddNative(a3tgr4at, "4", false);
 	FuncEnviropment::AddNative(cout_test, "cout_test", false);
 	FuncEnviropment::AddNative(sleep_test, "sleep_test", false);
-	enable_thread_naming = false;
-	Task::max_running_tasks = 0;
+	enable_thread_naming = true;
+	Task::max_running_tasks = 200000;
 	Task::max_planned_tasks = 0;
 
 	Task::create_executor(5);
 
 	ValueItem noting;
-	typed_lgr<FuncEnviropment> main_env = new FuncEnviropment(attacha_main, false);
-	typed_lgr<FuncEnviropment> empty_env = new FuncEnviropment(empty_fun, false);
+	typed_lgr<FuncEnviropment> main_env = new FuncEnviropment(attacha_main, false, false);
+	typed_lgr<FuncEnviropment> empty_env = new FuncEnviropment(empty_fun, false, false);
 
 
 	//typed_lgr<Task> empty_task = new Task(empty_env, noting);
@@ -460,6 +464,7 @@ int main(){
 
 	typed_lgr<Task> main_task = new Task(main_env, noting);
 	Task::start(main_task);
+	//light_stack::set_buffer(1000);
 	Task::await_end_tasks(false);
 	ValueItem* res = Task::get_result(main_task);
 	if (res != nullptr)
@@ -591,10 +596,10 @@ const char _ERROR[] = "ERROR";
 const char _WARN[] = "WARN";
 const char _INFO[] = "INFO";
 int smain(){
-	unhandled_exception.join(new FuncEnviropment(logger<_FATAL>, false));
-	errors.join(new FuncEnviropment(logger<_ERROR>, false));
-	warning.join(new FuncEnviropment(logger<_WARN>, false));
-	info.join(new FuncEnviropment(logger<_INFO>, false));
+	unhandled_exception.join(new FuncEnviropment(logger<_FATAL>, false, false));
+	errors.join(new FuncEnviropment(logger<_ERROR>, false, false));
+	warning.join(new FuncEnviropment(logger<_WARN>, false, false));
+	info.join(new FuncEnviropment(logger<_INFO>, false, false));
 
 	Task::create_executor(1);
 	init_networking();
@@ -604,8 +609,8 @@ int smain(){
 
 	ValueItem arg("0.0.0.0:1234");
 	ValueItem arg2("0.0.0.0:1235");
-	TcpNetworkServer server(new FuncEnviropment(test_slow_server_http, false), arg, TcpNetworkServer::ManageType::write_delayed,20);
-	TcpNetworkServer server2(new FuncEnviropment(test_fast_server_http, false), arg2, TcpNetworkServer::ManageType::write_delayed,20);
+	TcpNetworkServer server(new FuncEnviropment(test_slow_server_http, false, false), arg, TcpNetworkServer::ManageType::write_delayed,20);
+	TcpNetworkServer server2(new FuncEnviropment(test_fast_server_http, false, false), arg2, TcpNetworkServer::ManageType::write_delayed,20);
 	server.start();
 	server2.start();
 	server._await();

@@ -595,7 +595,7 @@ namespace parallel {
 			uint32_t i = 0;
 			while (len--)
 				copyArgs[i++] = *vals++;
-			std::thread([](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
+			run_time::threading::thread([](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
 				auto tmp = FuncEnviropment::sync_call(func, args, len);
 				if (tmp)
 					delete tmp;
@@ -603,7 +603,7 @@ namespace parallel {
 			}, func, copyArgs, i).detach();
 		}
 		else {
-			std::thread([](typed_lgr<FuncEnviropment> func) {
+			run_time::threading::thread([](typed_lgr<FuncEnviropment> func) {
 				auto tmp = FuncEnviropment::sync_call(func, nullptr, 0);
 				if (tmp)
 					delete tmp;
@@ -623,7 +623,7 @@ namespace parallel {
 		ValueItem* res = nullptr;
 		typed_lgr<FuncEnviropment> func = *vals->funPtr();
 		if (len != 1) {
-			std::thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
+			run_time::threading::thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
 				try{
 					auto tmp = FuncEnviropment::sync_call(func, args, len);
 					std::unique_lock ul(mtx);
@@ -645,7 +645,7 @@ namespace parallel {
 
 		}
 		else {
-			std::thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnviropment> func) {
+			run_time::threading::thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnviropment> func) {
 				try{
 					auto tmp = FuncEnviropment::sync_call(func, nullptr, 0);
 					std::unique_lock ul(mtx);
@@ -722,7 +722,7 @@ namespace parallel {
 				while (len--)
 					copyArgs[i++] = *vals++;
 
-				std::thread([awaiter](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
+				run_time::threading::thread([awaiter](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
 					try{
 						auto tmp = FuncEnviropment::sync_call(func, args, len);
 						std::unique_lock ul(awaiter->mtx);
@@ -744,7 +744,7 @@ namespace parallel {
 
 			}
 			else {
-				std::thread([awaiter](typed_lgr<FuncEnviropment> func) {
+				run_time::threading::thread([awaiter](typed_lgr<FuncEnviropment> func) {
 					try{
 						auto tmp = FuncEnviropment::sync_call(func, nullptr, 0);
 						std::unique_lock ul(awaiter->mtx);
