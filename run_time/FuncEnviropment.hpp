@@ -135,44 +135,19 @@ public:
 	static typed_lgr<FuncEnviropment> enviropment(const std::string& func_name);
 	static ValueItem* callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async);
 
-#pragma region c++ add native
-#include<tuple>
-	template<size_t i, class T, class... Args>
-	struct ArgumentsBuild {
-		ArgumentsBuild(DynamicCall::FunctionTemplate& templ) : t(templ) {
-			templ.arguments.push_front(DynamicCall::FunctionTemplate::ValueT::getFromType<T>());
-		}
-		ArgumentsBuild<i - 1, Args...> t;
-	};
-	template<class T, class... Args>
-	struct ArgumentsBuild<1, T, Args...> {
-		ArgumentsBuild(DynamicCall::FunctionTemplate& templ) {
-			templ.arguments.push_front(DynamicCall::FunctionTemplate::ValueT::getFromType<T>());
-		}
-	};
-
-	template<class Ret, class... Args>
-	struct StartBuild {
-		ArgumentsBuild<sizeof...(Args), Args...> res;
-		StartBuild(Ret(*function)(Args...), DynamicCall::FunctionTemplate& templ) : res(templ) {}
-	};
 	template<class Ret>
 	static void AddNative(Ret(*function)(), const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false) {
 		DynamicCall::FunctionTemplate templ;
 		templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();
 		AddNative((DynamicCall::PROC)function, templ, symbol_name, can_be_unloaded);
 	}
-
 	template<class Ret, typename... Args>
 	static void AddNative(Ret(*function)(Args...), const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false) {
 		DynamicCall::FunctionTemplate templ;
-		templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();
-		StartBuild<Ret,Args...> tmp(function, templ);
+		DynamicCall::StartBuildTemplate<Ret,Args...>(function, templ);
 		AddNative((DynamicCall::PROC)function, templ, symbol_name, can_be_unloaded);
 	}
-
 	static void AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false);
-#pragma endregion
 	static void AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false);
 
 	static bool Exists(const std::string& symbol_name);
@@ -208,5 +183,6 @@ public:
 	}
 	std::string to_string();
 };
-
+void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, ValueMeta meta, void*& arg);
+ValueItem* NativeProxy_DynamicToStatic(DynamicCall::FunctionCall& call, DynamicCall::FunctionTemplate& nat_templ, ValueItem* arguments, uint32_t arguments_size);
 extern "C" void callFunction(const char* symbol_name, bool run_async);

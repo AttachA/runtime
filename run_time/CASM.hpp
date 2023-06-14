@@ -192,7 +192,7 @@ public:
 	bool resr_used = false;
 	CASM(asmjit::CodeHolder& holder) :a(&holder) {
 		text = holder.textSection();
-		Error err = holder.newSection(&data, ".data",SIZE_MAX, asmjit::Section::Flags::kFlagImplicit, 8);
+		Error err = holder.newSection(&data, ".data",SIZE_MAX, asmjit::SectionFlags::kNone, 8);
 		if (err)
 			throw CompileTimeException("Failed to create data section due: " + std::string(asmjit::DebugUtils::errorAsString(err)));
 	}
@@ -926,7 +926,7 @@ struct ScopeAction{
 };
 struct FrameResult {
 	std::vector<uint16_t> prolog;
-	std::vector<ScopeAction> scope_actions;
+	list_array<ScopeAction> scope_actions;
 	UWINFO_head head;
 	uint32_t exHandleOff = 0;
 	bool use_handle = false;
@@ -1322,7 +1322,7 @@ public:
 		::abort();
 	}
 	void pushReg(creg reg) {
-		csm.push(reg.fromTypeAndId(asmjit::x86::Reg::kTypeGp64, reg.id()));
+		csm.push(reg.fromTypeAndId(asmjit::RegType::kGp64, reg.id()));
 		if ((uint8_t)csm.offset() != csm.offset())
 			throw CompileTimeException("prolog too large");
 		res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_PUSH_NONVOL, reg.id()).solid);
@@ -1372,7 +1372,7 @@ public:
 	}
 	void saveToStack(creg reg, int32_t stack_back_offset) {
 		if (reg.isVec()) {
-			if (reg.type() == asmjit::x86::Reg::kTypeVec128) {
+			if (reg.type() == asmjit::RegType::kVec128) {
 				if (INT32_MAX > stack_back_offset)
 					throw CompileTimeException("Overflow, fail convert 64 point to 32 point");
 				if (UINT16_MAX > stack_back_offset || stack_back_offset % 16) {

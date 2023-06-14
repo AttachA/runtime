@@ -412,7 +412,7 @@ void test_stack(){
 	msq = light_stack::used_size();
 	console::printLine(&msq, 1);
 }
-int main(){
+int qmain(){
 	ValueItem msq;
 	test_stack();
 	light_stack::shrink_current();
@@ -662,5 +662,84 @@ int amain(){
 	console::printLine(res, 1);
 	if (res)
 		delete res;
+	return 0;
+}
+
+
+//ValueItem* _test_destructor(ValueItem* args, uint32_t argc){
+//	Structure* str = (Structure*)args[0].getSourcePtr();
+//	((std::string*)str->get_data_no_vtable())->~basic_string();
+//	return nullptr;
+//}
+//ValueItem* _test_copy(ValueItem* args, uint32_t argc){
+//	Structure* dest = (Structure*)args[0].getSourcePtr();
+//	Structure* src = (Structure*)args[1].getSourcePtr();
+//	bool in_constructor = (bool)args[2];
+//	if(!in_constructor)
+//		_test_destructor(args, 1);
+//	new(dest->get_data_no_vtable()) std::string(*(std::string*)src->get_data_no_vtable());
+//	return nullptr;
+//}
+//ValueItem* _test_move(ValueItem* args, uint32_t argc){
+//	Structure* dest = (Structure*)args[0].getSourcePtr();
+//	Structure* src = (Structure*)args[1].getSourcePtr();
+//	bool in_constructor = (bool)args[2];
+//	if (!in_constructor)
+//		_test_destructor(args, 1);
+//	new(dest->get_data_no_vtable()) std::string(std::move(*(std::string*)src->get_data_no_vtable()));
+//	return nullptr;
+//}
+//ValueItem* _test_compare(ValueItem* args, uint32_t argc){
+//	Structure* a = (Structure*)args[0].getSourcePtr();
+//	Structure* b = (Structure*)args[1].getSourcePtr();
+//	auto res = (*(std::string*)a->get_data_no_vtable() <=> *(std::string*)b->get_data_no_vtable());
+//	if(res < 0)
+//		return new ValueItem((int8_t)-1);
+//	else if(res > 0)
+//		return new ValueItem((int8_t)1);
+//	else return nullptr;
+//}
+ValueItem* _test_print(ValueItem* args, uint32_t argc){
+	if(argc != 1)
+		return nullptr;
+	Structure& str = (Structure&)args[0];
+	ValueItem ref(*(std::string*)str.get_data_no_vtable(), as_refrence);
+	console::printLine(&ref, 1);
+	return nullptr;
+}
+ValueItem* _test_set_string(ValueItem* args, uint32_t argc){
+	if (argc != 2)
+		return nullptr;
+	Structure* str = (Structure*)args[0].getSourcePtr();
+	*(std::string*)str->get_data_no_vtable() = (std::string)args[1];
+	return nullptr;
+}
+int main(){
+	auto check_res = AttachA::Interface::createProxyTable<std::string>(
+		AttachA::Interface::make_method<std::string>("ttt", (const char&(std::string::*)() const)&std::string::back)
+	);
+	//list_array<MethodInfo> methods;
+	//methods.push_back(MethodInfo("print", _test_print,ClassAccess::pub,{},{},{}, "String"));
+	//methods.push_back(MethodInfo("set_string", _test_set_string, ClassAccess::pub, { }, {}, {}, "String"));
+	//auto table = Structure::createAAVTable(methods, 
+	//	new FuncEnviropment(_test_destructor,false),
+	//	new FuncEnviropment(_test_copy,false),
+	//	new FuncEnviropment(_test_move,false),
+	//	new FuncEnviropment(_test_compare,false),
+	//	{}
+	//);
+	auto table = AttachA::Interface::createDTable<std::string>(".",
+		AttachA::Interface::direct_method("print", _test_print),
+		AttachA::Interface::direct_method("set_string", _test_set_string)
+	);
+	Structure* str = AttachA::Interface::constructStructure<std::string>(table);
+	Structure* str2 = AttachA::Interface::constructStructure<std::string>(table, "Hello Worlz!");
+	ValueItem set_stiring_test{ValueItem(str, as_refrence), "Hello World!"};
+	str->table_get_dynamic("print", ClassAccess::pub)((ValueItem*)set_stiring_test.val, 1);
+	str->table_get_dynamic("set_string", ClassAccess::pub)((ValueItem*)set_stiring_test.val, 2);
+	ValueItem ref = Structure::compare(str, str2);
+	console::printLine(&ref, 1);
+	str->table_get_dynamic("print", ClassAccess::pub)((ValueItem*)set_stiring_test.val, 1);
+	Structure::destruct(str);
 	return 0;
 }

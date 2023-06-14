@@ -6,6 +6,7 @@
 
 #pragma once
 #include "..\library\list_array.hpp"
+#include<tuple>
 
 namespace DynamicCall {
 	typedef size_t(__stdcall* PROC)();
@@ -178,6 +179,9 @@ namespace DynamicCall {
 		ValueT result{ ValueT::PlaceType::as_ptr,ValueT::ValueType::integer,0,0 };
 		bool is_variadic = false;
 	};
+	
+	
+	
 	class FunctionCall {
 		ArgumentsHolder holder;
 		const FunctionTemplate& templ;
@@ -340,5 +344,91 @@ namespace DynamicCall {
 		}
 	};
 
+	template<size_t i, class T, class... Args>
+	struct ArgumentsBuild {
+		ArgumentsBuild(DynamicCall::FunctionTemplate& templ) : t(templ) {
+			templ.arguments.push_front(DynamicCall::FunctionTemplate::ValueT::getFromType<T>());
+		}
+		ArgumentsBuild<i - 1, Args...> t;
+	};
+	template<class T, class... Args>
+	struct ArgumentsBuild<1, T, Args...> {
+		ArgumentsBuild(DynamicCall::FunctionTemplate& templ) {
+			templ.arguments.push_front(DynamicCall::FunctionTemplate::ValueT::getFromType<T>());
+		}
+	};
+
+	template<class Ret, class... Args>
+	struct StartBuildTemplate {
+		ArgumentsBuild<sizeof...(Args), Args...> res;
+		StartBuildTemplate(Ret(*function)(Args...), DynamicCall::FunctionTemplate& templ) : res(templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+		StartBuildTemplate(DynamicCall::FunctionTemplate& templ) : res(templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	};
+	template<class Class_, class Ret, class... Args>
+	struct StartBuildType : StartBuildTemplate<Ret, Args...> {
+		StartBuildType(DynamicCall::FunctionTemplate& templ) : StartBuildTemplate<Ret, Args...>(templ){}
+	};
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...), DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) const, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) volatile, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) const volatile, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) const &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) volatile &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) const volatile &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) const &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) volatile &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+	template<class Class_, class Ret, class... Args>
+	void buildFn(Ret(Class_::*)(Args...) const volatile &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+
+	template<class Ret, class... Args>
+	void buildFn(Ret(*)(Args...), DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+
+
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)(), DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() const, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() volatile, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() const volatile, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() &, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() const &, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() volatile &, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() const volatile &, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() &&, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() const &&, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() volatile &&, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+	template<class Class_, class Ret>
+	void buildFn(Ret(Class_::*)() const volatile &&, DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+
+	template<class Ret>
+	void buildFn(Ret(*)(), DynamicCall::FunctionTemplate& templ) {templ.result = DynamicCall::FunctionTemplate::ValueT::getFromType<Ret>();}
+
+	
 	extern "C" [[noreturn]] void justJump(void* point);
 }

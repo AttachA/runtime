@@ -25,21 +25,8 @@
 
 
 #undef min
-#undef max
 namespace ctx = boost::context;
 constexpr size_t native_thread_flag = (SIZE_MAX ^ -1);
-ValueItem* _empty_func(ValueItem* /*ignored*/, uint32_t /*ignored*/) {
-	return nullptr;
-}
-typed_lgr<FuncEnviropment> empty_func(new FuncEnviropment(_empty_func, false, true));
-//first arg bool& check
-//second arg run_time::threading::condition_variable_any
-ValueItem* _notify_native_thread(ValueItem* args, uint32_t /*ignored*/) {
-	*((bool*)args[0].val) = true;
-	((run_time::threading::condition_variable_any*)args[1].val)->notify_one();
-	return nullptr;
-}
-typed_lgr<FuncEnviropment> notify_native_thread(new FuncEnviropment(_notify_native_thread, false, false));
 
 void put_arguments(ValueItem& args_hold, const ValueItem& arguments){
 	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
@@ -388,7 +375,7 @@ struct {
 	std::queue<typed_lgr<Task>> cold_tasks;
 	std::deque<timing> timed_tasks;
 
-	run_time::threading::mutex task_thread_safety;
+	run_time::threading::recursive_mutex task_thread_safety;
 	run_time::threading::mutex task_timer_safety;
 
 	run_time::threading::condition_variable_any tasks_notifier;
@@ -416,6 +403,8 @@ struct {
 	typed_lgr<Task> curr_task = nullptr;
 	bool is_task_thread = false;
 	bool context_in_swap = false;
+
+	bool in_exec_decreased = false;
 } thread_local loc;
 struct TaskCallback {
 	static void dummy(ValueItem&){}
@@ -552,8 +541,10 @@ ctx::continuation context_exec(ctx::continuation&& sink) {
 	catch (...) {
 		loc.ex_ptr = std::current_exception();
 	}
-	MutexUnify uni(loc.curr_task->no_race);
-	std::unique_lock l(uni);
+	try{
+		loc.curr_task->args = nullptr;
+	}catch(...){};
+	std::lock_guard l(loc.curr_task->no_race);
 	loc.curr_task->end_of_life = true;
 	loc.curr_task->fres.result_notify.notify_all();
 	--glob.in_run_tasks;
@@ -580,6 +571,9 @@ ctx::continuation context_ex_handle(ctx::continuation&& sink) {
 	catch (...) {
 		loc.ex_ptr = std::current_exception();
 	}
+	try{
+		loc.curr_task->args = nullptr;
+	}catch(...){};
 	
 	MutexUnify uni(loc.curr_task->no_race);
 	std::unique_lock l(uni);
@@ -592,13 +586,12 @@ ctx::continuation context_ex_handle(ctx::continuation&& sink) {
 }
 
 
-void taskNotifyIfEmpty(std::unique_lock<run_time::threading::mutex>& re_lock) {
-	--glob.in_exec;
-	if (!glob.in_exec && glob.tasks.empty() && glob.timed_tasks.empty()) {
-		re_lock.unlock();
+void taskNotifyIfEmpty(std::unique_lock<run_time::threading::recursive_mutex>& re_lock) {
+	if(!loc.in_exec_decreased)
+		--glob.in_exec;
+	loc.in_exec_decreased = false;
+	if (!glob.in_exec && glob.tasks.empty() && glob.timed_tasks.empty()) 
 		glob.no_tasks_execute_notifier.notify_all();
-		re_lock.lock();
-	}
 }
 bool loadTask() {
 	{
@@ -817,7 +810,7 @@ void taskTimer() {
 
 
 void startTimeController() {
-	std::lock_guard guard(glob.task_thread_safety);
+	std::lock_guard guard(glob.task_timer_safety);
 	if (glob.time_control_enabled)
 		return;
 	run_time::threading::thread(taskTimer).detach();
@@ -980,8 +973,8 @@ void Task::start(const typed_lgr<Task>& tsk) {
 		else
 			glob.cold_tasks.push(lgr_task);
 		lgr_task->started = true;
+		glob.tasks_notifier.notify_one();
 	}
-	glob.tasks_notifier.notify_one();
 }
 
 void Task::create_executor(size_t count) {
@@ -1148,9 +1141,26 @@ void Task::clean_up() {
 }
 
 
+ValueItem* _empty_func(ValueItem* /*ignored*/, uint32_t /*ignored*/) {
+	return nullptr;
+}
+typed_lgr<FuncEnviropment> empty_func(new FuncEnviropment(_empty_func, false, true));
 typed_lgr<Task> Task::dummy_task(){
 	return new Task(empty_func, ValueItem());
 }
+//first arg bool& check
+//second arg run_time::threading::condition_variable_any
+ValueItem* _notify_native_thread(ValueItem* args, uint32_t /*ignored*/) {
+	*((bool*)args[0].val) = true;
+	{
+		std::lock_guard l(glob.task_thread_safety);
+		glob.in_exec--;
+	}
+	loc.in_exec_decreased = true;
+	((run_time::threading::condition_variable_any*)args[1].val)->notify_one();
+	return nullptr;
+}
+typed_lgr<FuncEnviropment> notify_native_thread(new FuncEnviropment(_notify_native_thread, false, true));
 typed_lgr<Task> Task::cxx_native_bridge(bool& checker, run_time::threading::condition_variable_any& cd){
 	return new Task(notify_native_thread, ValueItem{ ValueItem(&checker, VType::undefined_ptr), ValueItem(std::addressof(cd), VType::undefined_ptr) });
 }
@@ -1295,6 +1305,9 @@ typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, 
 	}
 	return shedule->task;
 }
+void Task::explicitStartTimer() {
+	startTimeController();
+}
 
 #pragma endregion
 #pragma optimize("",off)
@@ -1333,10 +1346,10 @@ typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_start)(Valu
 	);
 	tsk->args = new TaskCallback(dummy_data, on_await, on_cancel, on_timeout, on_start);
 	tsk->_task_local = (ValueEnvironment*)-1;
-	if(timeout != std::chrono::high_resolution_clock::time_point::max()){
-		std::lock_guard guard(glob.task_timer_safety);
-		if(glob.time_control_enabled)
+	if(timeout != std::chrono::high_resolution_clock::time_point::min()){
+		if(!glob.time_control_enabled)
 			startTimeController();
+		std::lock_guard guard(glob.task_timer_safety);
 		glob.timed_tasks.push_back(timing(timeout,tsk));
 	}
 	return tsk;
@@ -1352,10 +1365,10 @@ typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_await)(Valu
 	tsk->args = new TaskCallback(dummy_data, on_await, on_cancel, on_timeout, nullptr),
 	tsk->_task_local = (ValueEnvironment*)-1;
 	
-	if(timeout != std::chrono::high_resolution_clock::time_point::max()){
-		std::lock_guard guard(glob.task_timer_safety);
-		if(glob.time_control_enabled)
+	if(timeout != std::chrono::high_resolution_clock::time_point::min()){
+		if(!glob.time_control_enabled)
 			startTimeController();
+		std::lock_guard guard(glob.task_timer_safety);
 		glob.timed_tasks.push_back(timing(timeout,tsk));
 	}
 	return tsk;
@@ -1404,8 +1417,12 @@ void TaskMutex::lock() {
 			return;
 	task_not_ended:
 		//prevent destruct cd, because it is used in task
-		if (!task->fres.end_of_life)
+		task->no_race.lock();
+		if(!task->fres.end_of_life){
+			task->no_race.unlock();
 			goto task_not_ended;
+		}
+		task->no_race.unlock();
 	}
 }
 bool TaskMutex::try_lock() {
@@ -1536,7 +1553,7 @@ void TaskConditionVariable::wait(std::unique_lock<MutexUnify>& mut) {
 		else {
 			std::lock_guard guard(no_race);
 			resume_task.push_back(loc.curr_task);
-			swapCtxRelock(no_race, *mut.mutex());
+			swapCtxRelock(*mut.mutex(),no_race);
 		}
 	}
 	else {
@@ -1557,8 +1574,12 @@ void TaskConditionVariable::wait(std::unique_lock<MutexUnify>& mut) {
 		}
 	task_not_ended:
 		//prevent destruct cd, because it is used in task
-		if (!task->fres.end_of_life) 
+		task->no_race.lock();
+		if (!task->fres.end_of_life) {
+			task->no_race.unlock();
 			goto task_not_ended;
+		}
+		task->no_race.unlock();
 	}
 }
 
@@ -1584,7 +1605,6 @@ bool TaskConditionVariable::wait_until(std::unique_lock<MutexUnify>& mut, std::c
 		bool has_res = false;
 		typed_lgr task = Task::cxx_native_bridge(has_res, cd);
 		
-	task_not_ended:
 		if (mut.mutex()->nmut == &no_race) {
 			resume_task.push_back(task);
 			while (!has_res)
@@ -1598,9 +1618,14 @@ bool TaskConditionVariable::wait_until(std::unique_lock<MutexUnify>& mut, std::c
 				cd.wait(mut);
 		}
 
+	task_not_ended:
 		//prevent destruct cd, because it is used in task
-		if(!task->fres.end_of_life)
+		task->no_race.lock();
+		if(!task->fres.end_of_life){
+			task->no_race.unlock();
 			goto task_not_ended;
+		}
+		task->no_race.unlock();
 
 		return !task->time_end_flag;
 	}
@@ -1623,8 +1648,10 @@ void TaskConditionVariable::notify_all() {
 			if (!it->time_end_flag) {
 				it->awaked = true;
 				glob.tasks.push(it);
+				glob.tasks_notifier.notify_one();
 			}
 		}
+		glob.tasks_notifier.notify_one();
 		if (Task::max_running_tasks && loc.is_task_thread) {
 			if (Task::max_running_tasks <= glob.in_run_tasks && loc.curr_task && !loc.curr_task->end_of_life)
 				to_yield = true;

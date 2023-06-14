@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <!--
 // Copyright Danyil Melnytskyi 2022-2023
 //
@@ -5,8 +6,6 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 -->
-
-<?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 	<Type Name="typed_lgr&lt;*&gt;">
 		<DisplayString Optional="true">{($T1 *)actual_lgr.ptr}</DisplayString>

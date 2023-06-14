@@ -10,15 +10,17 @@
 #include "../../run_time.hpp"
 #include "../library/console.hpp"
 #include "../library/exceptions.hpp"
+#include "../../configuration/tasks.hpp"
 #include <cassert>
 #include <boost/lockfree/queue.hpp>
 #include <atomic>
 #include <vector>
 typedef boost::context::stack_context stack_context;
 
-boost::lockfree::queue<light_stack::stack_context> stack_allocations(200);
-std::atomic_size_t stack_allocations_buffer = 200;
-bool light_stack::flush_stack = false;
+boost::lockfree::queue<light_stack::stack_context> stack_allocations(configuration::tasks::light_stack::inital_buffer_size);
+std::atomic_size_t stack_allocations_buffer = configuration::tasks::light_stack::inital_buffer_size;
+bool light_stack::flush_used_stacks = configuration::tasks::light_stack::flush_used_stacks;
+size_t light_stack::max_buffer_size = configuration::tasks::light_stack::max_buffer_size;
 
 
 
@@ -97,7 +99,8 @@ stack_context light_stack::allocate() {
 
     stack_context result;
     if (stack_allocations.pop(result)) {
-        if(!flush_stack)
+        stack_allocations_buffer--;
+        if(!flush_used_stacks)
             return result;
         else {
             memset(static_cast<char*>(result.sp) - result.size, 0xCC, result.size);
@@ -108,18 +111,32 @@ stack_context light_stack::allocate() {
         return create_stack(size__);
 }
 
-void light_stack::set_buffer(size_t buffer_len) {
-    size_t to_allocate = stack_allocations_buffer - buffer_len;
-    if (stack_allocations_buffer < buffer_len) {
-        stack_allocations.reserve(to_allocate);
-        stack_allocations_buffer += to_allocate;
+void unlimited_beffer(stack_context& sctx ){
+    if (!stack_allocations.push(sctx)) 
+        ::VirtualFree(static_cast<char*>(sctx.sp) - sctx.size, 0, MEM_RELEASE);
+    else
+        stack_allocations_buffer++;
+}
+void limited_beffer(stack_context& sctx ){
+   if (++stack_allocations_buffer < light_stack::max_buffer_size) {
+        if (!stack_allocations.push(sctx)) {
+            ::VirtualFree(static_cast<char*>(sctx.sp) - sctx.size, 0, MEM_RELEASE);
+            stack_allocations_buffer--;
+        }
+    }
+    else {
+        ::VirtualFree(static_cast<char*>(sctx.sp) - sctx.size, 0, MEM_RELEASE);
+        stack_allocations_buffer--;
     }
 }
 
-
 void light_stack::deallocate(stack_context& sctx ) {
     assert(sctx.sp);
-    if (!stack_allocations.push(sctx)) 
+    if(!max_buffer_size)
+        unlimited_beffer(sctx);
+    else if(max_buffer_size != SIZE_MAX)
+        limited_beffer(sctx);
+    else
         ::VirtualFree(static_cast<char*>(sctx.sp) - sctx.size, 0, MEM_RELEASE);
 }
 

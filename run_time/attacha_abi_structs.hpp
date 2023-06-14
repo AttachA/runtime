@@ -288,7 +288,7 @@ ENUM_t(VType, uint8_t,
 	(class_)//class_ is regular attacha class, values can be dynamicaly defined and undefined at runtime
 	(morph)//morph is same as class_ but functions can also be defined at runtime
 	(proxy)//proxy is just proxy to another value, and values can be changed by getters and setters, and proxy functions, regulary can be recuived from library
-	//(struct_)//struct_ is same as class_ but values placed in one memory block, can be used as C union or C struct, and defined functions can be used as C++ methods
+	(struct_)//struct_ is same as class_ but values placed in one memory block, can be used as C union or C struct, and defined functions can be used as C++ methods
 
 	(type_identifier)
 	(function)
@@ -300,6 +300,7 @@ ENUM_t(VType, uint8_t,
 
 	(generator)//holds function context
 )
+
 union ValueMeta {
 	size_t encoded;
 	struct {
@@ -319,6 +320,7 @@ union ValueMeta {
 struct ClassValue;
 struct MorphValue;
 struct ProxyClass;
+class Structure;
 
 struct as_refrence_t {};
 constexpr inline as_refrence_t as_refrence = {};
@@ -370,6 +372,7 @@ struct ValueItem {
 	ValueItem(uint64_t* vals, uint32_t len, no_copy_t);
 	ValueItem(float* vals, uint32_t len, no_copy_t);
 	ValueItem(double* vals, uint32_t len, no_copy_t);
+	ValueItem(class Structure*, no_copy_t);
 	template<size_t len>
 	ValueItem(ValueItem(&vals)[len]) : ValueItem(vals, len) {}
 	ValueItem(typed_lgr<struct Task> task);
@@ -392,6 +395,7 @@ struct ValueItem {
 	ValueItem(std::unordered_set<ValueItem>&& set);
 
 
+
 	ValueItem(typed_lgr<class FuncEnviropment>&);
 	ValueItem() {
 		val = nullptr;
@@ -404,7 +408,32 @@ struct ValueItem {
 	ValueItem(VType);
 	ValueItem(ValueMeta);
 	ValueItem(const ValueItem&);
+
 	ValueItem(ValueItem& ref, as_refrence_t);
+	ValueItem(bool& val, as_refrence_t);
+	ValueItem(int8_t& val, as_refrence_t);
+	ValueItem(uint8_t& val, as_refrence_t);
+	ValueItem(int16_t& val, as_refrence_t);
+	ValueItem(uint16_t& val, as_refrence_t);
+	ValueItem(int32_t& val, as_refrence_t);
+	ValueItem(uint32_t& val, as_refrence_t);
+	ValueItem(int64_t& val, as_refrence_t);
+	ValueItem(uint64_t& val, as_refrence_t);
+	ValueItem(float& val, as_refrence_t);
+	ValueItem(double& val, as_refrence_t);
+	ValueItem(class Structure*, as_refrence_t);
+	ValueItem(std::string& val, as_refrence_t);
+	ValueItem(list_array<ValueItem>& val, as_refrence_t);
+
+	ValueItem(std::exception_ptr&, as_refrence_t);
+	ValueItem(std::chrono::steady_clock::time_point&, as_refrence_t);
+	ValueItem(std::unordered_map<ValueItem, ValueItem>&, as_refrence_t);
+	ValueItem(std::unordered_set<ValueItem>&, as_refrence_t);
+	ValueItem(typed_lgr<struct Task>& task, as_refrence_t);
+	ValueItem(ValueMeta&, as_refrence_t);
+	ValueItem(typed_lgr<class FuncEnviropment>&, as_refrence_t);
+
+
 	ValueItem& operator=(const ValueItem& copy);
 	ValueItem& operator=(ValueItem&& copy);
 	~ValueItem();
@@ -456,6 +485,7 @@ struct ValueItem {
 	explicit operator ClassValue& ();
 	explicit operator MorphValue& ();
 	explicit operator ProxyClass& ();
+	explicit operator Structure& ();
 	explicit operator ValueMeta();
 	explicit operator std::exception_ptr();
 	explicit operator std::chrono::steady_clock::time_point();
@@ -479,14 +509,336 @@ struct ValueItem {
 typedef ValueItem* (*Enviropment)(ValueItem* args, uint32_t len);
 
 
-
-
 ENUM_t(ClassAccess, uint8_t,
 	(pub)//anyone can use
 	(priv)//main only
 	(prot)//derived or main
 	(intern)//internal, derived or main
 )
+
+struct StructureTag {
+	std::string name;
+	ValueItem value;
+};
+
+using MethodTag = StructureTag;
+
+struct MethodInfo{
+	struct Optional{
+		list_array<ValueMeta> return_values;
+		list_array<list_array<ValueMeta>> arguments;
+		list_array<StructureTag> tags;
+	};
+	typed_lgr<class FuncEnviropment> ref;
+	std::string name;
+	std::string owner_name;
+	Optional* optional;
+	ClassAccess access : 2;
+	bool deletable : 1;
+	MethodInfo() : ref(nullptr), name(), owner_name(), optional(nullptr), access(ClassAccess::pub), deletable(true) {}
+	MethodInfo(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
+	MethodInfo(const std::string& name, typed_lgr<class FuncEnviropment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
+
+	~MethodInfo();
+	MethodInfo(const MethodInfo& copy);
+	MethodInfo(MethodInfo&& move);
+	MethodInfo& operator=(const MethodInfo& copy);
+	MethodInfo& operator=(MethodInfo&& move);
+};
+
+struct AttachAVirtualTable {
+	Enviropment destructor;//args: Structure* structure
+	Enviropment copy;//args: Structure* dst, Structure* src, bool at_construct
+	Enviropment move;//args: Structure* dst, Structure* src, bool at_construct
+	Enviropment compare;//args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
+	size_t table_size;
+	char data[];
+
+	//{
+	//  Enviropment[table_size] table;
+	//  MethodInfo [table_size] table_additional_info;
+	//	typed_lgr<class FuncEnviropment> holder_destructor;
+	//	typed_lgr<class FuncEnviropment> holder_copy;
+	//	typed_lgr<class FuncEnviropment> holder_move;
+	//	typed_lgr<class FuncEnviropment> holder_compare;
+	//  std::string name;
+	//	list_array<StructureTag>* tags;//can be null
+	//}
+	list_array<StructureTag>* getStructureTags();
+	list_array<MethodTag>* getMethodTags(size_t index);
+	list_array<MethodTag>* getMethodTags(const std::string& name, ClassAccess access);
+
+	list_array<list_array<ValueMeta>>* getMethodArguments(size_t index);
+	list_array<list_array<ValueMeta>>* getMethodArguments(const std::string& name, ClassAccess access);
+
+	list_array<ValueMeta>* getMethodReturnValues(size_t index);
+	list_array<ValueMeta>* getMethodReturnValues(const std::string& name, ClassAccess access);
+
+	MethodInfo* getMethodsInfo(size_t& size);
+	MethodInfo& getMethodInfo(size_t index);
+	MethodInfo& getMethodInfo(const std::string& name, ClassAccess access);
+
+	Enviropment* getMethods(size_t& size);
+	Enviropment getMethod(size_t index);
+	Enviropment getMethod(const std::string& name, ClassAccess access);
+
+	size_t getMethodIndex(const std::string& name, ClassAccess access);
+	bool hasMethod(const std::string& name, ClassAccess access);
+
+	static AttachAVirtualTable* create(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare);
+	static void destroy(AttachAVirtualTable* table);
+
+	std::string getName();
+	void setName(const std::string& name);
+private:
+	struct AfterMethods{
+		typed_lgr<class FuncEnviropment> destructor;
+		typed_lgr<class FuncEnviropment> copy;
+		typed_lgr<class FuncEnviropment> move;
+		typed_lgr<class FuncEnviropment> compare;
+		std::string name;
+		list_array<StructureTag>* tags;
+	};
+	AfterMethods* getAfterMethods();
+	AttachAVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare);
+	~AttachAVirtualTable();
+};
+struct AttachADynamicVirtualTable {
+	typed_lgr<class FuncEnviropment> destructor;//args: Structure* structure
+	typed_lgr<class FuncEnviropment> copy;//args: Structure* dst, Structure* src, bool at_construct
+	typed_lgr<class FuncEnviropment> move;//args: Structure* dst, Structure* src, bool at_construct
+	typed_lgr<class FuncEnviropment> compare;//args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
+	list_array<MethodInfo> methods;
+	list_array<StructureTag>* tags;
+	std::string name;
+	AttachADynamicVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move,typed_lgr<class FuncEnviropment> compare);
+	~AttachADynamicVirtualTable();
+	AttachADynamicVirtualTable(const AttachADynamicVirtualTable&);
+	list_array<StructureTag>* getStructureTags();
+	list_array<MethodTag>* getMethodTags(size_t index);
+	list_array<MethodTag>* getMethodTags(const std::string& name, ClassAccess access);
+
+	list_array<list_array<ValueMeta>>* getMethodArguments(size_t index);
+	list_array<list_array<ValueMeta>>* getMethodArguments(const std::string& name, ClassAccess access);
+
+	list_array<ValueMeta>* getMethodReturnValues(size_t index);
+	list_array<ValueMeta>* getMethodReturnValues(const std::string& name, ClassAccess access);
+
+	MethodInfo* getMethodsInfo(size_t& size);
+	MethodInfo& getMethodInfo(size_t index);
+	MethodInfo& getMethodInfo(const std::string& name, ClassAccess access);
+
+	Enviropment* getMethods(size_t& size);
+	Enviropment getMethod(size_t index);
+	Enviropment getMethod(const std::string& name, ClassAccess access);
+
+	void addMethod(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
+	void addMethod(const std::string& name, const typed_lgr<FuncEnviropment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
+
+	void removeMethod(const std::string& name, ClassAccess access);
+
+	void addTag(const std::string& name, const ValueItem& value);
+	void addTag(const std::string& name, ValueItem&& value);
+	void removeTag(const std::string& name);
+
+	size_t getMethodIndex(const std::string& name, ClassAccess access);
+	bool hasMethod(const std::string& name, ClassAccess access);
+
+	void derive(AttachADynamicVirtualTable& parent);
+	void derive(AttachAVirtualTable& parent);
+};
+
+//static values can be implemented by builder, allocate somewhere in memory and put refrences to functions, not structure 
+class Structure{
+public:
+	//return true if allowed
+	static bool checkAccess(ClassAccess access, ClassAccess access_to_check);
+	struct Item{
+		std::string name;
+		size_t offset;
+		ValueMeta type;
+		uint16_t bit_used;
+		uint8_t bit_offset : 7;
+		bool inlined:1;
+	};
+	enum class VTableMode : uint8_t{
+		disabled = 0,
+		AttachAVirtualTable = 1,
+		AttachADynamicVirtualTable = 2,//destructor will delete the vtable
+		CXX = 3
+	};
+
+	static AttachAVirtualTable* createAAVTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare,const list_array<std::tuple<void*,VTableMode>>& derive_vtables);
+	static AttachADynamicVirtualTable* createAADVTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare,const list_array<std::tuple<void*,VTableMode>>& derive_vtables);
+	static void destroyVTable(void* table, VTableMode mode);
+private:
+	size_t struct_size;//vtable + sizeof(structure)
+	VTableMode vtable_mode : 2 = VTableMode::disabled;
+	size_t count : 62 = 0;
+	char raw_data[];//Item[count], char data[struct_size]
+
+
+
+	Item* getPtr(const std::string& name);
+	Item* getPtr(size_t index);
+	template<typename T>
+	ValueItem getRawArray(Item* item) {
+		if(item->inlined){
+			if(item->type.as_ref)
+				return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_refrence);
+			else
+				return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len);
+		}else{
+			if(item->type.as_ref)
+				return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_refrence);
+			else
+				return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len);
+		}
+	}
+	template<typename T>
+	ValueItem getType(Item* item){
+		if(item->type.as_ref)
+			return ValueItem(static_value_get_ref<T>(item->offset, 0, 0), as_refrence);
+		else
+			return ValueItem(static_value_get_ref<T>(item->offset, 0, 0));
+	}
+	template<typename T>
+	ValueItem getRawArrayRef(Item* item) {
+		if(item->inlined)
+			return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_refrence);
+		else
+			return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_refrence);
+	}
+	template<typename T>
+	ValueItem getTypeRef(Item* item){
+		return ValueItem(static_value_get_ref<T>(item->offset, 0, 0), as_refrence);
+	}
+
+	ValueItem _static_value_get(Item* item);
+	ValueItem _static_value_get_ref(Item* item);
+	void _static_value_set(Item* item, ValueItem& set);
+	Structure(size_t structure_size, Item* items, size_t count, void* vtable,VTableMode table_mode );
+	~Structure() noexcept(false);
+public:
+	
+	template<typename T>
+	T static_value_get(size_t offset, uint16_t bit_used, uint8_t bit_offset) {
+		if(sizeof(T) * 8 < bit_used && bit_used)
+			throw InvalidArguments("bit_used is too big for type");
+		
+		char* ptr = raw_data + count * sizeof(Item);
+		ptr += offset;
+		ptr += bit_offset / 8;
+		
+		if((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
+			return *(T*)ptr;
+		uint8_t bit_offset2 = bit_offset % 8;
+		
+		uint16_t used_bytes = bit_used ? bit_used / 8 : sizeof(T);
+		uint8_t used_bits = bit_used ? bit_used % 8 : 0;
+		
+		char buffer[sizeof(T)]{0};
+		for(uint8_t i = 0; i < used_bytes-1; i++)
+			buffer[i] = (ptr[i] >> bit_offset2) | (ptr[i + 1] << (8 - bit_offset2));
+
+		buffer[used_bytes - 1] = buffer[used_bytes - 1] >> bit_offset2;
+		buffer[used_bytes - 1] &= (1 << used_bits) - 1;
+		return *(T*)buffer;
+	}
+	template<typename T>
+	T& static_value_get_ref(size_t offset, uint16_t bit_used, uint8_t bit_offset) {
+		if((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
+			throw InvalidArguments("bit_used is not aligned for type");
+		char* ptr = raw_data + count * sizeof(Item);
+		ptr += offset;
+		ptr += bit_offset / 8;
+		return *(T*)ptr;
+	}
+	template<typename T>
+	void static_value_set(size_t offset, uint16_t bit_used, uint8_t bit_offset, T value) {
+		if(sizeof(T) * 8 < bit_used && bit_used)
+			throw InvalidArguments("bit_used is too big for type");
+		
+		char* ptr = raw_data + count * sizeof(Item);
+		ptr += offset;
+		ptr += bit_offset / 8;
+		if((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
+			*(T*)ptr = value;
+		uint8_t bit_offset2 = bit_offset % 8;
+		
+		uint8_t used_bits = bit_used ? bit_used % 8 : 0;
+		uint16_t used_bytes = bit_used ? bit_used / 8 : sizeof(T) + (used_bits ? 1 : 0);
+		
+		char buffer[sizeof(T)]{0};
+		(*(T*)buffer) = value;
+
+		for(uint8_t i = 0; i < used_bytes-1; i++)
+			buffer[i] = (buffer[i] << bit_offset2) | (buffer[i + 1] >> (8 - bit_offset2));
+		
+		buffer[used_bytes - 1] = buffer[used_bytes - 1] << bit_offset2;
+		buffer[used_bytes - 1] &= (1 << used_bits) - 1;
+		for(uint8_t i = 0; i < used_bytes; i++)
+			ptr[i] = (ptr[i] & ~(buffer[i] << bit_offset2)) | (buffer[i] << bit_offset2);
+	}
+	template<typename T>
+	void static_value_set_ref(size_t offset, uint16_t bit_used, uint8_t bit_offset, T value) {
+		if((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
+			throw InvalidArguments("bit_used is not aligned for type");
+		char* ptr = raw_data + count * sizeof(Item);
+		ptr += offset;
+		ptr += bit_offset / 8;
+		*(T*)ptr = value;
+	}
+
+	ValueItem static_value_get(size_t value_data_index);
+	ValueItem static_value_get_ref(size_t value_data_index);
+	void static_value_set(size_t value_data_index, ValueItem value);
+	ValueItem dynamic_value_get(const std::string& name);
+	ValueItem dynamic_value_get_ref(const std::string& name);
+	void dynamic_value_set(const std::string& name, ValueItem value);
+
+	size_t table_get_id(const std::string& name, ClassAccess access);
+	Enviropment table_get(size_t fn_id);
+	Enviropment table_get_dynamic(const std::string& name, ClassAccess access);//table_get(table_get_id(name, access))
+	
+	void add_method(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
+	void add_method(const std::string& name, const typed_lgr<FuncEnviropment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
+
+	bool has_method(const std::string& name, ClassAccess access);
+	void remove_method(const std::string& name, ClassAccess access);
+
+	void table_derive(void* vtable, VTableMode vtable_mode);//only for AttachADynamicVirtualTable
+	void change_table(void* vtable, VTableMode vtable_mode);//only for AttachADynamicVirtualTable, destroy old vtable and use new one
+	
+	VTableMode get_vtable_mode();
+	void* get_vtable();
+	void* get_data(size_t offset = 0);
+	void* get_data_no_vtable(size_t offset = 0);
+
+
+	Item* get_items(size_t& count);
+	
+
+	
+	static Structure* construct(size_t structure_size, Item* items, size_t count);
+	static Structure* construct(size_t structure_size, Item* items, size_t count, void* vtable, VTableMode vtable_mode);
+	static void destruct(Structure* structure);
+	static void copy(Structure* dst, Structure* src, bool at_construct);
+	static void move(Structure* dst, Structure* src, bool at_construct);
+	static int8_t compare(Structure* a, Structure* b);//vtable
+	static int8_t compare_refrence(Structure* a, Structure* b);//refrence compare
+	static int8_t compare_object(Structure* a, Structure* b);//compare by Item*`s
+	static int8_t compare_full(Structure* a, Structure* b);//compare && compare_object
+
+
+
+	void* get_raw_data();//can be useful for light proxy clases
+
+	std::string get_name();
+};
+
+
+
 struct ClassFnDefine {
 	typed_lgr<class FuncEnviropment> fn = nullptr;
 	uint8_t deletable : 1 = true;

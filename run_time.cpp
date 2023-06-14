@@ -23,6 +23,7 @@ size_t page_size = []() {
 #include "run_time/FuncEnviropment.hpp"
 #include "run_time/tasks.hpp"
 #include "run_time/dynamic_call.hpp"
+#include "run_time/tasks_util/light_stack.hpp"
 
 unsigned long fault_reserved_stack_size = 0;// 524288;
 unsigned long fault_reserved_pages = fault_reserved_stack_size / page_size + (fault_reserved_stack_size % page_size ? 1 : 0);
@@ -516,6 +517,31 @@ void modify_run_time_config(const std::string& name, const std::string& value){
 #else
 		throw AttachARuntimeException("max_planned_tasks is not modifable");
 #endif
+	}else if(name == "light_stack_max_buffer_size"){
+#if _configuration_tasks_light_stack_max_buffer_size_modifable
+		if(value == "0")
+			light_stack::max_buffer_size = 0;
+		else{
+			try{
+				light_stack::max_buffer_size = std::stoull(value);
+			}catch(...){
+				throw InvalidArguments("unrecognized value for light_stack_max_buffer_size");
+			}
+		}
+#else
+		throw AttachARuntimeException("light_stack_max_buffer_size is not modifable");
+#endif
+	}else if(name == "light_stack_flush_used_stacks"){
+#if _configuration_tasks_light_stack_flush_used_stacks_modifable
+		if(value == "true" || value == "1")
+			light_stack::flush_used_stacks = true;
+		else if(value == "false" || value == "0")
+			light_stack::flush_used_stacks = false;
+		else
+			throw InvalidArguments("unrecognized value for light_stack_flush_used_stacks");
+#else
+		throw AttachARuntimeException("light_stack_flush_used_stacks is not modifable");
+#endif
 	}else{
 		if(value.empty())
 			run_time_configuration.erase(name);
@@ -541,11 +567,14 @@ std::string get_run_time_config(const std::string& name){
 		return std::to_string(Task::max_running_tasks);
 	else if(name == "max_planned_tasks")
 		return std::to_string(Task::max_planned_tasks);
+	else if(name == "light_stack_max_buffer_size")
+		return std::to_string(light_stack::max_buffer_size);
+	else if(name == "light_stack_flush_used_stacks")
+		return light_stack::flush_used_stacks ? "true" : "false";
 	else{
 		auto it = run_time_configuration.find(name);
 		if(it == run_time_configuration.end())
 			return "";
 		return it->second;
 	}
-	
 }

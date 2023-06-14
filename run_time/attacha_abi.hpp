@@ -45,6 +45,7 @@ template<class T>
 constexpr VType Type_as_VType() {
 	if constexpr (std::is_same_v<T, void>) return VType::noting;
 	else if constexpr (std::is_same_v<T, bool>) return VType::boolean;
+	else if constexpr (std::is_same_v<T, char>) return VType::i8;
 	else if constexpr (std::is_same_v<T, int8_t>) return VType::i8;
 	else if constexpr (std::is_same_v<T, int16_t>) return VType::i16;
 	else if constexpr (std::is_same_v<T, int32_t>) return VType::i32;
@@ -74,11 +75,80 @@ constexpr VType Type_as_VType() {
 	else if constexpr (std::is_same_v<T, ClassValue>) return VType::class_;
 	else if constexpr (std::is_same_v<T, MorphValue>) return VType::morph;
 	else if constexpr (std::is_same_v<T, ProxyClass>) return VType::proxy;
+	else if constexpr (std::is_same_v<T, Structure>) return VType::struct_;
 	else if constexpr (std::is_same_v<T, ValueMeta>) return VType::type_identifier;
 	else if constexpr (std::is_same_v<T, typed_lgr<class FuncEnviropment>>) return VType::function;
 	else
-		throw AttachARuntimeException("Invalid c++ type convert");
+		static_assert(false, "This c++ type not supported");
 }
+template<class T>
+typename std::enable_if<
+	std::is_array_v<T> 
+	&& std::is_bounded_array_v<T> 
+	&& !std::is_reference_v<T>
+, ValueMeta>::type
+Type_as_ValueMeta() {
+	ValueMeta res = Type_as_VType<std::remove_cvref_t<T>*>();
+	res.allow_edit = !std::is_const_v<T>;
+	res.val_len = std::extent_v<T>;
+	return res;
+}
+template<class T>
+typename std::enable_if<
+	std::is_array_v<T> 
+	&& std::is_bounded_array_v<T> 
+	&& std::is_reference_v<T>
+, ValueMeta>::type
+Type_as_ValueMeta() {
+	ValueMeta res = Type_as_VType<std::remove_cvref_t<T>*>();
+	res.allow_edit = !std::is_const_v<T>;
+	res.val_len = std::extent_v<T>;
+	res.as_ref = true;
+	return res;
+}
+template<class T>
+typename std::enable_if<std::is_array_v<T>, ValueMeta>::type
+Type_as_ValueMeta() {
+	ValueMeta res = Type_as_VType<std::remove_cvref_t<T>>();
+	if(std::is_pointer_v<T>) res.as_ref = true;
+	else if(std::is_reference_v<T>) res.as_ref = true;
+	res.allow_edit = !std::is_const_v<T>;
+	return res;
+}
+template<typename T>
+struct is_typed_lgr{
+	static constexpr bool value = false;
+};
+template<typename T>
+struct is_typed_lgr<typed_lgr<T>>{
+	static constexpr bool value = true;
+};
+
+template<class T>
+typename std::enable_if<
+!(std::is_array_v<T> && std::is_bounded_array_v<T> || is_typed_lgr<T>::value)
+
+, ValueMeta>::type
+Type_as_ValueMeta() {
+	ValueMeta res = Type_as_VType<std::remove_cvref_t<T>>();
+	if(std::is_pointer_v<T>) res.as_ref = true;
+	else if(std::is_reference_v<T>) res.as_ref = true;
+	res.allow_edit = !std::is_const_v<T>;
+	return res;
+}
+
+template<typename T>
+typename std::enable_if<
+!(std::is_array_v<T>&& std::is_bounded_array_v<T>)
+&& is_typed_lgr<T>::value
+, ValueMeta>::type
+Type_as_ValueMeta() {
+	ValueMeta res = Type_as_VType<std::remove_cvref_t<T>>();
+	res.allow_edit = !std::is_const_v<T>;
+	res.use_gc = true;
+	return res;
+}
+
 
 
 void universalRemove(void** value);

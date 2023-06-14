@@ -18,8 +18,9 @@ namespace console {
 	auto _stdout = stdout;
 	auto _stderr = stderr;
 #ifdef _WIN64
-	bool enableUtf8Support() {
+	bool configureConsole() {
 		HANDLE hout = GetStdHandle(-11);
+		if(!SetConsoleMode(hout, ENABLE_VIRTUAL_TERMINAL_INPUT)) return false;
 		if (setvbuf(_stderr, nullptr, _IOFBF, 1024))return false;
 		if (setvbuf(_stdout, nullptr, _IOFBF, 1024))return false;
 		if (!SetConsoleOutputCP(65001)) return false;
@@ -39,7 +40,7 @@ namespace console {
 		return false;
 	}
 	//enable ANSI escape codes in console
-	const bool is_loaded = SetConsoleMode(GetConsoleWindow(), ENABLE_VIRTUAL_TERMINAL_INPUT) && enableUtf8Support();
+	const bool is_loaded = configureConsole();
 #else
 	constexpr bool is_loaded = true;
 #endif

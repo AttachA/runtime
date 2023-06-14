@@ -20,7 +20,9 @@
             ],
             "logging": {
                 "moduleLoad": false
-            }
+            },
+            "visualizerFile": "${workspaceFolder}/run_time/link_garbage_remover.natvis"
+            
         }
     ]
 }

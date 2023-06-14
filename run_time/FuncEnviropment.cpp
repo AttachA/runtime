@@ -3344,9 +3344,8 @@ void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, Value
 		}
 	}
 }
-ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(ValueItem* arguments, uint32_t arguments_size) {
+ValueItem* NativeProxy_DynamicToStatic(DynamicCall::FunctionCall& call, DynamicCall::FunctionTemplate& nat_templ, ValueItem* arguments, uint32_t arguments_size) {
 	using namespace DynamicCall;
-	FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
 	if (arguments) {
 		while (arguments_size--) {
 			ValueItem& it = *arguments++;
@@ -3592,6 +3591,10 @@ ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(ValueItem* arguments, ui
 	default:
 		throw NotImplementedException();
 	}
+}
+ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(ValueItem* arguments, uint32_t arguments_size) {
+	DynamicCall::FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
+	return ::NativeProxy_DynamicToStatic(call, nat_templ, arguments, arguments_size);
 }
 
 std::string FuncEnviropment::to_string(){

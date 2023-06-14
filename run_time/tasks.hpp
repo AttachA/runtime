@@ -225,6 +225,8 @@ struct Task {
 	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments);
 	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&));
 	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&));
+
+	static void explicitStartTimer();
 };
 #pragma pack (pop)
 class TaskSemaphore {

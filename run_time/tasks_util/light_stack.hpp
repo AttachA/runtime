@@ -58,12 +58,9 @@ struct light_stack {
 
     static bool is_supported();
 
-
-    //set light_stack buffer, can non`t reduce
-    static void set_buffer(size_t buffer_len);
-
     //set in stack bytes from buffer to 0xCCCC, by default false
-    static bool flush_stack;
+    static bool flush_used_stacks;
+    static size_t max_buffer_size;
 private:
     std::size_t size;
 };

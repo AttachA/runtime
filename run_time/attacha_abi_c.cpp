@@ -2383,11 +2383,6 @@ ValueItem::ValueItem(const ValueItem& copy) : val(0) {
 	val = copyValue(tmp.val, tmp.meta);
 	meta = copy.meta;
 }
-ValueItem::ValueItem(ValueItem& ref, as_refrence_t){
-	val = ref.val;
-	meta = ref.meta;
-	meta.as_ref = true;
-}
 
 ValueItem::ValueItem(nullptr_t) : val(0), meta(0) {}
 ValueItem::ValueItem(bool val) : val(0) {
@@ -2514,7 +2509,10 @@ ValueItem::ValueItem(float* vals, uint32_t len, no_copy_t){
 ValueItem::ValueItem(double* vals, uint32_t len, no_copy_t){
 	*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), no_copy);
 }
-
+ValueItem::ValueItem(class Structure* struct_, no_copy_t){
+	val = struct_;
+	meta = VType::struct_;
+}
 
 ValueItem::ValueItem(typed_lgr<struct Task> task) {
 	val = new typed_lgr(task);
@@ -2641,6 +2639,119 @@ ValueItem::ValueItem(ValueMeta type) {
 	val = (void*)type.encoded;
 	meta = VType::type_identifier;
 }
+
+ValueItem::ValueItem(Structure* str, as_refrence_t){
+	val = str;
+	meta = VType::struct_;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(ValueItem& ref, as_refrence_t){
+	val = ref.val;
+	meta = ref.meta;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(bool& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::boolean;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(int8_t& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::i8;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(uint8_t& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::ui8;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(int16_t& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::i16;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(uint16_t& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::ui16;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(int32_t& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::i32;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(uint32_t& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::ui32;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(int64_t& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::i64;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(uint64_t& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::ui64;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(float& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::flo;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(double& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::doub;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(std::string& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::string;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(list_array<ValueItem>& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::uarr;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(std::exception_ptr&val, as_refrence_t){
+	this->val = &val;
+	meta = VType::except_value;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(std::chrono::steady_clock::time_point&val, as_refrence_t){
+	this->val = &val;
+	meta = VType::time_point;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(std::unordered_map<ValueItem, ValueItem>&val, as_refrence_t){
+	this->val = &val;
+	meta = VType::map;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(std::unordered_set<ValueItem>&val, as_refrence_t){
+	this->val = &val;
+	meta = VType::set;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(typed_lgr<struct Task>& val, as_refrence_t){
+	this->val = &val;
+	meta = VType::async_res;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(ValueMeta&val, as_refrence_t){
+	this->val = &val;
+	meta = VType::type_identifier;
+	meta.as_ref = true;
+}
+ValueItem::ValueItem(typed_lgr<class FuncEnviropment>&val, as_refrence_t){
+	this->val = &val;
+	meta = VType::function;
+	meta.as_ref = true;
+}
+
+
 #pragma endregion
 
 ValueItem::~ValueItem() {
@@ -2850,7 +2961,14 @@ ValueItem::operator ProxyClass&() {
 	else
 		throw InvalidCast("This type is not proxy");
 }
-
+ValueItem::operator Structure&() {
+	if(meta.vtype == VType::async_res)
+		getAsync();
+	if (meta.vtype == VType::struct_)
+		return *(Structure*)getSourcePtr();
+	else
+		throw InvalidCast("This type is not struct");
+}
 ValueItem::operator ValueMeta(){
 	if(meta.vtype == VType::async_res)
 		getAsync();
@@ -3481,3 +3599,1106 @@ void ProxyClass::setValue(const std::string& str, ValueItem& it) {
 bool ProxyClass::containsValue(const std::string& str) {
 	return declare_ty ? declare_ty->value_seter.contains(str) && declare_ty->value_geter.contains(str) : false;
 }
+
+
+
+
+
+
+#pragma region MethodInfo
+MethodInfo::MethodInfo(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	this->name = name;
+	this->ref = new FuncEnviropment(method, false);
+	this->access = access;
+	if(!return_values.empty() || !arguments.empty() || !tags.empty()){
+		this->optional = new Optional();
+		this->optional->return_values = return_values;
+		this->optional->arguments = arguments;
+		this->optional->tags = tags;
+	}else 
+		this->optional = nullptr;
+	this->owner_name = owner_name;
+	this->deletable = true;
+}
+MethodInfo::MethodInfo(const std::string& name, typed_lgr<class FuncEnviropment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	this->name = name;
+	this->ref = method;
+	this->access = access;
+	if(!return_values.empty() || !arguments.empty() || !tags.empty()){
+		this->optional = new Optional();
+		this->optional->return_values = return_values;
+		this->optional->arguments = arguments;
+		this->optional->tags = tags;
+	}else 
+		this->optional = nullptr;
+	this->owner_name = owner_name;
+	this->deletable = true;
+}
+MethodInfo::~MethodInfo(){
+	if(optional)delete optional;
+}
+MethodInfo::MethodInfo(const MethodInfo& other) : MethodInfo(){
+	*this = other;
+}
+MethodInfo::MethodInfo(MethodInfo&& move) : MethodInfo(){
+	*this = std::move(move);
+}
+MethodInfo& MethodInfo::operator=(const MethodInfo& copy){
+	ref = copy.ref;
+	name = copy.name;
+	owner_name = copy.owner_name;
+	if(optional)delete(optional);
+	optional = copy.optional ? new Optional(*copy.optional) : nullptr;
+	access = copy.access;
+	return *this;
+}
+MethodInfo& MethodInfo::operator=(MethodInfo&& move){
+	ref = std::move(move.ref);
+	name = std::move(move.name);
+	owner_name = std::move(move.owner_name);
+	if(optional)delete(optional);
+	optional = move.optional;
+	move.optional = nullptr;
+	access = move.access;
+	return *this;
+}
+#pragma endregion
+#pragma region AttachAVirtualTable
+AttachAVirtualTable::AttachAVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare){
+	this->destructor = destructor ? (Enviropment)destructor->get_func_ptr() : nullptr;
+	this->copy = copy ? (Enviropment)copy->get_func_ptr() : nullptr;
+	this->move = move ? (Enviropment)move->get_func_ptr() : nullptr;
+	this->compare = compare ? (Enviropment)compare->get_func_ptr() : nullptr;
+	table_size = methods.size();
+	Enviropment* table = getMethods(table_size);
+	MethodInfo* table_additional_info = getMethodsInfo(table_size);
+	for (size_t i = 0; i < table_size; i++) {
+		table[i] = (Enviropment)(methods[i].ref? methods[i].ref->get_func_ptr() : nullptr);
+		new(table_additional_info + i)MethodInfo(methods[i]);
+	}
+	auto tmp = getAfterMethods();
+	new(&tmp->destructor) typed_lgr<class FuncEnviropment>(destructor);
+	new(&tmp->copy) typed_lgr<class FuncEnviropment>(copy);
+	new(&tmp->move) typed_lgr<class FuncEnviropment>(move);
+	new(&tmp->compare) typed_lgr<class FuncEnviropment>(compare);
+	new(&tmp->name) std::string();
+	tmp->tags = nullptr;
+}
+AttachAVirtualTable* AttachAVirtualTable::create(list_array<MethodInfo>& methods,  typed_lgr<class FuncEnviropment> destructor,  typed_lgr<class FuncEnviropment> copy,  typed_lgr<class FuncEnviropment> move,  typed_lgr<class FuncEnviropment> compare){
+	size_t to_allocate = 
+		sizeof(AttachAVirtualTable) 
+		+ sizeof(Enviropment) * methods.size() 
+		+ sizeof(MethodInfo) * methods.size() 
+		+ sizeof(typed_lgr<class FuncEnviropment>) * 4 
+		+ sizeof(std::string)
+		+ sizeof(list_array<StructureTag>*);
+	
+	AttachAVirtualTable* table = (AttachAVirtualTable*)malloc(to_allocate);
+	new(table)AttachAVirtualTable(methods, destructor, copy, move, compare);
+	return table;
+}
+void AttachAVirtualTable::destroy(AttachAVirtualTable* table){
+	table->~AttachAVirtualTable();
+	free(table);
+}
+AttachAVirtualTable::~AttachAVirtualTable(){
+	MethodInfo* table_additional_info = (MethodInfo*)(data + sizeof(Enviropment) * table_size);
+	for (size_t i = 0; i < table_size; i++) 
+		table_additional_info[i].~MethodInfo();
+		
+	auto tmp = getAfterMethods();
+	if(tmp->tags)delete tmp->tags;
+	tmp->~AfterMethods();
+}
+list_array<StructureTag>* AttachAVirtualTable::getStructureTags(){
+	return getAfterMethods()->tags;
+}
+list_array<MethodTag>* AttachAVirtualTable::getMethodTags(size_t index){
+	MethodInfo& info = getMethodInfo(index);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->tags;
+}
+list_array<MethodTag>* AttachAVirtualTable::getMethodTags(const std::string& name, ClassAccess access){
+	MethodInfo& info = getMethodInfo(name,access);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->tags;
+}
+list_array<list_array<ValueMeta>>* AttachAVirtualTable::getMethodArguments(size_t index){
+	MethodInfo& info = getMethodInfo(index);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->arguments;
+}
+list_array<list_array<ValueMeta>>* AttachAVirtualTable::getMethodArguments(const std::string& name, ClassAccess access){
+	MethodInfo& info = getMethodInfo(name,access);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->arguments;
+}
+list_array<ValueMeta>* AttachAVirtualTable::getMethodReturnValues(size_t index){
+	MethodInfo& info = getMethodInfo(index);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->return_values;
+}
+list_array<ValueMeta>* AttachAVirtualTable::getMethodReturnValues(const std::string& name, ClassAccess access){
+	MethodInfo& info = getMethodInfo(name,access);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->return_values;
+}
+MethodInfo* AttachAVirtualTable::getMethodsInfo(size_t& size){
+	size = table_size;
+	return (MethodInfo*)(data + sizeof(Enviropment) * table_size);
+}
+MethodInfo& AttachAVirtualTable::getMethodInfo(size_t index){
+	if(index >= table_size) throw InvalidOperation("Index out of range");
+	return getMethodsInfo(table_size)[index];
+}
+MethodInfo& AttachAVirtualTable::getMethodInfo(const std::string& name, ClassAccess access){
+	MethodInfo* table_additional_info = getMethodsInfo(table_size);
+	for (size_t i = 0; i < table_size; i++) {
+		if(table_additional_info[i].name == name && Structure::checkAccess(table_additional_info[i].access,access))
+			return table_additional_info[i];
+	}
+	throw InvalidOperation("Method not found");
+}
+Enviropment* AttachAVirtualTable::getMethods(size_t& size){
+	size = table_size;
+	return (Enviropment*)data;
+}
+Enviropment AttachAVirtualTable::getMethod(size_t index){
+	if(index >= table_size) throw InvalidOperation("Index out of range");
+	Enviropment* table = (Enviropment*)data;
+	return table[index];
+}
+Enviropment AttachAVirtualTable::getMethod(const std::string& name, ClassAccess access){
+	return (Enviropment)getMethodInfo(name,access).ref->get_func_ptr();
+}
+
+size_t AttachAVirtualTable::getMethodIndex(const std::string& name, ClassAccess access){
+	MethodInfo* table_additional_info = getMethodsInfo(table_size);
+	for (size_t i = 0; i < table_size; i++) 
+		if(table_additional_info[i].name == name && Structure::checkAccess(table_additional_info[i].access,access))
+			return i;
+	throw InvalidOperation("Method not found");
+}
+bool AttachAVirtualTable::hasMethod(const std::string& name, ClassAccess access){
+	MethodInfo* table_additional_info = getMethodsInfo(table_size);
+	for (size_t i = 0; i < table_size; i++) 
+		if(table_additional_info[i].name == name && Structure::checkAccess(table_additional_info[i].access,access))
+			return true;
+	return false;
+}
+std::string AttachAVirtualTable::getName(){
+	return getAfterMethods()->name;
+}
+void AttachAVirtualTable::setName(const std::string& name){
+	getAfterMethods()->name = name;
+}
+AttachAVirtualTable::AfterMethods* AttachAVirtualTable::getAfterMethods(){
+	return (AfterMethods*)(data + sizeof(Enviropment) * table_size + sizeof(MethodInfo) * table_size);
+}
+#pragma endregion
+
+#pragma region AttachADynamicVirtualTable
+AttachADynamicVirtualTable::AttachADynamicVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare): destructor(destructor), copy(copy), move(move), methods(methods), compare(compare){
+	tags = nullptr;
+}
+AttachADynamicVirtualTable::~AttachADynamicVirtualTable(){
+	if(tags)delete tags;
+}
+AttachADynamicVirtualTable::AttachADynamicVirtualTable(const AttachADynamicVirtualTable& copy){
+	destructor = copy.destructor;
+	move = copy.move;
+	this->copy = copy.copy;
+	methods = copy.methods;
+	tags = copy.tags ? new list_array<StructureTag>(*copy.tags) : nullptr;
+}
+list_array<StructureTag>* AttachADynamicVirtualTable::getStructureTags(){
+	return tags;
+}
+list_array<MethodTag>* AttachADynamicVirtualTable::getMethodTags(size_t index){
+	MethodInfo& info = getMethodInfo(index);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->tags;
+}
+list_array<MethodTag>* AttachADynamicVirtualTable::getMethodTags(const std::string& name, ClassAccess access){
+	MethodInfo& info = getMethodInfo(name, access);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->tags;
+}
+
+list_array<list_array<ValueMeta>>* AttachADynamicVirtualTable::getMethodArguments(size_t index){
+	MethodInfo& info = getMethodInfo(index);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->arguments;
+}
+list_array<list_array<ValueMeta>>* AttachADynamicVirtualTable::getMethodArguments(const std::string& name, ClassAccess access){
+	MethodInfo& info = getMethodInfo(name, access);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->arguments;
+}
+
+list_array<ValueMeta>* AttachADynamicVirtualTable::getMethodReturnValues(size_t index){
+	MethodInfo& info = getMethodInfo(index);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->return_values;
+}
+list_array<ValueMeta>* AttachADynamicVirtualTable::getMethodReturnValues(const std::string& name, ClassAccess access){
+	MethodInfo& info = getMethodInfo(name, access);
+	if(info.optional == nullptr) return nullptr;
+	return &info.optional->return_values;
+}
+
+MethodInfo* AttachADynamicVirtualTable::getMethodsInfo(size_t& size){
+	size = methods.size();
+	return methods.data();
+}
+MethodInfo& AttachADynamicVirtualTable::getMethodInfo(size_t index){
+	if(index >= methods.size()) throw InvalidOperation("Index out of range");
+	return methods[index];
+}
+MethodInfo& AttachADynamicVirtualTable::getMethodInfo(const std::string& name, ClassAccess access){
+	for (size_t i = 0; i < methods.size(); i++) {
+		if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
+			return methods[i];
+	}
+	throw InvalidOperation("Method not found");
+}
+
+Enviropment AttachADynamicVirtualTable::getMethod(size_t index){
+	if(index >= methods.size()) throw InvalidOperation("Index out of range");
+	return (Enviropment)methods[index].ref->get_func_ptr();
+}
+Enviropment AttachADynamicVirtualTable::getMethod(const std::string& name, ClassAccess access){
+	return (Enviropment)getMethodInfo(name, access).ref->get_func_ptr();
+}
+
+void AttachADynamicVirtualTable::addMethod(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	methods.push_back(MethodInfo(name, method, access, return_values, arguments, tags, owner_name));
+}
+void AttachADynamicVirtualTable::addMethod(const std::string& name, const typed_lgr<FuncEnviropment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	methods.push_back(MethodInfo(name, method, access, return_values, arguments, tags, owner_name));
+}
+
+void AttachADynamicVirtualTable::removeMethod(const std::string& name, ClassAccess access){
+	for (size_t i = 0; i < methods.size(); i++) 
+		if(methods[i].deletable)
+			if(methods[i].name == name && Structure::checkAccess(methods[i].access,access)){
+				methods.remove(i);
+				return;
+			}
+}
+
+void AttachADynamicVirtualTable::addTag(const std::string& name, const ValueItem& value){
+	if(tags == nullptr) tags = new list_array<StructureTag>();
+	StructureTag tag;
+	tag.name = name;
+	tag.value = value;
+	tags->push_back(tag);
+}
+void AttachADynamicVirtualTable::addTag(const std::string& name, ValueItem&& value){
+	if(tags == nullptr) tags = new list_array<StructureTag>(1);
+	StructureTag tag;
+	tag.name = name;
+	tag.value = std::move(value);
+	tags->push_back(tag);
+}
+void AttachADynamicVirtualTable::removeTag(const std::string& name){
+	if(tags == nullptr) return;
+	for (size_t i = 0; i < tags->size(); i++) 
+		if((*tags)[i].name == name){
+			tags->remove(i);
+			return;
+		}
+}
+
+size_t AttachADynamicVirtualTable::getMethodIndex(const std::string& name, ClassAccess access){
+	for (size_t i = 0; i < methods.size(); i++) 
+		if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
+			return i;
+	throw InvalidOperation("Method not found");
+}
+bool AttachADynamicVirtualTable::hasMethod(const std::string& name, ClassAccess access){
+	for (size_t i = 0; i < methods.size(); i++) 
+		if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
+			return true;
+	return false;
+}
+
+
+void AttachADynamicVirtualTable::derive(AttachADynamicVirtualTable& parent){
+	for (auto& method : parent.methods){
+		auto tmp = getMethodIndex(method.name, method.access);
+		if(tmp == -1)
+			this->methods.push_back(method);
+		else if(this->methods[tmp].deletable)
+			this->methods[tmp] = method;
+		else
+			throw InvalidOperation("Method is not overridable, because it is not deletable");
+	}
+}
+void AttachADynamicVirtualTable::derive(AttachAVirtualTable& parent){
+	size_t total_methods;
+	auto methods = parent.getMethodsInfo(total_methods);
+	for (size_t i = 0; i < total_methods; i++){
+		auto tmp = getMethodIndex(methods[i].name, methods[i].access);
+		if(tmp == -1)
+			this->methods.push_back(methods[i]);
+		else if(this->methods[tmp].deletable)
+			this->methods[tmp] = methods[i];
+		else
+			throw InvalidOperation("Method is not overridable, because it is not deletable");
+	}
+}
+
+#pragma endregion
+
+#pragma region Structure
+bool Structure::checkAccess(ClassAccess access, ClassAccess access_to_check){
+	if(access_to_check == ClassAccess::pub) return true;
+	if(access_to_check == ClassAccess::prot)if(access != ClassAccess::pub) return true;
+	if(access_to_check == ClassAccess::priv)if(access != ClassAccess::pub && access != ClassAccess::prot) return true;
+	return access_to_check == access;//ClassAccess::intern
+}
+AttachAVirtualTable* Structure::createAAVTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare,const list_array<std::tuple<void*,VTableMode>>& derive_vtables){
+	list_array<MethodInfo> methods_copy = methods;
+	for (auto& table : derive_vtables) {
+		switch(std::get<1>(table)){
+			case VTableMode::disabled:
+				break;
+			case VTableMode::AttachADynamicVirtualTable:
+				methods_copy.push_back(reinterpret_cast<AttachADynamicVirtualTable*>(std::get<0>(table))->methods);
+				break;
+			case VTableMode::AttachAVirtualTable:{
+				size_t total_methods;
+				auto methods = reinterpret_cast<AttachAVirtualTable*>(std::get<0>(table))->getMethodsInfo(total_methods);
+				methods_copy.push_back(methods, total_methods);
+				break;
+			}
+			case VTableMode::CXX:
+			default:
+				throw NotImplementedException();
+		}
+	}
+	return AttachAVirtualTable::create(methods_copy, destructor, copy, move, compare);
+}
+AttachADynamicVirtualTable* Structure::createAADVTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare,const  list_array<std::tuple<void*,VTableMode>>& derive_vtables){
+	AttachADynamicVirtualTable* vtable = new AttachADynamicVirtualTable(methods, destructor, copy, move, compare);
+	for (auto& table : derive_vtables) {
+		switch(std::get<1>(table)){
+			case VTableMode::disabled:
+				break;
+			case VTableMode::AttachADynamicVirtualTable:
+				vtable->derive(*reinterpret_cast<AttachADynamicVirtualTable*>(std::get<0>(table)));
+				break;
+			case VTableMode::AttachAVirtualTable:
+				vtable->derive(*reinterpret_cast<AttachAVirtualTable*>(std::get<0>(table)));
+				break;
+			case VTableMode::CXX:
+			default:
+				throw NotImplementedException();
+		}
+	}
+	return vtable;
+}
+void Structure::destroyVTable(void* table, VTableMode mode){
+	switch(mode){
+		case VTableMode::disabled:
+			break;
+		case VTableMode::AttachADynamicVirtualTable:
+			delete reinterpret_cast<AttachADynamicVirtualTable*>(table);
+			break;
+		case VTableMode::AttachAVirtualTable:
+			AttachAVirtualTable::destroy(reinterpret_cast<AttachAVirtualTable*>(table));
+			break;
+		case VTableMode::CXX:
+		default:
+			throw NotImplementedException();
+	}
+}
+Structure::Item* Structure::getPtr(const std::string& name) {
+	for (size_t i = 0; i < count; i++)
+		if (reinterpret_cast<Item*>(raw_data)[i].name == name) 
+			return &reinterpret_cast<Item*>(raw_data)[i];
+	return nullptr;
+}
+Structure::Item* Structure::getPtr(size_t index) {
+	return index < count ? &reinterpret_cast<Item*>(raw_data)[index] : nullptr;
+}
+ValueItem Structure::_static_value_get(Item* item) {
+	if (!item)
+		throw InvalidArguments("value not found");
+	switch (item->type.vtype) {
+	case VType::noting:
+		return ValueItem();
+	case VType::boolean:
+		return ValueItem(static_value_get<bool>(item->offset, item->bit_used, item->bit_offset));
+	case VType::i8:
+		return ValueItem(static_value_get<int8_t>(item->bit_offset, item->bit_used, item->bit_offset));
+	case VType::i16:
+		return ValueItem(static_value_get<int16_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::i32:
+		return ValueItem(static_value_get<int32_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::i64:
+		return ValueItem(static_value_get<int64_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::ui8:
+		return ValueItem(static_value_get<uint8_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::ui16:
+		return ValueItem(static_value_get<uint16_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::ui32:
+		return ValueItem(static_value_get<uint32_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::ui64:
+		return ValueItem(static_value_get<uint64_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::flo:
+		return ValueItem(static_value_get<float>(item->offset, item->bit_used, item->bit_offset));
+	case VType::doub:
+		return ValueItem(static_value_get<double>(item->offset, item->bit_used, item->bit_offset));
+	case VType::raw_arr_ui8:
+		return getRawArray<uint8_t>(item);
+	case VType::raw_arr_ui16:
+		return getRawArray<uint16_t>(item);
+	case VType::raw_arr_ui32:
+		return getRawArray<uint32_t>(item);
+	case VType::raw_arr_ui64:
+		return getRawArray<uint64_t>(item);
+	case VType::raw_arr_i8:
+		return getRawArray<int8_t>(item);
+	case VType::raw_arr_i16:
+		return getRawArray<int16_t>(item);
+	case VType::raw_arr_i32:
+		return getRawArray<int32_t>(item);
+	case VType::raw_arr_i64:
+		return getRawArray<int64_t>(item);
+	case VType::raw_arr_flo:
+		return getRawArray<float>(item);
+	case VType::raw_arr_doub:
+		return getRawArray<double>(item);
+	case VType::faarr:
+		return getRawArray<ValueItem>(item);
+	case VType::uarr:
+		return getType<list_array<ValueItem>>(item);
+	case VType::string:
+		return getType<std::string>(item);
+	case VType::undefined_ptr:
+		return ValueItem(static_value_get_ref<void*>(item->offset, item->bit_used, item->bit_offset));
+	case VType::type_identifier:
+		return ValueItem(static_value_get_ref<ValueMeta>(item->offset, item->bit_used, item->bit_offset));
+	case VType::map:
+		return getType<std::unordered_map<ValueItem, ValueItem>>(item);
+	case VType::set:
+		return getType<std::unordered_set<ValueItem>>(item);
+	case VType::time_point:
+		return getType<std::chrono::steady_clock::time_point>(item);
+	default:
+		throw InvalidArguments("type not supported");
+	}
+}
+ValueItem Structure::_static_value_get_ref(Structure::Item* item){
+	if (!item)
+		throw InvalidArguments("value not found");
+	switch (item->type.vtype) {
+	case VType::noting:
+		return ValueItem();
+	case VType::boolean:
+		return ValueItem(static_value_get_ref<bool>(item->offset, item->bit_used, item->bit_offset));
+	case VType::i8:
+		return ValueItem(static_value_get_ref<int8_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::i16:
+		return ValueItem(static_value_get_ref<int16_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::i32:
+		return ValueItem(static_value_get_ref<int32_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::i64:
+		return ValueItem(static_value_get_ref<int64_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::ui8:
+		return ValueItem(static_value_get_ref<uint8_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::ui16:
+		return ValueItem(static_value_get_ref<uint16_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::ui32:
+		return ValueItem(static_value_get_ref<uint32_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::ui64:
+		return ValueItem(static_value_get_ref<uint64_t>(item->offset, item->bit_used, item->bit_offset));
+	case VType::flo:
+		return ValueItem(static_value_get_ref<float>(item->offset, item->bit_used, item->bit_offset));
+	case VType::doub:
+		return ValueItem(static_value_get_ref<double>(item->offset, item->bit_used, item->bit_offset));
+	case VType::raw_arr_ui8:
+		return getRawArrayRef<uint8_t>(item);
+	case VType::raw_arr_ui16:
+		return getRawArrayRef<uint16_t>(item);
+	case VType::raw_arr_ui32:
+		return getRawArrayRef<uint32_t>(item);
+	case VType::raw_arr_ui64:
+		return getRawArrayRef<uint64_t>(item);
+	case VType::raw_arr_i8:
+		return getRawArrayRef<int8_t>(item);
+	case VType::raw_arr_i16:
+		return getRawArrayRef<int16_t>(item);
+	case VType::raw_arr_i32:
+		return getRawArrayRef<int32_t>(item);
+	case VType::raw_arr_i64:
+		return getRawArrayRef<int64_t>(item);
+	case VType::raw_arr_flo:
+		return getRawArrayRef<float>(item);
+	case VType::raw_arr_doub:
+		return getRawArrayRef<double>(item);
+	case VType::faarr:
+		return getRawArrayRef<ValueItem>(item);
+	case VType::uarr:
+		return getTypeRef<list_array<ValueItem>>(item);
+	case VType::string:
+		return getTypeRef<std::string>(item);
+	case VType::undefined_ptr:
+		return ValueItem(static_value_get_ref<void*>(item->offset, item->bit_used, item->bit_offset));
+	case VType::type_identifier:
+		return ValueItem(static_value_get_ref<ValueMeta>(item->offset, item->bit_used, item->bit_offset));
+	case VType::map:
+		return getTypeRef<std::unordered_map<ValueItem, ValueItem>>(item);
+	case VType::set:
+		return getTypeRef<std::unordered_set<ValueItem>>(item);
+	case VType::time_point:
+		return getTypeRef<std::chrono::steady_clock::time_point>(item);
+	default:
+		throw InvalidArguments("type not supported");
+	}
+}
+void Structure::_static_value_set(Structure::Item* item, ValueItem& set){
+	if (!item)
+		throw InvalidArguments("value not found");
+	set.getAsync();
+	if(item->type.use_gc){
+		char* data = raw_data + count * sizeof(Item);
+		char* ptr = data;
+		ptr += item->offset;
+		ptr += item->bit_offset / 8;
+		ValueItem(ptr, item->type, as_refrence) = set;
+		return;
+	}
+	switch (item->type.vtype) {
+	case VType::noting:
+		return;
+	case VType::boolean:
+		static_value_set<bool>(item->offset, item->bit_used, item->bit_offset, (bool)set);
+		return;
+	case VType::i8:
+		static_value_set<int8_t>(item->offset, item->bit_used, item->bit_offset, (int8_t)set);
+		return;
+	case VType::i16:
+		static_value_set<int16_t>(item->offset, item->bit_used, item->bit_offset, (int16_t)set);
+		return;
+	case VType::i32:
+		static_value_set<int32_t>(item->offset, item->bit_used, item->bit_offset, (int32_t)set);
+		return;
+	case VType::i64:
+		static_value_set<int64_t>(item->offset, item->bit_used, item->bit_offset, (int64_t)set);
+		return;
+	case VType::ui8:
+		static_value_set<uint8_t>(item->offset, item->bit_used, item->bit_offset, (uint8_t)set);
+		return;
+	case VType::ui16:
+		static_value_set<uint16_t>(item->offset, item->bit_used, item->bit_offset, (uint16_t)set);
+		return;
+	case VType::ui32:
+		static_value_set<uint32_t>(item->offset, item->bit_used, item->bit_offset, (uint32_t)set);
+		return;
+	case VType::ui64:
+		static_value_set<uint64_t>(item->offset, item->bit_used, item->bit_offset, (uint64_t)set);
+		return;
+	case VType::flo:
+		static_value_set<float>(item->offset, item->bit_used, item->bit_offset, (float)set);
+		return;
+	case VType::doub:
+		static_value_set<double>(item->offset, item->bit_used, item->bit_offset, (double)set);
+		return;
+	case VType::undefined_ptr:
+		static_value_set_ref<void*>(item->offset, item->bit_used, item->bit_offset, (void*)set);
+		return;
+	case VType::type_identifier:
+		static_value_set_ref<ValueMeta>(item->offset, item->bit_used, item->bit_offset, (ValueMeta)set);
+		return;
+	case VType::time_point:
+		static_value_set_ref<std::chrono::steady_clock::time_point>(item->offset, item->bit_used, item->bit_offset, (std::chrono::steady_clock::time_point)set);
+		return;
+	default:
+		throw InvalidArguments("type not supported");
+	}
+}
+
+Structure::Structure(size_t structure_size, Structure::Item* items, size_t count, void* vtable,VTableMode table_mode ) : struct_size(structure_size), count(count) {
+	Item* to_init_items = (Item*)raw_data;
+	char* data = raw_data + count * sizeof(Item);
+	memset(data, 0, structure_size);
+	*((void**)data) = vtable;
+	vtable_mode = table_mode;
+	for(size_t i = 0; i < count; i++){
+		to_init_items[i] = items[i];
+		if(needAlloc(items[i].type)){
+			char* ptr = data;
+			ptr += items[i].offset;
+			ptr += items[i].bit_offset / 8;
+			if(items[i].type.use_gc){
+				new(ptr) lgr();
+				continue;
+			}
+			switch (items[i].type.vtype) {
+			case VType::string:
+				if(items[i].bit_used || items[i].bit_used != sizeof(std::string) * 8 || items[i].bit_offset % sizeof(std::string) != 0)
+					throw InvalidArguments("this type not support bit_used or bit_offset");
+				new(ptr) std::string();
+				break;
+			case VType::uarr:
+				if(items[i].bit_used || items[i].bit_used != sizeof(list_array<ValueItem>) * 8 || items[i].bit_offset % sizeof(list_array<ValueItem>) != 0)
+					throw InvalidArguments("this type not support bit_used or bit_offset");
+				new(ptr) list_array<ValueItem>();
+				break;
+			case VType::map:
+				if(items[i].bit_used || items[i].bit_used != sizeof(std::unordered_map<ValueItem, ValueItem>) * 8 || items[i].bit_offset % sizeof(std::unordered_map<ValueItem, ValueItem>) != 0)
+					throw InvalidArguments("this type not support bit_used or bit_offset");
+				new(ptr) std::unordered_map<ValueItem, ValueItem>();
+				break;
+			case VType::set:
+				if(items[i].bit_used || items[i].bit_used != sizeof(std::unordered_set<ValueItem>) * 8 || items[i].bit_offset % sizeof(std::unordered_set<ValueItem>) != 0)
+					throw InvalidArguments("this type not support bit_used or bit_offset");
+				new(ptr) std::unordered_set<ValueItem>();
+				break;
+			default:
+				throw InvalidArguments("type not supported");
+			}
+		}
+	}
+}
+Structure::~Structure() noexcept(false){
+	switch(vtable_mode){
+	case VTableMode::disabled:
+		break;
+	case VTableMode::AttachAVirtualTable:
+		if(((AttachAVirtualTable*)get_vtable())->destructor){
+			ValueItem item(this,no_copy);
+			item.meta.as_ref = true;
+			((AttachAVirtualTable*)get_vtable())->destructor(&item, 1);
+		}
+		break;
+	case VTableMode::AttachADynamicVirtualTable:
+		if(((AttachADynamicVirtualTable*)get_vtable())->destructor){
+			ValueItem item(this,no_copy);
+			item.meta.as_ref = true;
+			AttachA::cxxCall(reinterpret_cast<AttachADynamicVirtualTable*>(get_vtable())->destructor,item);
+		}
+		Structure::destroyVTable(get_vtable(), VTableMode::AttachADynamicVirtualTable);
+		break;
+	case VTableMode::CXX:
+		break;
+	}
+	char* data = (char*)get_data();
+	auto items = (Item*)raw_data;
+	for(size_t i = 0; i<count; i++){
+		Item& item = items[i];
+		if(needAlloc(item.type)){
+			char* ptr = data;
+			ptr += item.offset;
+			ptr += item.bit_offset / 8;
+			switch (item.type.vtype) {
+			case VType::raw_arr_ui8:
+			case VType::raw_arr_ui16:
+			case VType::raw_arr_ui32:
+			case VType::raw_arr_ui64:
+			case VType::raw_arr_i8:
+			case VType::raw_arr_i16:
+			case VType::raw_arr_i32:
+			case VType::raw_arr_i64:
+			case VType::raw_arr_flo:
+			case VType::raw_arr_doub:
+				break;
+			case VType::faarr:{
+				if(item.inlined)
+					for(size_t i = 0; i < item.type.val_len; i++)
+						((ValueItem*)ptr)[i].~ValueItem();
+				else
+					delete[] ((ValueItem*)ptr);
+			}
+			case VType::string:
+				((std::string*)ptr)->~basic_string();
+				break;
+			case VType::uarr:
+				((list_array<ValueItem>*)ptr)->~list_array();
+				break;
+			case VType::map:
+				((std::unordered_map<ValueItem, ValueItem>*)ptr)->~unordered_map();
+				break;
+			case VType::set:
+				((std::unordered_set<ValueItem>*)ptr)->~unordered_set();
+				break;
+			default:
+				throw InvalidArguments("type not supported");
+			}
+		}
+	}
+}
+
+ValueItem Structure::static_value_get(size_t value_data_index){
+	return _static_value_get(getPtr(value_data_index));
+}
+ValueItem Structure::static_value_get_ref(size_t value_data_index){
+	return _static_value_get_ref(getPtr(value_data_index));
+}
+void Structure::static_value_set(size_t value_data_index, ValueItem value){
+	_static_value_set(getPtr(value_data_index), value);
+}
+
+ValueItem Structure::dynamic_value_get(const std::string& name){
+	return _static_value_get(getPtr(name));
+}
+ValueItem Structure::dynamic_value_get_ref(const std::string& name){
+	return _static_value_get_ref(getPtr(name));
+}
+void Structure::dynamic_value_set(const std::string& name, ValueItem value){
+	_static_value_set(getPtr(name), value);
+}
+
+
+size_t Structure::table_get_id(const std::string& name, ClassAccess access){
+	char* data = raw_data + count * sizeof(Item);
+	switch (vtable_mode) {
+	case VTableMode::disabled:
+		return 0;
+	case VTableMode::AttachAVirtualTable:
+		return (*(AttachAVirtualTable**)data)->getMethodIndex(name, access);
+	case VTableMode::AttachADynamicVirtualTable:
+		return (*(AttachADynamicVirtualTable**)data)->getMethodIndex(name, access);
+	default:
+	case VTableMode::CXX:
+		throw NotImplementedException();
+	}
+}
+Enviropment Structure::table_get(size_t fn_id){
+	switch (vtable_mode) {
+	case VTableMode::disabled:
+		throw InvalidArguments("vtable disabled");
+	case VTableMode::AttachAVirtualTable:
+		return ((AttachAVirtualTable*)get_vtable())->getMethod(fn_id);
+	case VTableMode::AttachADynamicVirtualTable:
+		return ((AttachADynamicVirtualTable*)get_vtable())->getMethod(fn_id);
+	default:
+	case VTableMode::CXX:
+		throw NotImplementedException();
+	}
+}
+Enviropment Structure::table_get_dynamic(const std::string& name, ClassAccess access){
+	switch (vtable_mode) {
+	case VTableMode::disabled:
+		throw InvalidArguments("vtable disabled");
+	case VTableMode::AttachAVirtualTable:
+		return ((AttachAVirtualTable*)get_vtable())->getMethod(name, access);
+	case VTableMode::AttachADynamicVirtualTable:
+		return ((AttachADynamicVirtualTable*)get_vtable())->getMethod(name, access);
+	default:
+	case VTableMode::CXX:
+		throw NotImplementedException();
+	}
+}
+void Structure::add_method(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	if(vtable_mode != VTableMode::AttachADynamicVirtualTable)
+		throw InvalidOperation("vtable must be dynamic to add new method");
+	((AttachADynamicVirtualTable*)get_vtable())->addMethod(name, method, access, return_values, arguments, tags, owner_name);
+}
+void Structure::add_method(const std::string& name, const typed_lgr<FuncEnviropment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	if(vtable_mode != VTableMode::AttachADynamicVirtualTable)
+		throw InvalidOperation("vtable must be dynamic to add new method");
+	((AttachADynamicVirtualTable*)get_vtable())->addMethod(name, method, access, return_values, arguments, tags, owner_name);
+}
+bool Structure::has_method(const std::string& name, ClassAccess access){
+	if(vtable_mode == VTableMode::AttachAVirtualTable)
+		return ((AttachAVirtualTable*)get_vtable())->hasMethod(name, access);
+	else if(vtable_mode == VTableMode::AttachADynamicVirtualTable)
+		return ((AttachADynamicVirtualTable*)get_vtable())->hasMethod(name, access);
+	else
+		throw NotImplementedException();
+}
+void Structure::remove_method(const std::string& name, ClassAccess access){
+	if(vtable_mode != VTableMode::AttachADynamicVirtualTable)
+		throw InvalidOperation("vtable must be dynamic to remove method");
+	((AttachADynamicVirtualTable*)get_vtable())->removeMethod(name, access);
+}
+void Structure::table_derive(void* vtable, Structure::VTableMode vtable_mode){
+	if(this->vtable_mode != VTableMode::AttachADynamicVirtualTable)
+		throw InvalidOperation("vtable must be dynamic to derive");
+	if(vtable_mode == VTableMode::AttachAVirtualTable)
+		((AttachADynamicVirtualTable*)get_vtable())->derive(*(AttachAVirtualTable*)vtable);
+	else if(vtable_mode == VTableMode::AttachADynamicVirtualTable)
+		((AttachADynamicVirtualTable*)get_vtable())->derive(*(AttachADynamicVirtualTable*)vtable);
+	else
+		throw NotImplementedException();
+}
+void Structure::change_table(void* vtable, Structure::VTableMode vtable_mode){
+	if(this->vtable_mode != VTableMode::AttachADynamicVirtualTable)
+		throw InvalidOperation("vtable must be dynamic to change");
+	char* data = raw_data + count * sizeof(Item);
+	switch (vtable_mode)
+	{
+	case VTableMode::AttachAVirtualTable:
+		if(((AttachAVirtualTable*)data)->destructor != ((AttachAVirtualTable*)vtable)->destructor)
+			throw InvalidOperation("destructor must be same");
+		(*(AttachAVirtualTable**)data) = ((AttachAVirtualTable*)vtable);
+		break;
+	case VTableMode::AttachADynamicVirtualTable:
+		if(((AttachADynamicVirtualTable*)data)->destructor != ((AttachADynamicVirtualTable*)vtable)->destructor)
+			throw InvalidOperation("destructor must be same");
+		delete *((AttachADynamicVirtualTable**)data);
+		(*(AttachADynamicVirtualTable**)data) = new AttachADynamicVirtualTable(*(AttachADynamicVirtualTable*)vtable);
+		break;
+	case VTableMode::CXX:
+	default:
+		throw NotImplementedException();
+	}
+}
+
+Structure::VTableMode Structure::get_vtable_mode(){
+	return vtable_mode;
+}
+void* Structure::get_vtable(){
+	switch (vtable_mode){
+	case VTableMode::AttachAVirtualTable:
+	case VTableMode::AttachADynamicVirtualTable:
+	case VTableMode::CXX:
+		return *reinterpret_cast<void**>(raw_data + count * sizeof(Item));
+	default:
+		return nullptr;
+	}
+}
+void* Structure::get_data(size_t offset){
+	return raw_data + count * sizeof(Item) + offset;
+}
+void* Structure::get_data_no_vtable(size_t offset){
+	return raw_data + count * sizeof(Item) + sizeof(void*) + offset;
+}
+Structure::Item* Structure::get_items(size_t& count){
+	count = this->count;
+	return (Item*)(raw_data);
+}
+
+Structure* Structure::construct(size_t structure_size, Item* items, size_t count){
+	Structure* structure = (Structure*)malloc(sizeof(struct_size) + (sizeof(count) * sizeof(Item)) + structure_size);
+	new(structure) Structure(structure_size, items, count, nullptr, VTableMode::disabled);
+	return structure;
+}
+Structure* Structure::construct(size_t structure_size, Item* items, size_t count, void* vtable, VTableMode vtable_mode){
+	Structure* structure = (Structure*)malloc(sizeof(struct_size) + (sizeof(count) * sizeof(Item)) + structure_size);
+	new(structure) Structure(structure_size, items, count, vtable, vtable_mode);
+	return structure;
+}
+void Structure::destruct(Structure* structure){
+	structure->~Structure();
+	free(structure);
+}
+
+void Structure::copy(Structure* dst, Structure* src, bool at_construct){
+	void* vtable = dst->get_vtable();
+	switch (dst->vtable_mode) {
+	case VTableMode::disabled:{
+		if(dst->struct_size != src->struct_size)
+			throw InvalidArguments("structure size not equal");
+		if(dst->count != src->count)
+			throw InvalidArguments("structure count not equal");
+		if(dst->vtable_mode != src->vtable_mode)
+			throw InvalidArguments("structure vtable_mode not equal");
+		char* dst_data = dst->raw_data + dst->count * sizeof(Item);
+		char* src_data = src->raw_data + src->count * sizeof(Item);
+		
+		memcpy(dst_data, src_data, dst->struct_size);
+		break;
+	}
+	case VTableMode::AttachAVirtualTable:
+		if(reinterpret_cast<AttachAVirtualTable*>(vtable)->copy){
+			ValueItem _dst(dst,no_copy);
+			_dst.meta.as_ref = true;
+			ValueItem _src(src,no_copy);
+			_src.meta.as_ref = true;
+			ValueItem args = {_dst, _src, at_construct};
+			reinterpret_cast<AttachAVirtualTable*>(vtable)->copy(&args,3);
+		}
+		else throw NotImplementedException();
+		break;
+	case VTableMode::AttachADynamicVirtualTable:
+		if(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->copy){
+			ValueItem _dst(dst,no_copy);
+			_dst.meta.as_ref = true;
+			ValueItem _src(src,no_copy);
+			_src.meta.as_ref = true;
+			AttachA::cxxCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->copy,_dst, _src, at_construct);
+		}
+		else throw NotImplementedException();
+		break;
+	case VTableMode::CXX:
+	default:
+		throw NotImplementedException();
+	}
+}
+void Structure::move(Structure* dst, Structure* src, bool at_construct){
+	void* vtable = dst->get_vtable();
+	switch (dst->vtable_mode) {
+	case VTableMode::disabled:{
+		if(dst->struct_size != src->struct_size)
+			throw InvalidArguments("structure size not equal");
+		if(dst->count != src->count)
+			throw InvalidArguments("structure count not equal");
+		if(dst->vtable_mode != src->vtable_mode)
+			throw InvalidArguments("structure vtable_mode not equal");
+		char* dst_data = dst->raw_data + dst->count * sizeof(Item);
+		char* src_data = src->raw_data + src->count * sizeof(Item);
+		
+		memmove(dst_data, src_data, dst->struct_size);
+		break;
+	}
+	case VTableMode::AttachAVirtualTable:
+		if(reinterpret_cast<AttachAVirtualTable*>(vtable)->move){
+			ValueItem _dst(dst,no_copy);
+			_dst.meta.as_ref = true;
+			ValueItem _src(src,no_copy);
+			_src.meta.as_ref = true;
+			ValueItem args = {_dst, _src, at_construct};
+			reinterpret_cast<AttachAVirtualTable*>(vtable)->move(&args,3);
+		}
+		else throw NotImplementedException();
+		break;
+	case VTableMode::AttachADynamicVirtualTable:
+		if(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->move){
+			ValueItem _dst(dst,no_copy);
+			_dst.meta.as_ref = true;
+			ValueItem _src(src,no_copy);
+			_src.meta.as_ref = true;
+			AttachA::cxxCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->move, _dst, _src, at_construct);
+		}
+		else throw NotImplementedException();
+		break;
+	case VTableMode::CXX:
+	default:
+		throw NotImplementedException();
+	}
+}
+int8_t Structure::compare(Structure* a, Structure* b){
+	if(a == b)
+		return 0;
+	void* vtable = a->get_vtable();
+	switch (a->vtable_mode) {
+	case VTableMode::disabled:{
+		if(a->struct_size != b->struct_size)
+			throw InvalidArguments("structure size not equal");
+		if(a->count != b->count)
+			throw InvalidArguments("structure count not equal");
+		if(a->vtable_mode != b->vtable_mode)
+			throw InvalidArguments("structure vtable_mode not equal");
+		char* a_data = a->raw_data + a->count * sizeof(Item);
+		char* b_data = b->raw_data + b->count * sizeof(Item);
+		
+		auto res = memcmp(a_data, b_data, a->struct_size);
+		return 
+			res < 0 ? -1 :
+			res > 0 ? 1 :
+			0;
+	}
+	case VTableMode::AttachAVirtualTable:
+		if(reinterpret_cast<AttachAVirtualTable*>(vtable)->compare){
+			ValueItem _a(a,no_copy);
+			_a.meta.as_ref = true;
+			ValueItem _b(b,no_copy);
+			_b.meta.as_ref = true;
+			ValueItem args = {_a, _b};
+			ValueItem* res = reinterpret_cast<AttachAVirtualTable*>(vtable)->compare(&args,2);
+			if(res){
+				int8_t ret = (int8_t)*res;
+				delete res;
+				return ret;
+			}
+			return 0;
+		}
+		else throw NotImplementedException();
+	case VTableMode::AttachADynamicVirtualTable:
+		if(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->compare){
+			ValueItem _a(a,no_copy);
+			_a.meta.as_ref = true;
+			ValueItem _b(b,no_copy);
+			_b.meta.as_ref = true;
+			ValueItem args = {_a, _b};
+			return (int8_t)AttachA::cxxCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->compare,_a,_b);
+		}
+		else throw NotImplementedException();
+	case VTableMode::CXX:
+	default:
+		throw NotImplementedException();
+	}	
+}
+int8_t Structure::compare_refrence(Structure* a, Structure* b){
+	ptrdiff_t diff = (char*)a - (char*)b;
+	return 
+		diff < 0 ? -1 :
+		diff > 0 ? 1 :
+		0;
+}
+int8_t Structure::compare_object(Structure* a, Structure* b){
+	if(a == b)
+		return 0;
+	size_t a_count;
+	size_t b_count;
+	Structure::Item* a_items = a->get_items(a_count);
+	Structure::Item* b_items = b->get_items(b_count);
+	if(a_count != b_count)
+		return -1;
+	for(size_t i = 0; i < a_count; i++){
+		Item* a_item = a_items+i;
+		Item* b_item = b_items+i;
+		if(a_item->type.vtype != b_item->type.vtype)
+			return -1;
+		switch(a_item->type.vtype){
+		case VType::noting:
+			break;
+		case VType::boolean:
+		case VType::i8:
+		case VType::i16:
+		case VType::i32:
+		case VType::i64:
+		case VType::ui8:
+		case VType::ui16:
+		case VType::ui32:
+		case VType::ui64:
+		case VType::flo:
+		case VType::doub:
+		case VType::undefined_ptr:
+		case VType::type_identifier:
+		case VType::time_point:{
+			auto a_value = a->_static_value_get(a_item);
+			auto b_value = a->_static_value_get(b_item);
+			auto res = compareValue(a_value.meta, b_value.meta, a_value.val, b_value.val);
+			if(res.first) break;
+			else if(res.second) return -1;
+			else return 1;
+		}
+		default:
+			auto a_value = a->_static_value_get_ref(a_item);
+			auto b_value = a->_static_value_get_ref(b_item);
+			auto res = compareValue(a_value.meta, b_value.meta, a_value.val, b_value.val);
+			if(res.first) break;
+			else if(res.second) return -1;
+			else return 1;
+		}
+	}
+	return 0;
+}
+int8_t Structure::compare_full(Structure* a, Structure* b){
+	int8_t res = compare(a, b);
+	if(res != 0) return res;
+	return compare_object(a, b);
+}
+void* Structure::get_raw_data(){
+	return raw_data;
+}
+std::string Structure::get_name(){
+	switch (vtable_mode) {
+	case VTableMode::disabled:
+		return "";
+	case VTableMode::AttachAVirtualTable:
+		return reinterpret_cast<AttachAVirtualTable*>(get_vtable())->getName();
+	case VTableMode::AttachADynamicVirtualTable:
+		return reinterpret_cast<AttachADynamicVirtualTable*>(get_vtable())->name;
+	case VTableMode::CXX:
+	default:
+		throw NotImplementedException();
+	}
+}
+#pragma endregion
