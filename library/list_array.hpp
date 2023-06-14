@@ -940,6 +940,9 @@ private:
 			return *this;
 		}
 		conexpr dynamic_arr& operator=(const dynamic_arr& copy) {
+			clear();
+			if(!copy._size)
+				return *this;
 			T* tmp = (arr = arr_end = new arr_block<T>(nullptr, _size = copy._size, nullptr))->arr_contain;
 			size_t i = 0;
 			for (auto& it : copy)
