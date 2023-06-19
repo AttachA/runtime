@@ -7,536 +7,712 @@
 #include "../AttachA_CXX.hpp"
 #include "../../configuration/agreement/symbols.hpp"
 namespace parallel {
-	ProxyClassDefine define_ConditionVariable;
-	ProxyClassDefine define_Mutex;
-	ProxyClassDefine define_Semaphore;
-	ProxyClassDefine define_ConcurentFile;
-	ProxyClassDefine define_EventSystem;
-	ProxyClassDefine define_TaskLimiter;
-	ProxyClassDefine define_TaskQuery;
-	ProxyClassDefine define_ValueMonitor;
-	ProxyClassDefine define_ValueChangeMonitor;
+	AttachAVirtualTable* define_ConditionVariable;
+	AttachAVirtualTable* define_Mutex;
+	AttachAVirtualTable* define_Semaphore;
+	AttachAVirtualTable* define_ConcurentFile;
+	AttachAVirtualTable* define_EventSystem;
+	AttachAVirtualTable* define_TaskLimiter;
+	AttachAVirtualTable* define_TaskQuery;
+	AttachAVirtualTable* define_Task;
+	AttachAVirtualTable* define_TaskResultIterator;
+	AttachAVirtualTable* define_TaskGroup;
 
-	template<class Class_>
-	inline typed_lgr<Class_> getClass(ValueItem* vals) {
-		vals->getAsync();
-		if (vals->meta.vtype == VType::proxy)
-			return (*(typed_lgr<Class_>*)(((ProxyClass*)vals->getSourcePtr()))->class_ptr);
-		else
-			throw InvalidOperation("That function used only in proxy class");
+	template<size_t args_off>
+	void parseArgumentsToTask(ValueItem* args, uint32_t len, typed_lgr<FuncEnviropment>& func, typed_lgr<FuncEnviropment>& fault_func, std::chrono::high_resolution_clock::time_point& timeout, bool& used_task_local, ValueItem& arguments){
+		timeout = std::chrono::high_resolution_clock::time_point::min();
+		used_task_local = false;
+
+		AttachA::excepted(args[args_off], VType::function);
+		func = *args[args_off].funPtr();
+
+		if (len > args_off + 2) if(args[args_off + 2].meta.vtype != VType::noting){
+			AttachA::excepted(args[args_off + 2], VType::function);
+			fault_func = *args[args_off + 2].funPtr();
+		}
+		if(len > args_off + 3) if(args[args_off + 3].meta.vtype != VType::noting){
+			if(args[args_off + 3].meta.vtype == VType::time_point)
+				timeout = (std::chrono::high_resolution_clock::time_point)args[args_off + 3];
+			else
+				timeout = std::chrono::high_resolution_clock::now() + std::chrono::milliseconds((uint64_t)args[args_off + 3]);
+		}
+		if(len > args_off + 4) if(args[args_off + 4].meta.vtype != VType::noting)
+			used_task_local = (bool)args[args_off + 4];
+		arguments = len > 5 ? args[5] : nullptr;
 	}
-
 
 #pragma region ConditionVariable
-	ValueItem* funs_ConditionVariable_wait(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				switch (len) {
-				case 1: {
-					run_time::threading::mutex mt;
-					MutexUnify unif(mt);
-					std::unique_lock lock(unif);
-					getClass<TaskConditionVariable>(vals)->wait(lock);
-					return nullptr;
-				}
-				case 2: {
-					if (vals[1].meta.vtype == VType::proxy) {
-						if (AttachA::Interface::name(vals[1]) == "mutex") {
-							auto tmp = getClass<TaskMutex>(vals + 1);
-							MutexUnify unif(*tmp.getPtr());
-							ValueItem* ret = nullptr;
-							std::unique_lock lock(unif, std::adopt_lock);
-							getClass<TaskConditionVariable>(vals)->wait(lock);
-							lock.release();
-						}
-						else
-							throw  InvalidArguments("That function recuive [class ptr] and optional [mutex]");
-					}
-					else {
-						run_time::threading::mutex mt;
-						MutexUnify unif(mt);
-						std::unique_lock lock(unif);
-						return new ValueItem(getClass<TaskConditionVariable>(vals)->wait_for(lock,(size_t)vals[1]));
-					}
-				}
-				case 3:
-					if (vals[1].meta.vtype == VType::proxy) {
-						if (AttachA::Interface::name(vals[1]) == "mutex") {
-							auto tmp = getClass<TaskMutex>(vals + 1);
-
-							MutexUnify unif(*tmp.getPtr());
-							ValueItem* ret = nullptr;
-							{
-								std::unique_lock lock(unif, std::adopt_lock);
-								ret = new ValueItem(getClass<TaskConditionVariable>(vals)->wait_for(lock, (size_t)vals[2]));
-								lock.release();
-							}
-							return ret;
-						}
-						else throw InvalidArguments("That function recuive [class ptr], optional [mutex] and optional [milliseconds to timeout]");
-					}
-					else throw InvalidArguments("That function recuive [class ptr], optional [mutex] and optional [milliseconds to timeout]");
-				default:
-					throw InvalidArguments("That function recuive [class ptr] and optional [milliseconds to timeout]");
-				}
+	AttachAFun(funs_ConditionVariable_wait, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskConditionVariable>>(args[0], define_ConditionVariable);
+		switch (len) {
+		case 1:{
+			run_time::threading::mutex mt;
+			MutexUnify unif(mt);
+			std::unique_lock lock(unif);
+			class_.wait(lock);
+			break;
+		}
+		case 2:{
+			if (args[1].meta.vtype == VType::struct_) {
+				auto& mutex = AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[1], define_Mutex);
+				MutexUnify unif(*mutex);
+				std::unique_lock lock(unif, std::adopt_lock);
+				class_.wait(lock);
+				lock.release();
+				break;
+			}
+			else if(args[1].meta.vtype == VType::time_point){
+				run_time::threading::mutex mt;
+				MutexUnify unif(mt);
+				std::unique_lock lock(unif);
+				auto res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[1]);
+				lock.release();
+				return res;
+			}
+			else{
+				run_time::threading::mutex mt;
+				MutexUnify unif(mt);
+				std::unique_lock lock(unif);
+				return class_.wait_for(lock, (size_t)args[1]);
 			}
 		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_ConditionVariable_wait_until(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				switch (len) {
-				case 2: {
-					run_time::threading::mutex mt;
-					MutexUnify unif(mt);
-					std::unique_lock lock(unif);
-					return new ValueItem(getClass<TaskConditionVariable>(vals)->wait_until(lock, (std::chrono::high_resolution_clock::time_point)vals[1]));
-				}
-				case 3:
-					if (vals[1].meta.vtype == VType::proxy) {
-						if (AttachA::Interface::name(vals[1]) == "mutex") {
-							auto tmp = getClass<TaskMutex>(vals + 1);
-							MutexUnify unif(*tmp.getPtr());
-							ValueItem* ret = nullptr;
-							{
-								std::unique_lock lock(unif, std::adopt_lock);
-								ret = new ValueItem(getClass<TaskConditionVariable>(vals)->wait_until(lock, (std::chrono::high_resolution_clock::time_point)vals[2]));
-								lock.release();
-							}
-							return ret;
-						}
-						else
-							throw  InvalidArguments("That function recuive [class ptr], optional [mutex] and optional  [milliseconds to timeout] ");
-					}
-				default:
-					throw InvalidArguments("That function recuive only [class ptr], [mutex] and [time point value in nanoseconds] or [class ptr] and [time point value in nanoseconds]");
-				}
-			}
+		case 3:
+		default:{
+			auto& mutex = AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[1], define_Mutex);
+			MutexUnify unif(*mutex);
+			std::unique_lock lock(unif, std::adopt_lock);
+			bool res;
+			if(args[2].meta.vtype == VType::time_point)
+				res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[2]);
+			else
+				res = class_.wait_for(lock, (size_t)args[2]);
+			lock.release();
+			return res;
 		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_ConditionVariable_notify_one(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				getClass<TaskConditionVariable>(vals)->notify_one();
-				return nullptr;
-			}
 		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_ConditionVariable_notify_all(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				getClass<TaskConditionVariable>(vals)->notify_one();
-				return nullptr;
-			}
+	})
+	
+	AttachAFun(funs_ConditionVariable_wait_until, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskConditionVariable>>(args[0], define_ConditionVariable);
+		switch (len) {
+		case 2:{
+			run_time::threading::mutex mt;
+			MutexUnify unif(mt);
+			std::unique_lock lock(unif);
+			return class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[1]);
 		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
+		case 3:
+		default:{
+			auto& mutex = AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[1], define_Mutex);
+			MutexUnify unif(*mutex);
+			std::unique_lock lock(unif, std::adopt_lock);
+			auto res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[2]);
+			lock.release();
+			return res;
+		}
+		}
+	})
+	AttachAFun(funs_ConditionVariable_notify_one, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskConditionVariable>>(args[0], define_ConditionVariable);
+		class_.notify_one();
+	})
+	AttachAFun(funs_ConditionVariable_notify_all, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskConditionVariable>>(args[0], define_ConditionVariable);
+		class_.notify_all();
+	})
 
 	void init_ConditionVariable() {
-		define_ConditionVariable.copy = AttachA::Interface::special::proxyCopy<TaskConditionVariable, true>;
-		define_ConditionVariable.destructor = AttachA::Interface::special::proxyDestruct<TaskConditionVariable, true>;
-		define_ConditionVariable.name = "condition_variable";
-		define_ConditionVariable.funs["wait"] = { new FuncEnviropment(funs_ConditionVariable_wait,false),false,ClassAccess::pub };
-		define_ConditionVariable.funs["wait_until"] = { new FuncEnviropment(funs_ConditionVariable_wait_until,false),false,ClassAccess::pub };
-		define_ConditionVariable.funs["notify_one"] = { new FuncEnviropment(funs_ConditionVariable_notify_one,false),false,ClassAccess::pub };
-		define_ConditionVariable.funs["notify_all"] = { new FuncEnviropment(funs_ConditionVariable_notify_all,false),false,ClassAccess::pub };
+		define_ConditionVariable = AttachA::Interface::createTable<typed_lgr<TaskConditionVariable>>("condition_variable",
+			AttachA::Interface::direct_method("wait", funs_ConditionVariable_wait),
+			AttachA::Interface::direct_method("wait_until", funs_ConditionVariable_wait_until),
+			AttachA::Interface::direct_method("notify_one", funs_ConditionVariable_notify_one),
+			AttachA::Interface::direct_method("notify_all", funs_ConditionVariable_notify_all)
+		);
+		AttachA::Interface::typeVTable<typed_lgr<TaskConditionVariable>>() = define_ConditionVariable;
 	}
 #pragma endregion
 #pragma region Mutex
-	ValueItem* funs_Mutex_lock(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				getClass<TaskMutex>(vals)->lock();
-				return nullptr;
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_Mutex_unlock(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				getClass<TaskMutex>(vals)->unlock();
-				return nullptr;
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_Mutex_try_lock(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				if(len == 1)
-					return new ValueItem(getClass<TaskMutex>(vals)->try_lock());
-				else
-					return new ValueItem(getClass<TaskMutex>(vals)->try_lock_for((size_t)vals[1]));
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_Mutex_try_lock_until(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				if (len >= 2)
-					return new ValueItem(getClass<TaskMutex>(vals)->try_lock_until((std::chrono::high_resolution_clock::time_point)vals[1]));
-				else
-					throw InvalidArguments("That function recuive only [class ptr] and [time point value in nanoseconds]");
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_Mutex_is_locked(ValueItem* vals, uint32_t len) {
-		if (len)
-			if (vals->meta.vtype == VType::proxy)
-				return new ValueItem((uint8_t)getClass<TaskMutex>(vals)->is_locked());
-		throw InvalidOperation("That function used only in proxy class");
-	}
+	AttachAFun(funs_Mutex_lock, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
+		class_.lock();
+	})
+	AttachAFun(funs_Mutex_unlock, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
+		class_.unlock();
+	})
+	AttachAFun(funs_Mutex_try_lock, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
+		if(len == 1)
+			return class_.try_lock();
+		else
+			return class_.try_lock_for((size_t)args[1]);
+	})
+	AttachAFun(funs_Mutex_try_lock_until, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
+		return class_.try_lock_until((std::chrono::high_resolution_clock::time_point)args[1]);
+	})
+	AttachAFun(funs_Mutex_is_locked, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
+		return class_.is_locked();
+	})
 	void init_Mutex() {
-		define_Mutex.copy = AttachA::Interface::special::proxyCopy<TaskMutex, true>;
-		define_Mutex.destructor = AttachA::Interface::special::proxyDestruct<TaskMutex, true>;
-		define_Mutex.name = "mutex";
-		define_Mutex.funs["lock"] = { new FuncEnviropment(funs_Mutex_lock,false),false,ClassAccess::pub };
-		define_Mutex.funs["unlock"] = { new FuncEnviropment(funs_Mutex_unlock,false),false,ClassAccess::pub };
-		define_Mutex.funs["try_lock"] = { new FuncEnviropment(funs_Mutex_try_lock,false),false,ClassAccess::pub };
-		define_Mutex.funs["try_lock_until"] = { new FuncEnviropment(funs_Mutex_try_lock_until,false),false,ClassAccess::pub };
-		define_Mutex.funs["is_locked"] = { new FuncEnviropment(funs_Mutex_is_locked,false),false,ClassAccess::pub };
+		define_Mutex = AttachA::Interface::createTable<typed_lgr<TaskMutex>>("mutex",
+			AttachA::Interface::direct_method("lock", funs_Mutex_lock),
+			AttachA::Interface::direct_method("unlock", funs_Mutex_unlock),
+			AttachA::Interface::direct_method("try_lock", funs_Mutex_try_lock),
+			AttachA::Interface::direct_method("try_lock_until", funs_Mutex_try_lock_until),
+			AttachA::Interface::direct_method("is_locked", funs_Mutex_is_locked)
+		);
+		AttachA::Interface::typeVTable<typed_lgr<TaskMutex>>() = define_Mutex;
 	}
 #pragma endregion
 #pragma region Semaphore
-	ValueItem* funs_Semaphore_lock(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				getClass<TaskSemaphore>(vals)->lock();
-				return nullptr;
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_Semaphore_release(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				getClass<TaskSemaphore>(vals)->release();
-				return nullptr;
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_Semaphore_release_all(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				getClass<TaskSemaphore>(vals)->release_all();
-				return nullptr;
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_Semaphore_try_lock(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				if(len==1)
-					return new ValueItem(getClass<TaskSemaphore>(vals)->try_lock());
-				else
-					return new ValueItem(getClass<TaskSemaphore>(vals)->try_lock_for((size_t)vals[1]));
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_Semaphore_try_lock_until(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				if (len >= 2)
-					return new ValueItem(getClass<TaskSemaphore>(vals)->try_lock_until((std::chrono::high_resolution_clock::time_point)vals[1]));
-				else
-					throw InvalidArguments("That function recuive only [class ptr] and [time point value in nanoseconds]");
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_Semaphore_is_locked(ValueItem* vals, uint32_t len) {
-		if (len)
-			if (vals->meta.vtype == VType::proxy)
-				return new ValueItem((uint8_t)getClass<TaskSemaphore>(vals)->is_locked());
-		throw InvalidOperation("That function used only in proxy class");
-	}
+	AttachAFun(funs_Semaphore_lock, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskSemaphore>>(args[0], define_Semaphore);
+		class_.lock();
+	})
+	AttachAFun(funs_Semaphore_release, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskSemaphore>>(args[0], define_Semaphore);
+		class_.release();
+	})
+	AttachAFun(funs_Semaphore_release_all, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskSemaphore>>(args[0], define_Semaphore);
+		class_.release_all();
+	})
+	AttachAFun(funs_Semaphore_try_lock, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskSemaphore>>(args[0], define_Semaphore);
+		if(len == 1)
+			return class_.try_lock();
+		else
+			return class_.try_lock_for((size_t)args[1]);
+	})
+	AttachAFun(funs_Semaphore_try_lock_until, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskSemaphore>>(args[0], define_Semaphore);
+		return class_.try_lock_until((std::chrono::high_resolution_clock::time_point)args[1]);
+	})
+	AttachAFun(funs_Semaphore_is_locked, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskSemaphore>>(args[0], define_Semaphore);
+		return class_.is_locked();
+	})
 
 	void init_Semaphore() {
-		define_Semaphore.copy = AttachA::Interface::special::proxyCopy<TaskSemaphore, true>;
-		define_Semaphore.destructor = AttachA::Interface::special::proxyDestruct<TaskSemaphore, true>;
-		define_Semaphore.name = "semaphore";
-		define_Semaphore.funs["lock"] = { new FuncEnviropment(funs_Semaphore_lock,false),false,ClassAccess::pub };
-		define_Semaphore.funs["release"] = { new FuncEnviropment(funs_Semaphore_release,false),false,ClassAccess::pub };
-		define_Semaphore.funs["release_all"] = { new FuncEnviropment(funs_Semaphore_release_all,false),false,ClassAccess::pub };
-		define_Semaphore.funs["try_lock"] = { new FuncEnviropment(funs_Semaphore_try_lock,false),false,ClassAccess::pub };
-		define_Semaphore.funs["try_lock_until"] = { new FuncEnviropment(funs_Semaphore_try_lock_until,false),false,ClassAccess::pub };
-		define_Semaphore.funs["is_locked"] = { new FuncEnviropment(funs_Semaphore_is_locked,false),false,ClassAccess::pub };
+		define_Semaphore = AttachA::Interface::createTable<typed_lgr<TaskSemaphore>>("semaphore",
+			AttachA::Interface::direct_method("lock", funs_Semaphore_lock),
+			AttachA::Interface::direct_method("release", funs_Semaphore_release),
+			AttachA::Interface::direct_method("release_all", funs_Semaphore_release_all),
+			AttachA::Interface::direct_method("try_lock", funs_Semaphore_try_lock),
+			AttachA::Interface::direct_method("try_lock_until", funs_Semaphore_try_lock_until),
+			AttachA::Interface::direct_method("is_locked", funs_Semaphore_is_locked)
+		);
+		AttachA::Interface::typeVTable<typed_lgr<TaskSemaphore>>() = define_Semaphore;
 	}
 #pragma endregion
 #pragma region EventSystem
-	ValueItem* funs_EventSystem_operator_add(ValueItem* vals, uint32_t len) {
-		if(len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] and [function ptr]");
-		if (vals->meta.vtype == VType::proxy) {
-			auto fun = vals[1].funPtr();
-			if (!fun) 
-				throw InvalidArguments("That function recuive only [class ptr] and [function ptr]");
-			getClass<EventSystem>(vals)->operator+=(*fun);
-			return nullptr;
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_EventSystem_join(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [function ptr] [optional is_async] and [optional enum Priorithy]");
-		if (vals->meta.vtype == VType::proxy) {
-			auto fun = vals[1].funPtr();
-			bool as_async = len > 2 ? (bool)vals[2] : false;
-			EventSystem::Priorithy priorithy = len > 3 ? (EventSystem::Priorithy)(uint8_t)vals[3] : EventSystem::Priorithy::avg;
-			if (!fun)
-				throw InvalidArguments("That function recuive only [class ptr] [function ptr] [optional is_async] and [optional enum Priorithy]");
-			getClass<EventSystem>(vals)->join(*fun, as_async, priorithy);
-			return nullptr;
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_EventSystem_leave(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [function ptr] [optional is_async] and [optional enum Priorithy]");
-		if (vals->meta.vtype == VType::proxy) {
-			auto fun = vals[1].funPtr();
-			bool as_async = len > 2 ? (bool)vals[2] : false;
-			EventSystem::Priorithy priorithy = len > 3 ? (EventSystem::Priorithy)(uint8_t)vals[3] : EventSystem::Priorithy::avg;
-			if (!fun)
-				throw InvalidArguments("That function recuive only [class ptr] [function ptr] [optional is_async] and [optional enum Priorithy]");
-			getClass<EventSystem>(vals)->leave(*fun, as_async, priorithy);
-			return nullptr;
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-
+	AttachAFun(funs_EventSystem_operator_add, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
+		AttachA::excepted(args[1], VType::function);
+		auto& fun = *args[1].funPtr();
+		class_ += fun;
+	})
+	AttachAFun(funs_EventSystem_join, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
+		AttachA::excepted(args[1], VType::function);
+		auto& fun = *args[1].funPtr();
+		bool as_async = len > 2 ? (bool)args[2] : false;
+		EventSystem::Priorithy priorithy = len > 3 ? (EventSystem::Priorithy)(uint8_t)args[3] : EventSystem::Priorithy::avg;
+		class_.join(fun, as_async, priorithy);
+	})
+	AttachAFun(funs_EventSystem_leave, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
+		AttachA::excepted(args[1], VType::function);
+		auto& fun = *args[1].funPtr();
+		bool as_async = len > 2 ? (bool)args[2] : false;
+		EventSystem::Priorithy priorithy = len > 3 ? (EventSystem::Priorithy)(uint8_t)args[3] : EventSystem::Priorithy::avg;
+		class_.leave(fun, as_async, priorithy);
+	})
 	ValueItem __funs_EventSystem_get_values0(ValueItem* vals, uint32_t len) {
-		ValueItem values;
 		if (len > 2) {
 			size_t size = len - 1;
 			ValueItem* args = new ValueItem[size]{};
+			std::unique_ptr<ValueItem[]> args_holder(args);
 			for (uint32_t i = 0; i < size; i++)
 				args[i] = vals[i + 1];
-			values = ValueItem(args, size, no_copy);
+			return ValueItem(args_holder.release(), size, no_copy);
 		}
-		return values;
+		return nullptr;
 	}
-	ValueItem* funs_EventSystem_notify(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive [class ptr] [any]...");
-		if (vals->meta.vtype == VType::proxy) {
-			auto compacted = __funs_EventSystem_get_values0(vals, len);
-			return new ValueItem(getClass<EventSystem>(vals)->notify(compacted));
+	AttachAFun(funs_EventSystem_notify, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
+		if(len == 2)
+			return class_.notify(args[1]);
+		else{
+			ValueItem values = __funs_EventSystem_get_values0(args, len);
+			return class_.notify(values);
 		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_EventSystem_sync_notify(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive [class ptr] [any]...");
-		if (vals->meta.vtype == VType::proxy) {
-			auto compacted = __funs_EventSystem_get_values0(vals, len);
-			return new ValueItem(getClass<EventSystem>(vals)->sync_notify(compacted));
+	})
+	AttachAFun(funs_EventSystem_sync_notify, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
+		if(len == 2)
+			return class_.sync_notify(args[1]);
+		else{
+			ValueItem values = __funs_EventSystem_get_values0(args, len);
+			return class_.sync_notify(values);
 		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_EventSystem_await_notify(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive [class ptr] [any]...");
-		if (vals->meta.vtype == VType::proxy) {
-			auto compacted = __funs_EventSystem_get_values0(vals, len);
-			return new ValueItem(getClass<EventSystem>(vals)->await_notify(compacted));
+	})
+	AttachAFun(funs_EventSystem_await_notify, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
+		if(len == 2)
+			return class_.await_notify(args[1]);
+		else{
+			ValueItem values = __funs_EventSystem_get_values0(args, len);
+			return class_.await_notify(values);
 		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_EventSystem_async_notify(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive [class ptr] [any]...");
-		if (vals->meta.vtype == VType::proxy) {
-			auto compacted = __funs_EventSystem_get_values0(vals, len);
-			return new ValueItem(getClass<EventSystem>(vals)->async_notify(compacted));
+	})
+	AttachAFun(funs_EventSystem_async_notify, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
+		if(len == 2)
+			return class_.async_notify(args[1]);
+		else{
+			ValueItem values = __funs_EventSystem_get_values0(args, len);
+			return class_.async_notify(values);
 		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-
+	})
 	void init_EventSystem() {
-		define_EventSystem.copy = AttachA::Interface::special::proxyCopy<EventSystem, true>;
-		define_EventSystem.destructor = AttachA::Interface::special::proxyDestruct<EventSystem, true>;
-		define_EventSystem.name = "event_system";
-
-		define_EventSystem.funs[symbols::structures::add_operator] = { new FuncEnviropment(funs_EventSystem_operator_add,false),false,ClassAccess::pub };
-
-		define_EventSystem.funs["join"] = { new FuncEnviropment(funs_EventSystem_join,false),false,ClassAccess::pub };
-		define_EventSystem.funs["leave"] = { new FuncEnviropment(funs_EventSystem_leave,false),false,ClassAccess::pub };
-
-		define_EventSystem.funs["notify"] = { new FuncEnviropment(funs_EventSystem_notify,false),false,ClassAccess::pub };
-		define_EventSystem.funs["sync_notify"] = { new FuncEnviropment(funs_EventSystem_sync_notify,false),false,ClassAccess::pub };
-
-		define_EventSystem.funs["await_notify"] = { new FuncEnviropment(funs_EventSystem_await_notify,false),false,ClassAccess::pub };
-		define_EventSystem.funs["async_notify"] = { new FuncEnviropment(funs_EventSystem_async_notify,false),false,ClassAccess::pub };
+		define_EventSystem = AttachA::Interface::createTable<typed_lgr<EventSystem>>("event_system",
+			AttachA::Interface::direct_method(symbols::structures::add_operator, funs_EventSystem_operator_add),
+			AttachA::Interface::direct_method("join", funs_EventSystem_join),
+			AttachA::Interface::direct_method("leave", funs_EventSystem_leave),
+			AttachA::Interface::direct_method("notify", funs_EventSystem_notify),
+			AttachA::Interface::direct_method("sync_notify", funs_EventSystem_sync_notify),
+			AttachA::Interface::direct_method("await_notify", funs_EventSystem_await_notify),
+			AttachA::Interface::direct_method("async_notify", funs_EventSystem_async_notify)
+		);
+		AttachA::Interface::typeVTable<typed_lgr<EventSystem>>() = define_EventSystem;
 	}
 #pragma endregion
 #pragma region TaskLimiter
-	ValueItem* funs_TaskLimiter_set_max_treeshold(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [count]");
-		if (vals->meta.vtype == VType::proxy) {
-			getClass<TaskLimiter>(vals)->set_max_treeshold((uint64_t)vals[1]);
-			return nullptr;
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_TaskLimiter_lock(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				getClass<TaskLimiter>(vals)->lock();
-				return nullptr;
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_TaskLimiter_unlock(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				getClass<TaskLimiter>(vals)->unlock();
-				return nullptr;
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_TaskLimiter_try_lock(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				switch (len) {
-				case 1:
-					return new ValueItem(getClass<TaskLimiter>(vals)->try_lock());
-				case 2:
-					return new ValueItem(getClass<TaskLimiter>(vals)->try_lock_for((size_t)vals[1]));
-				default:
-					throw InvalidArguments("That function recuive only [class ptr] and optional [milliseconds to timeout]");
-				}
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_TaskLimiter_try_lock_until(ValueItem* vals, uint32_t len) {
-		if (len) {
-			if (vals->meta.vtype == VType::proxy) {
-				if (len >= 2)
-					return new ValueItem(getClass<TaskLimiter>(vals)->try_lock_until((std::chrono::high_resolution_clock::time_point)vals[1]));
-				else
-					throw InvalidArguments("That function recuive only [class ptr] and [time point value in nanoseconds]");
-			}
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_TaskLimiter_is_locked(ValueItem* vals, uint32_t len) {
-		if (len)
-			if (vals->meta.vtype == VType::proxy)
-				return new ValueItem(getClass<TaskLimiter>(vals)->is_locked());
-		throw InvalidOperation("That function used only in proxy class");
-	}
+	AttachAFun(funs_TaskLimiter_set_max_treeshold, 2, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
+		class_.set_max_treeshold((uint64_t)args[1]);
+	})
+	AttachAFun(funs_TaskLimiter_lock, 1, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
+		class_.lock();
+	})
+	AttachAFun(funs_TaskLimiter_unlock, 1, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
+		class_.unlock();
+	})
+	AttachAFun(funs_TaskLimiter_try_lock, 1, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
+		if(len == 1)
+			return class_.try_lock();
+		else
+			return class_.try_lock_for((size_t)args[1]);
+	})
+	AttachAFun(funs_TaskLimiter_try_lock_until, 2, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
+		return class_.try_lock_until((std::chrono::high_resolution_clock::time_point)args[1]);
+	})
+	AttachAFun(funs_TaskLimiter_is_locked, 1, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
+		return class_.is_locked();
+	})
 	void init_TaskLimiter() {
-		define_TaskLimiter.copy = AttachA::Interface::special::proxyCopy<TaskLimiter, true>;
-		define_TaskLimiter.destructor = AttachA::Interface::special::proxyDestruct<TaskLimiter, true>;
-		define_TaskLimiter.name = "task_limiter";
-		define_TaskLimiter.funs["set_max_treeshold"] = { new FuncEnviropment(funs_TaskLimiter_set_max_treeshold,false),false,ClassAccess::pub };
-		define_TaskLimiter.funs["lock"] = { new FuncEnviropment(funs_TaskLimiter_lock,false),false,ClassAccess::pub };
-		define_TaskLimiter.funs["unlock"] = { new FuncEnviropment(funs_TaskLimiter_unlock,false),false,ClassAccess::pub };
-		define_TaskLimiter.funs["try_lock"] = { new FuncEnviropment(funs_TaskLimiter_try_lock,false),false,ClassAccess::pub };
-		define_TaskLimiter.funs["try_lock_until"] = { new FuncEnviropment(funs_TaskLimiter_try_lock_until,false),false,ClassAccess::pub };
-		define_TaskLimiter.funs["is_locked"] = { new FuncEnviropment(funs_TaskLimiter_is_locked,false),false,ClassAccess::pub };
+		define_TaskLimiter = AttachA::Interface::createTable<typed_lgr<TaskLimiter>>("task_limiter",
+			AttachA::Interface::direct_method("set_max_treeshold", funs_TaskLimiter_set_max_treeshold),
+			AttachA::Interface::direct_method("lock", funs_TaskLimiter_lock),
+			AttachA::Interface::direct_method("unlock", funs_TaskLimiter_unlock),
+			AttachA::Interface::direct_method("try_lock", funs_TaskLimiter_try_lock),
+			AttachA::Interface::direct_method("try_lock_until", funs_TaskLimiter_try_lock_until),
+			AttachA::Interface::direct_method("is_locked", funs_TaskLimiter_is_locked)
+		);
+		AttachA::Interface::typeVTable<typed_lgr<TaskLimiter>>() = define_TaskLimiter;
 	}
 #pragma endregion
 #pragma region TaskQuery
-	ValueItem* funs_TaskQuery_add_task(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive [class ptr] [[function], optional [fault function], optional [timeout], optional [use task local]], optional [any args]");
-		if (vals->meta.vtype == VType::proxy) {
-			ValueItem& val = vals[1];
-			typed_lgr<FuncEnviropment> func;
-			typed_lgr<FuncEnviropment> fault_func;
-			std::chrono::steady_clock::time_point timeout = std::chrono::steady_clock::time_point::min();
-			bool used_task_local = false;
-			val.getAsync();
-			if(val.meta.vtype == VType::faarr || val.meta.vtype == VType::saarr) {
-				auto arr = (ValueItem*)val.getSourcePtr();
-				if (arr->meta.vtype == VType::function)
-					func = *arr->funPtr();
-				else
-					throw InvalidArguments("That function recuive [class ptr] [[function], optional [fault function], optional [timeout], optional [use task local]], optional [any args]");
-
-				if(val.meta.val_len > 1 && arr[1].meta.vtype == VType::function) 
-					fault_func = *arr[1].funPtr();
-				if(val.meta.val_len > 2 && arr[1].meta.vtype == VType::time_point)
-					timeout = (std::chrono::steady_clock::time_point)arr[2];
-				if(val.meta.val_len > 3)
-					used_task_local = (bool)arr[3];
-			}
-			ValueItem args = (len == 3) ? vals[2] : ValueItem();
-			return new ValueItem(new typed_lgr(getClass<TaskQuery>(vals)->add_task(func, args,used_task_local,fault_func, timeout)), VType::async_res, no_copy);
-		}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-
-	ValueItem* funs_TaskQuery_enable(ValueItem* vals, uint32_t len) {
-		if (len == 1)
-			if (vals->meta.vtype == VType::proxy){
-				getClass<TaskQuery>(vals)->enable();
-				return nullptr;
-			}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_TaskQuery_disable(ValueItem* vals, uint32_t len) {
-		if (len == 1)
-			if (vals->meta.vtype == VType::proxy){
-				getClass<TaskQuery>(vals)->disable();
-				return nullptr;
-			}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_TaskQuery_in_query(ValueItem* vals, uint32_t len) {
-		if (len == 2)
-			if (vals->meta.vtype == VType::proxy){
-				if(vals[1].meta.vtype != VType::async_res)
-					throw InvalidArguments("That function recuive [class ptr] and [async result (task)]");
-				return new ValueItem(getClass<TaskQuery>(vals)->in_query(*(typed_lgr<Task>*)vals[1].getSourcePtr()));
-			}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_TaskQuery_set_max_at_execution(ValueItem* vals, uint32_t len) {
-		if (len == 2)
-			if (vals->meta.vtype == VType::proxy){
-				getClass<TaskQuery>(vals)->set_max_at_execution((size_t)vals[1]);
-				return nullptr;
-			}
-		throw InvalidOperation("That function used only in proxy class");
-	}
-	ValueItem* funs_TaskQuery_get_max_at_execution(ValueItem* vals, uint32_t len) {
-		if (len == 1)
-			if (vals->meta.vtype == VType::proxy){
-				getClass<TaskQuery>(vals)->get_max_at_execution();
-				return nullptr;
-			}
-		throw InvalidOperation("That function used only in proxy class");
-	}
+	AttachAFun(funs_TaskQuery_add_task, 2, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskQuery>>(args[0], define_TaskQuery);
+		typed_lgr<FuncEnviropment> func;
+		typed_lgr<FuncEnviropment> fault_func;
+		std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min();
+		bool used_task_local = false;
+		ValueItem values;
+		parseArgumentsToTask<1>(args, len, func, fault_func, timeout, used_task_local, values);
+		return class_.add_task(func, values,used_task_local,fault_func, timeout);
+	})
+	AttachAFun(funs_TaskQuery_enable, 1, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskQuery>>(args[0], define_TaskQuery);
+		class_.enable();
+	})
+	AttachAFun(funs_TaskQuery_disable, 1, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskQuery>>(args[0], define_TaskQuery);
+		class_.disable();
+	})
+	AttachAFun(funs_TaskQuery_in_query, 2, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskQuery>>(args[0], define_TaskQuery);
+		AttachA::excepted(args[1], VType::async_res);
+		typed_lgr<Task>& task = *(typed_lgr<Task>*)args[1].getSourcePtr();
+		return class_.in_query(task);
+	})
+	AttachAFun(funs_TaskQuery_set_max_at_execution, 2, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskQuery>>(args[0], define_TaskQuery);
+		class_.set_max_at_execution((size_t)args[1]);
+	})
+	AttachAFun(funs_TaskQuery_get_max_at_execution, 1, {
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskQuery>>(args[0], define_TaskQuery);
+		return class_.get_max_at_execution();
+	})
 
 	void init_TaskQuery() {
-		define_TaskQuery.copy = AttachA::Interface::special::proxyCopy<TaskQuery, true>;
-		define_TaskQuery.destructor = AttachA::Interface::special::proxyDestruct<TaskQuery, true>;
-		define_TaskQuery.name = "task_query";
-		define_TaskQuery.funs["add_task"] = { new FuncEnviropment(funs_TaskQuery_add_task,false),false,ClassAccess::pub };
-		define_TaskQuery.funs["enable"] = { new FuncEnviropment(funs_TaskQuery_enable,false),false,ClassAccess::pub };
-		define_TaskQuery.funs["disable"] = { new FuncEnviropment(funs_TaskQuery_disable,false),false,ClassAccess::pub };
-		define_TaskQuery.funs["in_query"] = { new FuncEnviropment(funs_TaskQuery_in_query,false),false,ClassAccess::pub };
-		define_TaskQuery.funs["set_max_at_execution"] = { new FuncEnviropment(funs_TaskQuery_set_max_at_execution,false),false,ClassAccess::pub };
-		define_TaskQuery.funs["get_max_at_execution"] = { new FuncEnviropment(funs_TaskQuery_get_max_at_execution,false),false,ClassAccess::pub };
+		define_TaskQuery = AttachA::Interface::createTable<typed_lgr<TaskQuery>>("task_query",
+			AttachA::Interface::direct_method("add_task", funs_TaskQuery_add_task),
+			AttachA::Interface::direct_method("enable", funs_TaskQuery_enable),
+			AttachA::Interface::direct_method("disable", funs_TaskQuery_disable),
+			AttachA::Interface::direct_method("in_query", funs_TaskQuery_in_query),
+			AttachA::Interface::direct_method("set_max_at_execution", funs_TaskQuery_set_max_at_execution),
+			AttachA::Interface::direct_method("get_max_at_execution", funs_TaskQuery_get_max_at_execution)
+		);
+		AttachA::Interface::typeVTable<typed_lgr<TaskQuery>>() = define_TaskQuery;
 	}
 #pragma endregion
+#pragma region TaskResultIterator
+	struct TaskResultIterator {
+		typed_lgr<Task> task;
+		ptrdiff_t index = -1;
+		bool next(){
+			if(task->end_of_life){
+				if(task->fres.results.size() > ++index)
+					return true;
+				
+			}else{
+				if(Task::has_result(task, 1 + index)){
+					++index;
+					return true;
+				}else{
+					ValueItem* res = Task::get_result(task, 1 + index);
+					delete res;
+					if(Task::has_result(task, 1 + index)){
+						++index;
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+		bool prev(){
+			if(index > 0){
+				--index;
+				return true;
+			}
+			return false;
+		}
+		ValueItem get(){
+			return task->fres.results[index];
+		}
+		TaskResultIterator begin(){
+			return TaskResultIterator{task, -1};
+		}
+		TaskResultIterator end(){
+			if(!task->end_of_life)
+				Task::await_task(task);
+			return TaskResultIterator{task, (ptrdiff_t)task->fres.results.size()};
+		}
+	};
+	AttachAFun(funs_TaskResultIterator_next, 1, {
+		auto& class_ = AttachA::Interface::getExtractAs<TaskResultIterator>(args[0], define_TaskResultIterator);
+		return class_.next();
+	})
+	AttachAFun(funs_TaskResultIterator_prev, 1, {
+		auto& class_ = AttachA::Interface::getExtractAs<TaskResultIterator>(args[0], define_TaskResultIterator);
+		return class_.prev();
+	})
+	AttachAFun(funs_TaskResultIterator_get, 1, {
+		auto& class_ = AttachA::Interface::getExtractAs<TaskResultIterator>(args[0], define_TaskResultIterator);
+		return class_.get();
+	})
+	AttachAFun(funs_TaskResultIterator_begin, 1, {
+		auto& class_ = AttachA::Interface::getExtractAs<TaskResultIterator>(args[0], define_TaskResultIterator);
+		return ValueItem(AttachA::Interface::constructStructure<TaskResultIterator>(define_TaskResultIterator, class_.begin()), no_copy);
+	})
+	AttachAFun(funs_TaskResultIterator_end, 1, {
+		auto& class_ = AttachA::Interface::getExtractAs<TaskResultIterator>(args[0], define_TaskResultIterator);
+		return ValueItem(AttachA::Interface::constructStructure<TaskResultIterator>(define_TaskResultIterator, class_.end()), no_copy);
+	})
+	void init_TaskResultIterator() {
+		define_TaskResultIterator = AttachA::Interface::createTable<TaskResultIterator>("task_result_iterator",
+			AttachA::Interface::direct_method(symbols::structures::iterable::next, funs_TaskResultIterator_next),
+			AttachA::Interface::direct_method(symbols::structures::iterable::prev, funs_TaskResultIterator_prev),
+			AttachA::Interface::direct_method(symbols::structures::iterable::get, funs_TaskResultIterator_get),
+			AttachA::Interface::direct_method(symbols::structures::iterable::begin, funs_TaskResultIterator_begin),
+			AttachA::Interface::direct_method(symbols::structures::iterable::end, funs_TaskResultIterator_end)
+		);
+		AttachA::Interface::typeVTable<TaskResultIterator>() = define_TaskResultIterator;
+	}
+#pragma endregion
+#pragma region Task
+	AttachAFun(funs_Task_start, 1, {
+		Task::start(AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+	})
+	AttachAFun(funs_Task_yield_iterate, 1, {
+		return Task::yield_iterate(AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+	})
+	AttachAManagedFun(funs_Task_get_result, 1, {
+		if(len >= 2)
+			return Task::get_result(AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task), (size_t)args[1]);
+		else
+			return Task::get_result(AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+	})
+	AttachAFun(funs_Task_has_result, 1, {
+		if(len >= 2)
+			return Task::has_result(AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task), (size_t)args[1]);
+		else
+			return Task::has_result(AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+	})
+	AttachAFun(funs_Task_await_task, 1, {
+		if(len >= 2)
+			Task::await_task(AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task), (bool)args[1]);
+		else
+			Task::await_task(AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+	})
+	AttachAFun(funs_Task_await_results, 1, {
+		return Task::await_results(AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+	})
+	AttachAFun(funs_Task_notify_cancel, 1, {
+		Task::notify_cancel(AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+	})
+	AttachAFun(funs_Task_size, 1, {
+		Task& task = *AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+		std::lock_guard lock(task.no_race);
+		return task.fres.results.size();
+	})
 
+	AttachAFun(funs_Task_to_string, 1, {
+		auto& task = AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+		Task::await_task(task);
+		Task& task_ = *task;
+		ValueItem pre_res(task_.fres.results, as_refrence);
+		return (std::string)pre_res;
+	})
+	
+	AttachAFun(funs_Task_to_set, 1, {
+		auto& task = AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+		Task::await_task(task);
+		std::unordered_set<ValueItem> res;
+		for(auto& i : task->fres.results)
+			res.insert(i);
+		return res;
+	})
+
+	template<typename T>
+	AttachAFun(funs_Task_to_, 1, {
+		auto& task = AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+		if(task->fres.results.size() != 1){
+			ValueItem* res = Task::get_result(task, 0);
+			std::unique_ptr<ValueItem> res_(res);
+			return (T)*res;
+		}else
+			return (T)task->fres.results[0];
+	})
+
+	template<typename T>
+	AttachAFun(funs_Task_array_to_, 1, {
+		auto& task = AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+		Task::await_task(task);
+		if(task->fres.results.size() > UINT32_MAX)
+			throw InvalidCast("Task internal result array is too large to convert to an array");
+		else if constexpr(std::is_same_v<T, ValueItem>)
+			return ValueItem(task->fres.results.data(), task->fres.results.size());
+		else{
+			size_t len;
+			auto res = task->fres.results.convert<T>([](ValueItem& item){
+				return (T)item;
+			}).take_raw(len);
+			return ValueItem(res, len, no_copy);
+		}
+	})
+	AttachAFun(funs_Task_begin, 1, {
+		auto& task = AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+		return AttachA::Interface::constructStructure<TaskResultIterator>(define_TaskResultIterator, task, -1);
+	})
+	AttachAFun(funs_Task_end, 1, {
+		auto& task = AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+		Task::await_task(task);
+		return AttachA::Interface::constructStructure<TaskResultIterator>(define_TaskResultIterator, task, task->fres.results.size());
+	})
+
+	void init_Task(){
+		define_Task = AttachA::Interface::createTable<typed_lgr<Task>>("task",
+			AttachA::Interface::direct_method("start", funs_Task_start),
+			AttachA::Interface::direct_method("yield_iterate", funs_Task_yield_iterate),
+			AttachA::Interface::direct_method("get_result", funs_Task_get_result),
+			AttachA::Interface::direct_method(symbols::structures::index_operator, funs_Task_get_result),
+			AttachA::Interface::direct_method(symbols::structures::size, funs_Task_size),
+			AttachA::Interface::direct_method("has_result", funs_Task_has_result),
+			AttachA::Interface::direct_method("await_task", funs_Task_await_task),
+			AttachA::Interface::direct_method("await_results", funs_Task_await_results),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_uarr, funs_Task_await_results),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_string, funs_Task_to_string),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui8, funs_Task_to_<uint8_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui16, funs_Task_to_<uint16_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui32, funs_Task_to_<uint32_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui64, funs_Task_to_<uint64_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i8, funs_Task_to_<int8_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i16, funs_Task_to_<int16_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i32, funs_Task_to_<int32_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i64, funs_Task_to_<int64_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_float, funs_Task_to_<float>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_double, funs_Task_to_<double>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_boolean, funs_Task_to_<bool>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_timepoint, funs_Task_to_<std::chrono::high_resolution_clock::time_point>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_type_identifier, funs_Task_to_<ValueMeta>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_function, funs_Task_to_<typed_lgr<FuncEnviropment>&>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_map, funs_Task_to_<std::unordered_map<ValueItem,ValueItem>&>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_set, funs_Task_to_set),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui8_arr, funs_Task_array_to_<uint8_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui16_arr, funs_Task_array_to_<uint16_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui32_arr, funs_Task_array_to_<uint32_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui64_arr, funs_Task_array_to_<uint64_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i8_arr, funs_Task_array_to_<int8_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i16_arr, funs_Task_array_to_<int16_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i32_arr, funs_Task_array_to_<int32_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i64_arr, funs_Task_array_to_<int64_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_float_arr, funs_Task_array_to_<float>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_double_arr, funs_Task_array_to_<double>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_farr, funs_Task_array_to_<ValueItem>),
+			AttachA::Interface::direct_method(symbols::structures::iterable::begin, funs_Task_begin),
+			AttachA::Interface::direct_method(symbols::structures::iterable::end, funs_Task_end),
+			AttachA::Interface::direct_method("notify_cancel", funs_Task_notify_cancel)
+		);
+		AttachA::Interface::typeVTable<typed_lgr<Task>>() = define_Task;
+	}
+	
+#pragma endregion
+#pragma region TaskGroup
+	AttachAFun(funs_TaskGroup_start, 1, {
+		Task::start(AttachA::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup));
+	})
+	AttachAFun(funs_TaskGroup_await_multiple, 1, {
+		switch (len) {
+		case 1:
+			Task::await_multiple(AttachA::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup));
+			break;
+		case 2:
+			Task::await_multiple(AttachA::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup), (bool)args[1]);
+			break;
+		case 3:
+		default:{
+			bool release = (bool)args[2];
+			Task::await_multiple(AttachA::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup), (bool)args[1], release);
+			if(release)
+				AttachA::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup).clear();
+			break;
+		}
+		}
+	})
+	AttachAFun(funs_TaskGroup_await_results, 1, {
+		return Task::await_results(AttachA::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup));
+	})
+	AttachAFun(funs_TaskGroup_notify_cancel, 1, {
+		Task::notify_cancel(AttachA::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup));
+	})
+
+	template<typename T>
+	AttachAFun(funs_TaskGroup_array_to_, 1, {
+		auto results = Task::await_results(AttachA::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup));
+		
+		if(results.size() > UINT32_MAX)
+			throw InvalidCast("Task internal result array is too large to convert to an array");
+		else if constexpr(std::is_same_v<T, ValueItem>)
+			return ValueItem(results.data(), results.size());
+		else{
+			size_t len;
+			auto res = results.convert<T>([](ValueItem& item){return (T)item;}).take_raw(len);
+			return ValueItem(res, len, no_copy);
+		}
+	})
+	AttachAFun(funs_TaskGroup_to_set, 1, {
+		std::unordered_set<ValueItem> res;
+		for(auto& i : Task::await_results(AttachA::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup)))
+			res.insert(i);
+		return res;
+	})
+	void ___createProxy_TaskGroup__push_item(list_array<typed_lgr<Task>>& tasks, ValueItem& item){
+		switch(item.meta.vtype){
+			case VType::async_res:
+				tasks.push_back((typed_lgr<Task>&)item);
+				break;
+			case VType::struct_:
+				{
+					Structure& str = (Structure&)item;
+					if(str.get_vtable() == define_Task){
+						tasks.push_back(AttachA::Interface::getAs<typed_lgr<Task>>(str));
+						break;
+					}else if (str.get_vtable() == define_TaskGroup){
+						tasks.push_back(AttachA::Interface::getAs<list_array<typed_lgr<Task>>>(str));
+						break;
+					}else
+						break;
+				}
+			case VType::uarr:{
+				list_array<ValueItem>& arr = *(list_array<ValueItem>*)item.getSourcePtr();
+				for(auto& it : arr)
+					___createProxy_TaskGroup__push_item(tasks, it);
+				break;
+			}
+			case VType::faarr:
+			case VType::saarr:{
+				ValueItem* arr = (ValueItem*)item.getSourcePtr();
+				uint32_t len = item.meta.val_len;
+				for(uint32_t i = 0; i < len; i++)
+					___createProxy_TaskGroup__push_item(tasks, arr[i]);
+				break;
+			}
+			case VType::set:{
+				std::unordered_set<ValueItem>& set = (std::unordered_set<ValueItem>&)item;
+				for(auto& it : set)
+					___createProxy_TaskGroup__push_item(tasks, const_cast<ValueItem&>(it));
+				break;
+			}
+			case VType::map:{
+				std::unordered_map<ValueItem, ValueItem>& map = (std::unordered_map<ValueItem, ValueItem>&)item;
+				for(auto& it : map)
+					___createProxy_TaskGroup__push_item(tasks, it.second);
+				break;
+			}
+			default:
+				break;
+		}
+	}
+	AttachAFun(funs_TaskGroup_add, 1, {
+		auto& tasks = AttachA::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup);
+		for(uint32_t i = 0; i < len; i++)
+			___createProxy_TaskGroup__push_item(tasks, args[i]);
+	})
+	void init_TaskGroup() {
+		define_TaskGroup = AttachA::Interface::createTable<list_array<typed_lgr<Task>>>("task_group",
+			AttachA::Interface::direct_method("start", funs_TaskGroup_start),
+			AttachA::Interface::direct_method("await_multiple", funs_TaskGroup_await_multiple),
+			AttachA::Interface::direct_method("await_results", funs_TaskGroup_await_results),
+			AttachA::Interface::direct_method("notify_cancel", funs_TaskGroup_notify_cancel),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui8_arr, funs_TaskGroup_array_to_<uint8_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui16_arr, funs_TaskGroup_array_to_<uint16_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui32_arr, funs_TaskGroup_array_to_<uint32_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_ui64_arr, funs_TaskGroup_array_to_<uint64_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i8_arr, funs_TaskGroup_array_to_<int8_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i16_arr, funs_TaskGroup_array_to_<int16_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i32_arr, funs_TaskGroup_array_to_<int32_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_i64_arr, funs_TaskGroup_array_to_<int64_t>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_float_arr, funs_TaskGroup_array_to_<float>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_double_arr, funs_TaskGroup_array_to_<double>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_farr, funs_TaskGroup_array_to_<ValueItem>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_set, funs_TaskGroup_to_set),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_uarr, funs_TaskGroup_await_multiple),
+			AttachA::Interface::direct_method(symbols::structures::add_operator, funs_TaskGroup_add)
+		);
+		AttachA::Interface::typeVTable<list_array<typed_lgr<Task>>>() = define_TaskGroup;
+	}
+#pragma endregion
 
 
 	void init() {
@@ -546,6 +722,9 @@ namespace parallel {
 		init_EventSystem();
 		init_TaskLimiter();
 		init_TaskQuery();
+		init_TaskResultIterator();
+		init_Task();
+		init_TaskGroup();
 	}
 
 
@@ -554,38 +733,56 @@ namespace parallel {
 
 	namespace constructor {
 		ValueItem* createProxy_ConditionVariable(ValueItem*, uint32_t) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new TaskConditionVariable()), &define_ConditionVariable), VType::proxy, no_copy);
+			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<TaskConditionVariable>>(define_ConditionVariable, new TaskConditionVariable()), no_copy);
 		}
 		ValueItem* createProxy_Mutex(ValueItem*, uint32_t) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new TaskMutex()), &define_ConditionVariable), VType::proxy, no_copy);
+			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<TaskMutex>>(define_Mutex, new TaskMutex()), no_copy);
 		}
 		ValueItem* createProxy_Semaphore(ValueItem*, uint32_t) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new TaskSemaphore()), &define_Semaphore), VType::proxy, no_copy);
+			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<TaskSemaphore>>(define_Semaphore, new TaskSemaphore()), no_copy);
 		}
 
 		ValueItem* createProxy_EventSystem(ValueItem* val, uint32_t len) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new EventSystem()), &define_EventSystem), VType::proxy, no_copy);
+			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>(define_EventSystem, new EventSystem()), no_copy);
 		}
 
 		ValueItem* createProxy_TaskLimiter(ValueItem* val, uint32_t len) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new TaskLimiter()), &define_TaskLimiter), VType::proxy, no_copy);
+			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<TaskLimiter>>(define_TaskLimiter, new TaskLimiter()), no_copy);
 		}
 
 		ValueItem* createProxy_TaskQuery(ValueItem* val, uint32_t len){
-			return new ValueItem(new ProxyClass(new typed_lgr(new TaskQuery(len ? (size_t)*val : 0)), &define_TaskQuery), VType::proxy, no_copy);
+			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<TaskQuery>>(define_TaskQuery, new TaskQuery(len? (size_t)*val : 0)), no_copy);
 		}
-
-		//ProxyClass createProxy_ValueMonitor() {
-		//
-		//}
-		//ProxyClass createProxy_ValueChangeMonitor() {
-		//
-		//}
+		AttachAFun(construct_Task, 1, {
+			if(args[0].meta.vtype == VType::async_res)
+				return ValueItem(AttachA::Interface::constructStructure<typed_lgr<Task>>(define_Task, (typed_lgr<Task>&)args[0]), no_copy);
+			else if(args[0].meta.vtype == VType::function){
+				typed_lgr<FuncEnviropment> func;
+				typed_lgr<FuncEnviropment> fault_func;
+				std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min();
+				bool used_task_local = false;
+				ValueItem values;
+				parseArgumentsToTask<0>(args, len, func, fault_func, timeout, used_task_local, values);
+				return ValueItem(AttachA::Interface::constructStructure<typed_lgr<Task>>(define_Task, new Task(func,values, used_task_local,fault_func, timeout)), no_copy);
+			}
+			else
+				return ValueItem(AttachA::Interface::constructStructure<typed_lgr<Task>>(define_Task, AttachA::Interface::getExtractAs<typed_lgr<Task>>(args[0],define_Task)), no_copy);
+		})
+		ValueItem* createProxy_TaskGroup(ValueItem* val, uint32_t len) {
+			if(!len)
+				return new ValueItem(AttachA::Interface::constructStructure<list_array<typed_lgr<Task>>>(define_TaskGroup), no_copy);
+			else{
+				list_array<typed_lgr<Task>> tasks;
+				tasks.reserve_push_back(len);
+				for(uint32_t i = 0; i < len; i++)
+					___createProxy_TaskGroup__push_item(tasks, val[i]);
+				return new ValueItem(AttachA::Interface::constructStructure<list_array<typed_lgr<Task>>>(define_TaskGroup, std::move(tasks)), no_copy);
+			}
+		}
 	}
 	
 	ValueItem* createThread(ValueItem* vals, uint32_t len) {
-		if (!len)
-			throw InvalidArguments("Excepted at least one value in arguments, excepted arguments: [function] [optional any...]");
+		AttachA::arguments_range(len, 1);
 
 		if (len != 1) {
 			typed_lgr<FuncEnviropment> func = *vals->funPtr();
@@ -612,8 +809,7 @@ namespace parallel {
 		return nullptr;
 	}
 	ValueItem* createThreadAndWait(ValueItem* vals, uint32_t len) {
-		if (!len)
-			throw InvalidArguments("Excepted at least one value in arguments, excepted arguments: [function] [optional any...]");
+		AttachA::arguments_range(len, 1);
 
 		TaskConditionVariable cv;
 		TaskMutex mtx;
@@ -707,8 +903,7 @@ namespace parallel {
 
 
 	ValueItem* createAsyncThread(ValueItem* vals, uint32_t len){
-		if (!len)
-			throw InvalidArguments("Excepted at least one value in arguments, excepted arguments: [function] [optional any...]");
+		AttachA::arguments_range(len, 1);
 		typed_lgr<FuncEnviropment> func = *vals->funPtr();
 		_createAsyncThread_awaiter_struct* awaiter = nullptr;
 		try{
@@ -775,24 +970,83 @@ namespace parallel {
 	}
 
 	ValueItem* createTask(ValueItem* vals, uint32_t len){
+		AttachA::arguments_range(len, 1);
 		typed_lgr<FuncEnviropment> func;
 		typed_lgr<FuncEnviropment> fault_func;
-		std::chrono::steady_clock::time_point timeout = std::chrono::steady_clock::time_point::min();
-		bool used_task_local = false;
-		auto arr = (ValueItem*)vals->getSourcePtr();
-		if (arr->meta.vtype == VType::function)
-			func = *arr->funPtr();
-		else
-			throw InvalidArguments("That function recuive [[function], optional [fault function], optional [timeout], optional [use task local]], optional [any args]");
-
-		if(arr->meta.val_len > 1 && arr[1].meta.vtype == VType::function) 
-			fault_func = *arr[1].funPtr();
-		if(arr->meta.val_len > 2 && arr[2].meta.vtype == VType::time_point)
-			timeout = (std::chrono::steady_clock::time_point)arr[2];
-		if(arr->meta.val_len > 3)
-			used_task_local = (bool)arr[3];
-			
-		ValueItem args = (len == 3) ? vals[2] : ValueItem();
+		std::chrono::steady_clock::time_point timeout;
+		bool used_task_local;
+		ValueItem args;
+		parseArgumentsToTask<0>(vals, len, func,fault_func, timeout, used_task_local, args);
 		return new ValueItem(new typed_lgr(new Task(func, args, used_task_local, fault_func, timeout)), VType::async_res, no_copy);
+	}
+
+
+	
+	namespace this_task{
+		ValueItem* yield(ValueItem*, uint32_t){
+			Task::yield();
+			return nullptr;
+		}
+		ValueItem* yield_result(ValueItem* result, uint32_t args_len){
+			for(uint32_t i = 0; i < args_len; i++)
+				Task::result(new ValueItem(result[i]));
+			return nullptr;
+		}
+		ValueItem* sleep(ValueItem* args, uint32_t len){
+			Task::sleep((size_t)args[0]);
+			return nullptr;
+
+		}
+		ValueItem* sleep_until(ValueItem* args, uint32_t len){
+			Task::sleep_until((std::chrono::high_resolution_clock::time_point)args[0]);
+			return nullptr;
+		}
+		ValueItem* task_id(ValueItem*, uint32_t){
+			return new ValueItem(Task::task_id());
+		}
+		ValueItem* check_cancelation(ValueItem*, uint32_t){
+			Task::check_cancelation();
+			return nullptr;
+		}
+		ValueItem* self_cancel(ValueItem*, uint32_t){
+			Task::self_cancel();
+			return nullptr;
+		}
+		ValueItem* is_task(ValueItem*, uint32_t){
+			return new ValueItem(Task::is_task());
+		}
+	}
+	namespace task_runtime{
+		ValueItem* clean_up(ValueItem*, uint32_t){
+			Task::clean_up();
+			return nullptr;
+		}
+		ValueItem* create_executor(ValueItem* args, uint32_t len){
+			Task::create_executor(len ? (size_t)args[0] : 1);
+			return nullptr;
+		}
+		ValueItem* total_executors(ValueItem*, uint32_t){
+			return new ValueItem(Task::total_executors());
+		}
+		ValueItem* reduce_executor(ValueItem* args, uint32_t len){
+			Task::reduce_executor(len ? (size_t)args[0] : 1);
+			return nullptr;
+		}
+		ValueItem* become_task_executor(ValueItem*, uint32_t){
+			Task::become_task_executor();
+			return nullptr;
+		}
+		ValueItem* await_no_tasks(ValueItem* args, uint32_t len){
+			Task::await_no_tasks(len ? (bool)args[0] : false);
+			return nullptr;
+		}
+		ValueItem* await_end_tasks(ValueItem* args, uint32_t len){
+			Task::await_end_tasks(len ? (bool)args[0] : false);
+			return nullptr;
+		}
+		ValueItem* explicitStartTimer(ValueItem*, uint32_t){
+			Task::explicitStartTimer();
+			return nullptr;
+		}
 	}
 }

@@ -516,9 +516,9 @@ std::vector<uint8_t> handshake_fn(){
 
 
 ValueItem* test_server_func(ValueItem* args, uint32_t argc) {
-	ProxyClass& proxy = *(ProxyClass*)args[0].getSourcePtr();
-	ProxyClass& client_ip = *(ProxyClass*)args[1].getSourcePtr();
-	ProxyClass& local_ip = *(ProxyClass*)args[2].getSourcePtr();
+	Structure& proxy = (Structure&)args[0];
+	Structure& client_ip = (Structure&)args[1];
+	Structure& local_ip = (Structure&)args[2];
 	ValueItem msq;
 	msq = ((std::string)AttachA::Interface::makeCall(ClassAccess::pub, client_ip, "to_string")) + " " + (std::string)AttachA::Interface::makeCall(ClassAccess::pub, client_ip, "port");
 	console::printLine(&msq, 1);
@@ -550,12 +550,12 @@ ValueItem* test_server_func(ValueItem* args, uint32_t argc) {
 	return nullptr;
 }
 ValueItem* test_slow_server_http(ValueItem* args, uint32_t argc){
-	ProxyClass& proxy = *(ProxyClass*)args[0].getSourcePtr();
+	Structure& proxy = (Structure&)args[0];
 	if(!AttachA::Interface::makeCall(ClassAccess::pub, proxy, "is_closed")){
 		while(AttachA::Interface::makeCall(ClassAccess::pub, proxy, "data_available"))
 			AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref");
 		ValueItem file = AttachA::cxxCall("# file file_handle", "D:\\sample_hello_world_http_response.txt");
-		ProxyClass& file_handle = (ProxyClass&)file;
+		Structure& file_handle = (Structure&)file;
 		uint64_t file_size = (uint64_t)AttachA::Interface::makeCall(ClassAccess::pub, file_handle, "size");
 		ValueItem readed = AttachA::Interface::makeCall(ClassAccess::pub, file_handle, "read", file_size);
 		readed.getAsync();
@@ -566,7 +566,7 @@ ValueItem* test_slow_server_http(ValueItem* args, uint32_t argc){
 ValueItem file;
 
 ValueItem* test_fast_server_http(ValueItem* args, uint32_t argc){
-	ProxyClass& proxy = *(ProxyClass*)args[0].getSourcePtr();
+	Structure& proxy = (Structure&)args[0];
 	if(!AttachA::Interface::makeCall(ClassAccess::pub, proxy, "is_closed")){
 		while(AttachA::Interface::makeCall(ClassAccess::pub, proxy, "data_available"))
 			AttachA::Interface::makeCall(ClassAccess::pub, proxy, "read_available_ref");
@@ -595,7 +595,7 @@ const char _FATAL[] = "FATAL";
 const char _ERROR[] = "ERROR";
 const char _WARN[] = "WARN";
 const char _INFO[] = "INFO";
-int smain(){
+int main(){
 	unhandled_exception.join(new FuncEnviropment(logger<_FATAL>, false, false));
 	errors.join(new FuncEnviropment(logger<_ERROR>, false, false));
 	warning.join(new FuncEnviropment(logger<_WARN>, false, false));
@@ -714,7 +714,7 @@ ValueItem* _test_set_string(ValueItem* args, uint32_t argc){
 	*(std::string*)str->get_data_no_vtable() = (std::string)args[1];
 	return nullptr;
 }
-int main(){
+int xmain(){
 	auto check_res = AttachA::Interface::createProxyTable<std::string>(
 		AttachA::Interface::make_method<std::string>("ttt", (const char&(std::string::*)() const)&std::string::back)
 	);

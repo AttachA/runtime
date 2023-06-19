@@ -7,9 +7,9 @@
 #include "AttachA_CXX.hpp"
 #include "files.hpp"
 bool inited = false;
-ProxyClassDefine define_UniversalAddress;
-ProxyClassDefine define_TcpNetworkStream;
-ProxyClassDefine define_TcpNetworkBlocking;
+AttachAVirtualTable* define_UniversalAddress;
+AttachAVirtualTable* define_TcpNetworkStream;
+AttachAVirtualTable* define_TcpNetworkBlocking;
 void init_define_UniversalAddress();
 void init_define_TcpNetworkStream();
 void init_define_TcpNetworkBlocking();
@@ -73,122 +73,77 @@ namespace UniversalAddress{
 	};
 	ValueItem* _define_to_string(ValueItem* args, uint32_t len){
 		if(len < 1)
-			throw InvalidArguments("universal_address.to_string, expected 1 argument, got " + std::to_string(len));
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("universal_address.to_string, excepted proxy, got " + enum_to_string(args[0].meta.vtype));
-		ProxyClass& proxy = (ProxyClass&)args[0];
-		if(proxy.declare_ty != &define_UniversalAddress){
-			if(proxy.declare_ty->name != "universal_address")
-				throw InvalidArguments("universal_address.to_string, excepted universal_address, got " + proxy.declare_ty->name);
-			else
-				throw InvalidArguments("universal_address.to_string, excepted universal_address, got non native universal_address");
-		}
-		auto* address = (universal_address*)proxy.class_ptr;
+			throw InvalidArguments("universal_address, expected 1 argument, got " + std::to_string(len));
+		auto& address = AttachA::Interface::getExtractAs<universal_address>(args[0], define_UniversalAddress);
 		std::string result;
 		result.resize(INET6_ADDRSTRLEN);
-		if(address->ss_family == AF_INET)
-			inet_ntop(AF_INET, &((sockaddr_in*)address)->sin_addr, result.data(), INET6_ADDRSTRLEN);
-		else if(address->ss_family == AF_INET6){
-			inet_ntop(AF_INET6, &((sockaddr_in6*)address)->sin6_addr, result.data(), INET6_ADDRSTRLEN);
+		if(address.ss_family == AF_INET)
+			inet_ntop(AF_INET, &((sockaddr_in&)address).sin_addr, result.data(), INET6_ADDRSTRLEN);
+		else if(address.ss_family == AF_INET6){
+			inet_ntop(AF_INET6, &((sockaddr_in6&)address).sin6_addr, result.data(), INET6_ADDRSTRLEN);
 			if(result.starts_with("::ffff:"))
 				result = result.substr(7);
 		}
 		else
-			throw std::runtime_error("universal_address.to_string, unknown address family");
+			throw std::runtime_error("universal_address, unknown address family");
 		result.resize(strlen(result.data()));
 		
 		return new ValueItem(result);
 	}
 	ValueItem* _define_type(ValueItem* args,uint32_t len){
 		if(len < 1)
-			throw InvalidArguments("universal_address.type, expected 1 argument, got " + std::to_string(len));
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("universal_address.type, excepted proxy, got " + enum_to_string(args[0].meta.vtype));
-		ProxyClass& proxy = (ProxyClass&)args[0];
-		if(proxy.declare_ty != &define_UniversalAddress){
-			if(proxy.declare_ty->name != "universal_address")
-				throw InvalidArguments("universal_address.type, excepted universal_address, got " + proxy.declare_ty->name);
-			else
-				throw InvalidArguments("universal_address.type, excepted universal_address, got non native universal_address");
-		}
-		auto* address = (universal_address*)proxy.class_ptr;
+			throw InvalidArguments("universal_address, expected 1 argument, got " + std::to_string(len));
+		auto& address = AttachA::Interface::getExtractAs<universal_address>(args[0], define_UniversalAddress);
 		std::string result;
 		result.resize(INET6_ADDRSTRLEN);
-		if(address->ss_family == AF_INET)
+		if(address.ss_family == AF_INET)
 			return new ValueItem((uint32_t)AddressType::IPv4);
-		else if(address->ss_family == AF_INET6){
-			inet_ntop(AF_INET6, &((sockaddr_in6*)address)->sin6_addr, result.data(), INET6_ADDRSTRLEN);
+		else if(address.ss_family == AF_INET6){
+			inet_ntop(AF_INET6, &((sockaddr_in6&)address).sin6_addr, result.data(), INET6_ADDRSTRLEN);
 			if(result.starts_with("::ffff:"))
 				return new ValueItem((uint32_t)AddressType::IPv4);
 			else
 				return new ValueItem((uint32_t)AddressType::IPv6);
 		}
 		else
-			throw std::runtime_error("universal_address.type, unknown address family");
+			throw std::runtime_error("universal_address, unknown address family");
 	}
 	ValueItem* _define_actual_type(ValueItem* args,uint32_t len){
 		if(len < 1)
-			throw InvalidArguments("universal_address.actual_type, expected 1 argument, got " + std::to_string(len));
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("universal_address.actual_type, excepted proxy, got " + enum_to_string(args[0].meta.vtype));
-		ProxyClass& proxy = (ProxyClass&)args[0];
-		if(proxy.declare_ty != &define_UniversalAddress){
-			if(proxy.declare_ty->name != "universal_address")
-				throw InvalidArguments("universal_address.actual_type, excepted universal_address, got " + proxy.declare_ty->name);
-			else
-				throw InvalidArguments("universal_address.actual_type, excepted universal_address, got non native universal_address");
-		}
-		auto* address = (universal_address*)proxy.class_ptr;
-		if(address->ss_family == AF_INET)
+			throw InvalidArguments("universal_address, expected 1 argument, got " + std::to_string(len));
+		auto& address = AttachA::Interface::getExtractAs<universal_address>(args[0], define_UniversalAddress);
+		if(address.ss_family == AF_INET)
 			return new ValueItem((uint32_t)AddressType::IPv4);
-		else if(address->ss_family == AF_INET6){
+		else if(address.ss_family == AF_INET6){
 			return new ValueItem((uint32_t)AddressType::IPv6);
 		}
 		else
-			throw std::runtime_error("universal_address.actual_type, unknown address family");
+			throw std::runtime_error("universal_address, unknown address family");
 	}
 	ValueItem* _define_port(ValueItem* args,uint32_t len){
 		if(len < 1)
-			throw InvalidArguments("universal_address.port, expected 1 argument, got " + std::to_string(len));
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("universal_address.port, excepted proxy, got " + enum_to_string(args[0].meta.vtype));
-		ProxyClass& proxy = (ProxyClass&)args[0];
-		if(proxy.declare_ty != &define_UniversalAddress){
-			if(proxy.declare_ty->name != "universal_address")
-				throw InvalidArguments("universal_address.port, excepted universal_address, got " + proxy.declare_ty->name);
-			else
-				throw InvalidArguments("universal_address.port, excepted universal_address, got non native universal_address");
-		}
-		auto* address = (universal_address*)proxy.class_ptr;
-		if(address->ss_family == AF_INET)
-			return new ValueItem((uint32_t)((sockaddr_in*)address)->sin_port);
-		else if(address->ss_family == AF_INET6){
-			return new ValueItem((uint32_t)((sockaddr_in6*)address)->sin6_port);
+			throw InvalidArguments("universal_address, expected 1 argument, got " + std::to_string(len));
+		auto& address = AttachA::Interface::getExtractAs<universal_address>(args[0], define_UniversalAddress);
+		if(address.ss_family == AF_INET)
+			return new ValueItem((uint32_t)((sockaddr_in&)address).sin_port);
+		else if(address.ss_family == AF_INET6){
+			return new ValueItem((uint32_t)((sockaddr_in6&)address).sin6_port);
 		}
 		else
-			throw std::runtime_error("universal_address.port, unknown address family");
+			throw std::runtime_error("universal_address, unknown address family");
 	}
 	ValueItem* _define_full_address(ValueItem* args, uint32_t len){
 		if(len < 1)
-			throw InvalidArguments("universal_address.to_string, expected 1 argument, got " + std::to_string(len));
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("universal_address.to_string, excepted proxy, got " + enum_to_string(args[0].meta.vtype));
-		ProxyClass& proxy = (ProxyClass&)args[0];
-		if(proxy.declare_ty != &define_UniversalAddress){
-			if(proxy.declare_ty->name != "universal_address")
-				throw InvalidArguments("universal_address.to_string, excepted universal_address, got " + proxy.declare_ty->name);
-			else
-				throw InvalidArguments("universal_address.to_string, excepted universal_address, got non native universal_address");
-		}
-		auto* address = (universal_address*)proxy.class_ptr;
+			throw InvalidArguments("universal_address, expected 1 argument, got " + std::to_string(len));
+		auto& address = AttachA::Interface::getExtractAs<universal_address>(args[0], define_UniversalAddress);
 		std::string result;
 		result.resize(INET6_ADDRSTRLEN);
 
-		auto actual_family = address->ss_family;
-		if(address->ss_family == AF_INET)
-			inet_ntop(AF_INET, &((sockaddr_in*)address)->sin_addr, result.data(), INET6_ADDRSTRLEN);
-		else if(address->ss_family == AF_INET6){
-			inet_ntop(AF_INET6, &((sockaddr_in6*)address)->sin6_addr, result.data(), INET6_ADDRSTRLEN);
+		auto actual_family = address.ss_family;
+		if(address.ss_family == AF_INET)
+			inet_ntop(AF_INET, &((sockaddr_in&)address).sin_addr, result.data(), INET6_ADDRSTRLEN);
+		else if(address.ss_family == AF_INET6){
+			inet_ntop(AF_INET6, &((sockaddr_in6&)address).sin6_addr, result.data(), INET6_ADDRSTRLEN);
 			if(result.starts_with("::ffff:")){
 				result = result.substr(7);
 				actual_family = AF_INET;
@@ -198,39 +153,23 @@ namespace UniversalAddress{
 			throw std::runtime_error("universal_address.to_string, unknown address family");
 		result.resize(strlen(result.data()));
 		if(actual_family == AF_INET){
-			result += ":" + std::to_string((uint32_t)htons(((sockaddr_in*)address)->sin_port));
+			result += ":" + std::to_string((uint32_t)htons(((sockaddr_in&)address).sin_port));
 		}else{
-			result = '[' + result +  "]:" + std::to_string((uint32_t)htons(((sockaddr_in6*)address)->sin6_port));
+			result = '[' + result +  "]:" + std::to_string((uint32_t)htons(((sockaddr_in6&)address).sin6_port));
 		}
 		return new ValueItem(result);
 	}
 }
 void init_define_UniversalAddress(){
-	if(!define_UniversalAddress.name.empty())
+	if(define_UniversalAddress != nullptr)
 		return;
-	define_UniversalAddress.name = "universal_address";
-	define_UniversalAddress.copy = AttachA::Interface::special::proxyCopy<universal_address, false>;
-	define_UniversalAddress.destructor = AttachA::Interface::special::proxyDestruct<universal_address, false>;
-	define_UniversalAddress.funs[symbols::structures::convert::to_string] = 
-		ClassFnDefine(
-			new FuncEnviropment(UniversalAddress::_define_to_string, false), false, ClassAccess::pub
-		);
-	define_UniversalAddress.funs["type"] = 
-		ClassFnDefine(
-			new FuncEnviropment(UniversalAddress::_define_type, false), false, ClassAccess::pub
-		);
-	define_UniversalAddress.funs["actual_type"] = 
-		ClassFnDefine(
-			new FuncEnviropment(UniversalAddress::_define_actual_type, false), false, ClassAccess::pub
-		);
-	define_UniversalAddress.funs["port"] = 
-		ClassFnDefine(
-			new FuncEnviropment(UniversalAddress::_define_port, false), false, ClassAccess::pub
-		);
-	define_UniversalAddress.funs["full_address"] =
-		ClassFnDefine(
-			new FuncEnviropment(UniversalAddress::_define_full_address, false), false, ClassAccess::pub
-		);
+	define_UniversalAddress = AttachA::Interface::createTable<universal_address>("universal_address",
+		AttachA::Interface::direct_method("to_string", UniversalAddress::_define_to_string),
+		AttachA::Interface::direct_method("type", UniversalAddress::_define_type),
+		AttachA::Interface::direct_method("actual_type", UniversalAddress::_define_actual_type),
+		AttachA::Interface::direct_method("port", UniversalAddress::_define_port),
+		AttachA::Interface::direct_method("full_address", UniversalAddress::_define_full_address)
+	);
 }
 
 void internal_makeIP4(universal_address& addr_storage, const char* ip, uint16_t port){
@@ -308,21 +247,13 @@ void internal_makeIP_port(universal_address& addr_storage, const char* ip_port){
 }
 
 
-void get_address_from_valueItem(ValueItem& ip_port, sockaddr_storage& addr_storage){
-	if(ip_port.meta.vtype == VType::proxy){
-		ProxyClass& proxy = (ProxyClass&)ip_port;
-		if(proxy.declare_ty != &define_UniversalAddress){
-			if(proxy.declare_ty->name != "universal_address")
-				throw InvalidArguments("excepted universal_address, got " + proxy.declare_ty->name);
-			else
-				throw InvalidArguments("excepted universal_address, got non native universal_address");
-		}
-		memcpy(&addr_storage, proxy.class_ptr, sizeof(addr_storage));
-	}else if(ip_port.meta.vtype == VType::string){
-		universal_address addr;
-		internal_makeIP_port(addr, ((std::string)ip_port).c_str());
-		memcpy(&addr_storage, &addr, sizeof(addr_storage));
-	}else
+void get_address_from_valueItem(ValueItem& ip_port, universal_address& addr_storage){
+	if(ip_port.meta.vtype == VType::struct_){
+		auto& address = AttachA::Interface::getExtractAs<universal_address>((Structure&)ip_port, define_UniversalAddress);
+		memcpy(&addr_storage, &address, sizeof(addr_storage));
+	}else if(ip_port.meta.vtype == VType::string)
+		internal_makeIP_port(addr_storage, ((std::string)ip_port).c_str());
+	else
 		throw InvalidArguments("excepted universal_address or string, got " + enum_to_string(ip_port.meta.vtype));
 }
 
@@ -816,7 +747,6 @@ private:
 class TcpNetworkStream{
 	friend class TcpNetworkManager;
 	struct tcp_handle* handle;
-	TcpNetworkStream(tcp_handle* handle):handle(handle){}
 	TaskMutex mutex;
 	tcp_handle::error last_error;
 	bool checkup(){
@@ -831,6 +761,7 @@ class TcpNetworkStream{
 		return true;
 	}
 public:
+	TcpNetworkStream(tcp_handle* handle):handle(handle){}
 	~TcpNetworkStream(){
 		if(handle){
 			std::lock_guard lg(mutex);
@@ -967,159 +898,96 @@ public:
 	}
 };
 
-ValueItem* funs_TcpNetworkStream_read_available_ref(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->read_available_ref());
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-ValueItem* funs_TcpNetworkStream_read_available(ValueItem* args, uint32_t len){
-	if(len >= 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		if(args[1].meta.vtype != VType::raw_arr_ui8 || args[1].meta.vtype != VType::raw_arr_i8)
-			throw InvalidArguments("The second argument must be a raw_arr_ui8.");
-		return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->read_available((char*)args[1].val, args[1].meta.val_len));
-	}else
-		throw InvalidArguments("The number of arguments must be 2.");
-}
-ValueItem* funs_TcpNetworkStream_data_available(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->data_available());
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-ValueItem* funs_TcpNetworkStream_write(ValueItem* args, uint32_t len){
-	if(len >= 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		if(args[1].meta.vtype != VType::raw_arr_ui8 || args[1].meta.vtype != VType::raw_arr_ui8)
-			throw InvalidArguments("The second argument must be a raw_arr_ui8.");
-		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->write((char*)args[1].val, args[1].meta.val_len);
-		return nullptr;
-	}else
-		throw InvalidArguments("The number of arguments must be 2.");
-}
-ValueItem* funs_TcpNetworkStream_write_file(ValueItem* args, uint32_t len){
-	if(len >= 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		ValueItem& arg1 = args[1];
-		uint64_t data_len = 0;
-		uint64_t offset = 0;
-		uint32_t chunks_size = 0;
-		if(arg1.meta.vtype != VType::proxy && arg1.meta.vtype != VType::string)
-			throw InvalidArguments("The second argument must be a file handle or a file path.");
-		if(len >= 3)
-			data_len = (uint64_t)args[2];
-		if(len >= 4)
-			offset = (uint64_t)args[3];
-		if(len >= 5)
-			chunks_size = (uint32_t)args[4];
-
-		if(arg1.meta.vtype == VType::proxy){
-			auto& proxy = *((ProxyClass*)args[1].getSourcePtr());
-			if(proxy.declare_ty){
-				if(proxy.declare_ty->name == "file_handle"){
-					return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->write_file((*(typed_lgr<::files::FileHandle>*)proxy.class_ptr)->internal_get_handle(), data_len, offset, chunks_size));
-				}else if(proxy.declare_ty->name == "blocking_file_handle")
-					return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->write_file((*(typed_lgr<::files::BlockingFileHandle>*)proxy.class_ptr)->internal_get_handle(), data_len, offset, chunks_size));
+AttachAFun(funs_TcpNetworkStream_read_available_ref, 1, {
+	return AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).read_available_ref();
+})
+AttachAFun(funs_TcpNetworkStream_read_available, 2, {
+	auto& stream = AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+	if(args[1].meta.vtype != VType::raw_arr_ui8 && args[1].meta.vtype != VType::raw_arr_i8)
+		throw InvalidArguments("The second argument must be a raw_arr_ui8.");
+	return stream.read_available((char*)args[1].val, args[1].meta.val_len);
+})
+AttachAFun(funs_TcpNetworkStream_data_available, 1, {
+	return AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).data_available();
+})
+AttachAFun(funs_TcpNetworkStream_write, 2, {
+	auto& stream = AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+	if(args[1].meta.vtype != VType::raw_arr_ui8 && args[1].meta.vtype != VType::raw_arr_i8)
+		throw InvalidArguments("The second argument must be a raw_arr_ui8.");
+	stream.write((char*)args[1].val, args[1].meta.val_len);
+})
+AttachAFun(funs_TcpNetworkStream_write_file, 2, {
+	auto& stream = AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+	ValueItem& arg1 = args[1];
+	uint64_t data_len = 0;
+	uint64_t offset = 0;
+	uint32_t chunks_size = 0;
+	if(arg1.meta.vtype != VType::struct_ && arg1.meta.vtype != VType::string)
+		throw InvalidArguments("The second argument must be a file handle or a file path.");
+	if(len >= 3)
+		data_len = (uint64_t)args[2];
+	if(len >= 4)
+		offset = (uint64_t)args[3];
+	if(len >= 5)
+		chunks_size = (uint32_t)args[4];
+	if(arg1.meta.vtype == VType::struct_){
+		auto& proxy = (Structure&)args[1];
+			if(proxy.get_vtable()){
+				if(proxy.get_name() == "file_handle"){
+					return stream.write_file((*(typed_lgr<::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+				}else if(proxy.get_name() == "blocking_file_handle")
+					return stream.write_file((*(typed_lgr<::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
 			}
 			throw InvalidArguments("The second argument must be a file handle or a file path.");
-		}
-		std::string& path = *((std::string*)arg1.getSourcePtr());
-		return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->write_file(path.data(), path.size(), data_len, offset, chunks_size));
-	}else
-		throw InvalidArguments("The number of arguments must be at least 2.");
-}
-ValueItem* funs_TcpNetworkStream_force_write(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->force_write();
-		return nullptr;
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-ValueItem* funs_TcpNetworkStream_force_write_and_close(ValueItem* args, uint32_t len){
-	if(len >= 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		if(args[1].meta.vtype != VType::raw_arr_ui8)
-			throw InvalidArguments("The second argument must be a raw_arr_ui8.");
-		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->force_write_and_close((char*)args[1].val, args[1].meta.val_len);
-		return nullptr;
-	}else
-		throw InvalidArguments("The number of arguments must be 2.");
-}
-ValueItem* funs_TcpNetworkStream_close(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->close();
-		return nullptr;
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-ValueItem* funs_TcpNetworkStream_reset(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->reset();
-		return nullptr;
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-ValueItem* funs_TcpNetworkStream_rebuffer(ValueItem* args, uint32_t len){
-	if(len >= 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->rebuffer((int32_t)args[1]);
-		return nullptr;
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-ValueItem* funs_TcpNetworkStream_is_closed(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		return new ValueItem(((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->is_closed());
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-ValueItem* funs_TcpNetworkStream_error(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		return new ValueItem((uint8_t)((TcpNetworkStream*)((ProxyClass*)args[0].val)->class_ptr)->error());
-	}else
-		throw InvalidArguments("The number of arguments must be 1.");
-}
-
+	}else{
+		std::string& path = *(std::string*)arg1.getSourcePtr();
+		stream.write_file(path.data(), path.size(), data_len, offset, chunks_size);
+	}
+})
+AttachAFun(funs_TcpNetworkStream_force_write, 1, {
+	AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).force_write();
+})
+AttachAFun(funs_TcpNetworkStream_force_write_and_close, 2, {
+	auto& stream = AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+	if(args[1].meta.vtype != VType::raw_arr_ui8 && args[1].meta.vtype != VType::raw_arr_i8)
+		throw InvalidArguments("The second argument must be a raw_arr_ui8.");
+	stream.force_write_and_close((char*)args[1].getSourcePtr(), args[1].meta.val_len);
+})
+AttachAFun(funs_TcpNetworkStream_close, 1, {
+	AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).close();
+})
+AttachAFun(funs_TcpNetworkStream_reset, 1, {
+	AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).reset();
+})
+AttachAFun(funs_TcpNetworkStream_rebuffer, 2, {
+	AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).rebuffer((int32_t)args[1]);
+})
+AttachAFun(funs_TcpNetworkStream_is_closed, 1, {
+	return AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).is_closed();
+})
+AttachAFun(funs_TcpNetworkStream_error, 1, {
+	return (uint8_t)AttachA::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).error();
+})
 
 
 void init_define_TcpNetworkStream(){
-	if(!define_TcpNetworkStream.name.empty())
+	if(define_TcpNetworkStream != nullptr)
 		return;
-	define_TcpNetworkStream.name = "tcp_network_stream";
-	define_TcpNetworkStream.copy = nullptr;
-	define_TcpNetworkStream.destructor = AttachA::Interface::special::proxyDestruct<TcpNetworkStream, false>;
-	define_TcpNetworkStream.funs["read_available_ref"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_read_available_ref, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["read_available"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_read_available, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["data_available"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_data_available, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["write"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_write, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["write_file"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_write_file, false), false, ClassAccess::pub};	
-	define_TcpNetworkStream.funs["force_write"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_force_write, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["force_write_and_close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_force_write_and_close, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_close, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["reset"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_reset, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["rebuffer"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_rebuffer, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["is_closed"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_is_closed, false), false, ClassAccess::pub};
-	define_TcpNetworkStream.funs["error"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkStream_error, false), false, ClassAccess::pub};
+	define_TcpNetworkStream = AttachA::Interface::createTable<TcpNetworkStream>("tcp_network_stream",
+		AttachA::Interface::direct_method("read_available_ref", funs_TcpNetworkStream_read_available_ref),
+		AttachA::Interface::direct_method("read_available", funs_TcpNetworkStream_read_available),
+		AttachA::Interface::direct_method("data_available", funs_TcpNetworkStream_data_available),
+		AttachA::Interface::direct_method("write", funs_TcpNetworkStream_write),
+		AttachA::Interface::direct_method("write_file", funs_TcpNetworkStream_write_file),
+		AttachA::Interface::direct_method("force_write", funs_TcpNetworkStream_force_write),
+		AttachA::Interface::direct_method("force_write_and_close", funs_TcpNetworkStream_force_write_and_close),
+		AttachA::Interface::direct_method("close", funs_TcpNetworkStream_close),
+		AttachA::Interface::direct_method("reset", funs_TcpNetworkStream_reset),
+		AttachA::Interface::direct_method("rebuffer", funs_TcpNetworkStream_rebuffer),
+		AttachA::Interface::direct_method("is_closed", funs_TcpNetworkStream_is_closed),
+		AttachA::Interface::direct_method("error", funs_TcpNetworkStream_error)
+	);
+	AttachA::Interface::typeVTable<typed_lgr<TcpNetworkStream>>() = define_TcpNetworkStream;
 }
 
 #pragma endregion
@@ -1130,7 +998,6 @@ class TcpNetworkBlocing{
 	tcp_handle* handle;
 	TaskMutex mutex;
 	tcp_handle::error last_error;
-	TcpNetworkBlocing(tcp_handle* handle):handle(handle){}
 	bool checkup(){
 		if(!handle)
 			return false;
@@ -1143,6 +1010,7 @@ class TcpNetworkBlocing{
 		return true;
 	}
 public:
+	TcpNetworkBlocing(tcp_handle* handle):handle(handle){}
 	~TcpNetworkBlocing(){
 		std::lock_guard lg(mutex);
 		if(handle)
@@ -1240,124 +1108,82 @@ public:
 		return last_error;
 	}
 };
+AttachAFun(funs_TcpNetworkBlocing_read, 2,{
+	return AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).read((uint32_t)args[1]);
+});
+AttachAFun(funs_TcpNetworkBlocing_available_bytes, 1,{
+	return AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).available_bytes();
+});
+AttachAFun(funs_TcpNetworkBlocing_write, 2,{
+	if(args[1].meta.vtype != VType::raw_arr_ui8)
+		throw InvalidArguments("The third argument must be a raw_arr_ui8.");
+	if(len == 2)
+		return AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), args[1].meta.val_len);
+	else{
+		uint32_t len = (uint32_t)args[2];
+		if(len > args[1].meta.val_len)
+			throw OutOfRange("The length of the data to be sent is greater than the length of array.");
+		return AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), len);
+	}
+});
+AttachAFun(funs_TcpNetworkBlocing_write_file, 2,{
+	ValueItem& arg1 = args[1];
+	uint64_t data_len = 0;
+	uint64_t offset = 0;
+	uint32_t chunks_size = 0;
+	if(arg1.meta.vtype != VType::struct_ && arg1.meta.vtype != VType::string)
+		throw InvalidArguments("The second argument must be a file handle or a file path.");
+	if(len >= 3)
+		data_len = (uint64_t)args[2];
+	if(len >= 4)
+		offset = (uint64_t)args[3];
+	if(len >= 5)
+		chunks_size = (uint32_t)args[4];
 
-ValueItem* funs_TcpNetworkBlocing_read(ValueItem* args, uint32_t len){
-	if(len == 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->read((uint32_t)args[1]));
-	}else throw InvalidArguments("The first argument must be a client_context.");
-}
-ValueItem* funs_TcpNetworkBlocing_available_bytes(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->available_bytes());
-	}else throw InvalidArguments("The first argument must be a client_context.");
-}
-ValueItem* funs_TcpNetworkBlocing_write(ValueItem* args, uint32_t len){
-	if(len >= 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		if(args[1].meta.vtype != VType::raw_arr_ui8)
-			throw InvalidArguments("The third argument must be a raw_arr_ui8.");
-		if(len == 2)
-			return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->write((char*)args[1].getSourcePtr(), args[1].meta.val_len));
-		else{
-			uint32_t len = (uint32_t)args[2];
-			if(len > args[1].meta.val_len)
-				throw OutOfRange("The length of the data to be sent is greater than the length of array.");
-			return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->write((char*)args[1].getSourcePtr(), len));
+	if(arg1.meta.vtype == VType::struct_){
+		auto& proxy = (Structure&)args[1];
+		if(proxy.get_vtable()){
+			if(proxy.get_vtable() == AttachA::Interface::typeVTable<typed_lgr<::files::FileHandle>>())
+				return AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+			else if(proxy.get_vtable() == AttachA::Interface::typeVTable<typed_lgr<::files::BlockingFileHandle>>())
+				return AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
 		}
-	}else
-		throw InvalidArguments("The number of arguments must be at least 2.");
-}
-ValueItem* funs_TcpNetworkBlocing_write_file(ValueItem* args, uint32_t len){
-	if(len >= 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		ValueItem& arg1 = args[1];
-		uint64_t data_len = 0;
-		uint64_t offset = 0;
-		uint32_t chunks_size = 0;
-		if(arg1.meta.vtype != VType::proxy && arg1.meta.vtype != VType::string)
-			throw InvalidArguments("The second argument must be a file handle or a file path.");
-		if(len >= 3)
-			data_len = (uint64_t)args[2];
-		if(len >= 4)
-			offset = (uint64_t)args[3];
-		if(len >= 5)
-			chunks_size = (uint32_t)args[4];
-
-		if(arg1.meta.vtype == VType::proxy){
-			auto& proxy = *((ProxyClass*)args[1].val);
-			if(proxy.declare_ty){
-				if(proxy.declare_ty->name == "file_handle")
-					return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->write_file((*(typed_lgr<::files::FileHandle>*)proxy.class_ptr)->internal_get_handle(), data_len, offset, chunks_size));
-				else if(proxy.declare_ty->name == "blocking_file_handle")
-					return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->write_file((*(typed_lgr<::files::BlockingFileHandle>*)proxy.class_ptr)->internal_get_handle(), data_len, offset, chunks_size));
-			}
-			throw InvalidArguments("The second argument must be a file handle or a file path.");
-		}
+		throw InvalidArguments("The second argument must be a file handle or a file path.");
+	}else{
 		std::string& path = *((std::string*)arg1.getSourcePtr());
-		return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->write_file(path.data(), path.size(), data_len, offset, chunks_size));
-	}else
-		throw InvalidArguments("The number of arguments must be at least 2.");
-}
-ValueItem* funs_TcpNetworkBlocing_close(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->close();
-		return nullptr;
-	}else throw InvalidArguments("The first argument must be a client_context.");
-}
-ValueItem* funs_TcpNetworkBlocing_reset(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->reset();
-		return nullptr;
-	}else throw InvalidArguments("The first argument must be a client_context.");
-}
-ValueItem* funs_TcpNetworkBlocing_rebuffer(ValueItem* args, uint32_t len){
-	if(len >= 2){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->rebuffer((int32_t)args[1]);
-		return nullptr;
-	}else throw InvalidArguments("The first argument must be a client_context.");
-}
-ValueItem* funs_TcpNetworkBlocing_is_closed(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		return new ValueItem(((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->is_closed());
-	}else throw InvalidArguments("The first argument must be a client_context.");
-}
-ValueItem* funs_TcpNetworkBlocing_error(ValueItem* args, uint32_t len){
-	if(len >= 1){
-		if(args[0].meta.vtype != VType::proxy)
-			throw InvalidArguments("The first argument must be a client_context.");
-		return new ValueItem((uint8_t)((TcpNetworkBlocing*)((ProxyClass*)args[0].val)->class_ptr)->error());
-	}else throw InvalidArguments("The first argument must be a client_context.");
-}
+		return AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).write_file(path.data(), path.size(), data_len, offset, chunks_size);
+	}
+});
+AttachAFun(funs_TcpNetworkBlocing_close, 1,{
+	AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).close();
+});
+AttachAFun(funs_TcpNetworkBlocing_reset, 1,{
+	AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).reset();
+});
+AttachAFun(funs_TcpNetworkBlocing_rebuffer, 2,{
+	AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).rebuffer((int32_t)args[1]);
+});
+AttachAFun(funs_TcpNetworkBlocing_is_closed, 1,{
+	return AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).is_closed();
+});
+AttachAFun(funs_TcpNetworkBlocing_error, 1,{
+	return (uint8_t)AttachA::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).error();
+});
 
 void init_define_TcpNetworkBlocking(){
-	if(!define_TcpNetworkBlocking.name.empty())
+	if(define_TcpNetworkBlocking != nullptr)
 		return;
-	define_TcpNetworkBlocking.name = "tcp_network_blocking";
-	define_TcpNetworkBlocking.destructor = AttachA::Interface::special::proxyDestruct<TcpNetworkBlocing, false>;
-	define_TcpNetworkBlocking.copy = nullptr;
-	define_TcpNetworkBlocking.funs["read"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_read, false), false, ClassAccess::pub};
-	define_TcpNetworkBlocking.funs["available_bytes"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_available_bytes, false), false, ClassAccess::pub};
-	define_TcpNetworkBlocking.funs["write"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_write, false), false, ClassAccess::pub};
-	define_TcpNetworkBlocking.funs["write_file"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_write_file, false), false, ClassAccess::pub};
-	define_TcpNetworkBlocking.funs["close"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_close, false), false, ClassAccess::pub};
-	define_TcpNetworkBlocking.funs["reset"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_reset, false), false, ClassAccess::pub};
-	define_TcpNetworkBlocking.funs["rebuffer"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_rebuffer, false), false, ClassAccess::pub};
-	define_TcpNetworkBlocking.funs["is_closed"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_is_closed, false), false, ClassAccess::pub};
-	define_TcpNetworkBlocking.funs["error"] = ClassFnDefine{new FuncEnviropment(funs_TcpNetworkBlocing_error, false), false, ClassAccess::pub};
+	define_TcpNetworkBlocking = AttachA::Interface::createTable<TcpNetworkBlocing>("tcp_network_blocking",
+		AttachA::Interface::direct_method("read", funs_TcpNetworkBlocing_read),
+		AttachA::Interface::direct_method("available_bytes", funs_TcpNetworkBlocing_available_bytes),
+		AttachA::Interface::direct_method("write", funs_TcpNetworkBlocing_write),
+		AttachA::Interface::direct_method("write_file", funs_TcpNetworkBlocing_write_file),
+		AttachA::Interface::direct_method("close", funs_TcpNetworkBlocing_close),
+		AttachA::Interface::direct_method("reset", funs_TcpNetworkBlocing_reset),
+		AttachA::Interface::direct_method("rebuffer", funs_TcpNetworkBlocing_rebuffer),
+		AttachA::Interface::direct_method("is_closed", funs_TcpNetworkBlocing_is_closed),
+		AttachA::Interface::direct_method("error", funs_TcpNetworkBlocing_error)
+	);
 }
 
 #pragma endregion
@@ -1411,9 +1237,9 @@ private:
 	ValueItem accept_manager_construct(tcp_handle* self){
 		switch (manage_type) {
 		case TcpNetworkServer::ManageType::blocking:
-			return ValueItem(new ProxyClass(new TcpNetworkBlocing(self), &define_TcpNetworkBlocking), VType::proxy, no_copy);
+			return ValueItem(AttachA::Interface::constructStructure<TcpNetworkBlocing>(define_TcpNetworkBlocking, self), no_copy);
 		case TcpNetworkServer::ManageType::write_delayed:
-			return ValueItem(new ProxyClass(new TcpNetworkStream(self), &define_TcpNetworkStream), VType::proxy, no_copy);
+			return ValueItem(AttachA::Interface::constructStructure<TcpNetworkStream>(define_TcpNetworkStream,self), no_copy);
 		default:
 			return nullptr;
 		}
@@ -1447,8 +1273,8 @@ private:
                                      &localLen,
                                      (LPSOCKADDR*)&pClientAddr,
                                      &remoteLen);
-		ValueItem clientAddress(new ProxyClass(new universal_address(*pClientAddr),&define_UniversalAddress), VType::proxy, no_copy);
-		ValueItem localAddress(new ProxyClass(new universal_address(*pLocalAddr),&define_UniversalAddress), VType::proxy, no_copy);
+		ValueItem clientAddress(AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress, *pClientAddr), no_copy);
+		ValueItem localAddress(AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress, *pLocalAddr), no_copy);
 		if(accept_filter){
 			if(AttachA::cxxCall(accept_filter,clientAddress,localAddress)){
 				closesocket(data.socket);
@@ -1642,17 +1468,18 @@ public:
 	std::string ip(){
 		if(corrupted)
 			throw AttachARuntimeException("TcpNetworkManager is corrupted");
-
-		ProxyClass tmp(&connectionAddress, &define_UniversalAddress);
-		ValueItem args(&tmp, VType::proxy, as_refrence);
+		Structure* tmp = AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress);
+		memcpy(tmp->get_data_no_vtable(), &connectionAddress, sizeof(sockaddr_in6));
+		tmp->fully_constructed = true;
+		ValueItem args(tmp, as_refrence);
 		ValueItem* res;
 		try{
 			res = UniversalAddress::_define_to_string(&args, 1);
 		}catch(...){
-			tmp.declare_ty = nullptr;//prevent delete
+			Structure::destruct(tmp);
 			throw;
 		}
-		tmp.declare_ty = nullptr;//prevent delete
+		Structure::destruct(tmp);
 		std::string ret = (std::string)*res;
 		delete res;
 		return ret;
@@ -1664,7 +1491,7 @@ public:
 		sockaddr_storage* addr = new sockaddr_storage;
 		memcpy(addr, &connectionAddress, sizeof(sockaddr_in6));
 		memset(addr + sizeof(sockaddr_in6), 0, sizeof(sockaddr_storage) - sizeof(sockaddr_in6));
-		return ValueItem(new ProxyClass(addr, &define_UniversalAddress), VType::proxy, no_copy);
+		return ValueItem(AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress,*addr), no_copy);
 	}
 
 	bool is_paused(){
@@ -2097,7 +1924,7 @@ uint32_t udp_socket::recv(uint8_t* data, uint32_t size, ValueItem& sender){
 	handle->recv(data, size, sender_address, sender_len);
 	if(!handle->status || handle->fullifed_bytes < 0)
 		throw AttachARuntimeException("Error while receiving data from udp socket with error code: " + std::to_string(handle->last_error));
-	sender = ValueItem(new ProxyClass(new  sockaddr_storage(sender_address), &define_UniversalAddress), VType::proxy);
+	sender = ValueItem(AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress, sender_address), no_copy);
 	return handle->fullifed_bytes;
 }
 uint32_t udp_socket::send(uint8_t* data, uint32_t size, ValueItem& to){
@@ -2135,39 +1962,39 @@ bool ipv6_supported(){
 ValueItem makeIP4(const char* ip, uint16_t port){
 	if(!inited)
 		throw InternalException("Network module not initialized");
-	universal_address* addr_storage = new universal_address;
-	internal_makeIP4(*addr_storage, ip, port);
-	return ValueItem(new ProxyClass(addr_storage, &define_UniversalAddress), VType::proxy);
+	ValueItem clientAddress(AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress), no_copy);
+	internal_makeIP4(AttachA::Interface::getAs<universal_address>(clientAddress), ip, port);
+	return clientAddress;
 }
 ValueItem makeIP6(const char* ip, uint16_t port){
 	if(!inited)
 		throw InternalException("Network module not initialized");
-	universal_address* addr_storage = new universal_address;
-	internal_makeIP6(*addr_storage, ip, port);
-	return ValueItem(new ProxyClass(addr_storage, &define_UniversalAddress), VType::proxy);
+	ValueItem clientAddress(AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress), no_copy);
+	internal_makeIP6(AttachA::Interface::getAs<universal_address>(clientAddress), ip, port);
+	return clientAddress;
 }
 ValueItem makeIP(const char* ip, uint16_t port){
 	if(!inited)
 		throw InternalException("Network module not initialized");
-	universal_address* addr_storage = new universal_address;
-	internal_makeIP(*addr_storage, ip, port);
-	return ValueItem(new ProxyClass(addr_storage, &define_UniversalAddress), VType::proxy);
+	ValueItem clientAddress(AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress), no_copy);
+	internal_makeIP(AttachA::Interface::getAs<universal_address>(clientAddress), ip, port);
+	return clientAddress;
 }
 
 
 ValueItem makeIP4_port(const char* ip_port){
 	if(!inited)
 		throw InternalException("Network module not initialized");
-	universal_address* addr_storage = new universal_address;
-	internal_makeIP4_port(*addr_storage, ip_port);
-	return ValueItem(new ProxyClass(addr_storage, &define_UniversalAddress), VType::proxy);
+	ValueItem clientAddress(AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress), no_copy);
+	internal_makeIP4_port(AttachA::Interface::getAs<universal_address>(clientAddress), ip_port);
+	return clientAddress;
 }
 ValueItem makeIP6_port(const char* ip_port){
 	if(!inited)
 		throw InternalException("Network module not initialized");
-	universal_address* addr_storage = new universal_address;
-	internal_makeIP6_port(*addr_storage, ip_port);
-	return ValueItem(new ProxyClass(addr_storage, &define_UniversalAddress), VType::proxy);
+	ValueItem clientAddress(AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress), no_copy);
+	internal_makeIP6_port(AttachA::Interface::getAs<universal_address>(clientAddress), ip_port);
+	return clientAddress;
 }
 ValueItem makeIP_port(const char* ip_port){
 	if(ip_port[0] == '[')

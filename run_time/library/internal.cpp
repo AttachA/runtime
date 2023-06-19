@@ -9,22 +9,6 @@
 #include "../AttachA_CXX.hpp"
 #include "../dynamic_call.hpp"
 
-template<class Class_>
-inline typed_lgr<Class_> getClass(ValueItem* vals) {
-	vals->getAsync();
-	if (vals->meta.vtype == VType::proxy)
-		return *(typed_lgr<Class_>*)((ProxyClass*)vals->getSourcePtr())->class_ptr;
-	else
-		throw InvalidOperation("That function used only in proxy class");
-}
-template<class Class_, bool as_ref>
-inline Class_& getClass(ValueItem* vals) {
-	vals->getAsync();
-	if (vals->meta.vtype == VType::proxy)
-        return *(Class_*)((ProxyClass*)vals->getSourcePtr())->class_ptr;
-	else
-		throw InvalidOperation("That function used only in proxy class");
-}
 namespace internal {
     namespace memory{
         //returns farr[farr[ptr from, ptr to, len, str desk, bool is_fault]...], arg: array/value ptr
@@ -146,100 +130,94 @@ namespace internal {
         }
 
         namespace native{
-	        ProxyClassDefine define_NativeLib;
-	        ProxyClassDefine define_NativeTemplate;
-	        ProxyClassDefine define_NativeValue;
+	        AttachAVirtualTable* define_NativeLib;
+	        AttachAVirtualTable* define_NativeTemplate;
+	        AttachAVirtualTable* define_NativeValue;
             namespace construct{
                 ValueItem* createProxy_NativeValue(ValueItem*, uint32_t){
-                    throw NotImplementedException();
+                    return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<DynamicCall::FunctionTemplate::ValueT>>(define_NativeValue, new DynamicCall::FunctionTemplate::ValueT()), no_copy);
                 }
                 ValueItem* createProxy_NativeTemplate(ValueItem*, uint32_t){
-                    return new ValueItem(new ProxyClass(new typed_lgr(new DynamicCall::FunctionTemplate()), &define_NativeTemplate), VType::proxy);
+                    return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<DynamicCall::FunctionTemplate>>(define_NativeTemplate, new DynamicCall::FunctionTemplate()), no_copy);
                 }
-                ValueItem* createProxy_NativeLib(ValueItem* args, uint32_t len){
-                    if(len != 1)
-                        throw InvalidArguments("This function requires 1 argument: string");
-                    return new ValueItem(new ProxyClass(new typed_lgr(new NativeLib(((std::string)args[0]).c_str())), &define_NativeLib), VType::proxy);
-                }
+                AttachAFun(createProxy_NativeLib, 1, {
+                    return ValueItem(AttachA::Interface::constructStructure<typed_lgr<NativeLib>>(define_NativeLib, new NativeLib(((std::string)args[0]).c_str())), no_copy);
+                })
             }
-            ValueItem* funs_NativeLib_get_function(ValueItem* vals, uint32_t len) {
-                if (len == 3)
-                    if (vals->meta.vtype == VType::proxy)
-                        if (vals[1].meta.vtype == VType::string)
-                            if (vals[2].meta.vtype == VType::proxy) {
-                                auto res = getClass<NativeLib>(vals)->get_func_enviro(((std::string)vals[1]).c_str(), *getClass<DynamicCall::FunctionTemplate>(vals + 2));
-                                return new ValueItem(new typed_lgr(res), VType::function);
-                            }
-                throw InvalidArguments("This function requires 3 arguments: this(native_lib), string, native_template");
+            AttachAFun(funs_NativeLib_get_function, 3, {
+                auto& class_ = AttachA::Interface::getExtractAs<typed_lgr<NativeLib>>(args[0], define_NativeLib);
+                auto fun_name = (std::string)args[1];
+                auto& template_ = *AttachA::Interface::getExtractAs<typed_lgr<DynamicCall::FunctionTemplate>>(args[2], define_NativeTemplate);
+                return ValueItem(class_->get_func_enviro(fun_name, template_));
+            })
+            
+            AttachAFun(funs_NativeTemplate_add_argument, 3, {
+                auto& class_ = AttachA::Interface::getExtractAs<typed_lgr<DynamicCall::FunctionTemplate>>(args[0], define_NativeTemplate);
+                auto& value = *AttachA::Interface::getExtractAs<typed_lgr<DynamicCall::FunctionTemplate::ValueT>>(args[1], define_NativeValue);
+                class_->arguments.push_back(value);
+                return nullptr;
+            })
+
+            #define funs_setter(name, class, set_typ, extract_typ)\
+                AttachAFun(funs_NativeTemplate_setter_ ## name, 2, {\
+                    auto& class_ = AttachA::Interface::getExtractAs<typed_lgr<class>>(args[0], define_NativeTemplate);\
+                    class_->name = set_typ((extract_typ)args[1]);\
+                })
+            #define funs_getter(name, class, mindle_cast)\
+                AttachAFun(funs_NativeTemplate_getter_ ## name, 1, {\
+                    auto& class_ = AttachA::Interface::getExtractAs<typed_lgr<class>>(args[0], define_NativeTemplate);\
+                    return ValueItem((mindle_cast)class_->name);\
+                })
+            DynamicCall::FunctionTemplate::ValueT castValueT(uint64_t val){
+                return *(DynamicCall::FunctionTemplate::ValueT*)&val;
             }
-            ValueItem* funs_NativeTemplate_add_argument(ValueItem* vals, uint32_t len) {
-                if (len == 2)
-                    if (vals->meta.vtype == VType::proxy)
-                        if (vals[1].meta.vtype == VType::proxy) {
-                            getClass<DynamicCall::FunctionTemplate>(vals)->arguments.push_back(getClass<DynamicCall::FunctionTemplate::ValueT, false>(vals + 1));
-                            return nullptr;
-                        }
-                throw InvalidArguments("This function requires 2 arguments: this(native_template), native_value");
-            }
+            funs_setter(result, DynamicCall::FunctionTemplate, castValueT, uint64_t);
+            
+            AttachAFun(funs_NativeTemplate_getter_result, 1, {\
+                auto& class_ = AttachA::Interface::getExtractAs<typed_lgr<DynamicCall::FunctionTemplate>>(args[0], define_NativeTemplate);\
+                return ValueItem(*(uint64_t*)&class_->result);\
+            })
+            funs_setter(is_variadic, DynamicCall::FunctionTemplate, bool, bool);
+            funs_getter(is_variadic, DynamicCall::FunctionTemplate, bool);
+
+
+            funs_setter(is_modifable, DynamicCall::FunctionTemplate::ValueT, bool, bool);
+            funs_getter(is_modifable, DynamicCall::FunctionTemplate::ValueT, bool);
+            funs_setter(vsize, DynamicCall::FunctionTemplate::ValueT, uint32_t, uint32_t);
+            funs_getter(vsize, DynamicCall::FunctionTemplate::ValueT, uint32_t);
+            funs_setter(ptype, DynamicCall::FunctionTemplate::ValueT, DynamicCall::FunctionTemplate::ValueT::PlaceType, uint8_t)
+            funs_getter(ptype, DynamicCall::FunctionTemplate::ValueT, uint8_t);
+            funs_setter(vtype, DynamicCall::FunctionTemplate::ValueT, DynamicCall::FunctionTemplate::ValueT::ValueType, uint8_t);
+            funs_getter(vtype, DynamicCall::FunctionTemplate::ValueT, uint8_t);
+
 
             void init(){
                 static bool is_init = false;
                 if(is_init)
                     return;
-                define_NativeLib.copy = AttachA::Interface::special::proxyCopy<NativeLib, true>;
-                define_NativeLib.destructor = AttachA::Interface::special::proxyDestruct<NativeLib, true>;
-                define_NativeLib.name = "native_lib";
-		        define_NativeLib.funs["get_function"] = { new FuncEnviropment(funs_NativeLib_get_function,false),false,ClassAccess::pub };
-            
-
-                define_NativeTemplate.copy = AttachA::Interface::special::proxyCopy<DynamicCall::FunctionTemplate, true>;
-                define_NativeTemplate.destructor = AttachA::Interface::special::proxyDestruct<DynamicCall::FunctionTemplate, true>;
-                define_NativeTemplate.name = "native_template";
-                define_NativeTemplate.value_seter["return_type"] = [](void* class_val, ValueItem& item){
-                    if(item.meta.vtype == VType::proxy)
-                        (*(typed_lgr<DynamicCall::FunctionTemplate>*)class_val)->result = getClass<DynamicCall::FunctionTemplate::ValueT, false>(&item);
-                    else
-                        throw InvalidArguments("This function requires 2 arguments: this(native_template) native_value");
-                };
-                define_NativeTemplate.value_seter["is_variadic"] = [](void* class_val, ValueItem& item){
-                    (*(typed_lgr<DynamicCall::FunctionTemplate>*)class_val)->is_variadic = (bool)item;
-                };
-                define_NativeTemplate.funs["add_argument"] = { new FuncEnviropment(funs_NativeTemplate_add_argument,false),false,ClassAccess::pub };
-            
-
-                define_NativeValue.copy = AttachA::Interface::special::proxyCopy<DynamicCall::FunctionTemplate::ValueT, false>;
-                define_NativeValue.destructor = AttachA::Interface::special::proxyDestruct<DynamicCall::FunctionTemplate::ValueT, false>;
-                define_NativeValue.name = "native_value";
-                define_NativeValue.value_seter["is_modifable"] = [](void* class_val, ValueItem& item){
-                    (*(DynamicCall::FunctionTemplate::ValueT*)class_val).is_modifable = (bool)item;
-                };
-                define_NativeValue.value_seter["vsize"] = [](void* class_val, ValueItem& item){
-                    (*(DynamicCall::FunctionTemplate::ValueT*)class_val).vsize = (uint32_t)item;
-                };
-                define_NativeValue.value_seter["place_type"] = [](void* class_val, ValueItem& item){
-                    if(item.meta.vtype == VType::proxy)
-                        (*(DynamicCall::FunctionTemplate::ValueT*)class_val).ptype = (DynamicCall::FunctionTemplate::ValueT::PlaceType)(bool)item;
-                    else
-                        throw InvalidArguments("This function requires 2 arguments: this(native_value) native_value");
-                };
-                define_NativeValue.value_seter["value_type"] = [](void* class_val, ValueItem& item){
-                    if(item.meta.vtype == VType::proxy)
-                        (*(DynamicCall::FunctionTemplate::ValueT*)class_val).vtype = (DynamicCall::FunctionTemplate::ValueT::ValueType)(uint8_t)item;
-                    else
-                        throw InvalidArguments("This function requires 2 arguments: this(native_value) native_value");
-                }; 
-                define_NativeValue.value_geter["is_modifable"] = [](void* class_val){
-                    return new ValueItem((*(DynamicCall::FunctionTemplate::ValueT*)class_val).is_modifable);
-                };
-                define_NativeValue.value_geter["vsize"] = [](void* class_val){
-                    return new ValueItem((*(DynamicCall::FunctionTemplate::ValueT*)class_val).vsize);
-                };
-                define_NativeValue.value_geter["place_type"] = [](void* class_val){
-                    return new ValueItem((bool)(*(DynamicCall::FunctionTemplate::ValueT*)class_val).ptype);
-                };
-                define_NativeValue.value_geter["value_type"] = [](void* class_val){
-                    return new ValueItem((uint8_t)(*(DynamicCall::FunctionTemplate::ValueT*)class_val).vtype);
-                };
+                define_NativeLib = AttachA::Interface::createTable<typed_lgr<NativeLib>>("native_lib",
+                    AttachA::Interface::direct_method("get_function", funs_NativeLib_get_function)
+                );
+                define_NativeTemplate = AttachA::Interface::createTable<typed_lgr<DynamicCall::FunctionTemplate>>("native_template",
+                    AttachA::Interface::direct_method("add_argument", funs_NativeTemplate_add_argument),
+                    AttachA::Interface::direct_method("set_return_type", funs_NativeTemplate_setter_result),
+                    AttachA::Interface::direct_method("get_return_type", funs_NativeTemplate_getter_result),
+                    AttachA::Interface::direct_method("set_is_variadic", funs_NativeTemplate_setter_is_variadic),
+                    AttachA::Interface::direct_method("get_is_variadic", funs_NativeTemplate_getter_is_variadic)
+                );
+                define_NativeValue = AttachA::Interface::createTable<typed_lgr<DynamicCall::FunctionTemplate::ValueT>>("native_value",
+                    AttachA::Interface::direct_method("set_is_modifable", funs_NativeTemplate_setter_is_modifable),
+                    AttachA::Interface::direct_method("get_is_modifable", funs_NativeTemplate_getter_is_modifable),
+                    AttachA::Interface::direct_method("set_vsize", funs_NativeTemplate_setter_vsize),
+                    AttachA::Interface::direct_method("get_vsize", funs_NativeTemplate_getter_vsize),
+                    AttachA::Interface::direct_method("set_place_type", funs_NativeTemplate_setter_ptype),
+                    AttachA::Interface::direct_method("get_place_type", funs_NativeTemplate_getter_ptype),
+                    AttachA::Interface::direct_method("set_value_type", funs_NativeTemplate_setter_vtype),
+                    AttachA::Interface::direct_method("get_value_type", funs_NativeTemplate_getter_vtype)
+                );
+                AttachA::Interface::typeVTable<typed_lgr<NativeLib>>() = define_NativeLib;
+                AttachA::Interface::typeVTable<typed_lgr<DynamicCall::FunctionTemplate>>() = define_NativeTemplate;
+                AttachA::Interface::typeVTable<typed_lgr<DynamicCall::FunctionTemplate::ValueT>>() = define_NativeValue;
                 is_init = true;
             }
         }

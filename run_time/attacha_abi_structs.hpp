@@ -284,15 +284,10 @@ ENUM_t(VType, uint8_t,
 	(faarr)//fixed any array
 	(saarr)//stack fixed any array //only local, cannont returned, cannont be used with lgr, cannont be passed as arguments
 	
-	//class, morph, proxy, struct_ is too like types but has diferent memory management
-	(class_)//class_ is regular attacha class, values can be dynamicaly defined and undefined at runtime
-	(morph)//morph is same as class_ but functions can also be defined at runtime
-	(proxy)//proxy is just proxy to another value, and values can be changed by getters and setters, and proxy functions, regulary can be recuived from library
-	(struct_)//struct_ is same as class_ but values placed in one memory block, can be used as C union or C struct, and defined functions can be used as C++ methods
+	(struct_)//like c++ class, but with dynamic abilities
 
 	(type_identifier)
 	(function)
-	(class_define)//used to construct class_ or morph values,
 	(map)//unordered_map<any,any>
 	(set)//unordered_set<any>
 	(time_point)//std::chrono::steady_clock::time_point
@@ -316,10 +311,6 @@ union ValueMeta {
 	ValueMeta(VType ty, bool gc = false, bool editable = true, uint32_t length = 0, bool as_ref = false) :as_ref(as_ref) { vtype = ty; use_gc = gc; allow_edit = editable; val_len = length; }
 	ValueMeta(size_t enc) { encoded = enc; }
 };
-
-struct ClassValue;
-struct MorphValue;
-struct ProxyClass;
 class Structure;
 
 struct as_refrence_t {};
@@ -396,7 +387,7 @@ struct ValueItem {
 
 
 
-	ValueItem(typed_lgr<class FuncEnviropment>&);
+	ValueItem(const typed_lgr<class FuncEnviropment>&);
 	ValueItem() {
 		val = nullptr;
 		meta.encoded = 0;
@@ -482,15 +473,14 @@ struct ValueItem {
 	explicit operator void*();
 	explicit operator std::string();
 	explicit operator list_array<ValueItem>();
-	explicit operator ClassValue& ();
-	explicit operator MorphValue& ();
-	explicit operator ProxyClass& ();
-	explicit operator Structure& ();
 	explicit operator ValueMeta();
 	explicit operator std::exception_ptr();
 	explicit operator std::chrono::steady_clock::time_point();
+	explicit operator Structure& ();
 	explicit operator std::unordered_map<ValueItem, ValueItem>&();
 	explicit operator std::unordered_set<ValueItem>&();
+	explicit operator typed_lgr<struct Task>&();
+	explicit operator typed_lgr<class FuncEnviropment>&();
 
 	ValueItem* operator()(ValueItem* arguments, uint32_t arguments_size);
 	void getAsync();
@@ -506,6 +496,14 @@ struct ValueItem {
 	size_t hash();
 	ValueItem make_slice(uint32_t start, uint32_t end) const;
 };
+namespace std {
+	template<>
+	struct hash<ValueItem> {
+		size_t operator()(const ValueItem& cit) const {
+			return cit.hash();
+		}
+	};
+}
 typedef ValueItem* (*Enviropment)(ValueItem* args, uint32_t len);
 
 
@@ -674,7 +672,10 @@ public:
 private:
 	size_t struct_size;//vtable + sizeof(structure)
 	VTableMode vtable_mode : 2 = VTableMode::disabled;
-	size_t count : 62 = 0;
+public:
+	size_t fully_constructed : 1 = false;
+private:
+	size_t count : 61 = 0;
 	char raw_data[];//Item[count], char data[struct_size]
 
 
@@ -806,6 +807,8 @@ public:
 
 	bool has_method(const std::string& name, ClassAccess access);
 	void remove_method(const std::string& name, ClassAccess access);
+	typed_lgr<FuncEnviropment> get_method(size_t fn_id);
+	typed_lgr<FuncEnviropment> get_method_dynamic(const std::string& name, ClassAccess access);
 
 	void table_derive(void* vtable, VTableMode vtable_mode);//only for AttachADynamicVirtualTable
 	void change_table(void* vtable, VTableMode vtable_mode);//only for AttachADynamicVirtualTable, destroy old vtable and use new one
@@ -824,7 +827,9 @@ public:
 	static Structure* construct(size_t structure_size, Item* items, size_t count, void* vtable, VTableMode vtable_mode);
 	static void destruct(Structure* structure);
 	static void copy(Structure* dst, Structure* src, bool at_construct);
+	static Structure* copy(Structure* src);
 	static void move(Structure* dst, Structure* src, bool at_construct);
+	static Structure* move(Structure* src);
 	static int8_t compare(Structure* a, Structure* b);//vtable
 	static int8_t compare_refrence(Structure* a, Structure* b);//refrence compare
 	static int8_t compare_object(Structure* a, Structure* b);//compare by Item*`s
@@ -838,92 +843,4 @@ public:
 };
 
 
-
-struct ClassFnDefine {
-	typed_lgr<class FuncEnviropment> fn = nullptr;
-	uint8_t deletable : 1 = true;
-	ClassAccess access : 2 = ClassAccess::pub;
-};
-struct ClassDefine {
-	std::unordered_map<std::string, ClassFnDefine> funs;
-	std::string name;
-	ClassDefine();
-	ClassDefine(const std::string& name);
-};
-
-struct ClassValDefine {
-	ValueItem val;
-	ClassAccess access : 2 = ClassAccess::pub;
-};
-struct ClassValue {
-	std::unordered_map<std::string, ClassValDefine> val;
-	ClassDefine* define = nullptr;
-	typed_lgr<class FuncEnviropment> callFnPtr(const std::string& str, ClassAccess acces);
-	ClassFnDefine& getFnMeta(const std::string& str);
-	void setFnMeta(const std::string& str, ClassFnDefine& fn_decl);
-	bool containsFn(const std::string& str);
-	ValueItem& getValue(const std::string& str, ClassAccess acces);
-	ValueItem copyValue(const std::string& str, ClassAccess acces);
-	bool containsValue(const std::string& str);
-};
-
-struct MorphValue {
-	std::unordered_map<std::string, ClassValDefine> val;
-	ClassDefine define;
-	typed_lgr<class FuncEnviropment> callFnPtr(const std::string& str, ClassAccess acces);
-	ClassFnDefine& getFnMeta(const std::string& str);
-	void setFnMeta(const std::string& str, ClassFnDefine& fn_decl);
-	bool containsFn(const std::string& str);
-	ValueItem& getValue(const std::string& str, ClassAccess acces);
-	ValueItem copyValue(const std::string& str, ClassAccess acces);
-	bool containsValue(const std::string& str);
-	void setValue(const std::string& str, ClassAccess acces, ValueItem& val);
-};
-
-
-
-using ProxyClassGetter = ValueItem*(*)(void*);
-using ProxyClassSeter = void(*)(void*, ValueItem&);
-using ProxyClassDestructor = void(*)(void*);
-using ProxyClassCopy = void*(*)(void*);
-
-struct ProxyClassDefine {
-	std::unordered_map<std::string, ProxyClassGetter> value_geter;
-	std::unordered_map<std::string, ProxyClassSeter> value_seter;
-	std::unordered_map<std::string, ClassFnDefine> funs;
-	ProxyClassDestructor destructor = nullptr;
-	ProxyClassCopy copy = nullptr;
-	std::string name;
-	ProxyClassDefine();
-	ProxyClassDefine(const std::string& name);
-};
-struct ProxyClass {
-	ProxyClassDefine* declare_ty;
-	void* class_ptr;
-	ProxyClass();
-	ProxyClass(ProxyClass& other);
-	ProxyClass(void* val);
-	ProxyClass(void* val, ProxyClassDefine* def);
-	~ProxyClass();
-
-	typed_lgr<class FuncEnviropment> callFnPtr(const std::string& str, ClassAccess acces);
-	ClassFnDefine& getFnMeta(const std::string& str);
-	void setFnMeta(const std::string& str, ClassFnDefine& fn_decl);
-	bool containsFn(const std::string& str);
-	ValueItem* getValue(const std::string& str);
-	void setValue(const std::string& str, ValueItem& it);
-	bool containsValue(const std::string& str);
-
-
-};
-
-
-namespace std {
-	template<>
-	struct hash<ValueItem> {
-		size_t operator()(const ValueItem& cit) const {
-			return cit.hash();
-		}
-	};
-}
 #endif /* RUN_TIME_ATTACHA_ABI_STRUCTS */

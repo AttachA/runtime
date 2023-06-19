@@ -983,9 +983,28 @@ extern "C" void initStandardLib_paralel(){
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_EventSystem, "# parallel event_system", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskLimiter, "# parallel task_limiter", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskQuery, "# parallel task_query", false);
+	FuncEnviropment::AddNative(parallel::constructor::construct_Task, "# parallel task", false);
+	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskQuery, "# parallel task_query", false);
 	FuncEnviropment::AddNative(parallel::createThread, "parallel create_thread", false);
 	FuncEnviropment::AddNative(parallel::createThreadAndWait, "parallel create_thread_and_wait", false);
 	FuncEnviropment::AddNative(parallel::createAsyncThread, "parallel create_async_thread", false);
+	FuncEnviropment::AddNative(parallel::createTask, "parallel create_task", false);
+	FuncEnviropment::AddNative(parallel::task_runtime::await_end_tasks, "parallel task_runtime await_end_tasks", false);
+	FuncEnviropment::AddNative(parallel::task_runtime::await_no_tasks, "parallel task_runtime await_no_tasks", false);
+	FuncEnviropment::AddNative(parallel::task_runtime::become_task_executor, "parallel task_runtime become_task_executor", false);
+	FuncEnviropment::AddNative(parallel::task_runtime::clean_up, "parallel task_runtime clean_up", false);
+	FuncEnviropment::AddNative(parallel::task_runtime::create_executor, "parallel task_runtime create_executor", false);
+	FuncEnviropment::AddNative(parallel::task_runtime::explicitStartTimer, "parallel task_runtime explicitStartTimer", false);
+	FuncEnviropment::AddNative(parallel::task_runtime::reduce_executor, "parallel task_runtime reduce_executor", false);
+	FuncEnviropment::AddNative(parallel::task_runtime::total_executors, "parallel task_runtime total_executors", false);
+	FuncEnviropment::AddNative(parallel::this_task::check_cancelation, "parallel this_task check_cancelation", false);
+	FuncEnviropment::AddNative(parallel::this_task::is_task, "parallel this_task is_task", false);
+	FuncEnviropment::AddNative(parallel::this_task::self_cancel, "parallel this_task self_cancel", false);
+	FuncEnviropment::AddNative(parallel::this_task::sleep, "parallel this_task sleep", false);
+	FuncEnviropment::AddNative(parallel::this_task::sleep_until, "parallel this_task sleep_until", false);
+	FuncEnviropment::AddNative(parallel::this_task::task_id, "parallel this_task task_id", false);
+	FuncEnviropment::AddNative(parallel::this_task::yield, "parallel this_task yield", false);
+	FuncEnviropment::AddNative(parallel::this_task::yield_result, "parallel this_task yield_result", false);
 }
 extern "C" void initStandardLib_chanel(){
 	INIT_CHECK

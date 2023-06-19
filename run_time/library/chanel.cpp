@@ -8,14 +8,6 @@
 #include "../AttachA_CXX.hpp"
 #include "chanel.hpp"
 namespace chanel {
-	template<class Class_>
-	inline typed_lgr<Class_>& getClass(ValueItem* vals) {
-		vals->getAsync();
-		if(vals->meta.vtype == VType::proxy)
-			return (*(typed_lgr<Class_>*)(((ProxyClass*)vals->getSourcePtr()))->class_ptr);
-		else
-			throw InvalidOperation("That function used only in proxy class");
-	}
 	ValueItem _lazy_load_singleton_chanelDeath() {
 		static ValueItem val;
 		if (val.meta.vtype == VType::noting) {
@@ -140,6 +132,29 @@ namespace chanel {
 					begin = suber.erase(begin);
 				else
 					(*begin++)->put(val);
+			}
+		}
+		{
+			auto begin = auto_events.begin();
+			auto end = auto_events.end();
+			while (begin != end) {
+				if ((*begin)->notifier_event.is_deleted())
+					begin = auto_events.erase(begin);
+				else
+					(*begin++)->notify(val);
+			}
+		}
+	}
+	void Chanel::notify(ValueItem&& val) {
+		std::lock_guard guard(no_race);
+		{
+			auto begin = suber.begin();
+			auto end = suber.end();
+			while (begin != end) {
+				if (begin->totalLinks() == 1)
+					begin = suber.erase(begin);
+				else
+					(*begin++)->put(std::move(val));
 			}
 		}
 		{
@@ -297,202 +312,151 @@ namespace chanel {
 
 
 
-	ProxyClassDefine define_Chanel;
-	ProxyClassDefine define_ChanelHandler;
-	ProxyClassDefine define_AutoNotifyChanel;
-	ProxyClassDefine define_AutoEventChanel;
+	AttachAVirtualTable* define_Chanel;
+	AttachAVirtualTable* define_ChanelHandler;
+	AttachAVirtualTable* define_AutoNotifyChanel;
+	AttachAVirtualTable* define_AutoEventChanel;
 
 
-	ValueItem* funs_Chanel_notify(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive [class ptr] [any...]");
-		else if (len == 2)
-			getClass<Chanel>(vals)->notify(vals[1]);
+	AttachAFun(funs_Chanel_notify, 2,{
+		if(len == 2)
+			AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->notify(args[0]);
 		else
-			getClass<Chanel>(vals)->notify(vals + 2, len - 2);
-		return nullptr;
-	}
-	ValueItem* funs_Chanel_auto_notify(ValueItem* vals, uint32_t len){
-		if (len < 2)
-			throw InvalidArguments("That function recuive [class ptr] [async res / function]");
-		switch (vals[1].meta.vtype) {
-		case VType::async_res:{
-			auto task = *(typed_lgr<Task>*)vals[1].getSourcePtr();
-			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify(task)), &define_AutoNotifyChanel), VType::proxy, no_copy);
-		}
-		case VType::function: {
-			auto func = *(typed_lgr<FuncEnviropment>*)vals[1].getSourcePtr();
-			ValueItem noting;
-			typed_lgr task = new Task(func, noting);
-			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify(task)), &define_AutoNotifyChanel), VType::proxy, no_copy);
-		}
+			AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->notify(args + 2, len - 2);
+	})
+	AttachAFun(funs_Chanel_auto_notify, 2,{
+		typed_lgr<Task> task;
+		switch (args[1].meta.vtype) {
+		case VType::async_res:
+			task = *(typed_lgr<Task>*)args[1].getSourcePtr();
+			break;
+		case VType::function: 
+			task = new Task(*args[1].funPtr(), {});
+			break;
 		default:
-			throw InvalidArguments("That function recuive [class ptr] [any...]");
+			throw InvalidArguments("That function receives [class ptr] [any...]");
 		}
-	}
-	ValueItem* funs_Chanel_auto_notify_continue(ValueItem* vals, uint32_t len){
-		if (len < 2)
-			throw InvalidArguments("That function recuive [class ptr] [async res / function]");
-		switch (vals[1].meta.vtype) {
-		case VType::async_res:{
-			auto task = *(typed_lgr<Task>*)vals[1].getSourcePtr();
-			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_continue(task)), &define_AutoNotifyChanel), VType::proxy, no_copy);
-		}
-		case VType::function: {
-			auto& func = *vals[1].funPtr();
-			ValueItem noting;
-			typed_lgr task = new Task(func, noting);
-			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_continue(task)), &define_AutoNotifyChanel), VType::proxy, no_copy);
-		}
+		return ValueItem(AttachA::Interface::constructStructure<typed_lgr<AutoNotifyChanel>>(define_AutoNotifyChanel, 
+				AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->auto_notify(task)
+			), no_copy);
+	})
+	AttachAFun(funs_Chanel_auto_notify_continue, 2,{
+		typed_lgr<Task> task;
+		switch (args[1].meta.vtype) {
+		case VType::async_res:
+			task = *(typed_lgr<Task>*)args[1].getSourcePtr();
+			break;
+		case VType::function: 
+			task = new Task(*args[1].funPtr(), {});
+			break;
 		default:
-			throw InvalidArguments("That function recuive [class ptr] [any...]");
+			throw InvalidArguments("That function receives [class ptr] [async res / function]");
 		}
-	}
-	ValueItem* funs_Chanel_auto_notify_skip(ValueItem* vals, uint32_t len){
-		if (len < 3)
-			throw InvalidArguments("That function recuive [class ptr] [async res / function] [start from]");
-		size_t start_from = (size_t)vals[2];
-		switch (vals[1].meta.vtype) {
-		case VType::async_res:{
-			auto task = *(typed_lgr<Task>*)vals[1].getSourcePtr();
-			return new ValueItem(new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_skip(task,start_from)), &define_AutoNotifyChanel), VType::proxy, no_copy);
-		}
-		case VType::function: {
-			auto& func = *vals[1].funPtr();
-			ValueItem noting;
-			typed_lgr task = new Task(func, noting);
-			return new ValueItem(new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->auto_notify_skip(task,start_from)), &define_AutoNotifyChanel), VType::proxy, no_copy);
-		}
+		return ValueItem(AttachA::Interface::constructStructure<typed_lgr<AutoNotifyChanel>>(define_AutoNotifyChanel, 
+				AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->auto_notify_continue(task)
+			), no_copy);
+	})
+	AttachAFun(funs_Chanel_auto_notify_skip, 3,{
+		typed_lgr<Task> task;
+		switch (args[1].meta.vtype) {
+		case VType::async_res:
+			task = *(typed_lgr<Task>*)args[1].getSourcePtr();
+			break;
+		case VType::function:
+			task = new Task(*args[1].funPtr(), {});
+			break;
 		default:
-			throw InvalidArguments("That function recuive [class ptr] [any...]");
+			throw InvalidArguments("That function receives [class ptr] [async res / function] [start from]");
 		}
-	}
-	ValueItem* funs_Chanel_auto_event(ValueItem* vals, uint32_t len){
-		if (len < 3)
-			throw InvalidArguments("That function recuive [class ptr] [any...]");
-		else {
-			return new ValueItem(new ProxyClass(new typed_lgr(
-				getClass<Chanel>(vals)->auto_event(getClass<EventSystem>(vals + 1),(AutoEventChanel::NotifyType)(uint8_t)vals[2])
-				), &define_AutoEventChanel), VType::proxy, no_copy);
+		return ValueItem(AttachA::Interface::constructStructure<typed_lgr<AutoNotifyChanel>>(define_AutoNotifyChanel, 
+				AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->auto_notify_skip(task, (size_t)args[2])
+			), no_copy);
+	})
+	AttachAFun(funs_Chanel_auto_event, 3, {
+		AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->auto_event(
+			AttachA::Interface::getExtractAs<typed_lgr<EventSystem>>(args[1],(AttachAVirtualTable*)AttachA::Interface::typeVTable<EventSystem>()),
+			(AutoEventChanel::NotifyType)(uint8_t)args[2]
+		);
+	})
+	AttachAFun(funs_Chanel_create_handle, 1, {
+		return ValueItem(AttachA::Interface::constructStructure<typed_lgr<ChanelHandler>>(define_ChanelHandler, 
+				AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->create_handle()
+			), no_copy);
+	})
+	AttachAFun(funs_Chanel_remove_handle, 2, {
+		AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->remove_handle(
+			AttachA::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[1],define_ChanelHandler)
+		);
+	})
+	AttachAFun(funs_Chanel_remove_auto_notify, 2, {
+		AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->remove_auto_notify(
+			AttachA::Interface::getExtractAs<typed_lgr<AutoNotifyChanel>>(args[1],define_AutoNotifyChanel)
+		);
+	})
+	AttachAFun(funs_Chanel_remove_auto_event, 2, {
+		AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->remove_auto_event(
+			AttachA::Interface::getExtractAs<typed_lgr<AutoEventChanel>>(args[1],define_AutoEventChanel)
+		);
+	})
+	AttachAFun(funs_Chanel_add_handle, 2, {
+		AttachA::Interface::getExtractAs<typed_lgr<Chanel>>(args[0],define_Chanel)->add_handle(
+			AttachA::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[1],define_ChanelHandler)
+		);
+	})
 
-			;
-			return nullptr;
-		}
-	}
-
-	ValueItem* funs_Chanel_create_handle(ValueItem* vals, uint32_t len) {
-		if (len < 1)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
-		else
-			return new ValueItem( new ProxyClass(new typed_lgr(getClass<Chanel>(vals)->create_handle()), &define_ChanelHandler), VType::proxy, no_copy);
-	}
-	ValueItem* funs_Chanel_remove_handle(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
-		else {
-			getClass<Chanel>(vals)->remove_handle(getClass<ChanelHandler>(vals + 1));
-			return nullptr;
-		}
-	}
-	ValueItem* funs_Chanel_remove_auto_notify(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
-		else {
-			getClass<Chanel>(vals)->remove_auto_notify(getClass<AutoNotifyChanel>(vals + 1));
-			return nullptr;
-		}
-	}
-	ValueItem* funs_Chanel_remove_auto_event(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
-		else {
-			getClass<Chanel>(vals)->remove_auto_event(getClass<AutoEventChanel>(vals + 1));
-			return nullptr;
-		}
-	}
-	
-	
-	ValueItem* funs_Chanel_add_handle(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
-		else {
-			getClass<Chanel>(vals)->add_handle(getClass<ChanelHandler>(vals + 1));
-			return nullptr;
-		}
-	}
-
-
-	ValueItem* funs_ChanelHandler_get(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
-		else
-			return new ValueItem(getClass<ChanelHandler>(vals)->get());
-	}
-	ValueItem* funs_ChanelHandler_try_get(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
-		else
-			return new ValueItem(getClass<ChanelHandler>(vals)->try_get());
-	}
-	ValueItem* funs_ChanelHandler_can_get(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
-		else
-			return new ValueItem(getClass<ChanelHandler>(vals)->can_get());
-	}
-	ValueItem* funs_ChanelHandler_end_of_chanel(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
-		else
-			return new ValueItem(getClass<ChanelHandler>(vals)->end_of_chanel());
-	}
-	ValueItem* funs_ChanelHandler_wait_item(ValueItem* vals, uint32_t len) {
-		if (len < 2)
-			throw InvalidArguments("That function recuive only [class ptr] [any...]");
-		else
-			return new ValueItem(getClass<ChanelHandler>(vals)->wait_item());
-	}
+	AttachAFun(funs_ChanelHandler_get, 2, {
+		return AttachA::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0],define_ChanelHandler)->get();
+	})
+	AttachAFun(funs_ChanelHandler_try_get, 2, {
+		return AttachA::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0],define_ChanelHandler)->try_get();
+	})
+	AttachAFun(funs_ChanelHandler_can_get, 2, {
+		return AttachA::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0],define_ChanelHandler)->can_get();
+	})
+	AttachAFun(funs_ChanelHandler_end_of_chanel, 2, {
+		return AttachA::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0],define_ChanelHandler)->end_of_chanel();
+	})
+	AttachAFun(funs_ChanelHandler_wait_item, 2, {
+		AttachA::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0],define_ChanelHandler)->wait_item();
+	})
 
 	void init() {
-		define_Chanel.copy = AttachA::Interface::special::proxyCopy<Chanel, true>;
-		define_Chanel.destructor = AttachA::Interface::special::proxyDestruct<Chanel, true>;
-		define_Chanel.name = "chanel";
-		define_Chanel.funs["notify"] = { new FuncEnviropment(funs_Chanel_notify,false),false,ClassAccess::pub };
-		define_Chanel.funs["create_handle"] = { new FuncEnviropment(funs_Chanel_create_handle,false),false,ClassAccess::pub };
-		define_Chanel.funs["remove_handle"] = { new FuncEnviropment(funs_Chanel_remove_handle,false),false,ClassAccess::pub };
-		define_Chanel.funs["add_handle"] = { new FuncEnviropment(funs_Chanel_add_handle,false),false,ClassAccess::pub };
-		define_Chanel.funs["auto_notify"] = { new FuncEnviropment(funs_Chanel_auto_notify,false),false,ClassAccess::pub };
-		define_Chanel.funs["auto_event"] = { new FuncEnviropment(funs_Chanel_auto_event,false),false,ClassAccess::pub };
-		define_Chanel.funs["auto_notify_continue"] = { new FuncEnviropment(funs_Chanel_auto_notify_continue,false),false,ClassAccess::pub };
-		define_Chanel.funs["auto_notify_skip"] = { new FuncEnviropment(funs_Chanel_auto_notify_skip,false),false,ClassAccess::pub };
-		define_Chanel.funs["remove_auto_notify"] = { new FuncEnviropment(funs_Chanel_remove_auto_notify,false),false,ClassAccess::pub };
-		define_Chanel.funs["remove_auto_event"] = { new FuncEnviropment(funs_Chanel_remove_auto_event,false),false,ClassAccess::pub };
+		if(define_Chanel != nullptr) return;
+		define_Chanel = AttachA::Interface::createTable<typed_lgr<Chanel>>("chanel",
+			AttachA::Interface::direct_method("notify", funs_Chanel_notify),
+			AttachA::Interface::direct_method("create_handle", funs_Chanel_create_handle),
+			AttachA::Interface::direct_method("remove_handle", funs_Chanel_remove_handle),
+			AttachA::Interface::direct_method("add_handle", funs_Chanel_add_handle),
+			AttachA::Interface::direct_method("auto_notify", funs_Chanel_auto_notify),
+			AttachA::Interface::direct_method("auto_event", funs_Chanel_auto_event),
+			AttachA::Interface::direct_method("auto_notify_continue", funs_Chanel_auto_notify_continue),
+			AttachA::Interface::direct_method("auto_notify_skip", funs_Chanel_auto_notify_skip),
+			AttachA::Interface::direct_method("remove_auto_notify", funs_Chanel_remove_auto_notify),
+			AttachA::Interface::direct_method("remove_auto_event", funs_Chanel_remove_auto_event)
+		);
 
+		define_ChanelHandler = AttachA::Interface::createTable<typed_lgr<ChanelHandler>>("chanel_handler",
+			AttachA::Interface::direct_method("get", funs_ChanelHandler_get),
+			AttachA::Interface::direct_method("try_get", funs_ChanelHandler_try_get),
+			AttachA::Interface::direct_method("can_get", funs_ChanelHandler_can_get),
+			AttachA::Interface::direct_method("end_of_chanel", funs_ChanelHandler_end_of_chanel),
+			AttachA::Interface::direct_method("wait_item", funs_ChanelHandler_wait_item)
+		);
 
-		define_ChanelHandler.copy = AttachA::Interface::special::proxyCopy<ChanelHandler, true>;
-		define_ChanelHandler.destructor = AttachA::Interface::special::proxyDestruct<ChanelHandler, true>;
-		define_ChanelHandler.name = "chanel_handler";
-		define_ChanelHandler.funs["get"] = { new FuncEnviropment(funs_ChanelHandler_get,false),false,ClassAccess::pub };
-		define_ChanelHandler.funs["try_get"] = { new FuncEnviropment(funs_ChanelHandler_get,false),false,ClassAccess::pub };
-		define_ChanelHandler.funs["can_get"] = { new FuncEnviropment(funs_ChanelHandler_can_get,false),false,ClassAccess::pub };
-		define_ChanelHandler.funs["end_of_chanel"] = { new FuncEnviropment(funs_ChanelHandler_end_of_chanel,false),false,ClassAccess::pub };
-		define_ChanelHandler.funs["wait_item"] = { new FuncEnviropment(funs_ChanelHandler_wait_item,false),false,ClassAccess::pub };
+		define_AutoNotifyChanel = AttachA::Interface::createTable<typed_lgr<AutoNotifyChanel>>("auto_notify_chanel");
+		define_AutoEventChanel = AttachA::Interface::createTable<typed_lgr<AutoEventChanel>>("auto_event_chanel");
+		AttachA::Interface::typeVTable<typed_lgr<Chanel>>() = define_Chanel;
+		AttachA::Interface::typeVTable<typed_lgr<ChanelHandler>>() = define_ChanelHandler;
+		AttachA::Interface::typeVTable<typed_lgr<AutoEventChanel>>() = define_AutoEventChanel;
 
-		define_AutoNotifyChanel.copy = AttachA::Interface::special::proxyCopy<AutoNotifyChanel, true>;
-		define_AutoNotifyChanel.destructor = AttachA::Interface::special::proxyDestruct<AutoNotifyChanel, true>;
-		define_AutoNotifyChanel.name = "auto_notify_chanel";
-
-		define_AutoEventChanel.copy = AttachA::Interface::special::proxyCopy<AutoEventChanel, true>;
-		define_AutoEventChanel.destructor = AttachA::Interface::special::proxyDestruct<AutoEventChanel, true>;
-		define_AutoEventChanel.name = "auto_event_chanel";
 	}
 
 	namespace constructor {
 		ValueItem* createProxy_Chanel(ValueItem*, uint32_t) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new Chanel()), &define_Chanel), VType::proxy, no_copy);
+			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<Chanel>>(define_Chanel, new Chanel()), no_copy);
 		}
 		ValueItem* createProxy_ChanelHandler(ValueItem*, uint32_t) {
-			return new ValueItem(new ProxyClass(new typed_lgr(new ChanelHandler()), &define_ChanelHandler), VType::proxy, no_copy);
+			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<ChanelHandler>>(define_ChanelHandler, new ChanelHandler()), no_copy);
 		}
 	}
 }

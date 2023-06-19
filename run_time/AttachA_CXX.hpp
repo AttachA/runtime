@@ -12,7 +12,7 @@ namespace AttachA {
 	template<class ...Types>
 	ValueItem cxxCall(typed_lgr<FuncEnviropment> func, Types... types) {
 		ValueItem args[] = {ABI_IMPL::BVcast(types)...};
-		ValueItem* res = func->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
+		ValueItem* res = func->syncWrapper(args, sizeof...(Types));
 		if (res == nullptr)
 			return {};
 		ValueItem m(std::move(*res));
@@ -39,38 +39,50 @@ namespace AttachA {
 		delete res;
 		return m;
 	}
-
-
+	inline void excepted(ValueItem& v, VType type) {
+		if (v.meta.vtype != type)
+			throw InvalidArguments("Expected " + enum_to_string(type) + " got " + enum_to_string(v.meta.vtype));
+	}
+	inline void excepted(ValueItem& v, ValueMeta meta) {
+		if (v.meta.encoded != meta.encoded){
+			if(v.meta.vtype != meta.vtype)
+				throw InvalidArguments("Expected " + enum_to_string(meta.vtype) + " got " + enum_to_string(v.meta.vtype));
+			if(v.meta.allow_edit != meta.allow_edit)
+				throw InvalidArguments("Expected " + std::string(meta.allow_edit ? "non const" : "const") + " value got, " +std::string(v.meta.allow_edit ? "non const" : "const"));
+			if(v.meta.as_ref != meta.as_ref)
+				throw InvalidArguments("Expected " + std::string(meta.as_ref ? "refrence" : "value") + " got, " +std::string(v.meta.as_ref ? "refrence" : "value"));
+			if(v.meta.use_gc != meta.use_gc)
+				throw InvalidArguments("Expected " + std::string(meta.use_gc ? "gc" : "non gc") + " got, " +std::string(v.meta.use_gc ? "gc" : "non gc"));
+			if(is_raw_array(v.meta.vtype))
+				if(v.meta.val_len != meta.val_len)
+					throw InvalidArguments("Expected array size " + std::to_string(meta.val_len) + " got " + std::to_string(v.meta.val_len));
+			throw InvalidArguments("Caught invalid encoded value, expected " + std::to_string(meta.encoded) + " got " + std::to_string(v.meta.encoded));
+		}
+	}
+	inline void excepted_basic_array(ValueItem& v){
+		if(!is_raw_array(v.meta.vtype) && v.meta.vtype != VType::faarr && v.meta.vtype != VType::saarr)
+			throw InvalidArguments("Expected basic array got " + enum_to_string(v.meta.vtype));
+	}
+	inline void excepted_raw_array(ValueItem& v){
+		if(!is_raw_array(v.meta.vtype))
+			throw InvalidArguments("Expected raw array got " + enum_to_string(v.meta.vtype));
+	}
+	inline void excepted_array(ValueItem& v){
+		if(!is_raw_array(v.meta.vtype) || v.meta.vtype == VType::uarr)
+			throw InvalidArguments("Expected array got " + enum_to_string(v.meta.vtype));
+	}
+	
+	inline void arguments_range(uint32_t argc, uint32_t min, uint32_t max) {
+		if (argc < min || argc > max)
+			throw InvalidArguments("Invalid arguments count, expected " + std::to_string(min) + " to " + std::to_string(max) + ", got " + std::to_string(argc));
+	}
+	inline void arguments_range(uint32_t argc, uint32_t min) {
+		if (argc < min)
+			throw InvalidArguments("Invalid arguments count, expected " + std::to_string(min) + " or more, got " + std::to_string(argc));
+	}
 	namespace Interface {
-		inline ValueItem makeCall(ClassAccess access, ClassValue& c, const std::string& fun_name) {
-			ValueItem arg(&c, VType::class_, as_refrence);
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&arg, 1);
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
-		inline ValueItem makeCall(ClassAccess access, MorphValue& c, const std::string& fun_name) {
-			ValueItem args(&c, VType::morph, as_refrence);
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&args, 1);
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
-		inline ValueItem makeCall(ClassAccess access, ProxyClass& c, const std::string& fun_name) {
-			ValueItem arg(&c, VType::proxy, as_refrence);
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(&arg, 1);
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
 		inline ValueItem makeCall(ClassAccess access, Structure& c, const std::string& fun_name) {
-			ValueItem arg(&c, VType::proxy, as_refrence);
+			ValueItem arg(&c, as_refrence);
 			ValueItem* res = c.table_get_dynamic(fun_name, access)(&arg, 1);
 			if (res == nullptr)
 				return {};
@@ -79,63 +91,22 @@ namespace AttachA {
 			return m;
 		}
 		inline ValueItem makeCall(ClassAccess access, ValueItem& c, const std::string& fun_name) {
-			ValueItem* res;
-			switch (c.meta.vtype) {
-			case VType::class_:
-				res = ((ClassValue&)c).callFnPtr(fun_name, access)->syncWrapper(&c, 1);
-				break;
-			case VType::morph:
-				res = ((MorphValue&)c).callFnPtr(fun_name, access)->syncWrapper(&c, 1);
-				break;
-			case VType::proxy:
-				res = ((ProxyClass&)c).callFnPtr(fun_name, access)->syncWrapper(&c, 1);
-				break;
-			case VType::struct_:
-				res = ((Structure&)c).table_get_dynamic(fun_name, access)(&c, 1);
-			default:
-				throw NotImplementedException();
+			if(c.meta.vtype == VType::struct_){
+				ValueItem* res = ((Structure&)c).table_get_dynamic(fun_name, access)(&c, 1);
+				if (res == nullptr)
+					return {};
+				ValueItem m(std::move(*res));
+				delete res;
+				return m;
 			}
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
+			else throw InvalidArguments("Invalid type for call");
 		}
 		
-		template<class ...Types>
-		ValueItem makeCall(ClassAccess access, ClassValue& c, const std::string& fun_name, const Types&... types) {
-			ValueItem args[] = { ValueItem(&c,VType::class_, as_refrence), ABI_IMPL::BVcast(types)... };
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
-		template<class ...Types>
-		ValueItem makeCall(ClassAccess access, MorphValue& c, const std::string& fun_name, const Types&... types) {
-			ValueItem args[] = { ValueItem(&c,VType::morph, as_refrence), ABI_IMPL::BVcast(types)... };
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
-		template<class ...Types>
-		ValueItem makeCall(ClassAccess access, ProxyClass& c, const std::string& fun_name, const Types&... types) {
-			ValueItem args[] = { ValueItem(&c,VType::proxy, as_refrence), ABI_IMPL::BVcast(types)... };
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
+		
 		template<class ...Types>
 		ValueItem makeCall(ClassAccess access, Structure& c, const std::string& fun_name, const Types&... types) {
-			ValueItem args[] = { ValueItem(&c,VType::proxy, as_refrence), ABI_IMPL::BVcast(types)... };
-			ValueItem* res = c.table_get_dynamic(fun_name, access)(args, sizeof(args) / sizeof(ValueItem));
+			ValueItem args[] = { ValueItem(&c, as_refrence), ABI_IMPL::BVcast(types)... };
+			ValueItem* res = c.table_get_dynamic(fun_name, access)(args, sizeof...(Types) + 1);
 			if (res == nullptr)
 				return {};
 			ValueItem m(std::move(*res));
@@ -144,117 +115,36 @@ namespace AttachA {
 		}
 		template<class ...Types>
 		ValueItem makeCall(ClassAccess access, ValueItem& c, const std::string& fun_name, const Types&... types) {
-			ValueItem args[] = { ValueItem(c.val, c.meta, as_refrence) , ABI_IMPL::BVcast(types)... };
-			ValueItem* res;
-			switch (c.meta.vtype) {
-			case VType::class_:
-				res = ((ClassValue&)c).callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
-				break;
-			case VType::morph:
-				res = ((MorphValue&)c).callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
-				break;
-			case VType::proxy:
-				res = ((ProxyClass&)c).callFnPtr(fun_name, access)->syncWrapper(args, sizeof(args) / sizeof(ValueItem));
-				break;
-			case VType::struct_:
-				res = ((Structure&)c).table_get_dynamic(fun_name, access)(args, sizeof(args) / sizeof(ValueItem));
-			default:
-				throw NotImplementedException();
+			if(c.meta.vtype == VType::struct_){
+				ValueItem args[] = { ValueItem(c, as_refrence), ABI_IMPL::BVcast(types)... };
+				ValueItem* res = ((Structure&)c).table_get_dynamic(fun_name, access)(args, sizeof...(Types) + 1);
+				if (res == nullptr)
+					return {};
+				ValueItem m(std::move(*res));
+				delete res;
+				return m;
 			}
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
-
-		inline ValueItem makeCall(ClassAccess access, ClassValue& c, const std::string& fun_name, ValueItem* args, uint32_t len) {
-			list_array<ValueItem> args_tmp(args, args + len, len);
-			args_tmp.push_front(ValueItem(&c, VType::class_, as_refrence));
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args_tmp.data(), len + 1);
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
-		inline ValueItem makeCall(ClassAccess access, MorphValue& c, const std::string& fun_name, ValueItem* args, uint32_t len) {
-			list_array<ValueItem> args_tmp(args, args + len, len);
-			args_tmp.push_front(ValueItem(&c, VType::morph, as_refrence));
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args_tmp.data(), len + 1);
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
-		inline ValueItem makeCall(ClassAccess access, ProxyClass& c, const std::string& fun_name, ValueItem* args, uint32_t len) {
-			list_array<ValueItem> args_tmp(args, args + len, len);
-			args_tmp.push_front(ValueItem(&c, VType::proxy, as_refrence));
-			ValueItem* res = c.callFnPtr(fun_name, access)->syncWrapper(args_tmp.data(), len + 1);
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
-		}
-		inline ValueItem makeCall(ClassAccess access, Structure& c, const std::string& fun_name, ValueItem* args, uint32_t len) {
-			list_array<ValueItem> args_tmp(args, args + len, len);
-			args_tmp.push_front(ValueItem(&c, VType::proxy, as_refrence));
-			ValueItem* res = c.table_get_dynamic(fun_name, access)(args_tmp.data(), len + 1);
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
+			else throw InvalidArguments("Invalid type for call");
 		}
 		inline ValueItem makeCall(ClassAccess access, ValueItem& c, const std::string& fun_name, ValueItem* args, uint32_t len) {
-			list_array<ValueItem> args_tmp(args, args + len, len);
-			args_tmp.push_front(ValueItem(c.val, c.meta, as_refrence));
-			ValueItem* res;
-			switch (c.meta.vtype) {
-			case VType::class_:
-				res = ((ClassValue&)c).callFnPtr(fun_name, access)->syncWrapper(args_tmp.data(), len + 1);
-				break;
-			case VType::morph:
-				res = ((MorphValue&)c).callFnPtr(fun_name, access)->syncWrapper(args_tmp.data(), len + 1);
-				break;
-			case VType::proxy:
-				res = ((ProxyClass&)c).callFnPtr(fun_name, access)->syncWrapper(args_tmp.data(), len + 1);
-				break;
-			case VType::struct_:
-				res = ((Structure&)c).table_get_dynamic(fun_name, access)(args_tmp.data(), len + 1);
-				break;
-			default:
-				throw NotImplementedException();
+			if(c.meta.vtype == VType::struct_){
+				list_array<ValueItem> args_tmp(args, args + len, len);
+				args_tmp.push_front(ValueItem(c, as_refrence));
+				ValueItem* res = ((Structure&)c).table_get_dynamic(fun_name, access)(args_tmp.data(), len + 1);
+				if (res == nullptr)
+					return {};
+				ValueItem m(std::move(*res));
+				delete res;
+				return m;
 			}
-			if (res == nullptr)
-				return {};
-			ValueItem m(std::move(*res));
-			delete res;
-			return m;
+			else throw InvalidArguments("Invalid type for call");
 		}
 
-		inline ValueItem getValue(ClassValue& c, const std::string& val_name) {
-			return c.getValue(val_name, ClassAccess::pub);
-		}
-		inline ValueItem getValue(MorphValue& c, const std::string& val_name) {
-			return c.getValue(val_name, ClassAccess::pub);
-		}
-		inline ValueItem getValue(ProxyClass& c, const std::string& val_name) {
-			return c.getValue(val_name);
-		}
 		inline ValueItem getValue(Structure& c, const std::string& val_name) {
 			return c.dynamic_value_get(val_name);
 		}
 		inline ValueItem getValue(ValueItem& c, const std::string& val_name) {
 			switch (c.meta.vtype) {
-			case VType::class_:
-				return ((ClassValue&)c).getValue(val_name, ClassAccess::pub);
-			case VType::morph:
-				return ((MorphValue&)c).getValue(val_name, ClassAccess::pub);
-			case VType::proxy:
-				return ((ProxyClass&)c).getValue(val_name);
 			case VType::struct_:
 				return ((Structure&)c).dynamic_value_get(val_name);
 			default:
@@ -262,26 +152,11 @@ namespace AttachA {
 			}
 		}
 
-		inline ValueItem getValue(ClassAccess access, ClassValue& c, const std::string& val_name) {
-			return c.getValue(val_name, access);
-		}
-		inline ValueItem getValue(ClassAccess access, MorphValue& c, const std::string& val_name) {
-			return c.getValue(val_name, access);
-		}
-		inline ValueItem getValue(ClassAccess access, ProxyClass& c, const std::string& val_name) {
-			return c.getValue(val_name);
-		}
 		inline ValueItem getValue(ClassAccess access, Structure& c, const std::string& val_name) {
 			return c.dynamic_value_get(val_name);
 		}
 		inline ValueItem getValue(ClassAccess access, ValueItem& c, const std::string& val_name) {
 			switch (c.meta.vtype) {
-			case VType::class_:
-				return ((ClassValue&)c).getValue(val_name, access);
-			case VType::morph:
-				return ((MorphValue&)c).getValue(val_name, access);
-			case VType::proxy:
-				return ((ProxyClass&)c).getValue(val_name);
 			case VType::struct_:
 				return ((Structure&)c).dynamic_value_get(val_name);
 			default:
@@ -290,58 +165,22 @@ namespace AttachA {
 		}
 
 
-		inline void setValue(ClassValue& c, const std::string& val_name, ValueItem& set) {
-			c.getValue(val_name, ClassAccess::pub) = set;
-		}
-		inline void setValue(MorphValue& c, const std::string& val_name, ValueItem& set) {
-			c.getValue(val_name, ClassAccess::pub) = set;
-		}
-		inline void setValue(ProxyClass& c, const std::string& val_name, ValueItem& set) {
-			c.setValue(val_name, set);
-		}
 		inline void setValue(Structure& c, const std::string& val_name, ValueItem& set) {
 			c.dynamic_value_set(val_name, set);
 		}
 		inline void setValue(ValueItem& c, const std::string& val_name, ValueItem& set) {
 			switch (c.meta.vtype) {
-			case VType::class_:
-				((ClassValue&)c).getValue(val_name, ClassAccess::pub) = set;
-				break;
-			case VType::morph:
-				((MorphValue&)c).getValue(val_name, ClassAccess::pub) = set;
-				break;
-			case VType::proxy:
-				((ProxyClass&)c).setValue(val_name, set);
-				break;
 			case VType::struct_:
 				((Structure&)c).dynamic_value_set(val_name, set);
 			default:
 				throw NotImplementedException();
 			}
-		}
-		inline void setValue(ClassAccess access, ClassValue& c, const std::string& val_name, ValueItem& set) {
-			c.getValue(val_name, access) = set;
-		}
-		inline void setValue(ClassAccess access, MorphValue& c, const std::string& val_name, ValueItem& set) {
-			c.getValue(val_name, access) = set;
-		}
-		inline void setValue(ClassAccess access, ProxyClass& c, const std::string& val_name, ValueItem& set) {
-			return c.setValue(val_name, set);
 		}
 		inline void setValue(ClassAccess access, Structure& c, const std::string& val_name, ValueItem& set) {
 			c.dynamic_value_set(val_name, set);
 		}
 		inline void setValue(ClassAccess access, ValueItem& c, const std::string& val_name, ValueItem& set) {
 			switch (c.meta.vtype) {
-			case VType::class_:
-				((ClassValue&)c).getValue(val_name, access) = set;
-				break;
-			case VType::morph:
-				((MorphValue&)c).getValue(val_name, access) = set;
-				break;
-			case VType::proxy:
-				((ProxyClass&)c).setValue(val_name, set);
-				break;
 			case VType::struct_:
 				((Structure&)c).dynamic_value_set(val_name, set);
 			default:
@@ -350,125 +189,39 @@ namespace AttachA {
 		}
 
 
-
-		inline bool hasImplement(ClassValue& c, const std::string& fun_name) {
-			return c.containsFn(fun_name);
-		}
-		inline bool hasImplement(MorphValue& c, const std::string& fun_name) {
-			return c.containsFn(fun_name);
-		}
-		inline bool hasImplement(ProxyClass& c, const std::string& fun_name) {
-			return c.containsFn(fun_name);
-		}
 		inline bool hasImplement(Structure& c, const std::string& fun_name, ClassAccess access) {
 			return c.has_method(fun_name, access);
 		}
 		inline bool hasImplement(ValueItem& c, const std::string& fun_name, ClassAccess access = ClassAccess::pub) {
 			switch (c.meta.vtype) {
-			case VType::class_:
-				return ((ClassValue&)c).containsFn(fun_name);
-			case VType::morph:
-				return ((MorphValue&)c).containsFn(fun_name);
-			case VType::proxy:
-				return ((ProxyClass&)c).containsFn(fun_name);
 			case VType::struct_:
 				return ((Structure&)c).has_method(fun_name, access);
 			default:
 				return false;
 			}
 		}
-		
-		inline std::string name(ClassValue& c) {
-			return c.define->name;
-		}
-		inline std::string name(MorphValue& c) {
-			return c.define.name;
-		}
-		inline std::string name(ProxyClass& c) {
-			return c.declare_ty->name;
+		inline std::string name(Structure& c) {
+			return c.get_name();
 		}
 		inline std::string name(ValueItem& c) {
 			switch (c.meta.vtype) {
-			case VType::class_:
-				return ((ClassValue&)c).define->name;
-			case VType::morph:
-				return ((MorphValue&)c).define.name;
-			case VType::proxy:
-				return ((ProxyClass&)c).declare_ty->name;
 			case VType::struct_:
 				return ((Structure&)c).get_name();
 			default:
 				return "$ Not class $";
 			}
 		}
-
-		inline bool is_interface(ClassValue& c) {
-			return true;
-		}
-		inline bool is_interface(MorphValue& c) {
-			return true;
-		}
-		inline bool is_interface(ProxyClass& c) {
-			return true;
-		}
 		inline bool is_interface(Structure& c) {
 			return true;
 		}
 		inline bool is_interface(ValueItem& c) {
 			switch (c.meta.vtype) {
-			case VType::class_:
-			case VType::morph:
-			case VType::proxy:
 			case VType::struct_:
 				return true;
 			default:
 				return false;
 			}
 		}
-
-		namespace special {
-			template<class Class_, bool as_ref>
-			inline void* proxyCopy(void* val) {
-				if constexpr (as_ref)
-					return new typed_lgr<Class_>(*(typed_lgr<Class_>*)val);
-				else 
-					return new Class_(*(Class_*)val);
-			}
-			template<class Class_, bool as_ref>
-			inline void proxyDestruct(void* val) {
-				if constexpr (as_ref)
-					delete (typed_lgr<Class_>*)val;
-				else
-					delete (Class_*)val;
-			}
-			template<class Class_>
-			inline typed_lgr<Class_> proxy_get_as_native(ValueItem& vals) {
-				if (vals.meta.vtype == VType::proxy)
-					return *(typed_lgr<Class_>*)((ProxyClass*)vals.getSourcePtr())->class_ptr;
-				else
-					throw InvalidClassDeclarationException("The not proxy type, use this function only with proxy values");
-			}
-		}
-	
-		template<class Class_>
-		inline Class_& get_as_native(ValueItem& v) {
-			if (v.meta.vtype == VType::proxy)
-				return *(Class_*)((ProxyClass*)v.getSourcePtr())->class_ptr;
-			else if(v.meta.vtype == VType::struct_)
-				return *(Class_*)((Structure&)v).get_data_no_vtable();
-			else
-				throw InvalidClassDeclarationException("The not proxy or struct type, use this function only with proxy or struct values");
-		}
-		template<class Class_>
-		inline Class_& get_as_native(ProxyClass& vals) {
-			return *(Class_*)vals.class_ptr;
-		}
-		template<class Class_>
-		inline Class_& get_as_native(Structure& vals) {
-			return *(Class_*)vals.get_data_no_vtable();
-		}
-
-
 		template<class ...Methods>
 		struct single_method{
 			std::tuple<Methods...> methods;
@@ -478,6 +231,7 @@ namespace AttachA {
 		struct direct_method{
 			std::string name;
 			Enviropment env;
+			ClassAccess access = ClassAccess::pub;
 		};
 		namespace _createProxyTable_Impl_{
 			
@@ -943,6 +697,7 @@ namespace AttachA {
 			([&](){
 				proxed[i].owner_name = owner_name;
 				proxed[i].name = methods.name;
+				proxed[i].access = methods.access;
 				proxed[i++].ref = new FuncEnviropment(methods.env,false);
 			}(),...);
 
@@ -966,6 +721,7 @@ namespace AttachA {
 			([&](){
 				proxed[i].owner_name = owner_name;
 				proxed[i].name = methods.name;
+				proxed[i].access = methods.access;
 				proxed[i++].ref = new FuncEnviropment(methods.env,false);
 			}(),...);
 			auto res = AttachAVirtualTable::create(
@@ -980,7 +736,6 @@ namespace AttachA {
 		}
 
 		template<class Class_, class ...Methods>
-		//std::enable_if Methods is MethodInfos
 		typename std::enable_if<
 		_createProxyTable_Impl_::are_same<MethodInfo,Methods...>::value
 		,AttachADynamicVirtualTable*>::type
@@ -1003,7 +758,6 @@ namespace AttachA {
 			return res;
 		}
 		template<class Class_, class ...Methods>
-		//std::enable_if Methods is MethodInfos
 		typename std::enable_if<_createProxyTable_Impl_::are_same<MethodInfo,Methods...>::value,AttachAVirtualTable*>::type
 		createProxyTable(const std::string& owner_name, Methods... methods){
 			list_array<MethodInfo> proxed;
@@ -1032,6 +786,7 @@ namespace AttachA {
 			([&](){
 				proxed[i].owner_name = owner_name;
 				proxed[i].name = methods.name;
+				proxed[i].access = methods.access;
 				proxed[i++].ref = new FuncEnviropment(methods.env,false);
 			}(),...);
 
@@ -1054,9 +809,63 @@ namespace AttachA {
 			([&](){
 				proxed[i].owner_name = owner_name;
 				proxed[i].name = methods.name;
+				proxed[i].access = methods.access;
 				proxed[i++].ref = new FuncEnviropment(methods.env,false);
 			}(),...);
 
+			auto res = AttachAVirtualTable::create(
+				proxed,
+				_createProxyTable_Impl_::ref_destructor<Class_>,
+				_createProxyTable_Impl_::ref_copy<Class_>,
+				_createProxyTable_Impl_::ref_move<Class_>,
+				_createProxyTable_Impl_::ref_compare<Class_>
+			);
+			res->setName(owner_name);
+			return res;
+		}
+		
+		template<class Class_>
+		AttachADynamicVirtualTable* createProxyDTable(const std::string& owner_name){
+			list_array<MethodInfo> proxed;
+			auto res = new AttachADynamicVirtualTable(
+				proxed,
+				_createProxyTable_Impl_::ref_destructor<Class_>,
+				_createProxyTable_Impl_::ref_copy<Class_>,
+				_createProxyTable_Impl_::ref_move<Class_>,
+				_createProxyTable_Impl_::ref_compare<Class_>
+			);
+			res->name = owner_name;
+			return res;
+		}
+		template<class Class_>
+		AttachAVirtualTable* createProxyTable(const std::string& owner_name){
+			list_array<MethodInfo> proxed;
+			auto res = AttachAVirtualTable::create(
+				proxed,
+				_createProxyTable_Impl_::ref_destructor<Class_>,
+				_createProxyTable_Impl_::ref_copy<Class_>,
+				_createProxyTable_Impl_::ref_move<Class_>,
+				_createProxyTable_Impl_::ref_compare<Class_>
+			);
+			res->setName(owner_name);
+			return res;
+		}
+		template<class Class_>
+		AttachADynamicVirtualTable* createDTable(const std::string& owner_name){
+			list_array<MethodInfo> proxed;
+			auto res = new AttachADynamicVirtualTable(
+				proxed,
+				_createProxyTable_Impl_::ref_destructor<Class_>,
+				_createProxyTable_Impl_::ref_copy<Class_>,
+				_createProxyTable_Impl_::ref_move<Class_>,
+				_createProxyTable_Impl_::ref_compare<Class_>
+			);
+			res->name = owner_name;
+			return res;
+		}
+		template<class Class_>
+		AttachAVirtualTable* createTable(const std::string& owner_name){
+			list_array<MethodInfo> proxed;
 			auto res = AttachAVirtualTable::create(
 				proxed,
 				_createProxyTable_Impl_::ref_destructor<Class_>,
@@ -1073,14 +882,124 @@ namespace AttachA {
 		Structure* constructStructure(AttachAVirtualTable* table,Args&&... args){
 			Structure* str = Structure::construct(sizeof(Class_) + 8, nullptr, 0, table, Structure::VTableMode::AttachAVirtualTable);
 			new(str->get_data_no_vtable()) Class_(std::forward<Args>(args)...);
+			str->fully_constructed = true;
 			return str;
 		}
 		template<class Class_, class ...Args>
 		Structure* constructStructure(AttachADynamicVirtualTable* table,Args&&... args){
 			Structure* str = Structure::construct(sizeof(Class_) + 8, nullptr, 0, table, Structure::VTableMode::AttachADynamicVirtualTable);
 			new(str->get_data_no_vtable()) Class_(std::forward<Args>(args)...);
+			str->fully_constructed = true;
 			return str;
 		}
-	
+
+		template<class Class_>
+		Class_& getAs(Structure& str){
+			return *(Class_*)str.get_data_no_vtable();
+		}
+		template<class Class_>
+		Class_& getAs(ValueItem& str){
+			if(str.meta.vtype == VType::struct_){
+				return *(Class_*)((Structure&)str).get_data_no_vtable();
+			}else
+				throw InvalidArguments("getAs: ValueItem is not a struct");
+		}
+
+		template<class Class_>
+		Class_& getExtractAs(Structure& proxy, AttachADynamicVirtualTable* vtable){
+			if(proxy.get_vtable() != vtable){
+				if(proxy.get_name() != vtable->name)
+					throw InvalidArguments(vtable->name + ", excepted " + vtable->name +", got " + proxy.get_name());
+				else
+					throw InvalidArguments(vtable->name + ", excepted " + vtable->name+ ", got non native" + vtable->name);
+			}
+			return AttachA::Interface::getAs<Class_>(proxy);
+		}
+		template<class Class_>
+		Class_& getExtractAs(ValueItem& str, AttachADynamicVirtualTable* vtable){
+			if(str.meta.vtype == VType::struct_){
+				Structure& proxy = (Structure&)str;
+				if(proxy.get_vtable() != vtable){
+					if(proxy.get_name() != vtable->name)
+						throw InvalidArguments(vtable->name + ", excepted " + vtable->name +", got " + proxy.get_name());
+					else
+						throw InvalidArguments(vtable->name + ", excepted " + vtable->name+ ", got non native" + vtable->name);
+				}
+				return AttachA::Interface::getAs<Class_>(proxy);
+			}else
+				throw InvalidArguments(vtable->name + ", type missmatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
+		}
+		template<class Class_>
+		Class_& getExtractAs(Structure& proxy, AttachAVirtualTable* vtable){
+			if(proxy.get_vtable() != vtable){
+				if(proxy.get_name() != vtable->getName())
+					throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() +", got " + proxy.get_name());
+				else
+					throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName()+ ", got non native" + vtable->getName());
+			}
+			return AttachA::Interface::getAs<Class_>(proxy);
+		}
+		template<class Class_>
+		Class_& getExtractAs(ValueItem& str, AttachAVirtualTable* vtable){
+			if(str.meta.vtype == VType::struct_){
+				Structure& proxy = (Structure&)str;
+				if(proxy.get_vtable() != vtable){
+					if(proxy.get_name() != vtable->getName())
+						throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() +", got " + proxy.get_name());
+					else
+						throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName()+ ", got non native" + vtable->getName());
+				}
+				return AttachA::Interface::getAs<Class_>(proxy);
+			}else
+				throw InvalidArguments(vtable->getName() + ", type missmatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
+		}
+
+		template<class Class_>
+		void*& typeVTable(){
+			static void* hold;
+			return hold;
+		}
+		template<class Class_>
+		Class_& getExtractAsDynamic(Structure& proxy){
+			return AttachA::Interface::getExtractAs<Class_>(proxy, (AttachADynamicVirtualTable*)typeVTable<Class_>());
+		}
+		template<class Class_>
+		Class_& getExtractAsDynamic(ValueItem& str){
+			return AttachA::Interface::getExtractAs<Class_>(str, (AttachADynamicVirtualTable*)typeVTable<Class_>());
+		}
+		template<class Class_>
+		Class_& getExtractAsStatic(Structure& proxy){
+			return AttachA::Interface::getExtractAs<Class_>(proxy, (AttachAVirtualTable*)typeVTable<Class_>());
+		}
+		template<class Class_>
+		Class_& getExtractAsStatic(ValueItem& str){
+			return AttachA::Interface::getExtractAs<Class_>(str, (AttachAVirtualTable*)typeVTable<Class_>());
+		}
 	}
 }
+
+#define AttachAFun(name, min_args, content)\
+	ValueItem* name(ValueItem* args, uint32_t len)\
+	{\
+		if(len >= min_args) \
+			return new ValueItem([&]() -> ValueItem{\
+				do\
+				content\
+				while(false);\
+				return nullptr;\
+			}());\
+		else\
+			AttachA::arguments_range(len, min_args);\
+		return nullptr;\
+	}
+#define AttachAManagedFun(name, min_args, content)\
+	ValueItem* name(ValueItem* args, uint32_t len)\
+	{\
+		if(len >= min_args){ \
+			do\
+			content\
+			while(false);\
+		}else\
+			AttachA::arguments_range(len, min_args);\
+		return nullptr;\
+	}

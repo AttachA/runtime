@@ -11,12 +11,11 @@
 #include "../files.hpp"
 #include "../AttachA_CXX.hpp"
 #include <utf8cpp/utf8.h>
-namespace AIs = AttachA::Interface::special;
 using namespace bytes;
 
-ProxyClassDefine define_FileHandle;
-ProxyClassDefine define_BlockingFileHandle;
-ProxyClassDefine define_TextFile;
+AttachAVirtualTable* define_FileHandle;
+AttachAVirtualTable* define_BlockingFileHandle;
+AttachAVirtualTable* define_TextFile;
 
 class TextFile{
 public:
@@ -541,23 +540,8 @@ public:
 };
 
 namespace file {
-    template<class T, ProxyClassDefine& t_define>
-    typed_lgr<T>& checked_get(ValueItem* args, uint32_t len, uint32_t min_len){
-        if(len < min_len)
-            throw InvalidArguments("excepted at least " + std::to_string(min_len) + " arguments, got " + std::to_string(len));
-        ProxyClass& proxy = (ProxyClass&)args[0];
-        if(proxy.declare_ty != &t_define){
-            if(proxy.declare_ty->name != t_define.name)
-                throw InvalidArguments("excepted " + t_define.name + ", got " + proxy.declare_ty->name);
-            else
-                throw InvalidArguments("excepted " + t_define.name + ", got non native " + t_define.name);
-        }
-        return *(::typed_lgr<T>*)(proxy.class_ptr);
-    }
 	namespace constructor {
-        ValueItem* createProxy_FileHandle(ValueItem* args, uint32_t len){
-            if(len < 1)
-                throw InvalidArguments("Expected at least 1 argument");
+        AttachAFun(createProxy_FileHandle, 1,{
             auto path = (std::string)args[0];
             bool is_async = true;
             if(len >= 2)if(args[2].meta.vtype != VType::noting) is_async = (bool)args[1];
@@ -575,14 +559,13 @@ namespace file {
             if(is_async){
                 files::_async_flags aflags;
                 aflags.value = flags.value;
-                return new ValueItem(new ProxyClass(new typed_lgr<files::FileHandle>(new files::FileHandle(path.c_str(), path.size(), mode, action, aflags, share, pointer_mode)), &define_FileHandle), VType::proxy, no_copy);
+                return ValueItem(AttachA::Interface::constructStructure<typed_lgr<files::FileHandle>>(define_FileHandle, new files::FileHandle(path.c_str(), path.size(), mode, action, aflags, share, pointer_mode)), no_copy);
             }
             else
-                return new ValueItem(new ProxyClass(new typed_lgr<files::FileHandle>(new files::FileHandle(path.c_str(), path.size(), mode, action, flags, share, pointer_mode)), &define_FileHandle), VType::proxy, no_copy);
-        }
-        ValueItem* createProxy_BlockingFileHandle(ValueItem* args, uint32_t len){
-            if(len < 1)
-                throw InvalidArguments("Expected at least 1 argument");
+                return ValueItem(AttachA::Interface::constructStructure<typed_lgr<files::FileHandle>>(define_FileHandle, new files::FileHandle(path.c_str(), path.size(), mode, action, flags, share, pointer_mode)), no_copy);
+        
+        })
+        AttachAFun(createProxy_BlockingFileHandle, 2,{
             auto path = (std::string)args[0];
             files::open_mode mode = files::open_mode::read_write;
             if(len >= 2)if(args[1].meta.vtype != VType::noting) mode = (files::open_mode)(uint8_t)args[1];
@@ -595,217 +578,213 @@ namespace file {
             files::pointer_mode pointer_mode = files::pointer_mode::combined;
             if(len >= 6)if(args[5].meta.vtype != VType::noting) pointer_mode = (files::pointer_mode)(uint8_t)args[5];
 
-            return new ValueItem(new ProxyClass(new typed_lgr<files::BlockingFileHandle>(new files::BlockingFileHandle(path.c_str(), path.size(), mode, action, flags, share)), &define_BlockingFileHandle), VType::proxy, no_copy);
-        }
-
-		ValueItem* createProxy_TextFile(ValueItem* args, uint32_t len){
-            auto file_handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 1);
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<files::BlockingFileHandle>>(define_BlockingFileHandle,new files::BlockingFileHandle(path.c_str(), path.size(), mode, action, flags, share)), no_copy);
+        })
+        AttachAFun(createProxy_TextFile, 1, {
+            auto file_handle = AttachA::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
             auto endian = Endian::native;
             if(len >= 2)if(args[1].meta.vtype != VType::noting) endian = (Endian)(uint8_t)args[1];
             auto encoding = TextFile::Encoding::utf8;
             if(len >= 3)if(args[2].meta.vtype != VType::noting) encoding = (TextFile::Encoding)(uint8_t)args[2];
-            return new ValueItem(new ProxyClass(new typed_lgr<TextFile>(new TextFile(file_handle, encoding, endian)), &define_TextFile), VType::proxy, no_copy);
-        }
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<TextFile>>(define_TextFile, new TextFile(file_handle, encoding, endian)), no_copy);
+        })
 	}
 
 
 #pragma region FileHandle
-    ValueItem* funs_FileHandle_read(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
+    AttachAFun(funs_FileHandle_read, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
         ValueItem& item = args[1];
         if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
-            return new ValueItem(handle->read((uint8_t*)item.getSourcePtr(), item.meta.val_len));
+            return handle->read((uint8_t*)item.getSourcePtr(), item.meta.val_len);
         else 
-            return new ValueItem(handle->read((uint32_t)args[1]));
-    }
-    ValueItem* funs_FileHandle_read_fixed(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
+            return handle->read((uint32_t)item);
+    })
+    AttachAFun(funs_FileHandle_read_fixed, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
         ValueItem& item = args[1];
         if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
-            return new ValueItem(handle->read_fixed((uint8_t*)item.getSourcePtr(), item.meta.val_len));
+            return handle->read_fixed((uint8_t*)item.getSourcePtr(), item.meta.val_len);
         else 
-            return new ValueItem(handle->read_fixed((uint32_t)args[1]));
-    }
-    ValueItem* funs_FileHandle_write(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
+            return handle->read_fixed((uint32_t)item);
+    })
+    AttachAFun(funs_FileHandle_write, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
         ValueItem& item = args[1];
         if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
-            return new ValueItem(handle->write((uint8_t*)item.getSourcePtr(), item.meta.val_len));
+            return handle->write((uint8_t*)item.getSourcePtr(), item.meta.val_len);
         else 
-            throw InvalidArguments("excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
-    }
-    ValueItem* funs_FileHandle_append(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
+            throw InvalidArguments("Excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
+    })
+    AttachAFun(funs_FileHandle_append, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
         ValueItem& item = args[1];
         if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
-            return new ValueItem(handle->append((uint8_t*)item.getSourcePtr(), item.meta.val_len));
+            return handle->append((uint8_t*)item.getSourcePtr(), item.meta.val_len);
         else 
-            throw InvalidArguments("excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
-    }
-    ValueItem* funs_FileHandle_seek_pos(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
+            throw InvalidArguments("Excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
+    })
+    AttachAFun(funs_FileHandle_seek_pos, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
         uint64_t offset = (uint64_t)args[1];
         files::pointer_offset pointer_offset = files::pointer_offset::begin;
         if(len >= 3) if(args[2].meta.vtype != VType::noting) pointer_offset = (files::pointer_offset)(uint8_t)args[2];
-        if(len >= 4) if(args[3].meta.vtype != VType::noting) return new ValueItem(handle->seek_pos(offset, pointer_offset, (files::pointer)(uint8_t)args[3]));
-        return new ValueItem(handle->seek_pos(offset, pointer_offset));
-    }
-    ValueItem* funs_FileHandle_tell_pos(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 2);
-        return new ValueItem(handle->tell_pos((files::pointer)(uint8_t)args[1]));
-    }
-    ValueItem* funs_FileHandle_flush(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 1);
-        return new ValueItem(handle->flush());
-    }
-    ValueItem* funs_FileHandle_size(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 1);
-        return new ValueItem(handle->size());
-    }
-    ValueItem* funs_FileHandle_internal_get_handle(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::FileHandle, define_FileHandle>(args, len, 1);
-        return new ValueItem(handle->internal_get_handle());
-    }
+        if(len >= 4) if(args[3].meta.vtype != VType::noting) return handle->seek_pos(offset, pointer_offset, (files::pointer)(uint8_t)args[3]);
+        return handle->seek_pos(offset, pointer_offset);
+    })
+    AttachAFun(funs_FileHandle_tell_pos, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
+        return handle->tell_pos((files::pointer)(uint8_t)args[1]);
+    })
+    AttachAFun(funs_FileHandle_flush, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
+        return handle->flush();
+    })
+    AttachAFun(funs_FileHandle_size, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
+        return handle->size();
+    })
+    AttachAFun(funs_FileHandle_internal_get_handle, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
+        return handle->internal_get_handle();
+    })
 #pragma endregion
 
 #pragma region BlockingFileHandle
-    ValueItem* funs_BlockingFileHandle_read(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 2);
+    AttachAFun(funs_BlockingFileHandle_read, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
         ValueItem& item = args[1];
         if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
-            return new ValueItem(handle->read((uint8_t*)item.getSourcePtr(), item.meta.val_len));
+            return handle->read((uint8_t*)item.getSourcePtr(), item.meta.val_len);
         else {
             uint32_t len = (uint32_t)args[1];
-            if(len == 0) return new ValueItem(0);
+            if(len == 0) return 0;
             uint8_t* ptr = new uint8_t[len];
             auto res = handle->read(ptr, len);
             if(res <= 0) {
                 delete[] ptr;
-                return new ValueItem(res);
+                return res;
             }
-            else return new ValueItem(ptr, len, no_copy);
+            else return ValueItem(ptr, len, no_copy);
         }
-    }
-    ValueItem* funs_BlockingFileHandle_write(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 2);
+    })
+    AttachAFun(funs_BlockingFileHandle_write, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
         ValueItem& item = args[1];
         if(item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
-            return new ValueItem(handle->write((uint8_t*)item.getSourcePtr(), item.meta.val_len));
+            return handle->write((uint8_t*)item.getSourcePtr(), item.meta.val_len);
         else 
-            throw InvalidArguments("excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
-    }
-    ValueItem* funs_BlockingFileHandle_seek_pos(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 2);
+            throw InvalidArguments("Excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
+    })
+    AttachAFun(funs_BlockingFileHandle_seek_pos, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
         uint64_t offset = (uint64_t)args[1];
         files::pointer_offset pointer_offset = files::pointer_offset::begin;
         if(len >= 3) if(args[2].meta.vtype != VType::noting) pointer_offset = (files::pointer_offset)(uint8_t)args[2];
-        return new ValueItem(handle->seek_pos(offset, pointer_offset));
-    }
-    ValueItem* funs_BlockingFileHandle_tell_pos(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 1);
-        return new ValueItem(handle->tell_pos());
-    }
-    ValueItem* funs_BlockingFileHandle_flush(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 1);
-        return new ValueItem(handle->flush());
-    }
-    ValueItem* funs_BlockingFileHandle_size(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 1);
-        return new ValueItem(handle->size());
-    }
-    ValueItem* funs_BlockingFileHandle_eof_state(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 1);
-        return new ValueItem(handle->eof_state());
-    }
-    ValueItem* funs_BlockingFileHandle_valid(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 1);
-        return new ValueItem(handle->valid());
-    }
-    ValueItem* funs_BlockingFileHandle_internal_get_handle(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<files::BlockingFileHandle, define_BlockingFileHandle>(args, len, 1);
-        return new ValueItem(handle->internal_get_handle());
-    }
+        return handle->seek_pos(offset, pointer_offset);
+    })
+    AttachAFun(funs_BlockingFileHandle_tell_pos, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+        return handle->tell_pos();
+    })
+    AttachAFun(funs_BlockingFileHandle_flush, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+        return handle->flush();
+    })
+    AttachAFun(funs_BlockingFileHandle_size, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+        return handle->size();
+    })
+    AttachAFun(funs_BlockingFileHandle_eof_state, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+        return handle->eof_state();
+    })
+    AttachAFun(funs_BlockingFileHandle_valid, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+        return handle->valid();
+    })
+    AttachAFun(funs_BlockingFileHandle_internal_get_handle, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+        return handle->internal_get_handle();
+    })
 #pragma endregion
 
 #pragma region TextFile
-    ValueItem* funs_TextFile_read_line(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<TextFile, define_TextFile>(args, len, 1);
-        return new ValueItem(handle->read_line());
-    }
-    ValueItem* funs_TextFile_read_word(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<TextFile, define_TextFile>(args, len, 1);
-        return new ValueItem(handle->read_word());
-    }
-    ValueItem* funs_TextFile_read_symbol(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<TextFile, define_TextFile>(args, len, 1);
+    AttachAFun(funs_TextFile_read_line, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
+        return handle->read_line();
+    })
+    AttachAFun(funs_TextFile_read_word, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
+        return handle->read_word();
+    })
+    AttachAFun(funs_TextFile_read_symbol, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
         if(len>=2)
-            return new ValueItem(handle->read_symbol((bool)args[2]));
-        else return new ValueItem(handle->read_symbol(false));
-    }
-    ValueItem* funs_TextFile_write(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<TextFile, define_TextFile>(args, len, 2);
-        return new ValueItem(handle->write(args[1]));
-    }
-    ValueItem* funs_TextFile_read_bom(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<TextFile, define_TextFile>(args, len, 1);
+            return handle->read_symbol((bool)args[2]);
+        else return handle->read_symbol(false);
+    })
+    AttachAFun(funs_TextFile_write, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
+        return handle->write(args[1]);
+    })
+    AttachAFun(funs_TextFile_read_bom, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
         handle->read_bom();
-        return nullptr;
-    }
-    ValueItem* funs_TextFile_init_bom(ValueItem* args, uint32_t len){
-        auto& handle = checked_get<TextFile, define_TextFile>(args, len, 1);
+    })
+    AttachAFun(funs_TextFile_init_bom, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
         handle->init_bom();
-        return nullptr;
-    }
+    })
 #pragma endregion
     
 
-	ValueItem* remove(ValueItem* args, uint32_t len){
-        if(len < 1) throw InvalidArguments("excepted 1 argument, got 0");
+    AttachAFun(remove, 1, {
         if(args[0].meta.vtype == VType::string){
             std::string& path = *(std::string*)args[0].getSourcePtr();
-            return new ValueItem(files::remove(path.c_str(), path.size()));
+            return files::remove(path.c_str(), path.size());
         }
         else{
             std::string path = (std::string)args[0];
-            return new ValueItem(files::remove(path.c_str(), path.size()));
+            return files::remove(path.c_str(), path.size());
         }
-    }
-
+    })
+    
 	void init(){
-        define_FileHandle.name = "file_handle";
-        define_FileHandle.copy = AIs::proxyCopy<files::FileHandle, true>;
-        define_FileHandle.destructor = AIs::proxyDestruct<files::FileHandle, true>;
-        define_FileHandle.funs["read"] = ClassFnDefine(new FuncEnviropment(funs_FileHandle_read, false), false, ClassAccess::pub);
-        define_FileHandle.funs["read_fixed"] = ClassFnDefine(new FuncEnviropment(funs_FileHandle_read_fixed, false), false, ClassAccess::pub);
-        define_FileHandle.funs["write"] = ClassFnDefine(new FuncEnviropment(funs_FileHandle_write, false), false, ClassAccess::pub);
-        define_FileHandle.funs["append"] = ClassFnDefine(new FuncEnviropment(funs_FileHandle_append, false), false, ClassAccess::pub);
-        define_FileHandle.funs["seek_pos"] = ClassFnDefine(new FuncEnviropment(funs_FileHandle_seek_pos, false), false, ClassAccess::pub);
-        define_FileHandle.funs["tell_pos"] = ClassFnDefine(new FuncEnviropment(funs_FileHandle_tell_pos, false), false, ClassAccess::pub);
-        define_FileHandle.funs["flush"] = ClassFnDefine(new FuncEnviropment(funs_FileHandle_flush, false), false, ClassAccess::pub);
-        define_FileHandle.funs["size"] = ClassFnDefine(new FuncEnviropment(funs_FileHandle_size, false), false, ClassAccess::pub);
-        define_FileHandle.funs["get_native_handle"] = ClassFnDefine(new FuncEnviropment(funs_FileHandle_internal_get_handle, false), false, ClassAccess::intern);
+        define_FileHandle = AttachA::Interface::createTable<typed_lgr<files::FileHandle>>("file_handle",
+            AttachA::Interface::direct_method("read", funs_FileHandle_read),
+            AttachA::Interface::direct_method("read_fixed", funs_FileHandle_read_fixed),
+            AttachA::Interface::direct_method("write", funs_FileHandle_write),
+            AttachA::Interface::direct_method("append", funs_FileHandle_append),
+            AttachA::Interface::direct_method("seek_pos", funs_FileHandle_seek_pos),
+            AttachA::Interface::direct_method("tell_pos", funs_FileHandle_tell_pos),
+            AttachA::Interface::direct_method("flush", funs_FileHandle_flush),
+            AttachA::Interface::direct_method("size", funs_FileHandle_size),
+            AttachA::Interface::direct_method("get_native_handle", funs_FileHandle_internal_get_handle, ClassAccess::intern)
+        );
+        
+        define_BlockingFileHandle = AttachA::Interface::createTable<typed_lgr<files::BlockingFileHandle>>("blocking_file_handle",
+            AttachA::Interface::direct_method("read", funs_BlockingFileHandle_read),
+            AttachA::Interface::direct_method("write", funs_BlockingFileHandle_write),
+            AttachA::Interface::direct_method("seek_pos", funs_BlockingFileHandle_seek_pos),
+            AttachA::Interface::direct_method("tell_pos", funs_BlockingFileHandle_tell_pos),
+            AttachA::Interface::direct_method("flush", funs_BlockingFileHandle_flush),
+            AttachA::Interface::direct_method("size", funs_BlockingFileHandle_size),
+            AttachA::Interface::direct_method("eof_state", funs_BlockingFileHandle_eof_state),
+            AttachA::Interface::direct_method("valid", funs_BlockingFileHandle_valid),
+            AttachA::Interface::direct_method("get_native_handle", funs_BlockingFileHandle_internal_get_handle, ClassAccess::intern)
+        );
 
-        define_BlockingFileHandle.name = "blocking_file_handle";
-        define_BlockingFileHandle.copy = AIs::proxyCopy<files::BlockingFileHandle, true>;
-        define_BlockingFileHandle.destructor = AIs::proxyDestruct<files::BlockingFileHandle, true>;
-        define_BlockingFileHandle.funs["read"] = ClassFnDefine(new FuncEnviropment(funs_BlockingFileHandle_read, false), false, ClassAccess::pub);
-        define_BlockingFileHandle.funs["write"] = ClassFnDefine(new FuncEnviropment(funs_BlockingFileHandle_write, false), false, ClassAccess::pub);
-        define_BlockingFileHandle.funs["seek_pos"] = ClassFnDefine(new FuncEnviropment(funs_BlockingFileHandle_seek_pos, false), false, ClassAccess::pub);
-        define_BlockingFileHandle.funs["tell_pos"] = ClassFnDefine(new FuncEnviropment(funs_BlockingFileHandle_tell_pos, false), false, ClassAccess::pub);
-        define_BlockingFileHandle.funs["flush"] = ClassFnDefine(new FuncEnviropment(funs_BlockingFileHandle_flush, false), false, ClassAccess::pub);
-        define_BlockingFileHandle.funs["size"] = ClassFnDefine(new FuncEnviropment(funs_BlockingFileHandle_size, false), false, ClassAccess::pub);
-        define_BlockingFileHandle.funs["eof_state"] = ClassFnDefine(new FuncEnviropment(funs_BlockingFileHandle_eof_state, false), false, ClassAccess::pub);
-        define_BlockingFileHandle.funs["valid"] = ClassFnDefine(new FuncEnviropment(funs_BlockingFileHandle_valid, false), false, ClassAccess::pub);
-        define_FileHandle.funs["get_native_handle"] = ClassFnDefine(new FuncEnviropment(funs_BlockingFileHandle_internal_get_handle, false), false, ClassAccess::intern);
-
-        define_TextFile.name = "text_file";
-        define_TextFile.copy = AIs::proxyCopy<TextFile, true>;
-        define_TextFile.destructor = AIs::proxyDestruct<TextFile, true>;
-        define_TextFile.funs["read_line"] = ClassFnDefine(new FuncEnviropment(funs_TextFile_read_line, false), false, ClassAccess::pub);
-        define_TextFile.funs["read_word"] = ClassFnDefine(new FuncEnviropment(funs_TextFile_read_symbol, false), false, ClassAccess::pub);
-        define_TextFile.funs["read_symbol"] = ClassFnDefine(new FuncEnviropment(funs_TextFile_read_symbol, false), false, ClassAccess::pub);
-        define_TextFile.funs["write"] = ClassFnDefine(new FuncEnviropment(funs_TextFile_write, false), false, ClassAccess::pub);
-        define_TextFile.funs["read_bom"] = ClassFnDefine(new FuncEnviropment(funs_TextFile_read_bom, false), false, ClassAccess::pub);
-        define_TextFile.funs["init_bom"] = ClassFnDefine(new FuncEnviropment(funs_TextFile_init_bom, false), false, ClassAccess::pub);
+        define_TextFile = AttachA::Interface::createTable<typed_lgr<TextFile>>("text_file",
+            AttachA::Interface::direct_method("read_line", funs_TextFile_read_line),
+            AttachA::Interface::direct_method("read_word", funs_TextFile_read_word),
+            AttachA::Interface::direct_method("read_symbol", funs_TextFile_read_symbol),
+            AttachA::Interface::direct_method("write", funs_TextFile_write),
+            AttachA::Interface::direct_method("read_bom", funs_TextFile_read_bom),
+            AttachA::Interface::direct_method("init_bom", funs_TextFile_init_bom)
+        );
+        AttachA::Interface::typeVTable<typed_lgr<files::FileHandle>>() = define_FileHandle;
+        AttachA::Interface::typeVTable<typed_lgr<files::BlockingFileHandle>>() = define_BlockingFileHandle;
+        AttachA::Interface::typeVTable<typed_lgr<TextFile>>() = define_TextFile;
     }
 }

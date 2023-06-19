@@ -52,6 +52,7 @@ namespace chanel {
 	public:
 		Chanel();
 		~Chanel();
+		void notify(ValueItem&& val);
 		void notify(const ValueItem& val);
 		void notify(ValueItem* vals, uint32_t len);
 		typed_lgr<AutoNotifyChanel> auto_notify(typed_lgr<Task>& val);

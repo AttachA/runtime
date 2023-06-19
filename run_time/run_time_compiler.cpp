@@ -479,9 +479,7 @@ void FuncEviroBuilder::arr_set(uint16_t arr, uint16_t from, uint64_t to, bool mo
 		case VType::uarr:
 		case VType::faarr:
 		case VType::saarr:
-		case VType::class_:
-		case VType::morph:
-		case VType::proxy:
+		case VType::struct_:
 			break;
 		default:
 			throw InvalidOperation("Unsupported operation to non array type and interface type");
@@ -516,9 +514,7 @@ void FuncEviroBuilder::arr_setByVal(uint16_t arr, uint16_t from, uint16_t to, bo
 		case VType::uarr:
 		case VType::faarr:
 		case VType::saarr:
-		case VType::class_:
-		case VType::morph:
-		case VType::proxy:
+		case VType::struct_:
 			break;
 		default:
 			throw InvalidOperation("Unsupported operation to non array type and interface type");
@@ -619,9 +615,7 @@ void FuncEviroBuilder::arr_get(uint16_t arr, uint16_t to, uint64_t from, bool mo
 		case VType::uarr:
 		case VType::faarr:
 		case VType::saarr:
-		case VType::class_:
-		case VType::morph:
-		case VType::proxy:
+		case VType::struct_:
 			break;
 		default:
 			throw InvalidOperation("Unsupported operation to non array type and interface type");
@@ -656,9 +650,7 @@ void FuncEviroBuilder::arr_getByVal(uint16_t arr, uint16_t to, uint16_t from, bo
 		case VType::uarr:
 		case VType::faarr:
 		case VType::saarr:
-		case VType::class_:
-		case VType::morph:
-		case VType::proxy:
+		case VType::struct_:
 			break;
 		default:
 			throw InvalidOperation("Unsupported operation to non array type and interface type");

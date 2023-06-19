@@ -32,9 +32,6 @@ bool needAllocType(VType type) {
 	case VType::async_res:
 	case VType::except_value:
 	case VType::faarr:
-	case VType::class_:
-	case VType::morph:
-	case VType::proxy:
 	case VType::function:
 		return true;
 	default:
@@ -105,14 +102,8 @@ void universalFree(void** value, ValueMeta meta) {
 	case VType::faarr:
 		delete[](ValueItem*)* value;
 		return;
-	case VType::class_:
-		delete (ClassValue*)*value;
-		return;
-	case VType::morph:
-		delete (MorphValue*)*value;
-		return;
-	case VType::proxy:
-		delete (ProxyClass*)*value;
+	case VType::struct_:
+		Structure::destruct((Structure*)*value);
 		return;
 	case VType::function:
 		delete (typed_lgr<FuncEnviropment>*)*value;
@@ -187,12 +178,6 @@ void universalAlloc(void** value, ValueMeta meta) {
 		case VType::saarr:
 			throw InvalidOperation("Fail alocate local stack value");
 			break;
-		case VType::class_:
-			*value = new ClassValue();
-			break;
-		case VType::morph:
-			*value = new MorphValue();
-			break;
 		}
 	}
 	if (meta.use_gc) {
@@ -258,12 +243,6 @@ void universalAlloc(void** value, ValueMeta meta) {
 			destructor = arrayDestructor<ValueItem>;
 			break;
 		case VType::saarr:
-			break;
-		case VType::class_:
-			destructor = defaultDestructor<ClassValue>;
-			break;
-		case VType::morph:
-			destructor = defaultDestructor<MorphValue>;
 			break;
 		default:
 			break;
@@ -376,12 +355,8 @@ void* copyValue(void*& val, ValueMeta& meta) {
 				cop[i] = reinterpret_cast<ValueItem*>(val)[i];
 			return cop;
 		}
-		case VType::class_:
-			return new ClassValue(*(ClassValue*)actual_val);
-		case VType::morph:
-			return new MorphValue(*(MorphValue*)actual_val);
-		case VType::proxy:
-			return new ProxyClass(*(ProxyClass*)actual_val);
+		case VType::struct_:
+			return Structure::copy((Structure*)actual_val);
 		case VType::function:
 			return new typed_lgr<FuncEnviropment>(*(typed_lgr<FuncEnviropment>*)actual_val);
 		default:
@@ -509,9 +484,7 @@ bool is_raw_array(VType typ) {
 }
 bool has_interface(VType typ) {
 	switch (typ) {
-	case VType::class_:
-	case VType::morph:
-	case VType::proxy:
+	case VType::struct_:
 		return true;
 	default:
 		return false;
@@ -693,14 +666,8 @@ std::pair<bool, bool> compareUarrAInterface(ValueMeta cmp1, ValueMeta cmp2, void
 		auto& arr1 = *(list_array<ValueItem>*)val1;
 		uint64_t length;  
 		switch (cmp2.vtype) {
-		case VType::class_:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv,*(ClassValue*)val2, symbols::structures::size);
-			break;
-		case VType::morph:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(MorphValue*)val2, symbols::structures::size);
-			break;
-		case VType::proxy:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::size);
+		case VType::struct_:
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::pub,*(Structure*)val2, symbols::structures::size);
 			break;
 		default:
 			throw AException("Implementation exception", "Wrong function usage compareUarrAInterface");
@@ -709,21 +676,21 @@ std::pair<bool, bool> compareUarrAInterface(ValueMeta cmp1, ValueMeta cmp2, void
 			return { false, true };
 		else if (arr1.size() == length) {
 			auto iter = arr1.begin(); 
-			if ((*(ProxyClass*)val2).containsFn(symbols::structures::iterable::begin)) {
-				auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::iterable::begin);
+			if ((*(Structure*)val2).has_method(symbols::structures::iterable::begin, ClassAccess::pub)) {
+				auto iter2 = AttachA::Interface::makeCall(ClassAccess::pub, *(Structure*)val2, symbols::structures::iterable::begin);
 				for (uint64_t i = 0; i < length; i++) {
 					auto& it1 = *iter;
-					auto it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, symbols::structures::iterable::next);
+					auto it2 = AttachA::Interface::makeCall(ClassAccess::pub, iter2, symbols::structures::iterable::next);
 					auto res = compareValue(it1.meta, it2.meta, it1.val, it2.val);
 					if (!res.first)
 						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
 					++iter;
 				}
 			}
-			else if ((*(ProxyClass*)val2).containsFn(symbols::structures::index_operator)) {
+			else if ((*(Structure*)val2).has_method(symbols::structures::index_operator, ClassAccess::pub)) {
 				for (uint64_t i = 0; i < length; i++) {
 					auto& it1 = *iter;
-					auto it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::index_operator, i);
+					auto it2 = AttachA::Interface::makeCall(ClassAccess::pub, *(Structure*)val2, symbols::structures::index_operator, i);
 					auto res = compareValue(it1.meta, it2.meta, it1.val, it2.val);
 					if (!res.first)
 						return flip_args ? std::pair<bool, bool>{false, res.second} : res;
@@ -741,21 +708,21 @@ std::pair<bool, bool> compareUarrAInterface(ValueMeta cmp1, ValueMeta cmp2, void
 template<class T,VType T_VType>
 std::tuple<bool, bool, bool> compareRawArrAInterface_Worst0(void* val1, void* val2,uint64_t length) {
 	auto arr2 = (T*)val2;
-	if ((*(ProxyClass*)val2).containsFn(symbols::structures::iterable::begin)) {
-		auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::iterable::begin);
+	if ((*(Structure*)val2).has_method(symbols::structures::iterable::begin, ClassAccess::pub)) {
+		auto iter2 = AttachA::Interface::makeCall(ClassAccess::pub, *(Structure*)val2, symbols::structures::iterable::begin);
 		for (uint64_t i = 0; i < length; i++) {
 			T first = *arr2;
-			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, symbols::structures::iterable::next);
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::pub, iter2, symbols::structures::iterable::next);
 			auto res = compareValue(T_VType, it2.meta, &first, it2.val);
 			if (!res.first)
 				return { false, res.second,true };
 			++arr2;
 		}
 	}
-	else if ((*(ProxyClass*)val2).containsFn(symbols::structures::index_operator)) {
+	else if ((*(Structure*)val2).has_method(symbols::structures::index_operator, ClassAccess::pub)) {
 		for (uint64_t i = 0; i < length; i++) {
 			T first = *arr2;
-			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::index_operator, i);
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::pub, *(Structure*)val2, symbols::structures::index_operator, i);
 			auto res = compareValue(T_VType, it2.meta, &first, it2.val);
 			if (!res.first)
 				return { false, res.second,true };
@@ -768,21 +735,21 @@ std::tuple<bool, bool, bool> compareRawArrAInterface_Worst0(void* val1, void* va
 }
 std::tuple<bool, bool, bool> compareRawArrAInterface_Worst1(void* val1, void* val2, uint64_t length) {
 	auto arr2 = (ValueItem*)val2;
-	if ((*(ProxyClass*)val2).containsFn(symbols::structures::iterable::begin)) {
-		auto iter2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::iterable::begin);
+	if ((*(Structure*)val2).has_method(symbols::structures::iterable::begin, ClassAccess::pub)) {
+		auto iter2 = AttachA::Interface::makeCall(ClassAccess::pub, *(Structure*)val2, symbols::structures::iterable::begin);
 		for (uint64_t i = 0; i < length; i++) {
 			ValueItem& first = *arr2;
-			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, iter2, symbols::structures::iterable::next);
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::pub, iter2, symbols::structures::iterable::next);
 			auto res = compareValue(first.meta, it2.meta, first.val, it2.val);
 			if (!res.first)
 				return { false, res.second,true };
 			++arr2;
 		}
 	}
-	else if ((*(ProxyClass*)val2).containsFn(symbols::structures::index_operator)) {
+	else if ((*(Structure*)val2).has_method(symbols::structures::index_operator, ClassAccess::pub)) {
 		for (uint64_t i = 0; i < length; i++) {
 			ValueItem& first = *arr2;
-			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::index_operator, i);
+			ValueItem it2 = AttachA::Interface::makeCall(ClassAccess::pub, *(Structure*)val2, symbols::structures::index_operator, i);
 			auto res = compareValue(first.meta, it2.meta, first.val, it2.val);
 			if (!res.first)
 				return { false, res.second,true };
@@ -800,14 +767,8 @@ std::pair<bool, bool> compareRawArrAInterface(ValueMeta cmp1, ValueMeta cmp2, vo
 		auto& arr1 = *(list_array<ValueItem>*)val1;
 		uint64_t length;
 		switch (cmp2.vtype) {
-		case VType::class_:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ClassValue*)val2, symbols::structures::size);
-			break;
-		case VType::morph:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(MorphValue*)val2, symbols::structures::size);
-			break;
-		case VType::proxy:
-			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::priv, *(ProxyClass*)val2, symbols::structures::size);
+		case VType::struct_:
+			length = (uint64_t)AttachA::Interface::makeCall(ClassAccess::pub, *(Structure*)val2, symbols::structures::size);
 			break;
 		default:
 			throw AException("Implementation exception", "Wrong function usage compareRawArrAInterface");
@@ -1177,14 +1138,8 @@ namespace ABI_IMPL {
 			return res;
 		}
 		case VType::time_point: return "t(" + std::to_string(reinterpret_cast<std::chrono::steady_clock::time_point*>(val)->time_since_epoch().count()) + ')';
-		case VType::class_:
-			return (std::string)AttachA::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<ClassValue*>(val), symbols::structures::convert::to_string);
-		case VType::morph:
-			return (std::string)AttachA::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<MorphValue*>(val), symbols::structures::convert::to_string);
-		case VType::proxy: 
-			return (std::string)AttachA::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<ProxyClass*>(val), symbols::structures::convert::to_string);
-		case VType::class_define:
-			throw InvalidCast("Fail cast class define");
+		case VType::struct_:
+			return (std::string)AttachA::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<Structure*>(val), symbols::structures::convert::to_string);
 		default:
 			throw InvalidCast("Fail cast undefined type");
 		}
@@ -1490,9 +1445,7 @@ void DynSum(void** val0, void** val1) {
 		val0_time = val0_time + (std::chrono::nanoseconds)val1_time.time_since_epoch();
 		break;
 	}
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub,val0_r, symbols::structures::add_operator, val1_r);
 		break;
 	default:
@@ -1557,9 +1510,7 @@ void DynMinus(void** val0, void** val1) {
 		val0_time = val0_time - (std::chrono::nanoseconds)val1_time.time_since_epoch();
 		break;
 	}
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::subtract_operator, val1_r);
 		break;
 	default:
@@ -1615,9 +1566,7 @@ void DynMul(void** val0, void** val1) {
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) *= (size_t)val1_r;
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::multiply_operator, val1_r);
 		break;
 	default:
@@ -1671,9 +1620,7 @@ void DynDiv(void** val0, void** val1) {
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) /= (size_t)val1_r;
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::divide_operator, val1_r);
 		break;
 	default:
@@ -1720,9 +1667,7 @@ void DynRest(void** val0, void** val1) {
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) %= (size_t)val1_r;
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::modulo_operator, val1_r);
 		break;
 	default:
@@ -1772,9 +1717,7 @@ void DynInc(void** val0){
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0)++;
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::increment_operator);
 		break;
 	default:
@@ -1824,9 +1767,7 @@ void DynDec(void** val0) {
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0)--;
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::decrement_operator);
 		break;
 	default:
@@ -1874,9 +1815,7 @@ void DynBitXor(void** val0, void** val1) {
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) ^= (size_t)val1_r;
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_xor_operator, val1_r);
 		break;
 	default:
@@ -1923,9 +1862,7 @@ void DynBitOr(void** val0, void** val1) {
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) |= (size_t)val1_r;
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_or_operator, val1_r);
 		break;
 	default:
@@ -1972,9 +1909,7 @@ void DynBitAnd(void** val0, void** val1) {
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) &= (size_t)val1_r;
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_and_operator, val1_r);
 		break;
 	default:
@@ -2021,9 +1956,7 @@ void DynBitShiftRight(void** val0, void** val1){
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) >>= (size_t)val1_r;
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_shift_right_operator, val1_r);
 		break;
 	default:
@@ -2070,9 +2003,7 @@ void DynBitShiftLeft(void** val0, void** val1) {
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) <<= (size_t)val1_r;
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_shift_left_operator, val1_r);
 		break;
 	default:
@@ -2117,9 +2048,7 @@ void DynBitNot(void** val0) {
 	case VType::undefined_ptr:
 		reinterpret_cast<size_t&>(actual_val0) = ~reinterpret_cast<size_t&>(actual_val0);
 		break;
-	case VType::proxy:
-	case VType::morph:
-	case VType::class_:
+	case VType::struct_:
 		AttachA::Interface::makeCall(ClassAccess::pub, val0_r, symbols::structures::bitwise_not_operator);
 		break;
 	default:
@@ -2554,7 +2483,7 @@ ValueItem::ValueItem(std::unordered_set<ValueItem>&& set): val(0){
 }
 
 
-ValueItem::ValueItem(typed_lgr<class FuncEnviropment>& fun){
+ValueItem::ValueItem(const typed_lgr<class FuncEnviropment>& fun){
 	val = new typed_lgr(fun);
 	meta = VType::function;
 }
@@ -2618,15 +2547,6 @@ ValueItem::ValueItem(VType type) {
 	case VType::faarr:
 		val = new ValueItem[1]{};
 		meta.val_len = 1;
-		break;
-	case VType::class_:
-		val = new ClassValue();
-		break;
-	case VType::morph:
-		val = new MorphValue();
-		break;
-	case VType::proxy:
-		val = new ProxyClass();
 		break;
 	case VType::function:
 		val = new typed_lgr<FuncEnviropment>();
@@ -2937,30 +2857,6 @@ ValueItem::operator void*() {
 ValueItem::operator list_array<ValueItem>() {
 	return ABI_IMPL::Vcast<list_array<ValueItem>>(val, meta);
 }
-ValueItem::operator ClassValue&() {
-	if(meta.vtype == VType::async_res)
-		getAsync();
-	if (meta.vtype == VType::class_)
-		return *(ClassValue*)getSourcePtr();
-	else
-		throw InvalidCast("This type is not class");
-}
-ValueItem::operator MorphValue&() {
-	if(meta.vtype == VType::async_res)
-		getAsync();
-	if (meta.vtype == VType::morph)
-		return *(MorphValue*)getSourcePtr();
-	else
-		throw InvalidCast("This type is not morph");
-}
-ValueItem::operator ProxyClass&() {
-	if(meta.vtype == VType::async_res)
-		getAsync();
-	if (meta.vtype == VType::proxy)
-		return *(ProxyClass*)getSourcePtr();
-	else
-		throw InvalidCast("This type is not proxy");
-}
 ValueItem::operator Structure&() {
 	if(meta.vtype == VType::async_res)
 		getAsync();
@@ -3013,6 +2909,14 @@ ValueItem::operator std::unordered_set<ValueItem>&(){
 		return *(std::unordered_set<ValueItem>*)getSourcePtr();
 	else
 		throw InvalidCast("This type is not set");
+}
+ValueItem::operator typed_lgr<Task>&(){
+	if(meta.vtype == VType::async_res)
+		return *(typed_lgr<Task>*)getSourcePtr();
+	throw InvalidCast("This type is not async_res");
+}
+ValueItem::operator typed_lgr<class FuncEnviropment>&(){
+	return *funPtr();
 }
 #pragma endregion
 
@@ -3086,11 +2990,8 @@ void ValueItem::make_gc(){
 		case VType::faarr:
 			destructor = arrayDestructor<ValueItem>;
 			break;
-		case VType::class_:
-			destructor = defaultDestructor<ClassValue>;
-			break;
-		case VType::morph:
-			destructor = defaultDestructor<MorphValue>;
+		case VType::struct_:
+			destructor = (void(*)(void*))Structure::destruct;
 			break;
 		default:
 			break;
@@ -3255,15 +3156,12 @@ size_t ValueItem::hash() {
 	case VType::saarr:
 	case VType::faarr: return array_hash((ValueItem*)getSourcePtr(), meta.val_len);
 
-	case VType::class_: 
-	case VType::morph:
-	case VType::proxy:
-		{
-			if(AttachA::Interface::hasImplement(*this, "hash"))
-				return  (size_t)AttachA::Interface::makeCall(ClassAccess::pub, *this, "hash");
-			else
-				return std::hash<void*>()(getSourcePtr());
-		}
+	case VType::struct_: {
+		if(AttachA::Interface::hasImplement(*this, "hash"))
+			return (size_t)AttachA::Interface::makeCall(ClassAccess::pub, *this, "hash");
+		else
+			return std::hash<void*>()(getSourcePtr());
+	}
 	case VType::set: {
 		size_t hash = 0;
 		for (auto& i : operator std::unordered_set<ValueItem>&())
@@ -3290,320 +3188,6 @@ size_t ValueItem::hash() {
 		break;
 	}
 }
-
-
-
-
-ClassDefine::ClassDefine():name("Unnamed") { }
-ClassDefine::ClassDefine(const std::string& name) { this->name = name; }
-
-typed_lgr<class FuncEnviropment> ClassValue::callFnPtr(const std::string & str, ClassAccess access) {
-	if (define) {
-		if (define->funs.contains(str)) {
-			auto& tmp = define->funs[str];
-			switch (access) {
-			case ClassAccess::pub:
-				if (tmp.access == ClassAccess::pub)
-					return tmp.fn;
-				break;
-			case ClassAccess::priv:
-				if (tmp.access != ClassAccess::intern)
-					return tmp.fn;
-				break;
-			case ClassAccess::prot:
-				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-					return tmp.fn;
-				break;
-			case ClassAccess::intern:
-				if(allow_intern_access) return tmp.fn;
-				else throw InvalidOperation("Internal access not allowed by configuration");
-			default:
-				throw InvalidOperation("Undefined access type: " + enum_to_string(access));
-			}
-			throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " function");
-		}
-	}
-	throw NotImplementedException();
-}
-ClassFnDefine& ClassValue::getFnMeta(const std::string & str) {
-	if (define) {
-			if (define->funs.contains(str))
-				return define->funs[str];
-		}
-	throw NotImplementedException();
-}
-void ClassValue::setFnMeta(const std::string& str, ClassFnDefine& fn_decl) {
-	if (define) {
-		if (define->funs.contains(str))
-			if (!define->funs[str].deletable)
-				throw InvalidOperation("This class has non modifable function declaration");
-	}
-	else
-		define = new ClassDefine();
-	define->funs[str] = fn_decl;
-}
-bool ClassValue::containsFn(const std::string& str) {
-	if (!define)
-		return false;
-	return define->funs.contains(str);
-}
-ValueItem& ClassValue::getValue(const std::string& str, ClassAccess access) {
-	if (val.contains(str)) {
-		auto& tmp = val[str];
-		switch (access) {
-		case ClassAccess::pub:
-			if (tmp.access == ClassAccess::pub)
-				return tmp.val;
-			break;
-		case ClassAccess::priv:
-			if (tmp.access != ClassAccess::intern)
-				return tmp.val;
-			break;
-		case ClassAccess::prot:
-			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-				return tmp.val;
-			break;
-		case ClassAccess::intern:
-			if(allow_intern_access) return tmp.val;
-			else throw InvalidOperation("Internal access not allowed by configuration");
-		default:
-			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
-		}
-		throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " value");
-	}
-	throw NotImplementedException();
-}
-ValueItem ClassValue::copyValue(const std::string& str, ClassAccess access) {
-	if (val.contains(str)) {
-		return getValue(str, access);
-	}
-	return ValueItem();
-}
-bool ClassValue::containsValue(const std::string& str) {
-	return val.contains(str);
-}
-
-
-typed_lgr<class FuncEnviropment> MorphValue::callFnPtr(const std::string & str, ClassAccess access) {
-	if (define.funs.contains(str)) {
-		auto& tmp = define.funs[str];
-		switch (access) {
-		case ClassAccess::pub:
-			if (tmp.access == ClassAccess::pub)
-				return tmp.fn;
-			break;
-		case ClassAccess::priv:
-			if (tmp.access != ClassAccess::intern)
-				return tmp.fn;
-			break;
-		case ClassAccess::prot:
-			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-				return tmp.fn;
-			break;
-		case ClassAccess::intern:
-			if(allow_intern_access) return tmp.fn;
-			else throw InvalidOperation("Internal access not allowed by configuration");
-		default:
-			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
-		}
-		throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " function");
-	}
-	throw NotImplementedException();
-}
-ClassFnDefine& MorphValue::getFnMeta(const std::string& str) {
-	if (define.funs.contains(str))
-		return define.funs[str];
-	throw NotImplementedException();
-}
-void MorphValue::setFnMeta(const std::string& str, ClassFnDefine& fn_decl) {
-	if (define.funs.contains(str))
-		if (!define.funs[str].deletable)
-			throw InvalidOperation("This class has non modifable function declaration");
-	define.funs[str] = fn_decl;
-}
-bool MorphValue::containsFn(const std::string& str) {
-	return define.funs.contains(str);
-}
-ValueItem& MorphValue::getValue(const std::string& str, ClassAccess access) {
-	if (val.contains(str)) {
-		auto& tmp = val[str];
-		switch (access) {
-		case ClassAccess::pub:
-			if (tmp.access == ClassAccess::pub)
-				return tmp.val;
-			break;
-		case ClassAccess::priv:
-			if (tmp.access != ClassAccess::intern)
-				return tmp.val;
-			break;
-		case ClassAccess::prot:
-			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-				return tmp.val;
-			break;
-		case ClassAccess::intern:			
-			if(allow_intern_access) return tmp.val;
-			else throw InvalidOperation("Internal access not allowed by configuration");
-		default:
-			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
-		}
-		throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " value");
-	}
-	throw NotImplementedException();
-}
-ValueItem MorphValue::copyValue(const std::string& str, ClassAccess access) {
-	if (val.contains(str)) {
-		return getValue(str, access);
-	}
-	return ValueItem();
-}
-void MorphValue::setValue(const std::string& str, ClassAccess access, ValueItem& set_val) {
-	if (val.contains(str)) {
-		auto& tmp = val[str];
-		switch (access) {
-		case ClassAccess::pub:
-			if (tmp.access == ClassAccess::pub) {
-				tmp.val = set_val;
-				return;
-			}
-			else break;
-		case ClassAccess::priv:
-			if (tmp.access != ClassAccess::intern) {
-				tmp.val = set_val;
-				return;
-			}
-			else break;
-		case ClassAccess::prot:
-			if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot) {
-				tmp.val = set_val;
-				return;
-			}
-			else break;
-		case ClassAccess::intern:
-			if(allow_intern_access)tmp.val = set_val;
-			else throw InvalidOperation("Internal access not allowed by configuration");
-			return;
-		default:
-			throw InvalidOperation("Undefined access type: " + enum_to_string(access));
-		}
-		throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " value");
-	}
-	throw NotImplementedException();
-}
-bool MorphValue::containsValue(const std::string& str) {
-	return val.contains(str);
-}
-
-
-
-
-ProxyClassDefine::ProxyClassDefine() :name("") {}
-ProxyClassDefine::ProxyClassDefine(const std::string& name) :name(name) { }
-ProxyClass::ProxyClass() {
-	class_ptr = nullptr;
-	declare_ty = nullptr;
-}
-
-ProxyClass::ProxyClass(ProxyClass& other){
-	if (other.declare_ty)
-		if(other.declare_ty->copy)
-			class_ptr = other.declare_ty->copy(other.class_ptr);
-		else
-			throw NotImplementedException();
-	declare_ty = other.declare_ty;
-}
-ProxyClass::ProxyClass(void* val) {
-	class_ptr = val;
-	declare_ty = nullptr;
-}
-ProxyClass::ProxyClass(void* val, ProxyClassDefine* def) {
-	class_ptr = val;
-	declare_ty = def;
-}
-ProxyClass::~ProxyClass() {
-	if (declare_ty)
-		if(declare_ty->destructor)
-			declare_ty->destructor(class_ptr);
-}
-
-typed_lgr<class FuncEnviropment> ProxyClass::callFnPtr(const std::string& str, ClassAccess access) {
-	if (declare_ty) {
-		auto& define = *declare_ty;
-		if (define.funs.contains(str)) {
-			auto& tmp = define.funs[str];
-			switch (access) {
-			case ClassAccess::pub:
-				if (tmp.access == ClassAccess::pub)
-					return tmp.fn;
-				break;
-			case ClassAccess::priv:
-				if (tmp.access != ClassAccess::intern)
-					return tmp.fn;
-				break;
-			case ClassAccess::prot:
-				if (tmp.access == ClassAccess::pub || tmp.access == ClassAccess::prot)
-					return tmp.fn;
-				break;
-			case ClassAccess::intern:
-				if(allow_intern_access) return tmp.fn;
-				else throw InvalidOperation("Internal access not allowed by configuration");				
-			default:
-				throw InvalidOperation("Undefined access type: " + enum_to_string(access));
-			}
-			throw InvalidOperation("Try access from " + enum_to_string(access) + "region to " + enum_to_string(tmp.access) + " function");
-		}
-	}
-	throw NotImplementedException();
-}
-ClassFnDefine& ProxyClass::getFnMeta(const std::string& str) {
-	if (declare_ty) {
-		auto& define = *declare_ty;
-		if (define.funs.contains(str))
-			return define.funs[str];
-	}
-	throw NotImplementedException();
-}
-void ProxyClass::setFnMeta(const std::string& str, ClassFnDefine& fn_decl) {
-	if (declare_ty) {
-		if (declare_ty->funs.contains(str))
-			if (!declare_ty->funs[str].deletable)
-				throw InvalidOperation("This class has non modifable function declaration");
-	}
-	else
-		declare_ty = new ProxyClassDefine();
-	declare_ty->funs[str] = fn_decl;
-}
-bool ProxyClass::containsFn(const std::string& str) {
-	if (declare_ty)
-		return declare_ty->funs.contains(str);
-	else
-		return false;
-}
-ValueItem* ProxyClass::getValue(const std::string& str) {
-	if (declare_ty) {
-		if (declare_ty->value_geter.contains(str)) {
-			auto& tmp = declare_ty->value_geter[str];
-			return tmp(class_ptr);
-		}
-	}
-	throw NotImplementedException();
-}
-void ProxyClass::setValue(const std::string& str, ValueItem& it) {
-	if (declare_ty) {
-		if (declare_ty->value_seter.contains(str)) {
-			auto& tmp = declare_ty->value_seter[str];
-			tmp(class_ptr, it);
-		}
-	}
-	throw NotImplementedException();
-}
-bool ProxyClass::containsValue(const std::string& str) {
-	return declare_ty ? declare_ty->value_seter.contains(str) && declare_ty->value_geter.contains(str) : false;
-}
-
-
-
-
-
 
 #pragma region MethodInfo
 MethodInfo::MethodInfo(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
@@ -4265,6 +3849,11 @@ Structure::Structure(size_t structure_size, Structure::Item* items, size_t count
 	}
 }
 Structure::~Structure() noexcept(false){
+	if(!fully_constructed){
+		if(vtable_mode == VTableMode::AttachADynamicVirtualTable)
+			Structure::destroyVTable(get_vtable(), VTableMode::AttachADynamicVirtualTable);
+		return;
+	}
 	switch(vtable_mode){
 	case VTableMode::disabled:
 		break;
@@ -4416,6 +4005,33 @@ void Structure::remove_method(const std::string& name, ClassAccess access){
 		throw InvalidOperation("vtable must be dynamic to remove method");
 	((AttachADynamicVirtualTable*)get_vtable())->removeMethod(name, access);
 }
+typed_lgr<FuncEnviropment> Structure::get_method(size_t fn_id){
+	switch (vtable_mode) {
+	case VTableMode::disabled:
+		throw InvalidArguments("vtable disabled");
+	case VTableMode::AttachAVirtualTable:
+		return ((AttachAVirtualTable*)get_vtable())->getMethodInfo(fn_id).ref;
+	case VTableMode::AttachADynamicVirtualTable:
+		return ((AttachADynamicVirtualTable*)get_vtable())->getMethodInfo(fn_id).ref;
+	default:
+	case VTableMode::CXX:
+		throw NotImplementedException();
+	}
+}
+typed_lgr<FuncEnviropment>  Structure::get_method_dynamic(const std::string& name, ClassAccess access){
+	switch (vtable_mode) {
+	case VTableMode::disabled:
+		throw InvalidArguments("vtable disabled");
+	case VTableMode::AttachAVirtualTable:
+		return ((AttachAVirtualTable*)get_vtable())->getMethodInfo(name, access).ref;
+	case VTableMode::AttachADynamicVirtualTable:
+		return ((AttachADynamicVirtualTable*)get_vtable())->getMethodInfo(name, access).ref;
+	default:
+	case VTableMode::CXX:
+		throw NotImplementedException();
+	}
+}
+
 void Structure::table_derive(void* vtable, Structure::VTableMode vtable_mode){
 	if(this->vtable_mode != VTableMode::AttachADynamicVirtualTable)
 		throw InvalidOperation("vtable must be dynamic to derive");
@@ -4476,6 +4092,7 @@ Structure::Item* Structure::get_items(size_t& count){
 Structure* Structure::construct(size_t structure_size, Item* items, size_t count){
 	Structure* structure = (Structure*)malloc(sizeof(struct_size) + (sizeof(count) * sizeof(Item)) + structure_size);
 	new(structure) Structure(structure_size, items, count, nullptr, VTableMode::disabled);
+	structure->fully_constructed = true;
 	return structure;
 }
 Structure* Structure::construct(size_t structure_size, Item* items, size_t count, void* vtable, VTableMode vtable_mode){
@@ -4530,6 +4147,53 @@ void Structure::copy(Structure* dst, Structure* src, bool at_construct){
 		throw NotImplementedException();
 	}
 }
+struct __Structure_destruct{
+	void operator()(Structure* structure){
+		Structure::destruct(structure);
+	}
+};
+
+Structure* Structure::copy(Structure* src){
+	void* vtable = src->get_vtable();
+	size_t _count;
+	Structure* dst;
+	if(src->vtable_mode == VTableMode::AttachADynamicVirtualTable)
+		dst = Structure::construct(src->struct_size, src->get_items(_count), src->count, new AttachADynamicVirtualTable(*reinterpret_cast<AttachADynamicVirtualTable*>(vtable)), src->vtable_mode);
+	else
+		dst = Structure::construct(src->struct_size, src->get_items(_count), src->count, vtable, src->vtable_mode);
+	if(!src->fully_constructed){
+		dst->fully_constructed = false;
+		return dst;
+	}
+	std::unique_ptr<Structure, __Structure_destruct> dst_ptr(dst);
+	switch (dst->vtable_mode) {
+	case VTableMode::disabled:{
+		char* dst_data = dst->raw_data + dst->count * sizeof(Item);
+		char* src_data = src->raw_data + src->count * sizeof(Item);
+		memcpy(dst_data, src_data, dst->struct_size);
+		break;
+	}
+	case VTableMode::AttachAVirtualTable:
+		if(reinterpret_cast<AttachAVirtualTable*>(vtable)->copy){
+			ValueItem args = {ValueItem(dst,as_refrence), ValueItem(src,as_refrence), true};
+			reinterpret_cast<AttachAVirtualTable*>(vtable)->copy(&args,3);
+		}
+		else throw NotImplementedException();
+		break;
+	case VTableMode::AttachADynamicVirtualTable:
+		if(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->copy){
+			AttachA::cxxCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->copy, ValueItem(dst,as_refrence), ValueItem(src,as_refrence), true);
+
+		}
+		else throw NotImplementedException();
+		break;
+	case VTableMode::CXX:
+	default:
+		throw NotImplementedException();
+	}
+	dst->fully_constructed = true;
+	return dst_ptr.release();
+}
 void Structure::move(Structure* dst, Structure* src, bool at_construct){
 	void* vtable = dst->get_vtable();
 	switch (dst->vtable_mode) {
@@ -4572,6 +4236,7 @@ void Structure::move(Structure* dst, Structure* src, bool at_construct){
 		throw NotImplementedException();
 	}
 }
+
 int8_t Structure::compare(Structure* a, Structure* b){
 	if(a == b)
 		return 0;

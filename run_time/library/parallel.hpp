@@ -19,9 +19,28 @@ namespace parallel {
 
 		//args: [func, (fault handler), (timeout), (used_task_local)], sarr,farr[args....]
 		ValueItem* createProxy_TaskQuery(ValueItem*, uint32_t);
-
-		//ValueItem* createProxy_ValueMonitor(ValueItem*, uint32_t);
-		//ValueItem* createProxy_ValueChangeMonitor(ValueItem*, uint32_t);
+		ValueItem* construct_Task(ValueItem*, uint32_t);
+		ValueItem* createProxy_TaskGroup(ValueItem*, uint32_t);
+	}
+	namespace this_task{
+		ValueItem* yield(ValueItem*, uint32_t);
+		ValueItem* yield_result(ValueItem*, uint32_t);
+		ValueItem* sleep(ValueItem*, uint32_t);
+		ValueItem* sleep_until(ValueItem*, uint32_t);
+		ValueItem* task_id(ValueItem*, uint32_t);
+		ValueItem* check_cancelation(ValueItem*, uint32_t);
+		ValueItem* self_cancel(ValueItem*, uint32_t);
+		ValueItem* is_task(ValueItem*, uint32_t);
+	}
+	namespace task_runtime{
+		ValueItem* clean_up(ValueItem*, uint32_t);
+		ValueItem* create_executor(ValueItem*, uint32_t);
+		ValueItem* total_executors(ValueItem*, uint32_t);
+		ValueItem* reduce_executor(ValueItem*, uint32_t);
+		ValueItem* become_task_executor(ValueItem*, uint32_t);
+		ValueItem* await_no_tasks(ValueItem*, uint32_t);
+		ValueItem* await_end_tasks(ValueItem*, uint32_t);
+		ValueItem* explicitStartTimer(ValueItem*, uint32_t);
 	}
 
 	//typed_lgr<FuncEnviropment>*, any...

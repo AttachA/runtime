@@ -63,12 +63,8 @@ namespace bytes{
                 case VType::set:
                 case VType::async_res:
                 case VType::except_value:
-                case VType::class_:
-                case VType::morph:
-                case VType::proxy:
-                //case VType::struct_:
+                case VType::struct_:
                 case VType::function:
-                case VType::class_define:
                 default:
                     throw InvalidOperation("Can't convert endian for this type: " + enum_to_string(value.meta.vtype));
             }
@@ -173,12 +169,8 @@ namespace bytes{
             case VType::set:
             case VType::async_res:
             case VType::except_value:
-            case VType::class_:
-            case VType::morph:
-            case VType::proxy:
-            //case VType::struct_:
+            case VType::struct_:
             case VType::function:
-            case VType::class_define:
             default:
                 throw InvalidOperation("Can't swap bytes for this type: " + enum_to_string(args[0].meta.vtype));
         }
@@ -329,12 +321,8 @@ namespace bytes{
         case VType::set:
         case VType::async_res:
         case VType::except_value:
-        case VType::class_:
-        case VType::morph:
-        case VType::proxy:
-        //case VType::struct_:
+        case VType::struct_:
         case VType::function:
-        case VType::class_define:
         default:
             throw InvalidArguments("Can't convert from bytes to " + enum_to_string(type.vtype));
         }

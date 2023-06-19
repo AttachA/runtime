@@ -12,6 +12,7 @@
 #include "AttachA_CXX.hpp"
 #include "tasks.hpp"
 #include "attacha_abi.hpp"
+#include <mutex>
 
 #include "../configuration/agreement/symbols.hpp"
 
@@ -264,24 +265,11 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 template<bool async_call>
 ValueItem* _valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ClassAccess access, ValueItem* args, uint32_t len) {
 	switch (class_ptr->meta.vtype) {
-	case VType::class_:
+	case VType::struct_:
 		if constexpr (async_call)
-			return FuncEnviropment::async_call(((ClassValue&)*class_ptr).callFnPtr(name, access), args, len);
+			return FuncEnviropment::async_call(((Structure&)*class_ptr).get_method_dynamic(name, access), args, len);
 		else
-			return ((ClassValue&)*class_ptr).callFnPtr(name, access)->syncWrapper(args, len);
-		break;
-	case VType::morph:
-		if constexpr (async_call)
-			return FuncEnviropment::async_call(((MorphValue&)*class_ptr).callFnPtr(name, access), args, len);
-		else
-			return ((MorphValue&)*class_ptr).callFnPtr(name, access)->syncWrapper(args, len);
-		break;
-	case VType::proxy:
-		if constexpr (async_call)
-			return FuncEnviropment::async_call(((ProxyClass&)*class_ptr).callFnPtr(name, access), args, len);
-		else
-			return ((ProxyClass&)*class_ptr).callFnPtr(name, access)->syncWrapper(args, len);
-		break;
+			return ((Structure&)*class_ptr).table_get_dynamic(name, access)(args, len);
 	default:
 		throw NotImplementedException();
 	}
@@ -290,9 +278,11 @@ template<bool async_mode>
 ValueItem* valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueItem* args, uint32_t len, ClassAccess access) {
 	if (!class_ptr)
 		throw NullPointerException();
-	list_array<ValueItem> args_tmp(args, args + len, len);
 	class_ptr->getAsync();
-	args_tmp.push_front(*class_ptr);
+	list_array<ValueItem> args_tmp;
+	args_tmp.reserve_push_back(len + 1);
+	args_tmp.push_back(*class_ptr);
+	args_tmp.push_back(args, len);
 	return _valueItemDynamicCall<async_mode>(name, class_ptr, access, args_tmp.data(), len + 1);
 }
 
@@ -693,9 +683,7 @@ void inlineIndexArraySetCopyStatic(BuildCall& b, VType type) {
 	case VType::saarr:
 		b.finalize(IndexArraySetCopyStatic<typ, ValueItem>);
 		break;
-	case VType::class_:
-	case VType::morph:
-	case VType::proxy:
+	case VType::struct_:
 		b.finalize(IndexArraySetStaticInterface<0>);
 		break;
 	default:
@@ -787,9 +775,7 @@ void inlineIndexArrayCopyStatic(BuildCall& b, VType type) {
 	case VType::saarr:
 		b.finalize(IndexArrayCopyStatic<typ, ValueItem>);
 		break;
-	case VType::class_:
-	case VType::morph:
-	case VType::proxy:
+	case VType::struct_:
 		b.finalize(IndexArrayStaticInterface<0>);
 		break;
 	default:
@@ -883,9 +869,7 @@ void IndexArrayCopyDynamic(void** value, ValueItem* arr, uint64_t pos) {
 	case VType::raw_arr_doub:
 		IndexArrayCopyStatic<typ, uint64_t>(value, (void**)arr, pos);
 		break;
-	case VType::class_:
-	case VType::morph:
-	case VType::proxy:
+	case VType::struct_:
 		IndexArrayStaticInterface<typ>(value, arr, pos);
 		break;
 	default:
@@ -978,9 +962,7 @@ void IndexArraySetCopyDynamic(void** value, ValueItem* arr, uint64_t pos) {
 	case VType::raw_arr_doub:
 		IndexArraySetCopyStatic<typ, uint64_t>(value, (void**)arr, (uint32_t)pos);
 		break;
-	case VType::class_:
-	case VType::morph:
-	case VType::proxy:
+	case VType::struct_:
 		IndexArraySetStaticInterface<typ>(value, arr, pos);
 		break;
 	default:

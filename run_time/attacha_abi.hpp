@@ -72,9 +72,6 @@ constexpr VType Type_as_VType() {
 	else if constexpr (std::is_same_v<T, void*>) return VType::undefined_ptr;
 	else if constexpr (std::is_same_v<T, std::exception_ptr*>) return VType::except_value;
 	else if constexpr (std::is_same_v<T, ValueItem*>) return VType::faarr;
-	else if constexpr (std::is_same_v<T, ClassValue>) return VType::class_;
-	else if constexpr (std::is_same_v<T, MorphValue>) return VType::morph;
-	else if constexpr (std::is_same_v<T, ProxyClass>) return VType::proxy;
 	else if constexpr (std::is_same_v<T, Structure>) return VType::struct_;
 	else if constexpr (std::is_same_v<T, ValueMeta>) return VType::type_identifier;
 	else if constexpr (std::is_same_v<T, typed_lgr<class FuncEnviropment>>) return VType::function;
@@ -229,12 +226,8 @@ namespace ABI_IMPL {
 			return ValueItem(new list_array<ValueItem>(val), VType::uarr);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueMeta>)
 			return ValueItem(*(void**)&val, VType::type_identifier);
-		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ClassValue>)
-			return ValueItem(new ClassValue(val), VType::class_);
-		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, MorphValue>)
-			return ValueItem(new MorphValue(val), VType::morph);
-		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ProxyClass>)
-			return ValueItem(new ProxyClass(val), VType::proxy);
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Structure>)
+			return ValueItem(Structure::copy(val), no_copy);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnviropment>>)
 			return ValueItem(new typed_lgr<class FuncEnviropment>(val), VType::function);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueItem>)
@@ -249,9 +242,7 @@ namespace ABI_IMPL {
 					std::is_same_v<std::remove_cvref_t<T>, std::string> ||
 					std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
 					std::is_same_v<std::remove_cvref_t<T>, ValueMeta> ||
-					std::is_same_v<std::remove_cvref_t<T>, ClassValue> ||
-					std::is_same_v<std::remove_cvref_t<T>, MorphValue> ||
-					std::is_same_v<std::remove_cvref_t<T>, ProxyClass> ||
+					std::is_same_v<std::remove_cvref_t<T>, Structure> ||
 					std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
 					std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>> ||
 					std::is_same_v<std::remove_cvref_t<T>, nullptr_t> ||
@@ -760,48 +751,15 @@ namespace ABI_IMPL {
 					throw InvalidCast("Fail cast type_identifier");
 				break;
 			}
-			case VType::class_: {
-				if constexpr (std::is_same_v<T, ClassValue>)
-					return (ClassValue&)val;
-				else if constexpr (std::is_same_v<T, void*>) {
-					return val;
-				}else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-					return { ValueItem(val,meta) };
-				else {
-					ValueItem tmp(val, meta, no_copy);
-					ValueItem* res = ((ClassValue&)val).callFnPtr("()", ClassAccess::pub)->syncWrapper(&tmp,1);
-					tmp.val = 0;
-					ValueItem m(std::move(*res));
-					delete res;
-					return (T)m;
-				}
-				break;
-			}
-			case VType::morph: {
-				if constexpr (std::is_same_v<T, MorphValue>)
-					return (MorphValue&)val;
+			case VType::struct_: {
+				if constexpr (std::is_same_v<T, Structure>)
+					return (Structure&)val;
 				else if constexpr (std::is_same_v<T, void*>) {
 					return val;
 				}
 				else {
-					ValueItem tmp(val, meta, no_copy);
-					ValueItem* res = ((MorphValue&)val).callFnPtr("()", ClassAccess::pub)->syncWrapper(&tmp,1);
-					tmp.val = 0;
-					ValueItem m(std::move(*res));
-					delete res;
-					return Vcast<T>(m.val, m.meta);
-				}
-				break;
-			}
-			case VType::proxy: {
-				if constexpr (std::is_same_v<T, ProxyClass>)
-					return (ProxyClass&)val;
-				else if constexpr (std::is_same_v<T, void*>) {
-					return val;
-				}
-				else {
-					ValueItem tmp(val, meta, no_copy);
-					ValueItem* res = ((ProxyClass&)val).callFnPtr("()", ClassAccess::pub)->syncWrapper(&tmp,1);
+					ValueItem tmp(ref_val, meta, as_refrence);
+					ValueItem* res = ((Structure&)val).table_get_dynamic("()", ClassAccess::pub)(&tmp,1);
 					ValueItem m(std::move(*res));
 					delete res;
 					return Vcast<T>(m.val, m.meta);
