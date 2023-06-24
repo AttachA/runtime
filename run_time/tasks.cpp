@@ -15,6 +15,7 @@
 #include <queue>
 #include <deque>
 #include "tasks_util/light_stack.hpp"
+#include "tasks_util/hill_climbing.hpp"
 #include "library/parallel.hpp"
 #include "tasks_util/native_workers_singleton.hpp"
 #include "../configuration/tasks.hpp"
@@ -26,7 +27,7 @@
 
 #undef min
 namespace ctx = boost::context;
-constexpr size_t native_thread_flag = (SIZE_MAX ^ -1);
+constexpr size_t native_thread_flag = size_t(1) << (sizeof(size_t) * 8 - 1);
 
 void put_arguments(ValueItem& args_hold, const ValueItem& arguments){
 	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
@@ -365,7 +366,19 @@ TaskResult::TaskResult(TaskResult&& move) noexcept {
 struct timing {
 	std::chrono::high_resolution_clock::time_point wait_timepoint; 
 	typed_lgr<Task> awake_task; 
-	//uint16_t check_id : 10;
+	uint16_t check_id;
+};
+struct binded_context{
+	run_time::tasks::util::hill_climb executor_manager_hill_climb;
+	std::list<uint32_t> completions;
+	std::list<typed_lgr<Task>> tasks;
+	TaskConditionVariable on_closed_notifier;
+	run_time::threading::recursive_mutex no_race;
+	run_time::threading::condition_variable_any new_task_notifier;
+	uint16_t executors = 0;
+	bool in_close = false;
+	bool allow_implicit_start = false;
+	bool fixed_size = false;
 };
 struct {
 	TaskConditionVariable no_tasks_notifier;
@@ -392,7 +405,14 @@ struct {
 
 	TaskConditionVariable can_started_new_notifier;
 	TaskConditionVariable can_planned_new_notifier;
+	
+	run_time::threading::mutex binded_workers_safety;
+	std::unordered_map<uint16_t, binded_context> binded_workers;
 
+	bool executor_manager_in_work = false;
+	run_time::threading::condition_variable_any executor_manager_task_taken;
+	run_time::tasks::util::hill_climb executor_manager_hill_climb;
+	std::list<uint32_t> workers_completions;
 } glob;
 struct {
 	typed_lgr<Generator> on_load_generator_ref = nullptr;
@@ -456,7 +476,15 @@ void swapCtx() {
 	if(loc.is_task_thread){
 		loc.context_in_swap = true;
 		++glob.tasks_in_swap;
+		loc.curr_task->relock_0.relock_start();
+		loc.curr_task->relock_1.relock_start();
+		loc.curr_task->relock_2.relock_start();
 		*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+		loc.context_in_swap = true;
+		loc.curr_task->relock_0.relock_end();
+		loc.curr_task->relock_1.relock_end();
+		loc.curr_task->relock_2.relock_end();
+		loc.curr_task->awake_check++;
 		--glob.tasks_in_swap;
 		loc.context_in_swap = false;
 		checkCancelation();
@@ -586,6 +614,51 @@ ctx::continuation context_ex_handle(ctx::continuation&& sink) {
 }
 
 
+void transfer_task(typed_lgr<Task>& task){
+	if(task->bind_to_worker_id ==  (uint16_t)-1){
+		std::lock_guard guard(glob.task_thread_safety);
+		glob.tasks.push(std::move(task));
+		glob.tasks_notifier.notify_one();
+	}else{
+		std::unique_lock initializer_guard(glob.binded_workers_safety);
+		if(!glob.binded_workers.contains(task->bind_to_worker_id)){
+			initializer_guard.unlock();
+			invite_to_debugger("Binded worker context " + std::to_string(task->bind_to_worker_id) + " not found");
+			std::abort();
+		}
+		binded_context& extern_context = glob.binded_workers[task->bind_to_worker_id];
+		initializer_guard.unlock();
+		if(extern_context.in_close){
+			invite_to_debugger("Binded worker context " + std::to_string(task->bind_to_worker_id) + " is closed");
+			std::abort();
+		}
+		std::lock_guard guard(extern_context.no_race);
+		extern_context.tasks.push_back(std::move(task));
+		extern_context.new_task_notifier.notify_one();
+	}
+}
+void awake_task(typed_lgr<Task>& task){
+	if(task->bind_to_worker_id ==  (uint16_t)-1){
+		if(task->auto_bind_worker){
+			std::unique_lock guard(glob.binded_workers_safety);
+			for(auto& [id,context] : glob.binded_workers){
+				if(context.allow_implicit_start){
+					if(context.in_close)
+						continue;
+					guard.unlock();
+					std::unique_lock context_quard(context.no_race);
+					task->bind_to_worker_id = id;
+					context.tasks.push_back(std::move(task));
+					context.new_task_notifier.notify_one();
+					return;
+				}
+			}
+			throw InternalException("No binded workers available");
+		}
+	}
+	transfer_task(task);
+}
+
 void taskNotifyIfEmpty(std::unique_lock<run_time::threading::recursive_mutex>& re_lock) {
 	if(!loc.in_exec_decreased)
 		--glob.in_exec;
@@ -637,7 +710,7 @@ void pseudo_task_handle(const std::string& old_name, bool &caught_ex){
 			TaskCallback::start(*loc.curr_task);
 		}
 		else {
-			worker_mode_desk(old_name, " executing function - " + loc.curr_task->func->to_string())
+			//worker_mode_desk(old_name, " executing function - " + loc.curr_task->func->to_string())
 			ValueItem* res = FuncEnviropment::sync_call(loc.curr_task->func, (ValueItem*)loc.curr_task->args.getSourcePtr(), loc.curr_task->args.meta.val_len);
 			MutexUnify mu(loc.curr_task->no_race);
 			std::unique_lock l(mu);
@@ -654,25 +727,70 @@ void pseudo_task_handle(const std::string& old_name, bool &caught_ex){
 	}
 	if(caught_ex)
 		restore_stack_fault();
+	worker_mode_desk(old_name, "idle");
 	loc.is_task_thread = true;
+}
+
+bool execute_task(const std::string& old_name){
+	bool pseudo_handle_caugnt_ex = false;
+	if (!loc.curr_task->func)
+		return true;
+	if(loc.curr_task->_task_local == (ValueEnvironment*)-1 || loc.curr_task->func->isCheap()){
+		pseudo_task_handle(old_name, pseudo_handle_caugnt_ex);
+		if (pseudo_handle_caugnt_ex)
+			goto caught_ex;
+		return false;
+	}
+	if (loc.curr_task->end_of_life)
+		goto end_task;
+
+	worker_mode_desk(old_name, "process task - " + std::to_string(loc.curr_task->task_id()));
+	if (*loc.tmp_current_context) {
+		*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+	}
+	else {
+		++glob.in_run_tasks;
+		--glob.planned_tasks;
+		if (Task::max_planned_tasks)
+			glob.can_planned_new_notifier.notify_one();
+		*loc.tmp_current_context = ctx::callcc(std::allocator_arg, light_stack(1048576/*1 mb*/), context_exec);
+	}
+caught_ex:
+	if (loc.ex_ptr) {
+		if (loc.curr_task->ex_handle) {
+			ValueItem temp(new std::exception_ptr(loc.ex_ptr), VType::except_value, no_copy);
+			loc.curr_task->args = ValueItem(&temp, 0);
+			loc.ex_ptr = nullptr;
+			*loc.tmp_current_context = ctx::callcc(context_ex_handle);
+			if (!loc.ex_ptr)
+				goto end_task;
+		}
+		MutexUnify uni(loc.curr_task->no_race);
+		std::unique_lock l(uni);
+		loc.curr_task->fres.finalResult(ValueItem(new std::exception_ptr(loc.ex_ptr), ValueMeta(VType::except_value), no_copy),l);
+		loc.ex_ptr = nullptr;
+	}
+end_task:
+	loc.is_task_thread = false;
+	loc.curr_task = nullptr;
+	worker_mode_desk(old_name, "idle");
+	return false;
 }
 void taskExecutor(bool end_in_task_out = false) {
 	std::string old_name = end_in_task_out ? _get_name_thread_dbg(_thread_id()) : "";
-	bool pseudo_handle_caugnt_ex = false;
 
 	if(old_name.empty())
 		_set_name_thread_dbg("Worker " + std::to_string(_thread_id()));
 	else
 		_set_name_thread_dbg(old_name + " | (Temoral worker) " + std::to_string(_thread_id()));
 
-
-	{
-		std::lock_guard guard(glob.task_thread_safety);
-		++glob.in_exec;
-		++glob.executors;
-	}
+	std::unique_lock guard(glob.task_thread_safety);
+	glob.workers_completions.push_front(0);
+	auto to_remove_after_death = glob.workers_completions.begin();
+	uint32_t& completions = glob.workers_completions.front();
+	++glob.in_exec;
+	++glob.executors;
 	while (true) {
-		std::unique_lock guard(glob.task_thread_safety);
 		loc.context_in_swap = false;
 		loc.tmp_current_context = nullptr;
 		taskNotifyIfEmpty(guard);
@@ -689,75 +807,86 @@ void taskExecutor(bool end_in_task_out = false) {
 				}
 			}
 
-			if (end_in_task_out) {
-				--glob.executors;
-				return;
-			}
+			if (end_in_task_out) 
+				goto end_worker;
 			glob.tasks_notifier.wait(guard);
 		}
 		loc.is_task_thread = true;
 		if (loadTask())
 			continue;
+		glob.executor_manager_task_taken.notify_one();
 		guard.unlock();
-		//if func is nullptr then this task signal to shutdown executor
-		if (!loc.curr_task->func)
-			break;
-		if(loc.curr_task->_task_local == (ValueEnvironment*)-1 || loc.curr_task->func->isCheap()){
-			pseudo_task_handle(old_name, pseudo_handle_caugnt_ex);
-			if (pseudo_handle_caugnt_ex)
-				goto caught_ex;
+		if(loc.curr_task->bind_to_worker_id != (uint16_t)-1){
+			transfer_task(loc.curr_task);
+			guard.lock();
 			continue;
 		}
-		if (loc.curr_task->end_of_life)
-			goto end_task;
-
-		worker_mode_desk(old_name, "process task - " + std::to_string(loc.curr_task->task_id()));
-		if (*loc.tmp_current_context) {
-			loc.curr_task->relock_0.relock_end();
-			loc.curr_task->relock_1.relock_end();
-			loc.curr_task->relock_2.relock_end();
-			*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
-		}
-		else {
-			++glob.in_run_tasks;
-			--glob.planned_tasks;
-			if (Task::max_planned_tasks)
-				glob.can_planned_new_notifier.notify_one();
-			*loc.tmp_current_context = ctx::callcc(std::allocator_arg, light_stack(1048576/*1 mb*/), context_exec);
-		}
-	caught_ex:
-		if (loc.ex_ptr) {
-			if (loc.curr_task->ex_handle) {
-				ValueItem temp(new std::exception_ptr(loc.ex_ptr), VType::except_value, no_copy);
-				loc.curr_task->args = ValueItem(&temp, 0);
-				loc.ex_ptr = nullptr;
-				*loc.tmp_current_context = ctx::callcc(context_ex_handle);
-
-				if (!loc.ex_ptr)
-					goto end_task;
-			}
-			MutexUnify uni(loc.curr_task->no_race);
-			std::unique_lock l(uni);
-			loc.curr_task->fres.finalResult(ValueItem(new std::exception_ptr(loc.ex_ptr), ValueMeta(VType::except_value), no_copy),l);
-			loc.ex_ptr = nullptr;
-		}
-
-	end_task:
-		if (loc.curr_task) {
-			loc.curr_task->relock_0.relock_start();
-			loc.curr_task->relock_1.relock_start();
-			loc.curr_task->relock_2.relock_start();
-		}
-		loc.is_task_thread = false;
-		loc.curr_task = nullptr;
-		worker_mode_desk(old_name, "idle");
+		//if func is nullptr then this task signal to shutdown executor
+		bool sut_down_signal = execute_task(old_name);
+		guard.lock();
+		if (sut_down_signal)
+			break;
+		completions +=1;
 	}
-	{
-		std::unique_lock guard(glob.task_thread_safety);
-		--glob.executors;
-		taskNotifyIfEmpty(guard);
+end_worker:
+	--glob.executors;
+	glob.workers_completions.erase(to_remove_after_death);
+	taskNotifyIfEmpty(guard);
+}
+
+void bindedTaskExecutor(uint16_t id){
+	std::string old_name = "Binded";
+	std::unique_lock initializer_guard(glob.binded_workers_safety);
+	if(!glob.binded_workers.contains(id)){
+		invite_to_debugger("Binded worker context " + std::to_string(id) + " not found");
+		std::abort();
+	}
+	binded_context& context = glob.binded_workers[id];
+	context.completions.push_front(0);
+	auto to_remove_after_death = context.completions.begin();
+	uint32_t& completions = context.completions.front();
+	initializer_guard.unlock();
+
+	std::list<typed_lgr<Task>>& queue = context.tasks;
+	run_time::threading::recursive_mutex& safety = context.no_race;
+	run_time::threading::condition_variable_any& notifier = context.new_task_notifier;
+	bool pseudo_handle_caugnt_ex = false;
+	_set_name_thread_dbg("Binded worker " + std::to_string(_thread_id()) + ": " + std::to_string(id));
+
+	std::unique_lock guard(safety);
+	context.executors++;
+	while(true){
+		while(queue.empty())
+			notifier.wait(guard);
+		loc.curr_task = std::move(queue.front());
+		queue.pop_front();
+		guard.unlock();
+		if (!loc.curr_task->func)
+			break;
+		if(loc.curr_task->bind_to_worker_id !=  (uint16_t)id){
+			transfer_task(loc.curr_task);
+			continue;
+		}
+		loc.is_task_thread = true;
+		loc.tmp_current_context = &reinterpret_cast<ctx::continuation&>(loc.curr_task->fres.context);
+		if(execute_task(old_name))
+			break;
+		completions +=1;
+		guard.lock();
+	}
+	guard.lock();
+	--context.executors;
+	if(context.executors == 0){
+		if(context.in_close){
+			context.on_closed_notifier.notify_all();
+			guard.unlock();
+		}else{
+			invite_to_debugger("Caught executor/s death when context is not closed");
+			std::abort();
+		}
 	}
 }
+
 #pragma endregion
 #pragma optimize("",on)
 void taskTimer() {
@@ -772,13 +901,13 @@ void taskTimer() {
 			if (glob.timed_tasks.size()) {
 				while (glob.timed_tasks.front().wait_timepoint <= std::chrono::high_resolution_clock::now()) {
 					timing& tmng = glob.timed_tasks.front();
-					//if (tmng.check_id != tmng.awake_task->sleep_check) {
-					//	glob.timed_tasks.pop_front();
-					//	if (glob.timed_tasks.empty())
-					//		break;
-					//	else
-					//		continue;
-					//}
+					if (tmng.check_id != tmng.awake_task->awake_check) {
+						glob.timed_tasks.pop_front();
+						if (glob.timed_tasks.empty())
+							break;
+						else
+							continue;
+					}
 					std::lock_guard task_guard(tmng.awake_task->no_race);
 					if (tmng.awake_task->awaked) {
 						glob.timed_tasks.pop_front();
@@ -828,14 +957,14 @@ void makeTimeWait(std::chrono::high_resolution_clock::time_point t) {
 		auto end = glob.timed_tasks.end();
 		while (it != end) {
 			if (it->wait_timepoint >= t) {
-				glob.timed_tasks.insert(it, timing(t,loc.curr_task/*, ++loc.curr_task->sleep_check */ ));
+				glob.timed_tasks.insert(it, timing(t,loc.curr_task, loc.curr_task->awake_check ));
 				i = -1;
 				break;
 			}
 			++it;
 		}
 		if (i != -1)
-			glob.timed_tasks.push_back(timing(t, loc.curr_task/*, ++loc.curr_task->sleep_check*/));
+			glob.timed_tasks.push_back(timing(t, loc.curr_task, loc.curr_task->awake_check));
 	}
 	glob.time_notifier.notify_one();
 }
@@ -895,6 +1024,17 @@ Task::~Task() {
 			glob.can_planned_new_notifier.notify_one();
 	}
 }
+
+void Task::auto_bind_worker_enable(bool enable = true){
+	auto_bind_worker = enable;
+	if (enable)
+		bind_to_worker_id = -1;
+}
+void Task::set_worker_id(uint16_t id){
+	bind_to_worker_id = id;
+	auto_bind_worker = false;
+}
+
 void Task::start(list_array<typed_lgr<Task>>& lgr_task) {
 	for (auto& it : lgr_task)
 		start(it);
@@ -977,6 +1117,53 @@ void Task::start(const typed_lgr<Task>& tsk) {
 	}
 }
 
+uint16_t Task::create_bind_only_executor(uint16_t fixed_count, bool allow_implicit_start) {
+	std::lock_guard guard(glob.binded_workers_safety);
+	uint16_t try_count = 0;
+	uint16_t id = glob.binded_workers.size();
+is_not_id:
+	while(glob.binded_workers.contains(id)){
+		if(try_count == UINT16_MAX)
+			throw InternalException("Too many binded workers");
+		try_count++;
+		id++;
+	}
+	if(id == -1)
+		goto is_not_id;
+	glob.binded_workers[id].allow_implicit_start = allow_implicit_start;
+	glob.binded_workers[id].fixed_size = (bool)fixed_count;
+	for (size_t i = 0; i < fixed_count; i++)
+		run_time::threading::thread(bindedTaskExecutor, id).detach();
+	return id;
+}
+void Task::close_bind_only_executor(uint16_t id) {
+	MutexUnify unif(glob.binded_workers_safety);
+	std::unique_lock guard(unif);
+	std::list<typed_lgr<Task>> transfer_tasks;
+	if(!glob.binded_workers.contains(id)){
+		throw InternalException("Binded worker not found");
+	}else{
+		auto& context = glob.binded_workers[id];
+		std::unique_lock context_lock(context.no_race);
+		if(context.in_close)
+			return;
+		context.in_close = true;
+		for(uint16_t i = 0; i < context.executors; i++){
+			context.tasks.push_back(new Task(nullptr, ValueItem()));
+		}
+		context.new_task_notifier.notify_all();
+		context_lock.unlock();
+		while(context.executors != 0)
+			context.on_closed_notifier.wait(guard);
+
+		std::swap(transfer_tasks, context.tasks);
+		glob.binded_workers.erase(id);
+	}
+	for(typed_lgr<Task>& task : transfer_tasks){
+		task->bind_to_worker_id = -1;
+		transfer_task(task);
+	}
+}
 void Task::create_executor(size_t count) {
 	for (size_t i = 0; i < count; i++)
 		run_time::threading::thread(taskExecutor, false).detach();
@@ -1109,6 +1296,11 @@ void Task::notify_cancel(typed_lgr<Task>& lgr_task){
 		TaskCallback::cancel(*lgr_task);
 	else
 		lgr_task->make_cancel = true;
+}
+
+void Task::notify_cancel(list_array<typed_lgr<Task>>& tasks){
+	for (auto& it : tasks) 
+		notify_cancel(it);
 }
 
 class ValueEnvironment* Task::task_local() {
@@ -1380,11 +1572,9 @@ TaskMutex::~TaskMutex() {
 	std::lock_guard lg(no_race);
 	while (!resume_task.empty()) {
 		auto& tsk = resume_task.back();
-		tsk->make_cancel = true;
+		Task::notify_cancel(tsk.task);
 		current_task = nullptr;
-		MutexUnify uni(tsk->no_race);
-		std::unique_lock l(uni);
-		tsk->fres.awaitEnd(l);
+		Task::await_task(tsk.task);
 		resume_task.pop_back();
 	}
 }
@@ -1395,34 +1585,31 @@ void TaskMutex::lock() {
 
 		std::lock_guard lg(no_race);
 		while (current_task) {
-			resume_task.push_back(loc.curr_task);
+			resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
 			swapCtxRelock(no_race);
 		}
 		current_task = loc.curr_task.getPtr();
 	}
 	else {
 		std::unique_lock ul(no_race);
-		run_time::threading::condition_variable_any cd;
-		bool has_res = false;
 		typed_lgr<Task> task; 
 		while (current_task) {
+			run_time::threading::condition_variable_any cd;
+			bool has_res = false;
 			task = Task::cxx_native_bridge(has_res, cd);
-			resume_task.push_back(task);
+			resume_task.emplace_back(task, task->awake_check);
 			while (!has_res)
 				cd.wait(ul);
+			task_not_ended:
+			//prevent destruct cd, because it is used in task
+			task->no_race.lock();
+			if (!task->fres.end_of_life) {
+				task->no_race.unlock();
+				goto task_not_ended;
+			}
+			task->no_race.unlock();
 		}
 		current_task = reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag);
-		
-		if(!task)
-			return;
-	task_not_ended:
-		//prevent destruct cd, because it is used in task
-		task->no_race.lock();
-		if(!task->fres.end_of_life){
-			task->no_race.unlock();
-			goto task_not_ended;
-		}
-		task->no_race.unlock();
 	}
 }
 bool TaskMutex::try_lock() {
@@ -1432,7 +1619,7 @@ bool TaskMutex::try_lock() {
 
 	if (current_task)
 		return false;
-	else if(loc.is_task_thread)
+	else if(loc.is_task_thread || loc.context_in_swap)
 		current_task = loc.curr_task.getPtr();
 	else
 		current_task = reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag);
@@ -1447,11 +1634,11 @@ bool TaskMutex::try_lock_until(std::chrono::high_resolution_clock::time_point ti
 		return false;
 	std::unique_lock ul(no_race, std::adopt_lock);
 
-	if (loc.is_task_thread) {
+	if (loc.is_task_thread && !loc.context_in_swap) {
 		while (current_task) {
 			std::lock_guard guard(loc.curr_task->no_race);
 			makeTimeWait(time_point);
-			resume_task.push_back(loc.curr_task);
+			resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
 			swapCtxRelock(loc.curr_task->no_race, no_race);
 			if (!loc.curr_task->awaked) 
 				return false;
@@ -1465,13 +1652,16 @@ bool TaskMutex::try_lock_until(std::chrono::high_resolution_clock::time_point ti
 		while (current_task) {
 			has_res = false;
 			typed_lgr task = Task::cxx_native_bridge(has_res, cd);
-			resume_task.push_back(task);
+			resume_task.emplace_back(task, task->awake_check);
 			while (has_res)
 				cd.wait_until(ul, time_point);
 			if (!task->awaked)
 				return false;
 		}
-		current_task = loc.curr_task.getPtr();
+		if(!loc.context_in_swap)
+			current_task = reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag);
+		else
+			current_task = loc.curr_task.getPtr();
 		return true;
 	}
 }
@@ -1486,15 +1676,15 @@ void TaskMutex::unlock() {
 
 	current_task = nullptr;
 	if (resume_task.size()) {
-		typed_lgr<Task> it = resume_task.front();
+		typed_lgr<Task> it = resume_task.front().task;
+		uint16_t awake_check = resume_task.front().awake_check;
 		resume_task.pop_front();
 		std::lock_guard lg1(it->no_race);
+		if(it->awake_check != awake_check)
+			return;
 		if (!it->time_end_flag) {
 			it->awaked = true;
-			std::lock_guard lg2(glob.task_thread_safety);
-			glob.tasks.push(it);
-			glob.tasks_notifier.notify_one();
-			return;
+			transfer_task(it);
 		}
 	}
 }
@@ -1547,12 +1737,12 @@ TaskConditionVariable::~TaskConditionVariable() {
 void TaskConditionVariable::wait(std::unique_lock<MutexUnify>& mut) {
 	if (loc.is_task_thread) {
 		if (mut.mutex()->nmut == &no_race) {
-			resume_task.push_back(loc.curr_task);
+			resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
 			swapCtxRelock(no_race);
 		}
 		else {
 			std::lock_guard guard(no_race);
-			resume_task.push_back(loc.curr_task);
+			resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
 			swapCtxRelock(*mut.mutex(),no_race);
 		}
 	}
@@ -1561,13 +1751,13 @@ void TaskConditionVariable::wait(std::unique_lock<MutexUnify>& mut) {
 		bool has_res = false;
 		typed_lgr task = Task::cxx_native_bridge(has_res, cd);
 		if (mut.mutex()->nmut == &no_race) {
-			resume_task.push_back(task);
+			resume_task.emplace_back(task, task->awake_check);
 			while (!has_res)
 				cd.wait(mut);
 		}
 		else {
 			no_race.lock();
-			resume_task.push_back(task);
+			resume_task.emplace_back(task, task->awake_check);
 			no_race.unlock();
 			while (!has_res)
 				cd.wait(mut);
@@ -1594,7 +1784,7 @@ bool TaskConditionVariable::wait_until(std::unique_lock<MutexUnify>& mut, std::c
 		makeTimeWait(time_point);
 		{
 			std::lock_guard guard(no_race);
-			resume_task.push_back(loc.curr_task);
+			resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
 		}
 		swapCtxRelock(loc.curr_task->no_race);
 		if (loc.curr_task->time_end_flag)
@@ -1606,13 +1796,13 @@ bool TaskConditionVariable::wait_until(std::unique_lock<MutexUnify>& mut, std::c
 		typed_lgr task = Task::cxx_native_bridge(has_res, cd);
 		
 		if (mut.mutex()->nmut == &no_race) {
-			resume_task.push_back(task);
+			resume_task.emplace_back(task, task->awake_check);
 			while (!has_res)
 				cd.wait(mut);
 		}
 		else {
 			no_race.lock();
-			resume_task.push_back(task);
+			resume_task.emplace_back(task, task->awake_check);
 			no_race.unlock();
 			while (!has_res)
 				cd.wait(mut);
@@ -1633,7 +1823,7 @@ bool TaskConditionVariable::wait_until(std::unique_lock<MutexUnify>& mut, std::c
 }
 
 void TaskConditionVariable::notify_all() {
-	std::list<typed_lgr<struct Task>> revive_tasks;
+	std::list<__::resume_task> revive_tasks;
 	{
 		std::lock_guard guard(no_race);
 		std::swap(revive_tasks, resume_task);
@@ -1643,12 +1833,14 @@ void TaskConditionVariable::notify_all() {
 	bool to_yield = false;
 	{
 		std::lock_guard guard(glob.task_thread_safety);
-		for (auto& it : revive_tasks) {
+		for (auto& resumer : revive_tasks) {
+			auto& it = resumer.task;
 			std::lock_guard guard_loc(it->no_race);
+			if(resumer.awake_check != resumer.awake_check)
+				continue;
 			if (!it->time_end_flag) {
 				it->awaked = true;
-				glob.tasks.push(it);
-				glob.tasks_notifier.notify_one();
+				transfer_task(it);
 			}
 		}
 		glob.tasks_notifier.notify_one();
@@ -1665,13 +1857,13 @@ void TaskConditionVariable::notify_one() {
 	{
 		std::lock_guard guard(no_race);
 		while (resume_task.size()) {
-			resume_task.back()->no_race.lock();
-			if (resume_task.back()->time_end_flag) {
-				resume_task.back()->no_race.unlock();
+			resume_task.back().task->no_race.lock();
+			if (resume_task.back().task->time_end_flag || resume_task.back().awake_check != resume_task.back().awake_check) {
+				resume_task.back().task->no_race.unlock();
 				resume_task.pop_back();
 			}
 			else {
-				tsk = resume_task.back();
+				tsk = resume_task.back().task;
 				resume_task.pop_back();
 				break;
 			}
@@ -1682,24 +1874,23 @@ void TaskConditionVariable::notify_one() {
 	bool to_yield = false;
 	std::lock_guard guard_loc(tsk->no_race, std::adopt_lock);
 	{
+		tsk->awaked = true;
 		std::lock_guard guard(glob.task_thread_safety);
-		resume_task.back()->awaked = true;
 		if (Task::max_running_tasks && loc.is_task_thread) {
 			if (Task::max_running_tasks <= glob.in_run_tasks && loc.curr_task && !loc.curr_task->end_of_life)
 				to_yield = true;
 		}
-		glob.tasks.push(resume_task.front());
+		transfer_task(tsk);
 	}
-	glob.tasks_notifier.notify_one();
 	if(to_yield)
 		Task::yield();
 }
 void TaskConditionVariable::dummy_wait(typed_lgr<struct Task> task, std::unique_lock<MutexUnify>& lock){
 	if(lock.mutex()->nmut == &no_race)
-		resume_task.push_back(task);
+		resume_task.emplace_back(task, task->awake_check);
 	else{
 		std::lock_guard guard(no_race);
-		resume_task.push_back(task);
+		resume_task.emplace_back(task, task->awake_check);
 	}
 }
 void TaskConditionVariable::dummy_wait_for(typed_lgr<struct Task> task, std::unique_lock<MutexUnify>& lock, size_t milliseconds){
@@ -1753,7 +1944,7 @@ re_try:
 	if (!allow_treeshold) {
 		if (loc.is_task_thread) {
 			std::lock_guard guard(glob.task_thread_safety);
-			resume_task.push_back(loc.curr_task);
+			resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
 			no_race.unlock();
 			swapCtxRelock(glob.task_thread_safety);
 		}
@@ -1794,7 +1985,7 @@ re_try:
 		if (loc.is_task_thread) {
 			std::lock_guard guard(glob.task_thread_safety);
 			makeTimeWait(time_point);
-			resume_task.push_back(loc.curr_task);
+			resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
 			no_race.unlock();
 			swapCtxRelock(glob.task_thread_safety);
 			if (!loc.curr_task->awaked)
@@ -1822,16 +2013,15 @@ void TaskSemaphore::release() {
 	allow_treeshold++;
 	native_notify.notify_one();
 	while (resume_task.size()) {
-		auto& it = resume_task.back();
-		std::lock_guard lg2(it->no_race);
-		if (!it->time_end_flag) {
-			it->awaked = true;
-			{
-				std::lock_guard lg1(glob.task_thread_safety);
-				glob.tasks.push(resume_task.front());
-			}
+		auto& it = resume_task.front();
+		std::lock_guard lg2(it.task->no_race);
+		if (!it.task->time_end_flag) {
+			if(it.task->awake_check != it.awake_check)
+				continue;
+			it.task->awaked = true;
+			auto task = resume_task.front().task;
 			resume_task.pop_front();
-			glob.tasks_notifier.notify_one();
+			transfer_task(task);
 			return;
 		}
 		else
@@ -1847,15 +2037,14 @@ void TaskSemaphore::release_all() {
 	native_notify.notify_all();
 	while (resume_task.size()) {
 		auto& it = resume_task.back();
-		std::lock_guard lg2(it->no_race);
-		if (!it->time_end_flag) {
-			it->awaked = true;
-			{
-				std::lock_guard lg1(glob.task_thread_safety);
-				glob.tasks.push(resume_task.front());
-			}
+		std::lock_guard lg2(it.task->no_race);
+		if (!it.task->time_end_flag) {
+			if (it.task->awake_check != it.awake_check)
+				continue;
+			it.task->awaked = true;
+			auto task = resume_task.front().task;
 			resume_task.pop_front();
-			glob.tasks_notifier.notify_one();
+			transfer_task(task);
 		}
 		else
 			resume_task.pop_front();
@@ -1907,7 +2096,7 @@ void TaskLimiter::lock() {
 		if (loc.is_task_thread) {
 			loc.curr_task->awaked = false;
 			loc.curr_task->time_end_flag = false;
-			resume_task.push_back(loc.curr_task);
+			resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
 			swapCtxRelock(*guard.mutex());
 		}
 		else 
@@ -1961,7 +2150,7 @@ bool TaskLimiter::try_lock_until(std::chrono::high_resolution_clock::time_point 
 			loc.curr_task->awaked = false;
 			loc.curr_task->time_end_flag = false;
 			makeTimeWait(time_point);
-			resume_task.push_back(loc.curr_task);
+			resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
 			swapCtxRelock(no_race);
 			if (!loc.curr_task->awaked)
 				return false;
@@ -1999,15 +2188,14 @@ void TaskLimiter::unchecked_unlock() {
 	native_notify.notify_one();
 	while (resume_task.size()) {
 		auto& it = resume_task.back();
-		std::lock_guard lg2(it->no_race);
-		if (!it->time_end_flag) {
-			it->awaked = true;
-			{
-				std::lock_guard lg1(glob.task_thread_safety);
-				glob.tasks.push(resume_task.front());
-			}
+		std::lock_guard lg2(it.task->no_race);
+		if (!it.task->time_end_flag) {
+			if(it.task->awake_check != it.awake_check)
+				continue;
+			it.task->awaked = true;
+			auto task = resume_task.front().task;
 			resume_task.pop_front();
-			glob.tasks_notifier.notify_one();
+			transfer_task(task);
 			return;
 		}
 		else
@@ -2552,5 +2740,95 @@ namespace _Task_unsafe{
 	}
 	void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1, const MutexUnify& lock2){
 		swapCtxRelock(lock0, lock1, lock2);
+	}
+
+	
+	typed_lgr<Task> get_self(){
+		return loc.curr_task;
+	}
+
+	
+
+	std::pair<uint64_t,int64_t> _become_executor_count_manager_(
+		std::unique_lock<run_time::threading::recursive_mutex>& lock,
+		std::chrono::steady_clock::time_point& last_time,
+		std::list<uint32_t>& workers_completions,
+		run_time::tasks::util::hill_climb& hill_climber
+		){
+		std::chrono::steady_clock::duration elapsed = std::chrono::steady_clock::now() - last_time;
+		uint32_t executor_count = workers_completions.size();
+		if(executor_count == 0)
+			return {100, 1};
+		uint64_t sleep_count_avg = 0;
+		uint64_t recomended_workers_avg = 0;
+		for(auto& completions: workers_completions){
+			auto [recomended_workers_,sleep_count_] = hill_climber.climb(executor_count, std::chrono::duration<double>(elapsed).count(), completions, 1, 10);
+			completions = 0;
+			sleep_count_avg += sleep_count_;
+			recomended_workers_avg += recomended_workers_;
+		}
+		sleep_count_avg /= executor_count;
+		recomended_workers_avg /= executor_count;
+		return {sleep_count_avg, int64_t(recomended_workers_avg) - executor_count};
+	}
+	void become_executor_count_manager(bool leave_after_finish){
+		std::unique_lock lock(glob.task_thread_safety);
+		if(glob.executor_manager_in_work)
+			return;
+		glob.executor_manager_in_work = true;
+		std::chrono::steady_clock::time_point last_time = std::chrono::steady_clock::now();
+		while(true){
+			uint64_t all_sleep_count_avg;
+			auto [sleep_count_avg, workers_diff] = _become_executor_count_manager_(lock, last_time, glob.workers_completions, glob.executor_manager_hill_climb);
+			all_sleep_count_avg = sleep_count_avg;
+			if(workers_diff == 0);
+			else if(workers_diff > 0){
+				for(uint32_t i = 0; i < workers_diff; i++)
+					run_time::threading::thread(taskExecutor, false).detach();
+			}
+			else {
+				typed_lgr task = new Task(nullptr, nullptr);
+				for(uint32_t i = 0; i < workers_diff; i++)
+					glob.tasks.push(task);
+			}
+			lock.unlock();
+			{
+				std::lock_guard binds(glob.binded_workers_safety);
+				for(auto& contexts : glob.binded_workers){
+					if(contexts.second.fixed_size)
+						continue;
+					std::unique_lock lock(contexts.second.no_race);
+					auto [sleep_count_avg, workers_diff] = _become_executor_count_manager_(lock, last_time, contexts.second.completions, contexts.second.executor_manager_hill_climb);
+					all_sleep_count_avg += sleep_count_avg;
+					if(workers_diff == 0);
+					else if(workers_diff > 0){
+						for(uint32_t i = 0; i < workers_diff; i++)
+							run_time::threading::thread(bindedTaskExecutor, contexts.first).detach();
+					}
+					else {
+						typed_lgr task = new Task(nullptr, nullptr);
+						task->bind_to_worker_id = contexts.first;
+						for(uint32_t i = 0; i < workers_diff; i++)
+							contexts.second.tasks.push_back(task);
+					}
+				}
+				all_sleep_count_avg /= glob.binded_workers.size() + 1;
+			}
+
+
+			last_time = std::chrono::steady_clock::now();
+			run_time::threading::this_thread::sleep_for(std::chrono::milliseconds(all_sleep_count_avg));
+			lock.lock();
+
+			if(leave_after_finish)
+				if(!(glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.in_exec  || glob.tasks_in_swap))
+					break;
+		}
+	}
+	void start_executor_count_manager(){
+		std::lock_guard lock(glob.task_thread_safety);
+		if(glob.executor_manager_in_work)
+			return;
+		run_time::threading::thread(become_executor_count_manager, false).detach();
 	}
 }

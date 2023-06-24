@@ -15,7 +15,12 @@
 #include "util/enum_helper.hpp"
 #pragma push_macro("min")
 #undef min
-
+namespace __{
+	struct resume_task{
+		typed_lgr<struct Task> task;
+		uint16_t awake_check;
+	};
+}
 
 
 //it do abort when catched, recomended do rethrow manually and catching by const refrence
@@ -33,7 +38,7 @@ public:
 #pragma pack (push)
 #pragma pack (1)
 class TaskMutex {
-	std::list<typed_lgr<struct Task>> resume_task;
+	std::list<__::resume_task> resume_task;
 	run_time::threading::timed_mutex no_race;
 	struct Task* current_task = nullptr;
 public:
@@ -108,7 +113,7 @@ struct MultiplyMutex {
 	void unlock();
 };
 class TaskConditionVariable {
-	std::list<typed_lgr<struct Task>> resume_task;
+	std::list<__::resume_task> resume_task;
 	run_time::threading::mutex no_race;
 public:
 	TaskConditionVariable();
@@ -150,6 +155,7 @@ struct Task {
 	TaskResult fres;
 	typed_lgr<class FuncEnviropment> ex_handle;//if ex_handle is nullptr then exception will be stored in fres
 	typed_lgr<class FuncEnviropment> func;
+	std::forward_list<typed_lgr<class TaskEnvironment>> _task_envs;//if _task_envs is empty then task use global task enviropment
 	ValueItem args;
 	run_time::threading::mutex no_race;
 	MutexUnify relock_0;
@@ -157,27 +163,37 @@ struct Task {
 	MutexUnify relock_2;
 	class ValueEnvironment* _task_local = nullptr;
 	std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min();
+	uint16_t awake_check = 0;
+	uint16_t bind_to_worker_id = -1;//-1 - not binded
 	bool time_end_flag : 1 = false;
 	bool awaked : 1 = false;
 	bool started : 1 = false;
 	bool is_yield_mode : 1 = false;
 	bool end_of_life : 1 = false;
 	bool make_cancel : 1 = false;
-	//uint16_t sleep_check : 10 = 0;
+	bool auto_bind_worker : 1 = false;//can be binded to regular worker
 	Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 	Task(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 	Task(Task&& mov) noexcept;
 	~Task();
+	void auto_bind_worker_enable(bool enable = true);
+	void set_worker_id(uint16_t id);//disables auto_bind_worker and manualy bind task to worker
+
+
 
 	static void start(typed_lgr<Task>&& lgr_task);
 	static void start(list_array<typed_lgr<Task>>& lgr_task);
 	static void start(const typed_lgr<Task>& lgr_task);
 	
+	//if count zero then threads count will be dynamicaly calculated
+	static uint16_t create_bind_only_executor(uint16_t fixed_count, bool allow_implicit_start);//return id of executor, this worker can't be used for regular tasks, only for binded tasks
+	static void close_bind_only_executor(uint16_t id);
 
 	static void create_executor(size_t count = 1);
 	static size_t total_executors();
 	static void reduce_executor(size_t count = 1);
 	static void become_task_executor();
+
 	static void await_no_tasks(bool be_executor = false);
 	static void await_end_tasks(bool be_executor = false);
 	static void sleep(size_t milliseconds);
@@ -196,6 +212,7 @@ struct Task {
 	static list_array<ValueItem> await_results(typed_lgr<Task>& task);
 	static list_array<ValueItem> await_results(list_array<typed_lgr<Task>>& tasks);
 	static void notify_cancel(typed_lgr<Task>& task);
+	static void notify_cancel(list_array<typed_lgr<Task>>& tasks);
 	static class ValueEnvironment* task_local();
 	static size_t task_id();
 	static void check_cancelation();
@@ -230,7 +247,7 @@ struct Task {
 };
 #pragma pack (pop)
 class TaskSemaphore {
-	std::list<typed_lgr<Task>> resume_task;
+	std::list<__::resume_task> resume_task;
 	run_time::threading::timed_mutex no_race;
 	run_time::threading::condition_variable native_notify;
 	size_t allow_treeshold = 0;
@@ -285,7 +302,7 @@ public:
 };
 class TaskLimiter {
 	list_array<void*> lock_check;
-	std::list<typed_lgr<Task>> resume_task;
+	std::list<__::resume_task> resume_task;
 	run_time::threading::timed_mutex no_race;
 	run_time::threading::condition_variable_any native_notify;
 	size_t allow_treeshold = 0;
@@ -302,7 +319,27 @@ public:
 	void unlock();
 	bool is_locked();
 };
-
+struct TaskEnvironment{
+	run_time::threading::mutex no_race;
+	std::list<typed_lgr<Task>> awake_list;
+	class ValueEnvironment* env = nullptr;
+	bool cancelation_token = false;
+	bool disabled = false;
+	size_t max_work = 0;
+	size_t in_work = 0;
+	~TaskEnvironment();
+	TaskEnvironment() = default;
+	bool check_cancelation();
+	void _awake();
+	bool can_i_work();
+	void set_max_work(size_t new_max_work);
+private:
+	bool _can_i_work();
+	void if_i_can_awoke_me();
+	void update_awoke_list();
+	void awoke_item();
+	void awoke_all();
+};
 
 class TaskQuery{
 	std::list<typed_lgr<Task>> tasks;
@@ -367,6 +404,8 @@ namespace _Task_unsafe{
 	void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1);
 	void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1, const MutexUnify& lock2);
 	typed_lgr<Task> get_self();
+	void become_executor_count_manager(bool leave_after_finish);
+	void start_executor_count_manager();
 }
 #pragma pop_macro("min")
 #endif

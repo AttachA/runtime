@@ -476,12 +476,14 @@ struct tcp_handle : public NativeWorkerHandle {
 
 	void handle(unsigned long dwBytesTransferred){
 		DWORD flags = 0, bytes = 0;
-		if(!data)
-			return;
+		if (!data) {
+			if(opcode != Opcode::INTERNAL_CLOSE)
+				return;
+		}
+		MutexUnify mutex(cv_mutex);
+		std::unique_lock<MutexUnify> lock(mutex);
 		switch (opcode) {
 		case Opcode::READ:{
-			MutexUnify mutex(cv_mutex);
-			std::unique_lock<MutexUnify> lock(mutex);
 			readed_bytes = dwBytesTransferred;
 			cv.notify_all();
 			break;
@@ -508,6 +510,7 @@ struct tcp_handle : public NativeWorkerHandle {
 				}
 			}
 			else cv.notify_all();
+			break;
 		case Opcode::TRANSMIT_FILE:
 			cv.notify_all();
 			break;
@@ -676,8 +679,10 @@ private:
 		if(!_DisconnectEx(socket, nullptr, TF_REUSE_SOCKET, 0)){
 			if(WSAGetLastError() != ERROR_IO_PENDING)
 				invalid_reason = error::local_close;
+			cv.wait(lock);
 		}
-		cv.wait(lock);
+		else 
+			closesocket(socket);
 	}
 	bool handle_error(){
 		auto error = WSAGetLastError();
@@ -761,11 +766,12 @@ class TcpNetworkStream{
 		return true;
 	}
 public:
-	TcpNetworkStream(tcp_handle* handle):handle(handle){}
+	TcpNetworkStream(tcp_handle* handle):handle(handle), last_error(tcp_handle::error::none){}
 	~TcpNetworkStream(){
 		if(handle){
 			std::lock_guard lg(mutex);
 			handle->close();
+			delete handle;
 		}
 		handle = nullptr;
 	}
@@ -1010,7 +1016,7 @@ class TcpNetworkBlocing{
 		return true;
 	}
 public:
-	TcpNetworkBlocing(tcp_handle* handle):handle(handle){}
+	TcpNetworkBlocing(tcp_handle* handle):handle(handle), last_error(tcp_handle::error::none){}
 	~TcpNetworkBlocing(){
 		std::lock_guard lg(mutex);
 		if(handle)
@@ -1204,6 +1210,7 @@ private:
 	TcpNetworkServer::ManageType manage_type;
 	TaskConditionVariable state_changed_cv;
 
+
 	void make_acceptEx(void){
 	re_try:
 		static const auto adress_len = sizeof(sockaddr_storage) + 16;
@@ -1217,7 +1224,7 @@ private:
 			0,
 			adress_len,
 			adress_len,
-			NULL,
+			nullptr,
 			&pClientContext->overlapped
 		);
 		if(success != TRUE) {
@@ -1490,7 +1497,7 @@ public:
 
 		sockaddr_storage* addr = new sockaddr_storage;
 		memcpy(addr, &connectionAddress, sizeof(sockaddr_in6));
-		memset(addr + sizeof(sockaddr_in6), 0, sizeof(sockaddr_storage) - sizeof(sockaddr_in6));
+		memset(((char*)addr) + sizeof(sockaddr_in6), 0, sizeof(sockaddr_storage) - sizeof(sockaddr_in6));
 		return ValueItem(AttachA::Interface::constructStructure<universal_address>(define_UniversalAddress,*addr), no_copy);
 	}
 
@@ -1534,7 +1541,7 @@ public:
 		_handle = new tcp_handle(clientSocket,4096, this);
 		MutexUnify umutex(_handle->cv_mutex);
 		std::unique_lock<MutexUnify> lock(umutex);
-		if(!_ConnectEx(clientSocket, (sockaddr*)&connectionAddress, sizeof(connectionAddress), NULL, 0, NULL, (OVERLAPPED*)_handle)){
+		if(!_ConnectEx(clientSocket, (sockaddr*)&connectionAddress, sizeof(connectionAddress), NULL, 0, nullptr, (OVERLAPPED*)_handle)){
 			auto err = WSAGetLastError();
 			if(err != ERROR_IO_PENDING){
 				corrupted = true;
@@ -1551,7 +1558,7 @@ public:
 		}else
 			_handle->cv.wait(lock);
 	}
-	TcpClientManager(sockaddr_in6& _connectionAddress, char* data, uint32_t len, int32_t timeout_ms = 0) : connectionAddress(_connectionAddress) {
+	TcpClientManager(sockaddr_in6& _connectionAddress, char* data, uint32_t len, int32_t timeout_ms = 0) : connectionAddress(_connectionAddress), _handle(nullptr){
 		if(timeout_ms < 0) timeout_ms = 0;
 		SOCKET clientSocket = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 		if (clientSocket == INVALID_SOCKET) {
@@ -1578,7 +1585,7 @@ public:
 		_handle->opcode = tcp_handle::Opcode::WRITE;
 		MutexUnify umutex(_handle->cv_mutex);
 		std::unique_lock<MutexUnify> lock(umutex);
-		if(!_ConnectEx(clientSocket, (sockaddr*)&connectionAddress, sizeof(connectionAddress), data, len, NULL, (OVERLAPPED*)_handle)){
+		if(!_ConnectEx(clientSocket, (sockaddr*)&connectionAddress, sizeof(connectionAddress), data, len, nullptr, (OVERLAPPED*)_handle)){
 			auto err = WSAGetLastError();
 			if(err != ERROR_IO_PENDING){
 				corrupted = true;
@@ -1670,7 +1677,7 @@ public:
 	DWORD fullifed_bytes;
 	bool status;
 	DWORD last_error;
-	udp_handle(sockaddr_in6& address, uint32_t timeout_ms) : NativeWorkerHandle(this){
+	udp_handle(sockaddr_in6& address, uint32_t timeout_ms) : NativeWorkerHandle(this), last_error(0), fullifed_bytes(0), status(false){
 		socket = WSASocketW(AF_INET6, SOCK_DGRAM, IPPROTO_UDP, NULL, 0, WSA_FLAG_OVERLAPPED);
 		if(socket == INVALID_SOCKET)
 			return;
@@ -1694,7 +1701,8 @@ public:
 		buf.buf = (char*)data;
 		buf.len = size;
 		notify_task = Task::dummy_task();
-		if(WSARecvFrom(socket, &buf, 1, nullptr, 0, (sockaddr*)&sender, &sender_len, (OVERLAPPED*)this, nullptr)){
+		DWORD flags = 0;
+		if(WSARecvFrom(socket, &buf, 1, nullptr, &flags, (sockaddr*)&sender, &sender_len, (OVERLAPPED*)this, nullptr)){
 			if(WSAGetLastError() != WSA_IO_PENDING){
 				last_error = WSAGetLastError();
 				status = false;
@@ -1825,7 +1833,7 @@ void TcpNetworkServer::set_accept_filter(typed_lgr<class FuncEnviropment> filter
 		handle->set_accept_filter(filter);
 }
 
-TcpClientSocket::TcpClientSocket(){}
+TcpClientSocket::TcpClientSocket():handle(nullptr){}
 TcpClientSocket::~TcpClientSocket(){
 	if(handle)
 		delete handle;
