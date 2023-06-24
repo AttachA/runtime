@@ -308,7 +308,7 @@ union ValueMeta {
 
 	ValueMeta() = default;
 	ValueMeta(const ValueMeta& copy) = default;
-	ValueMeta(VType ty, bool gc = false, bool editable = true, uint32_t length = 0, bool as_ref = false) :as_ref(as_ref) { vtype = ty; use_gc = gc; allow_edit = editable; val_len = length; }
+	ValueMeta(VType ty, bool gc = false, bool editable = true, uint32_t length = 0, bool as_ref = false):encoded(0){ vtype = ty; use_gc = gc; allow_edit = editable; val_len = length; as_ref = as_ref; }
 	ValueMeta(size_t enc) { encoded = enc; }
 };
 class Structure;
