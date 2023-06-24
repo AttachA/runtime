@@ -40,43 +40,61 @@ template<class T>
 void Allocate(void** a) {
 	*a = new T();
 }
-
 template<class T>
-constexpr VType Type_as_VType() {
-	if constexpr (std::is_same_v<T, void>) return VType::noting;
-	else if constexpr (std::is_same_v<T, bool>) return VType::boolean;
-	else if constexpr (std::is_same_v<T, char>) return VType::i8;
-	else if constexpr (std::is_same_v<T, int8_t>) return VType::i8;
-	else if constexpr (std::is_same_v<T, int16_t>) return VType::i16;
-	else if constexpr (std::is_same_v<T, int32_t>) return VType::i32;
-	else if constexpr (std::is_same_v<T, int64_t>) return VType::i64;
-	else if constexpr (std::is_same_v<T, uint8_t>) return VType::ui8;
-	else if constexpr (std::is_same_v<T, uint16_t>) return VType::ui16;
-	else if constexpr (std::is_same_v<T, uint32_t>) return VType::ui32;
-	else if constexpr (std::is_same_v<T, uint64_t>) return VType::ui64;
-	else if constexpr (std::is_same_v<T, float>) return VType::flo;
-	else if constexpr (std::is_same_v<T, double>) return VType::doub;
-	else if constexpr (std::is_same_v<T, int8_t*>) return VType::raw_arr_i8;
-	else if constexpr (std::is_same_v<T, int16_t*>) return VType::raw_arr_i16;
-	else if constexpr (std::is_same_v<T, int32_t*>) return VType::raw_arr_i32;
-	else if constexpr (std::is_same_v<T, int64_t*>) return VType::raw_arr_i64;
-	else if constexpr (std::is_same_v<T, uint8_t*>) return VType::raw_arr_ui8;
-	else if constexpr (std::is_same_v<T, uint16_t*>) return VType::raw_arr_ui16;
-	else if constexpr (std::is_same_v<T, uint32_t*>) return VType::raw_arr_ui32;
-	else if constexpr (std::is_same_v<T, uint64_t*>) return VType::raw_arr_ui64;
-	else if constexpr (std::is_same_v<T, float*>) return VType::raw_arr_flo;
-	else if constexpr (std::is_same_v<T, double*>) return VType::raw_arr_doub;
-	else if constexpr (std::is_same_v<T, list_array<ValueItem>>) return VType::uarr;
-	else if constexpr (std::is_same_v<T, std::string>) return VType::string;
-	else if constexpr (std::is_same_v<T, typed_lgr<Task>>) return VType::async_res;
-	else if constexpr (std::is_same_v<T, void*>) return VType::undefined_ptr;
-	else if constexpr (std::is_same_v<T, std::exception_ptr*>) return VType::except_value;
-	else if constexpr (std::is_same_v<T, ValueItem*>) return VType::faarr;
-	else if constexpr (std::is_same_v<T, Structure>) return VType::struct_;
-	else if constexpr (std::is_same_v<T, ValueMeta>) return VType::type_identifier;
-	else if constexpr (std::is_same_v<T, typed_lgr<class FuncEnviropment>>) return VType::function;
-	else
-		static_assert(false, "This c++ type not supported");
+class __GetType {
+	static constexpr VType Type_as_VType() {
+		if constexpr (std::is_same_v<T, void>) return VType::noting;
+		else if constexpr (std::is_same_v<T, bool>) return VType::boolean;
+		else if constexpr (std::is_same_v<T, int8_t>) return VType::i8;
+		else if constexpr (std::is_same_v<T, int16_t>) return VType::i16;
+		else if constexpr (std::is_same_v<T, int32_t>) return VType::i32;
+		else if constexpr (std::is_same_v<T, int64_t>) return VType::i64;
+		else if constexpr (std::is_same_v<T, uint8_t>) return VType::ui8;
+		else if constexpr (std::is_same_v<T, uint16_t>) return VType::ui16;
+		else if constexpr (std::is_same_v<T, uint32_t>) return VType::ui32;
+		else if constexpr (std::is_same_v<T, uint64_t>) return VType::ui64;
+		else if constexpr (std::is_same_v<T, float>) return VType::flo;
+		else if constexpr (std::is_same_v<T, double>) return VType::doub;
+		else if constexpr (std::is_same_v<T, int8_t*>) return VType::raw_arr_i8;
+		else if constexpr (std::is_same_v<T, int16_t*>) return VType::raw_arr_i16;
+		else if constexpr (std::is_same_v<T, int32_t*>) return VType::raw_arr_i32;
+		else if constexpr (std::is_same_v<T, int64_t*>) return VType::raw_arr_i64;
+		else if constexpr (std::is_same_v<T, uint8_t*>) return VType::raw_arr_ui8;
+		else if constexpr (std::is_same_v<T, uint16_t*>) return VType::raw_arr_ui16;
+		else if constexpr (std::is_same_v<T, uint32_t*>) return VType::raw_arr_ui32;
+		else if constexpr (std::is_same_v<T, uint64_t*>) return VType::raw_arr_ui64;
+		else if constexpr (std::is_same_v<T, float*>) return VType::raw_arr_flo;
+		else if constexpr (std::is_same_v<T, double*>) return VType::raw_arr_doub;
+		else if constexpr (std::is_same_v<T, list_array<ValueItem>>) return VType::uarr;
+		else if constexpr (std::is_same_v<T, std::string>) return VType::string;
+		else if constexpr (std::is_same_v<T, typed_lgr<Task>>) return VType::async_res;
+		else if constexpr (std::is_same_v<T, void*>) return VType::undefined_ptr;
+		else if constexpr (std::is_same_v<T, std::exception_ptr*>) return VType::except_value;
+		else if constexpr (std::is_same_v<T, ValueItem*>) return VType::faarr;
+		else if constexpr (std::is_same_v<T, Structure>) return VType::struct_;
+		else if constexpr (std::is_same_v<T, ValueMeta>) return VType::type_identifier;
+		else if constexpr (std::is_same_v<T, typed_lgr<class FuncEnviropment>>) return VType::function;
+		else return VType::noting;
+	}
+public:
+	  inline static constexpr VType res = Type_as_VType();
+	  inline static constexpr bool usable = Type_as_VType() != VType::noting && std::is_same_v<T, void>;
+};
+template<>
+class __GetType<char> {
+public:
+	inline static constexpr VType res = VType::i8;
+	inline static constexpr bool usable = true;
+};
+template<class T>
+constexpr
+typename std::enable_if<__GetType<T>::usable, VType>::type
+__Type_as_VType() {
+	return __GetType<T>::res;
+}
+template<class T>
+VType Type_as_VType() {
+	return __Type_as_VType<T>();
 }
 template<class T>
 typename std::enable_if<
@@ -124,7 +142,6 @@ struct is_typed_lgr<typed_lgr<T>>{
 template<class T>
 typename std::enable_if<
 !(std::is_array_v<T> && std::is_bounded_array_v<T> || is_typed_lgr<T>::value)
-
 , ValueMeta>::type
 Type_as_ValueMeta() {
 	ValueMeta res = Type_as_VType<std::remove_cvref_t<T>>();
