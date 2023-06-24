@@ -99,9 +99,14 @@ void universalFree(void** value, ValueMeta meta) {
 	case VType::except_value:
 		delete (std::exception_ptr*)*value;
 		return;
-	case VType::faarr:
+	case VType::faarr: {
+		ValueItem* arr = (ValueItem*)*value;
+		uint32_t count = meta.val_len;
+		for(uint32_t i = 0; i < count; i++)
+			universalFree((void**)&arr[i], arr[i].meta);
 		delete[](ValueItem*)* value;
 		return;
+	}
 	case VType::struct_:
 		Structure::destruct((Structure*)*value);
 		return;
