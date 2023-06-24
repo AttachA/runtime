@@ -21,7 +21,7 @@ namespace files {
             bool write : 1;
             bool _delete : 1;
         };
-        uint8_t value;
+        uint8_t value = 0;
         share_mode(bool read = true, bool write = true, bool _delete = false):read(read), write(write), _delete(_delete){}
     };
     enum class pointer : uint8_t {
