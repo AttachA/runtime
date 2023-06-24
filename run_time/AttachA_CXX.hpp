@@ -172,6 +172,7 @@ namespace AttachA {
 			switch (c.meta.vtype) {
 			case VType::struct_:
 				((Structure&)c).dynamic_value_set(val_name, set);
+				break;
 			default:
 				throw NotImplementedException();
 			}
@@ -183,6 +184,7 @@ namespace AttachA {
 			switch (c.meta.vtype) {
 			case VType::struct_:
 				((Structure&)c).dynamic_value_set(val_name, set);
+				break;
 			default:
 				throw NotImplementedException();
 			}
@@ -238,7 +240,6 @@ namespace AttachA {
 			template<typename T>
 			struct store_value{
 				static T value;
-				using type = T;
 				store_value(T v) : value(v){};
 			};
 			template<typename T>
@@ -389,7 +390,7 @@ namespace AttachA {
 
 			template<class Method, size_t i>
 			inline std::pair<size_t,size_t> _proceed__find_best_method(ValueItem* args, uint32_t len) {
-				using method_info = funtion_info<Method::type>;
+				using method_info = funtion_info<decltype(Method::value)>;
 				if (method_info::arguments_count == len) {
 					size_t score = 0;
 					for (size_t k = 0; k < len; k++) {
@@ -423,7 +424,7 @@ namespace AttachA {
 
 			template<class Class_,class Method>
 			ValueItem* callMethod(ValueItem* args, uint32_t len) {
-				using method_info = funtion_info<Method::type>;
+				using method_info = funtion_info<decltype(Method::value)>;
 				if constexpr(method_info::is_static){
 					if constexpr(method_info::always_perfect)
 						return Method::value(args + 1, len - 1);
