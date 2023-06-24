@@ -984,7 +984,7 @@ extern "C" void initStandardLib_paralel(){
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskLimiter, "# parallel task_limiter", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskQuery, "# parallel task_query", false);
 	FuncEnviropment::AddNative(parallel::constructor::construct_Task, "# parallel task", false);
-	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskQuery, "# parallel task_query", false);
+	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskGroup, "# parallel task_group", false);
 	FuncEnviropment::AddNative(parallel::createThread, "parallel create_thread", false);
 	FuncEnviropment::AddNative(parallel::createThreadAndWait, "parallel create_thread_and_wait", false);
 	FuncEnviropment::AddNative(parallel::createAsyncThread, "parallel create_async_thread", false);
