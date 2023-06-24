@@ -13,7 +13,7 @@ namespace configuration {
         namespace light_stack {
             constexpr size_t inital_buffer_size = 1;//compile time only
             constexpr bool flush_used_stacks = false;
-            constexpr size_t max_buffer_size = 10000;//0 for unlimited, -1 for disabled
+            constexpr size_t max_buffer_size = 20;//0 for unlimited, -1 for disabled
 
             static_assert(inital_buffer_size <= max_buffer_size || !max_buffer_size, "inital_buffer_size must be less or equal max_buffer_size");
         }
