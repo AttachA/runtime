@@ -316,6 +316,8 @@ void invite_to_debugger(const std::string& reason){
 					+ std::to_string(GetCurrentThreadId()) 
 					+ " and click OK";
 	MessageBoxA(NULL, decorated.c_str(), "Debug invite", MB_ICONQUESTION);
+	if(IsDebuggerPresent())
+		DebugBreak();
 }
 
 void ini_current() {
