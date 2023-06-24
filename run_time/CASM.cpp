@@ -12,7 +12,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <cassert>
-#include "tasks.hpp"
+#include "threading.hpp"
 void _______dbgOut(const char* str) {
 	OutputDebugStringA(str);
 }
@@ -89,7 +89,7 @@ struct frame_info {
 	size_t fun_size = 0;
 };
 std::unordered_map<uint8_t*, frame_info> frame_symbols;
-TaskMutex DbgHelp_lock;
+run_time::threading::mutex DbgHelp_lock;
 
 
 
