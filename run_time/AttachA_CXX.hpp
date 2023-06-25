@@ -8,6 +8,7 @@
 #include "run_time_compiler.hpp"
 #include "attacha_abi.hpp"
 #include <type_traits>//std::forward
+#include "../configuration/agreement/symbols.hpp"
 namespace AttachA {
 	template<class ...Types>
 	ValueItem cxxCall(typed_lgr<FuncEnviropment> func, Types... types) {
@@ -561,6 +562,8 @@ namespace AttachA {
 			ValueItem*_copy(ValueItem* args, uint32_t){
 				auto& dest = (Structure&)*args;
 				auto& src = (Structure&)*(args + 1);
+				if(dest.get_vtable() != src.get_vtable())
+					return nullptr;
 				bool in_constructor = (bool)args[2];
 				if(in_constructor)
 					new(dest.get_data_no_vtable()) Class_(*(Class_*)src.get_data_no_vtable());
@@ -579,6 +582,9 @@ namespace AttachA {
 			ValueItem* _move(ValueItem* args, uint32_t){
 				auto& dest = (Structure&)*args;
 				auto& src = (Structure&)*(args + 1);
+				if(dest.get_vtable() != src.get_vtable())
+					return nullptr;
+
 				bool in_constructor = (bool)args[2];
 				if(in_constructor)
 					new(dest.get_data_no_vtable()) Class_(std::move(*(Class_*)src.get_data_no_vtable()));
@@ -599,7 +605,9 @@ namespace AttachA {
 			ValueItem* _compare(ValueItem* args, uint32_t){
 				auto& dest = (Structure&)*args;
 				auto& src = (Structure&)*(args + 1);
-				
+				if(dest.get_vtable() != src.get_vtable())
+					return new ValueItem((int8_t)-1);
+
 				if(*(Class_*)dest.get_data_no_vtable() == *(Class_*)src.get_data_no_vtable())
 					return nullptr;
 				else if(*(Class_*)dest.get_data_no_vtable() < *(Class_*)src.get_data_no_vtable())
@@ -611,11 +619,36 @@ namespace AttachA {
 			ValueItem* _compare(ValueItem* args, uint32_t){
 				auto& dest = (Structure&)*args;
 				auto& src = (Structure&)*(args + 1);
+				if(dest.get_vtable() != src.get_vtable())
+					return new ValueItem((int8_t)-1);
 				
 				if(*(Class_*)dest.get_data_no_vtable() == *(Class_*)src.get_data_no_vtable())
 					return nullptr;
 				else
 					return new ValueItem((int8_t)-1);
+			}
+			template<class Class_> requires (!std::equality_comparable<Class_> && !std::totally_ordered<Class_>)
+			ValueItem* _compare(ValueItem* args, uint32_t){
+				auto& dest = (Structure&)*args;
+				auto& src = (Structure&)args[1];
+				if(dest.get_vtable() != src.get_vtable())
+					return new ValueItem((int8_t)-1);
+				
+				if(dest.has_method(symbols::structures::less_operator, ClassAccess::pub)){
+					if((bool)makeCall(ClassAccess::pub, dest, symbols::structures::less_operator, args + 1, 1))
+						return new ValueItem((int8_t)-1);
+					else{
+						if(src.has_method(symbols::structures::greater_operator, ClassAccess::pub)){
+							if((bool)makeCall(ClassAccess::pub, dest, symbols::structures::less_operator, args + 1, 1))
+								return new ValueItem((int8_t)-1);
+							else 
+								return nullptr;
+						}
+						else
+							return args[0].getSourcePtr() == args[1].getSourcePtr() ? nullptr : new ValueItem((int8_t)-1);
+					}
+				}else
+					return args[0].getSourcePtr() == args[1].getSourcePtr() ? nullptr : new ValueItem((int8_t)-1);
 			}
 		
 			template<class Class_>
