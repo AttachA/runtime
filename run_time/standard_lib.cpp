@@ -978,6 +978,7 @@ extern "C" void initStandardLib_paralel(){
 	INIT_CHECK
 	parallel::init();
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_Mutex, "# parallel mutex", false);
+	FuncEnviropment::AddNative(parallel::constructor::createProxy_RecursiveMutex, "# parallel recursive_mutex", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_ConditionVariable, "# parallel condition_variable", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_Semaphore, "# parallel semaphore", false);
 	FuncEnviropment::AddNative(parallel::constructor::createProxy_EventSystem, "# parallel event_system", false);
@@ -1005,6 +1006,19 @@ extern "C" void initStandardLib_paralel(){
 	FuncEnviropment::AddNative(parallel::this_task::task_id, "parallel this_task task_id", false);
 	FuncEnviropment::AddNative(parallel::this_task::yield, "parallel this_task yield", false);
 	FuncEnviropment::AddNative(parallel::this_task::yield_result, "parallel this_task yield_result", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_Any, "# parallel atomic any", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_Bool, "# parallel atomic boolean", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_I8, "# parallel atomic i8", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_I16, "# parallel atomic i16", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_I32, "# parallel atomic i32", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_I64, "# parallel atomic i64", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_UI8, "# parallel atomic ui8", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_UI16, "# parallel atomic ui16", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_UI32, "# parallel atomic ui32", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_UI64, "# parallel atomic ui64", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_Float, "# parallel atomic float", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_Double, "# parallel atomic double", false);
+	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_UndefinedPtr, "# parallel atomic undefined_ptr", false);
 }
 extern "C" void initStandardLib_chanel(){
 	INIT_CHECK

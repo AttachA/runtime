@@ -12,6 +12,7 @@ namespace parallel {
 	namespace constructor {
 		ValueItem* createProxy_ConditionVariable(ValueItem*, uint32_t);
 		ValueItem* createProxy_Mutex(ValueItem*, uint32_t);
+		ValueItem* createProxy_RecursiveMutex(ValueItem*, uint32_t);
 		ValueItem* createProxy_Semaphore(ValueItem*, uint32_t);
 
 		ValueItem* createProxy_EventSystem(ValueItem*, uint32_t);
@@ -41,6 +42,23 @@ namespace parallel {
 		ValueItem* await_no_tasks(ValueItem*, uint32_t);
 		ValueItem* await_end_tasks(ValueItem*, uint32_t);
 		ValueItem* explicitStartTimer(ValueItem*, uint32_t);
+	}
+	namespace atomic{
+		namespace constructor {
+			ValueItem* createProxy_Bool(ValueItem*, uint32_t);
+			ValueItem* createProxy_I8(ValueItem*, uint32_t);
+			ValueItem* createProxy_I16(ValueItem*, uint32_t);
+			ValueItem* createProxy_I32(ValueItem*, uint32_t);
+			ValueItem* createProxy_I64(ValueItem*, uint32_t);
+			ValueItem* createProxy_UI8(ValueItem*, uint32_t);
+			ValueItem* createProxy_UI16(ValueItem*, uint32_t);
+			ValueItem* createProxy_UI32(ValueItem*, uint32_t);
+			ValueItem* createProxy_UI64(ValueItem*, uint32_t);
+			ValueItem* createProxy_Float(ValueItem*, uint32_t);
+			ValueItem* createProxy_Double(ValueItem*, uint32_t);
+			ValueItem* createProxy_UndefinedPtr(ValueItem*, uint32_t);
+			ValueItem* createProxy_Any(ValueItem*, uint32_t);
+		}
 	}
 
 	//typed_lgr<FuncEnviropment>*, any...

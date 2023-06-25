@@ -9,6 +9,7 @@
 namespace parallel {
 	AttachAVirtualTable* define_ConditionVariable;
 	AttachAVirtualTable* define_Mutex;
+	AttachAVirtualTable* define_RecursiveMutex;
 	AttachAVirtualTable* define_Semaphore;
 	AttachAVirtualTable* define_ConcurentFile;
 	AttachAVirtualTable* define_EventSystem;
@@ -155,15 +156,81 @@ namespace parallel {
 		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
 		return class_.is_locked();
 	})
+	AttachAFun(funs_Mutex_is_own, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
+		return class_.is_own();
+	})
+	AttachAFun(funs_Mutex_lifecycle_lock, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
+		class_.lifecycle_lock((typed_lgr<Task>)args[1]);
+	})
+	AttachAFun(funs_Mutex_sequence_lock, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
+		class_.sequence_lock((typed_lgr<Task>)args[1]);
+	})
 	void init_Mutex() {
 		define_Mutex = AttachA::Interface::createTable<typed_lgr<TaskMutex>>("mutex",
 			AttachA::Interface::direct_method("lock", funs_Mutex_lock),
 			AttachA::Interface::direct_method("unlock", funs_Mutex_unlock),
 			AttachA::Interface::direct_method("try_lock", funs_Mutex_try_lock),
 			AttachA::Interface::direct_method("try_lock_until", funs_Mutex_try_lock_until),
-			AttachA::Interface::direct_method("is_locked", funs_Mutex_is_locked)
+			AttachA::Interface::direct_method("is_locked", funs_Mutex_is_locked),
+			AttachA::Interface::direct_method("is_own", funs_Mutex_is_own),
+			AttachA::Interface::direct_method("lifecycle_lock", funs_Mutex_lifecycle_lock),
+			AttachA::Interface::direct_method("sequence_lock", funs_Mutex_sequence_lock)
 		);
 		AttachA::Interface::typeVTable<typed_lgr<TaskMutex>>() = define_Mutex;
+	}
+#pragma endregion
+#pragma region RecursiveMutex
+	AttachAFun(funs_RecursiveMutex_lock, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
+		class_.lock();
+	})
+	AttachAFun(funs_RecursiveMutex_unlock, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
+		class_.unlock();
+	})
+	AttachAFun(funs_RecursiveMutex_try_lock, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
+		if(len == 1)
+			return class_.try_lock();
+		else
+			return class_.try_lock_for((size_t)args[1]);
+	})
+	AttachAFun(funs_RecursiveMutex_try_lock_until, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
+		return class_.try_lock_until((std::chrono::high_resolution_clock::time_point)args[1]);
+	})
+	AttachAFun(funs_RecursiveMutex_is_locked, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
+		return class_.is_locked();
+	})
+	AttachAFun(funs_RecursiveMutex_is_own, 1,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
+		return class_.is_own();
+	})
+	AttachAFun(funs_RecursiveMutex_lifecycle_lock, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
+		class_.lifecycle_lock((typed_lgr<Task>)args[1]);
+	})
+	AttachAFun(funs_RecursiveMutex_sequence_lock, 2,{
+		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
+		class_.sequence_lock((typed_lgr<Task>)args[1]);
+	})
+
+	void init_RecursiveMutex() {
+		define_RecursiveMutex = AttachA::Interface::createTable<typed_lgr<TaskRecursiveMutex>>("recursive_mutex",
+			AttachA::Interface::direct_method("lock", funs_Mutex_lock),
+			AttachA::Interface::direct_method("unlock", funs_Mutex_unlock),
+			AttachA::Interface::direct_method("try_lock", funs_Mutex_try_lock),
+			AttachA::Interface::direct_method("try_lock_until", funs_Mutex_try_lock_until),
+			AttachA::Interface::direct_method("is_locked", funs_Mutex_is_locked),
+			AttachA::Interface::direct_method("is_own", funs_RecursiveMutex_is_own),
+			AttachA::Interface::direct_method("lifecycle_lock", funs_RecursiveMutex_lifecycle_lock),
+			AttachA::Interface::direct_method("sequence_lock", funs_RecursiveMutex_sequence_lock)
+		);
+		AttachA::Interface::typeVTable<typed_lgr<TaskRecursiveMutex>>() = define_RecursiveMutex;
 	}
 #pragma endregion
 #pragma region Semaphore
@@ -715,17 +782,6 @@ namespace parallel {
 #pragma endregion
 
 
-	void init() {
-		init_ConditionVariable();
-		init_Mutex();
-		init_Semaphore();
-		init_EventSystem();
-		init_TaskLimiter();
-		init_TaskQuery();
-		init_TaskResultIterator();
-		init_Task();
-		init_TaskGroup();
-	}
 
 
 
@@ -737,6 +793,9 @@ namespace parallel {
 		}
 		ValueItem* createProxy_Mutex(ValueItem*, uint32_t) {
 			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<TaskMutex>>(define_Mutex, new TaskMutex()), no_copy);
+		}
+		ValueItem* createProxy_RecursiveMutex(ValueItem*, uint32_t) {
+			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<TaskRecursiveMutex>>(define_RecursiveMutex, new TaskRecursiveMutex()), no_copy);
 		}
 		ValueItem* createProxy_Semaphore(ValueItem*, uint32_t) {
 			return new ValueItem(AttachA::Interface::constructStructure<typed_lgr<TaskSemaphore>>(define_Semaphore, new TaskSemaphore()), no_copy);
@@ -1048,5 +1107,728 @@ namespace parallel {
 			Task::explicitStartTimer();
 			return nullptr;
 		}
+	}
+
+	namespace atomic{
+
+		template<typename T>
+		class AtomicBasic : std::atomic<T>{
+		public:
+			static inline AttachAVirtualTable* virtual_table = nullptr;
+			AtomicBasic(T val) : std::atomic<T>(val){}
+			AtomicBasic() : std::atomic<T>(){}
+			AtomicBasic(const AtomicBasic& other) : std::atomic<T>(other.load()){}
+			AtomicBasic& operator=(const AtomicBasic& other){
+				this->store(other.load());
+				return *this;
+			}
+
+
+			static AttachAFun(__add,2,{
+				if constexpr ((std::is_integral_v<T> || std::is_floating_point_v<T>) && !std::is_same_v<T,bool>){
+					auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+					self += (T)args[1];
+				}
+			})
+			static AttachAFun(__sub,2,{
+				if constexpr ((std::is_integral_v<T> || std::is_floating_point_v<T>) && !std::is_same_v<T,bool>){
+					auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+					self -= (T)args[1];
+				}
+			})
+			static AttachAFun(__and,2,{
+				if constexpr (std::is_integral_v<T> && !std::is_floating_point_v<T> && !std::is_same_v<T,bool>){
+					auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+					self &= (T)args[1];
+				}
+			})
+			static AttachAFun(__or,2,{
+				if constexpr (std::is_integral_v<T> && !std::is_floating_point_v<T> && !std::is_same_v<T,bool>){
+					auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+					self |= (T)args[1];
+				}
+			})
+			static AttachAFun(__xor,2,{
+				if constexpr (std::is_integral_v<T> && !std::is_floating_point_v<T> && !std::is_same_v<T,bool>){
+					auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+					self ^= (T)args[1];
+				}
+			})
+
+			static AttachAFun(__inc,1,{
+				if constexpr ((std::is_integral_v<T> || std::is_floating_point_v<T>) && !std::is_same_v<T,bool>){
+					auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+					self++;
+				}
+			})
+			static AttachAFun(__dec,1,{
+				if constexpr ((std::is_integral_v<T> || std::is_floating_point_v<T>) && !std::is_same_v<T,bool>){
+					auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+					self--;
+				}
+			})
+
+			static AttachAFun(__not_equal,2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return self.load() != (T)args[1];
+			})
+			static AttachAFun(__equal,2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return self.load() == (T)args[1];
+			})
+			static AttachAFun(__less,2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return self.load() < (T)args[1];
+			})
+			static AttachAFun(__greater,2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return self.load() > (T)args[1];
+			})
+			static AttachAFun(__less_or_equal,2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return self.load() <= (T)args[1];
+			})
+			static AttachAFun(__greater_or_equal,2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return self.load() >= (T)args[1];
+			})
+
+			static AttachAFun(__not,1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return !self.load();
+			})
+			static AttachAFun(__bitwise_not,1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return ~self.load();
+			})
+			static AttachAFun(__to_string, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return std::to_string(self.load());
+			})
+			static AttachAFun(__to_ui8, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (uint8_t)self.load();
+			})
+			static AttachAFun(__to_ui16, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (uint16_t)self.load();
+			})
+			static AttachAFun(__to_ui32, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (uint32_t)self.load();
+			})
+			static AttachAFun(__to_ui64, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (uint64_t)self.load();
+			})
+			static AttachAFun(__to_i8, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (int8_t)self.load();
+			})
+			static AttachAFun(__to_i16, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (int16_t)self.load();
+			})
+			static AttachAFun(__to_i32, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (int32_t)self.load();
+			})
+			static AttachAFun(__to_i64, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (int64_t)self.load();
+			})
+			static AttachAFun(__to_float, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (float)self.load();
+			})
+			static AttachAFun(__to_double, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (double)self.load();
+			})
+			static AttachAFun(__to_boolean, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return (bool)self.load();
+			})
+			static AttachAFun(__to_timepoint, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return std::chrono::system_clock::time_point(self.load());
+			})
+			static AttachAFun(__to_type_identifier, 0, {
+				return Type_as_ValueMeta<T>();
+			})
+
+			static AttachAFun(__get, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				return self.load();
+			})
+			static AttachAFun(__set, 2, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+				self.store((T)args[1]);
+				return args[1];
+			})
+
+			static void init(){
+				if constexpr (std::is_integral_v<T> && !std::is_floating_point_v<T> && !std::is_same_v<T,bool>){
+					std::string type_name;
+					if constexpr (std::is_same_v<T, int8_t>) type_name = "atomic_i8";
+					else if constexpr(std::is_same_v<T,int16_t>) type_name = "atomic_i16";
+					else if constexpr(std::is_same_v<T,int32_t>) type_name = "atomic_i32";
+					else if constexpr(std::is_same_v<T,int64_t>) type_name = "atomic_i64";
+					else if constexpr(std::is_same_v<T,uint8_t>) type_name = "atomic_ui8";
+					else if constexpr(std::is_same_v<T,uint16_t>) type_name = "atomic_ui16";
+					else if constexpr(std::is_same_v<T,uint32_t>) type_name = "atomic_ui32";
+					else if constexpr(std::is_same_v<T,uint64_t>) type_name = "atomic_ui64";
+					else type_name = "atomic_x";
+					virtual_table = AttachA::Interface::createTable<AtomicBasic<T>>(type_name,
+						AttachA::Interface::direct_method(symbols::structures::add_operator, __add),
+						AttachA::Interface::direct_method(symbols::structures::subtract_operator, __sub),
+						AttachA::Interface::direct_method(symbols::structures::bitwise_and_operator, __and),
+						AttachA::Interface::direct_method(symbols::structures::bitwise_or_operator, __or),
+						AttachA::Interface::direct_method(symbols::structures::bitwise_xor_operator, __xor),
+						AttachA::Interface::direct_method(symbols::structures::increment_operator, __inc),
+						AttachA::Interface::direct_method(symbols::structures::decrement_operator, __dec),
+						AttachA::Interface::direct_method(symbols::structures::not_equal_operator, __not_equal),
+						AttachA::Interface::direct_method(symbols::structures::equal_operator, __equal),
+						AttachA::Interface::direct_method(symbols::structures::less_operator, __less),
+						AttachA::Interface::direct_method(symbols::structures::greater_operator, __greater),
+						AttachA::Interface::direct_method(symbols::structures::less_or_equal_operator, __less_or_equal),
+						AttachA::Interface::direct_method(symbols::structures::greater_or_equal_operator, __greater_or_equal),
+						AttachA::Interface::direct_method(symbols::structures::not_operator, __not),
+						AttachA::Interface::direct_method(symbols::structures::bitwise_not_operator, __bitwise_not),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_string, __to_string),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui8, __to_ui8),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui16, __to_ui16),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui32, __to_ui32),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui64, __to_ui64),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i8, __to_i8),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i16, __to_i16),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i32, __to_i32),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i64, __to_i64),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_float, __to_float),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_double, __to_double),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_boolean, __to_boolean),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_timepoint, __to_timepoint),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_type_identifier, __to_type_identifier),
+						AttachA::Interface::direct_method("get", __get),
+						AttachA::Interface::direct_method("set", __set)
+					);
+				}
+				else if constexpr (std::is_floating_point_v<T>){
+					virtual_table = AttachA::Interface::createTable<AtomicBasic<T>>(std::is_same_v<T, float> ? "atomic_float" : "atomic_double",
+						AttachA::Interface::direct_method(symbols::structures::add_operator, __add),
+						AttachA::Interface::direct_method(symbols::structures::subtract_operator, __sub),
+						AttachA::Interface::direct_method(symbols::structures::increment_operator, __inc),
+						AttachA::Interface::direct_method(symbols::structures::decrement_operator, __dec),
+						AttachA::Interface::direct_method(symbols::structures::not_equal_operator, __not_equal),
+						AttachA::Interface::direct_method(symbols::structures::equal_operator, __equal),
+						AttachA::Interface::direct_method(symbols::structures::less_operator, __less),
+						AttachA::Interface::direct_method(symbols::structures::greater_operator, __greater),
+						AttachA::Interface::direct_method(symbols::structures::less_or_equal_operator, __less_or_equal),
+						AttachA::Interface::direct_method(symbols::structures::greater_or_equal_operator, __greater_or_equal),
+						AttachA::Interface::direct_method(symbols::structures::not_operator, __not),
+						AttachA::Interface::direct_method(symbols::structures::bitwise_not_operator, __bitwise_not),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_string, __to_string),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui8, __to_ui8),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui16, __to_ui16),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui32, __to_ui32),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui64, __to_ui64),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i8, __to_i8),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i16, __to_i16),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i32, __to_i32),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i64, __to_i64),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_float, __to_float),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_double, __to_double),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_boolean, __to_boolean),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_timepoint, __to_timepoint),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_type_identifier, __to_type_identifier),
+						AttachA::Interface::direct_method("get", __get),
+						AttachA::Interface::direct_method("set", __set)
+					);
+				}else{
+					virtual_table = AttachA::Interface::createTable<AtomicBasic<T>>("atomic_boolean",
+						AttachA::Interface::direct_method(symbols::structures::not_equal_operator, __not_equal),
+						AttachA::Interface::direct_method(symbols::structures::equal_operator, __equal),
+						AttachA::Interface::direct_method(symbols::structures::not_operator, __not),
+						AttachA::Interface::direct_method(symbols::structures::bitwise_not_operator, __bitwise_not),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_string, __to_string),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui8, __to_ui8),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui16, __to_ui16),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui32, __to_ui32),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_ui64, __to_ui64),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i8, __to_i8),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i16, __to_i16),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i32, __to_i32),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_i64, __to_i64),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_float, __to_float),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_double, __to_double),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_boolean, __to_boolean),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_timepoint, __to_timepoint),
+						AttachA::Interface::direct_method(symbols::structures::convert::to_type_identifier, __to_type_identifier),
+						AttachA::Interface::direct_method("get", __get),
+						AttachA::Interface::direct_method("set", __set)
+					);
+				}
+				AttachA::Interface::typeVTable<AtomicBasic<T>>() = virtual_table;
+			}
+		};
+		
+
+		struct AtomicObject{
+			static inline AttachAVirtualTable* virtual_table = nullptr;
+			ValueItem value;
+			TaskRecursiveMutex mutex;
+			AtomicObject(const ValueItem& v) { *this = v;}
+			AtomicObject(ValueItem&& v) { *this = std::move(v);}
+			AtomicObject(const AtomicObject& other) { *this = other; }
+			AtomicObject(AtomicObject&& other) { *this = std::move(other); }
+			AtomicObject& operator=(const AtomicObject& other){
+				std::unique_lock<TaskRecursiveMutex> olock(const_cast<AtomicObject&>(other).mutex);
+				ValueItem get(other.value);
+				olock.unlock();
+				std::lock_guard<TaskRecursiveMutex> lock(mutex);
+				value = std::move(get);
+				return *this;
+			}
+			AtomicObject& operator=(AtomicObject&& other){
+				std::unique_lock<TaskRecursiveMutex> olock(other.mutex);
+				ValueItem get(std::move(other.value));
+				olock.unlock();
+				std::lock_guard<TaskRecursiveMutex> lock(mutex);
+				value = std::move(get);
+				return *this;
+			}
+			AtomicObject& operator=(const ValueItem& other){
+				std::lock_guard<TaskRecursiveMutex> lock(mutex);
+				value = other;
+				return *this;
+			}
+			AtomicObject& operator=(ValueItem&& other){
+				std::lock_guard<TaskRecursiveMutex> lock(mutex);
+				value = std::move(other);
+				return *this;
+			}
+
+
+	
+			static AttachAFun(__less, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& cmp = args[1];
+				return self.value < cmp;
+			})
+			static AttachAFun(__greater, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& cmp = args[1];
+				return self.value > cmp;
+			})
+			static AttachAFun(__equal, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& cmp = args[1];
+				return self.value == cmp;
+			})
+			static AttachAFun(__not_equal, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& cmp = args[1];
+				return self.value != cmp;
+			})
+			static AttachAFun(__greater_equal, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& cmp = args[1];
+				return self.value >= cmp;
+			})
+			static AttachAFun(__less_equal, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& cmp = args[1];
+				return self.value <= cmp;
+			})
+
+			static AttachAFun(__add, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& set = args[1];
+				self.value += set;
+			})
+			static AttachAFun(__sub, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& set = args[1];
+				self.value -= set;
+			})
+			static AttachAFun(__mul, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& set = args[1];
+				self.value *= set;
+			})
+			static AttachAFun(__div, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& set = args[1];
+				self.value /= set;
+			})
+			static AttachAFun(__mod, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				auto& set = args[1];
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				self.value %= set;
+			})
+			static AttachAFun(__xor, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				auto& set = args[1];
+				self.value ^= set;
+			})
+			static AttachAFun(__and, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				auto& set = args[1];
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				self.value &= set;
+			})
+			static AttachAFun(__or, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				auto& set = args[1];
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				self.value |= set;
+			})
+			static AttachAFun(__lshift, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				auto& set = args[1];
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				self.value <<= set;
+			})
+			static AttachAFun(__rshift, 2,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				auto& set = args[1];
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				self.value >>= set;
+			})
+			static AttachAFun(__inc, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				++self.value;
+			})
+			static AttachAFun(__dec, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				--self.value;
+			})
+			static AttachAFun(__not, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return !self.value;
+			})
+
+			static AttachAFun(__to_boolean, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (bool)self.value;
+			})
+			static AttachAFun(__to_i8, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (int8_t)self.value;
+			})
+			static AttachAFun(__to_i16, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (int16_t)self.value;
+			})
+			static AttachAFun(__to_i32, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (int32_t)self.value;
+			})
+			static AttachAFun(__to_i64, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (int64_t)self.value;
+			})
+			static AttachAFun(__to_u8, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (uint8_t)self.value;
+			})
+			static AttachAFun(__to_u16, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (uint16_t)self.value;
+			})
+			static AttachAFun(__to_u32, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (uint32_t)self.value;
+			})
+			static AttachAFun(__to_u64, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (uint64_t)self.value;
+			})
+			static AttachAFun(__to_float, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (float)self.value;
+			})
+			static AttachAFun(__to_double, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (double)self.value;
+			})
+			static AttachAFun(__to_undefined_pointer, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (void*)self.value;
+			})
+			static AttachAFun(__to_string, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (std::string)self.value;
+			})
+			
+			
+			static AttachAFun(__to_uarr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (list_array<ValueItem>)self.value;
+			})
+			static AttachAFun(__to_type_identifier, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (ValueMeta)self.value;
+			})
+			static AttachAFun(__to_timepoint, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (std::chrono::steady_clock::time_point)self.value;
+			})
+			static AttachAFun(__to_map, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (std::unordered_map<ValueItem, ValueItem>&)self.value;
+			})
+			static AttachAFun(__to_set, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (std::unordered_set<ValueItem>&)self.value;
+			})
+			static AttachAFun(__to_function, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return (typed_lgr<class FuncEnviropment>&)self.value;
+			})
+
+			static AttachAFun(__explicit_await, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				self.value.getAsync();
+			})
+			static AttachAFun(__make_gc, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				self.value.make_gc();
+			})
+			static AttachAFun(__localize_gc, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				self.value.localize_gc();
+			})
+			static AttachAFun(__ungc, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				self.value.ungc();
+			})
+			static AttachAFun(__is_gc, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return self.value.is_gc();
+			})
+			static AttachAFun(__hash, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return self.value.hash();
+			})
+			static AttachAFun(__make_slice, 2, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				if(len == 2)
+					return self.value.make_slice((uint32_t)args[1], self.value.meta.val_len);
+				else 
+					return self.value.make_slice((uint32_t)args[1], (uint32_t)args[2]);
+			})
+			static AttachAFun(__size, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return self.value.meta.val_len;
+			})
+			static AttachAFun(__get, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				return self.value;
+			})
+			static AttachAFun(__set, 2, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				self.value = args[1];
+			})
+
+
+
+
+
+
+			static void init(){
+				//TO-DO: implement all functions
+            	constexpr const char* const to_ui8_arr = "to_ui8[]";
+            	constexpr const char* const to_ui16_arr = "to_ui16[]";
+            	constexpr const char* const to_ui32_arr = "to_ui32[]";
+            	constexpr const char* const to_ui64_arr = "to_ui64[]";
+            	constexpr const char* const to_i8_arr = "to_i8[]";
+            	constexpr const char* const to_i16_arr = "to_i16[]";
+            	constexpr const char* const to_i32_arr = "to_i32[]";
+            	constexpr const char* const to_i64_arr = "to_i64[]";
+            	constexpr const char* const to_float_arr = "to_float[]";
+            	constexpr const char* const to_double_arr = "to_double[]";
+            	constexpr const char* const to_farr = "to_farr";
+				virtual_table = AttachA::Interface::createTable<AtomicObject>("AtomicAny",
+					AttachA::Interface::direct_method(symbols::structures::add_operator, __add),
+					AttachA::Interface::direct_method(symbols::structures::subtract_operator, __sub),
+					AttachA::Interface::direct_method(symbols::structures::multiply_operator, __mul),
+					AttachA::Interface::direct_method(symbols::structures::divide_operator, __div),
+					AttachA::Interface::direct_method(symbols::structures::modulo_operator, __mod),
+					AttachA::Interface::direct_method(symbols::structures::bitwise_and_operator, __and),
+					AttachA::Interface::direct_method(symbols::structures::bitwise_or_operator, __or),
+					AttachA::Interface::direct_method(symbols::structures::bitwise_xor_operator, __xor),
+					AttachA::Interface::direct_method(symbols::structures::bitwise_shift_left_operator, __lshift),
+					AttachA::Interface::direct_method(symbols::structures::bitwise_shift_right_operator, __rshift),
+					AttachA::Interface::direct_method(symbols::structures::not_equal_operator, __not_equal),
+					AttachA::Interface::direct_method(symbols::structures::equal_operator, __equal),
+					AttachA::Interface::direct_method(symbols::structures::less_operator, __less),
+					AttachA::Interface::direct_method(symbols::structures::greater_operator, __greater),
+					AttachA::Interface::direct_method(symbols::structures::less_or_equal_operator, __less_equal),
+					AttachA::Interface::direct_method(symbols::structures::greater_or_equal_operator, __greater_equal),
+					AttachA::Interface::direct_method(symbols::structures::increment_operator, __inc),
+					AttachA::Interface::direct_method(symbols::structures::decrement_operator, __dec),
+					AttachA::Interface::direct_method(symbols::structures::not_operator, __not),
+					AttachA::Interface::direct_method(symbols::structures::bitwise_not_operator, __not),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_boolean, __to_boolean),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_string, __to_string),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_ui8, __to_u8),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_ui16, __to_u16),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_ui32, __to_u32),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_ui64, __to_u64),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_i8, __to_i8),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_i16, __to_i16),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_i32, __to_i32),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_i64, __to_i64),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_float, __to_float),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_double, __to_double),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_timepoint, __to_timepoint),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_type_identifier, __to_type_identifier),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_function, __to_function),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_map, __to_map),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_set, __to_set),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_uarr, __to_uarr),
+					AttachA::Interface::direct_method("explicit_await", __explicit_await),
+					AttachA::Interface::direct_method("make_gc", __make_gc),
+					AttachA::Interface::direct_method("localize_gc", __localize_gc),
+					AttachA::Interface::direct_method("ungc", __ungc),
+					AttachA::Interface::direct_method("is_gc", __is_gc),
+					AttachA::Interface::direct_method("hash", __hash),
+					AttachA::Interface::direct_method("make_slice", __make_slice),
+					AttachA::Interface::direct_method("size", __size),
+					AttachA::Interface::direct_method("get", __get),
+					AttachA::Interface::direct_method("set", __set)
+				);
+			}
+
+
+
+
+		};
+		namespace constructor {
+			ValueItem* createProxy_Bool(ValueItem* args, uint32_t len){
+				bool set = len == 0 ? false : (bool)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<bool>>(AtomicBasic<bool>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_I8(ValueItem* args, uint32_t len){
+				int8_t set = len == 0 ? 0 : (int8_t)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<int8_t>>(AtomicBasic<int8_t>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_I16(ValueItem* args, uint32_t len){
+				int16_t set = len == 0 ? 0 : (int16_t)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<int16_t>>(AtomicBasic<int16_t>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_I32(ValueItem* args, uint32_t len){
+				int32_t set = len == 0 ? 0 : (int32_t)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<int32_t>>(AtomicBasic<int32_t>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_I64(ValueItem* args, uint32_t len){
+				int64_t set = len == 0 ? 0 : (int64_t)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<int64_t>>(AtomicBasic<int64_t>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_UI8(ValueItem* args, uint32_t len){
+				uint8_t set = len == 0 ? 0 : (uint8_t)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<uint8_t>>(AtomicBasic<uint8_t>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_UI16(ValueItem* args, uint32_t len){
+				uint16_t set = len == 0 ? 0 : (uint16_t)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<uint16_t>>(AtomicBasic<uint16_t>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_UI32(ValueItem* args, uint32_t len){
+				uint32_t set = len == 0 ? 0 : (uint32_t)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<uint32_t>>(AtomicBasic<uint32_t>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_UI64(ValueItem* args, uint32_t len){
+				uint64_t set = len == 0 ? 0 : (uint64_t)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<uint64_t>>(AtomicBasic<uint64_t>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_Float(ValueItem* args, uint32_t len){
+				float set = len == 0 ? 0 : (float)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<float>>(AtomicBasic<float>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_Double(ValueItem* args, uint32_t len){
+				double set = len == 0 ? 0 : (double)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<double>>(AtomicBasic<double>::virtual_table, set), no_copy);
+			}
+			ValueItem* createProxy_UndefinedPtr(ValueItem* args, uint32_t len){
+				void* set = len == 0 ? nullptr : (void*)args[0];
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicBasic<size_t>>(AtomicBasic<size_t>::virtual_table, (size_t)set), no_copy);
+			}
+			ValueItem* createProxy_Any(ValueItem* args, uint32_t len){
+				return new ValueItem(AttachA::Interface::constructStructure<AtomicObject>(AtomicObject::virtual_table, len ? args[0] : nullptr), no_copy);
+			}
+		}
+	}
+
+	
+	void init() {
+		init_ConditionVariable();
+		init_Mutex();
+		init_RecursiveMutex();
+		init_Semaphore();
+		init_EventSystem();
+		init_TaskLimiter();
+		init_TaskQuery();
+		init_TaskResultIterator();
+		init_Task();
+		init_TaskGroup();
+		atomic::AtomicObject::init();
+		atomic::AtomicBasic<bool>::init();
+		atomic::AtomicBasic<int8_t>::init();
+		atomic::AtomicBasic<int16_t>::init();
+		atomic::AtomicBasic<int32_t>::init();
+		atomic::AtomicBasic<int64_t>::init();
+		atomic::AtomicBasic<uint8_t>::init();
+		atomic::AtomicBasic<uint16_t>::init();
+		atomic::AtomicBasic<uint32_t>::init();
+		atomic::AtomicBasic<uint64_t>::init();
+		atomic::AtomicBasic<float>::init();
+		atomic::AtomicBasic<double>::init();
+		//already initialized in atomic::AtomicBasic<uint64_t> or atomic::AtomicBasic<uint32_t>
+		//atomic::AtomicBasic<size_t>::init();
 	}
 }

@@ -38,6 +38,7 @@ public:
 #pragma pack (push)
 #pragma pack (1)
 class TaskMutex {
+	friend class TaskRecursiveMutex;
 	std::list<__::resume_task> resume_task;
 	run_time::threading::timed_mutex no_race;
 	struct Task* current_task = nullptr;
@@ -54,6 +55,25 @@ public:
 	void lifecycle_lock(typed_lgr<struct Task> task);
 	//put here child task(not started), and it will lock mutex and relock it when recived value from child task, and unlock it when it will be finished
 	void sequence_lock(typed_lgr<struct Task> task);
+	bool is_own();
+};
+class TaskRecursiveMutex{
+	TaskMutex mutex;
+	uint64_t recursive_count = 0;
+public:
+	TaskRecursiveMutex() {}
+	~TaskRecursiveMutex();
+	void lock();
+	bool try_lock();
+	bool try_lock_for(size_t milliseconds);
+	bool try_lock_until(std::chrono::high_resolution_clock::time_point time_point);
+	void unlock();
+	bool is_locked();
+	//put here child task(not started), and it will lock mutex, and unlock it when it will be finished
+	void lifecycle_lock(typed_lgr<struct Task> task);
+	//put here child task(not started), and it will lock mutex and relock it when recived value from child task, and unlock it when it will be finished
+	void sequence_lock(typed_lgr<struct Task> task);
+	bool is_own();
 };
 
 ENUM_t(MutexUnifyType, uint8_t,
