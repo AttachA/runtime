@@ -433,7 +433,12 @@ struct TaskCallback {
 	void(*on_await)(ValueItem&);
 	void(*on_cancel)(ValueItem&);
 	void(*on_timeout)(ValueItem&);
-	TaskCallback(ValueItem& args, void(*on_await)(ValueItem&) = dummy, void(*on_cancel)(ValueItem&) = dummy, void(*on_timeout)(ValueItem&) = dummy, void(*on_start)(ValueItem&) = dummy) : args(args), on_start(on_start), on_await(on_await), on_cancel(on_cancel), on_timeout(on_timeout){}
+	void(*on_destruct)(ValueItem&);
+	TaskCallback(ValueItem& args, void(*on_await)(ValueItem&) = dummy, void(*on_cancel)(ValueItem&) = dummy, void(*on_timeout)(ValueItem&) = dummy, void(*on_start)(ValueItem&) = dummy, void(*on_destruct)(ValueItem&) = dummy) : args(args), on_start(on_start), on_await(on_await), on_cancel(on_cancel), on_timeout(on_timeout), on_destruct(on_destruct){}
+	~TaskCallback() {
+		if(on_destruct)
+			on_destruct(args);
+	}
 	static void start(Task& task){
 		auto self = (TaskCallback*)task.args.val;
 		if(task.timeout != std::chrono::high_resolution_clock::time_point::min()){
@@ -739,7 +744,7 @@ bool execute_task(const std::string& old_name){
 		pseudo_task_handle(old_name, pseudo_handle_caugnt_ex);
 		if (pseudo_handle_caugnt_ex)
 			goto caught_ex;
-		return false;
+		goto end_task;
 	}
 	if (loc.curr_task->end_of_life)
 		goto end_task;
@@ -1016,8 +1021,11 @@ Task::Task(Task&& mov) noexcept : fres(std::move(mov.fres)) {
 	is_yield_mode = mov.is_yield_mode;
 }
 Task::~Task() {
-	if (_task_local)
+	if (_task_local && _task_local != (ValueEnvironment*)-1)
 		delete _task_local;
+	if (_task_local == (ValueEnvironment*)-1)
+		delete (TaskCallback*)args.getSourcePtr();
+	
 	if (!started) {
 		--glob.planned_tasks;
 		if (Task::max_running_tasks)
@@ -1025,7 +1033,7 @@ Task::~Task() {
 	}
 }
 
-void Task::auto_bind_worker_enable(bool enable = true){
+void Task::auto_bind_worker_enable(bool enable){
 	auto_bind_worker = enable;
 	if (enable)
 		bind_to_worker_id = -1;
@@ -1420,15 +1428,15 @@ public:
 		task->started = true;
 		put_arguments(args, arguments);
 	}
-	native_task_shedule(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&)): NativeWorkerHandle(this){
+	native_task_shedule(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout): NativeWorkerHandle(this){
 		this->func = func;
-		task = Task::callback_dummy(dummy_data,nullptr, on_cancel, nullptr);
+		task = Task::callback_dummy(dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
 		task->started = true;
 		put_arguments(args, arguments);
 	}
-	native_task_shedule(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&)): NativeWorkerHandle(this){
+	native_task_shedule(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout): NativeWorkerHandle(this){
 		this->func = func;
-		task = Task::callback_dummy(dummy_data,nullptr, on_cancel, nullptr);
+		task = Task::callback_dummy(dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
 		task->started = true;
 		put_arguments(args, std::move(arguments));
 	}
@@ -1481,16 +1489,16 @@ typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, 
 	}
 	return shedule->task;
 }
-typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&)){
-	native_task_shedule* shedule = new native_task_shedule(func, arguments, dummy_data, on_cancel);
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
+	native_task_shedule* shedule = new native_task_shedule(func, arguments, dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
 	if(!shedule->start()){
 		delete shedule;
 		throw AttachARuntimeException("Failed to start native task");
 	}
 	return shedule->task;
 }
-typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&)){
-	native_task_shedule* shedule = new native_task_shedule(func, std::move(arguments), dummy_data, on_cancel);
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
+	native_task_shedule* shedule = new native_task_shedule(func, std::move(arguments), dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
 	if(!shedule->start()){
 		delete shedule;
 		throw AttachARuntimeException("Failed to start native task");
@@ -1528,7 +1536,7 @@ void Task::yield() {
 #pragma region Task: TaskCallback
 
 
-typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_start)(ValueItem&), void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
+typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_start)(ValueItem&), void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
 	typed_lgr<Task> tsk = new Task(
 		empty_func,
 		nullptr,
@@ -1536,7 +1544,7 @@ typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_start)(Valu
 		nullptr,
 		timeout
 	);
-	tsk->args = new TaskCallback(dummy_data, on_await, on_cancel, on_timeout, on_start);
+	tsk->args = new TaskCallback(dummy_data, on_await, on_cancel, on_timeout, on_start, on_destruct);
 	tsk->_task_local = (ValueEnvironment*)-1;
 	if(timeout != std::chrono::high_resolution_clock::time_point::min()){
 		if(!glob.time_control_enabled)
@@ -1546,7 +1554,7 @@ typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_start)(Valu
 	}
 	return tsk;
 }
-typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
+typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
 	typed_lgr<Task> tsk = new Task(
 		empty_func,
 		nullptr,
@@ -1554,7 +1562,7 @@ typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void(*on_await)(Valu
 		nullptr,
 		timeout
 	);
-	tsk->args = new TaskCallback(dummy_data, on_await, on_cancel, on_timeout, nullptr),
+	tsk->args = new TaskCallback(dummy_data, on_await, on_cancel, on_timeout, nullptr, on_destruct),
 	tsk->_task_local = (ValueEnvironment*)-1;
 	
 	if(timeout != std::chrono::high_resolution_clock::time_point::min()){

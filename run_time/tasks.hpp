@@ -249,8 +249,8 @@ struct Task {
 	//unsafe function, checker and cd must be alive during task bridge lifetime
 	static typed_lgr<Task> cxx_native_bridge(bool& checker, run_time::threading::condition_variable_any& cd);
 	
-	static typed_lgr<Task> callback_dummy(ValueItem& dummy_data, void(*on_start)(ValueItem&), void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
-	static typed_lgr<Task> callback_dummy(ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	static typed_lgr<Task> callback_dummy(ValueItem& dummy_data, void(*on_start)(ValueItem&), void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	static typed_lgr<Task> callback_dummy(ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&) , std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 	
 	static typed_lgr<Task> fullifed_task(const list_array<ValueItem>& results);
 	static typed_lgr<Task> fullifed_task(list_array<ValueItem>&& results);
@@ -260,8 +260,8 @@ struct Task {
 	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func);
 	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments);
 	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments);
-	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&));
-	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_cancel)(ValueItem&));
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 
 	static void explicitStartTimer();
 };
