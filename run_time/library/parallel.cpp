@@ -1158,13 +1158,13 @@ namespace parallel {
 			static AttachAFun(__inc,1,{
 				if constexpr ((std::is_integral_v<T> || std::is_floating_point_v<T>) && !std::is_same_v<T,bool>){
 					auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
-					self++;
+					self+=1;
 				}
 			})
 			static AttachAFun(__dec,1,{
 				if constexpr ((std::is_integral_v<T> || std::is_floating_point_v<T>) && !std::is_same_v<T,bool>){
 					auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
-					self--;
+					self-=1;
 				}
 			})
 
@@ -1198,8 +1198,10 @@ namespace parallel {
 				return !self.load();
 			})
 			static AttachAFun(__bitwise_not,1,{
-				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
-				return ~self.load();
+				if constexpr (!std::is_floating_point_v<T>){
+					auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
+					return ~self.load();
+				}
 			})
 			static AttachAFun(__to_string, 1, {
 				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
@@ -1251,7 +1253,11 @@ namespace parallel {
 			})
 			static AttachAFun(__to_timepoint, 1, {
 				auto& self = AttachA::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
-				return std::chrono::system_clock::time_point(self.load());
+				return std::chrono::steady_clock::time_point(
+					std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+						std::chrono::duration<T>(self.load())
+					)
+				);
 			})
 			static AttachAFun(__to_type_identifier, 0, {
 				return Type_as_ValueMeta<T>();
@@ -1326,7 +1332,6 @@ namespace parallel {
 						AttachA::Interface::direct_method(symbols::structures::less_or_equal_operator, __less_or_equal),
 						AttachA::Interface::direct_method(symbols::structures::greater_or_equal_operator, __greater_or_equal),
 						AttachA::Interface::direct_method(symbols::structures::not_operator, __not),
-						AttachA::Interface::direct_method(symbols::structures::bitwise_not_operator, __bitwise_not),
 						AttachA::Interface::direct_method(symbols::structures::convert::to_string, __to_string),
 						AttachA::Interface::direct_method(symbols::structures::convert::to_ui8, __to_ui8),
 						AttachA::Interface::direct_method(symbols::structures::convert::to_ui16, __to_ui16),
