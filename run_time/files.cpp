@@ -67,8 +67,8 @@ namespace files {
                         awaiter->fres.finalResult(ValueItem(), lock);
                 }
                 awaiters.notify_all();
+                awaiter = nullptr;
             }
-            delete this;
         }
         void await(){
             MutexUnify unify(mutex);
@@ -87,6 +87,7 @@ namespace files {
                     awaiter->fres.finalResult(fullifed_bytes, lock);
             }
             awaiters.notify_all();
+            awaiter = nullptr;
         }
         void exception(io_errors e){
             MutexUnify unify(mutex);
@@ -102,7 +103,7 @@ namespace files {
                 awaiter->fres.finalResult((uint8_t)e, lock);
             }
             awaiters.notify_all();
-            delete this;
+            awaiter = nullptr;
         }
         void readed(uint32_t len){
             if(is_read){
@@ -191,6 +192,11 @@ namespace files {
     void file_overlapped_on_cancel(ValueItem& it){
         ((File_*)(void*)it)->cancel();
     }
+    void file_overlapped_on_destruct(ValueItem& it) {
+        if(((File_*)(void*)it)->awaiter)
+			((File_*)(void*)it)->cancel();
+        delete (File_*)(void*)it;
+	}
 
 
     class FileManager : public NativeWorkerManager {
@@ -320,7 +326,7 @@ namespace files {
             }
             ValueItem args((void*)file);
             try{
-                file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr);
+                file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr, file_overlapped_on_destruct);
                 file->start();
             }catch(...){
                 delete file;
@@ -340,7 +346,7 @@ namespace files {
             }
             ValueItem args((void*)file);
             try{
-                file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr);
+                file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr, file_overlapped_on_destruct);
                 file->start();
                 auto res = Task::get_result(file->awaiter);
                 if(res->meta.vtype == VType::ui8) {io_error_to_exception((io_errors)(uint8_t)(size_t)res->val); return nullptr;}
@@ -377,7 +383,7 @@ namespace files {
             }
             ValueItem args((void*)file);
             try{
-                file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr);
+                file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr, file_overlapped_on_destruct);
                 file->start();
             }catch(...){
                 delete file;
@@ -389,7 +395,7 @@ namespace files {
             File_* file = new File_(this, _handle, (char*)data, size, (uint64_t)-1);
             ValueItem args((void*)file);
             try{
-                file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr);
+                file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel,nullptr, file_overlapped_on_destruct);
                 file->start();
             }catch(...){
                 delete file;
