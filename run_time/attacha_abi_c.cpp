@@ -33,6 +33,7 @@ bool needAllocType(VType type) {
 	case VType::except_value:
 	case VType::faarr:
 	case VType::function:
+	case VType::struct_:
 		return true;
 	default:
 		return false;
@@ -70,52 +71,53 @@ void universalFree(void** value, ValueMeta meta) {
 	case VType::raw_arr_i8:
 	case VType::raw_arr_ui8:
 		delete[](uint8_t*)* value;
-		return;
+		break;
 	case VType::raw_arr_i16:
 	case VType::raw_arr_ui16:
 		delete[](uint16_t*)* value;
-		return;
+		break;
 	case VType::raw_arr_i32:
 	case VType::raw_arr_ui32:
 	case VType::raw_arr_flo:
 		delete[](uint32_t*)* value;
-		return;
+		break;
 	case VType::raw_arr_i64:
 	case VType::raw_arr_ui64:
 	case VType::raw_arr_doub:
 		delete[](uint64_t*)* value;
-		return;
+		break;
 	case VType::uarr:
 		delete (list_array<ValueItem>*)* value;
-		return;
+		break;
 	case VType::string:
 		delete (std::string*)*value;
-		return;
+		break;
 	case VType::async_res:
 		delete (typed_lgr<Task>*)* value;
-		return;
+		break;
 	case VType::undefined_ptr:
-		return;
+		break;
 	case VType::except_value:
 		delete (std::exception_ptr*)*value;
-		return;
+		break;
 	case VType::faarr: {
 		ValueItem* arr = (ValueItem*)*value;
 		uint32_t count = meta.val_len;
 		for(uint32_t i = 0; i < count; i++)
 			universalFree((void**)&arr[i], arr[i].meta);
 		delete[](ValueItem*)* value;
-		return;
+		break;
 	}
 	case VType::struct_:
 		Structure::destruct((Structure*)*value);
-		return;
+		break;
 	case VType::function:
 		delete (typed_lgr<FuncEnviropment>*)*value;
-		return;
+		break;
 	default:
 		delete *value;
 	}
+	*value = nullptr;
 	return;
 gc_destruct:
 	delete *(lgr**)value;

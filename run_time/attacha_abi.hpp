@@ -78,7 +78,7 @@ class __GetType {
 	}
 public:
 	  inline static constexpr VType res = Type_as_VType();
-	  inline static constexpr bool usable = Type_as_VType() != VType::noting && std::is_same_v<T, void>;
+	  inline static constexpr bool usable = Type_as_VType() != VType::noting || std::is_same_v<T, void>;
 };
 template<>
 class __GetType<char> {
@@ -93,7 +93,7 @@ __Type_as_VType() {
 	return __GetType<T>::res;
 }
 template<class T>
-VType Type_as_VType() {
+constexpr VType Type_as_VType() {
 	return __Type_as_VType<T>();
 }
 template<class T>
@@ -238,15 +238,15 @@ namespace ABI_IMPL {
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, double>)
 			return ValueItem(*(void**)&val, VType::doub);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, std::string> || std::is_same_v<T, const char*>)
-			return ValueItem(new std::string(val), VType::string);
+			return ValueItem(new std::string(val), VType::string, no_copy);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>>)
-			return ValueItem(new list_array<ValueItem>(val), VType::uarr);
+			return ValueItem(new list_array<ValueItem>(val), VType::uarr, no_copy);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueMeta>)
 			return ValueItem(*(void**)&val, VType::type_identifier);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Structure>)
 			return ValueItem(Structure::copy(val), no_copy);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnviropment>>)
-			return ValueItem(new typed_lgr<class FuncEnviropment>(val), VType::function);
+			return ValueItem(new typed_lgr<class FuncEnviropment>(val), VType::function, no_copy);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueItem>)
 			return val;
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, void*>)
