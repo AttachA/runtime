@@ -20,7 +20,7 @@ namespace parallel {
 	AttachAVirtualTable* define_TaskGroup;
 
 	template<size_t args_off>
-	void parseArgumentsToTask(ValueItem* args, uint32_t len, typed_lgr<FuncEnviropment>& func, typed_lgr<FuncEnviropment>& fault_func, std::chrono::high_resolution_clock::time_point& timeout, bool& used_task_local, ValueItem& arguments){
+	void parseArgumentsToTask(ValueItem* args, uint32_t len, typed_lgr<FuncEnvironment>& func, typed_lgr<FuncEnvironment>& fault_func, std::chrono::high_resolution_clock::time_point& timeout, bool& used_task_local, ValueItem& arguments){
 		timeout = std::chrono::high_resolution_clock::time_point::min();
 		used_task_local = false;
 
@@ -400,8 +400,8 @@ namespace parallel {
 #pragma region TaskQuery
 	AttachAFun(funs_TaskQuery_add_task, 2, {
 		auto& class_ = *AttachA::Interface::getExtractAs<typed_lgr<TaskQuery>>(args[0], define_TaskQuery);
-		typed_lgr<FuncEnviropment> func;
-		typed_lgr<FuncEnviropment> fault_func;
+		typed_lgr<FuncEnvironment> func;
+		typed_lgr<FuncEnvironment> fault_func;
 		std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min();
 		bool used_task_local = false;
 		ValueItem values;
@@ -633,7 +633,7 @@ namespace parallel {
 			AttachA::Interface::direct_method(symbols::structures::convert::to_boolean, funs_Task_to_<bool>),
 			AttachA::Interface::direct_method(symbols::structures::convert::to_timepoint, funs_Task_to_<std::chrono::high_resolution_clock::time_point>),
 			AttachA::Interface::direct_method(symbols::structures::convert::to_type_identifier, funs_Task_to_<ValueMeta>),
-			AttachA::Interface::direct_method(symbols::structures::convert::to_function, funs_Task_to_<typed_lgr<FuncEnviropment>&>),
+			AttachA::Interface::direct_method(symbols::structures::convert::to_function, funs_Task_to_<typed_lgr<FuncEnvironment>&>),
 			AttachA::Interface::direct_method(symbols::structures::convert::to_map, funs_Task_to_<std::unordered_map<ValueItem,ValueItem>&>),
 			AttachA::Interface::direct_method(symbols::structures::convert::to_set, funs_Task_to_set),
 			AttachA::Interface::direct_method(symbols::structures::convert::to_ui8_arr, funs_Task_array_to_<uint8_t>),
@@ -816,8 +816,8 @@ namespace parallel {
 			if(args[0].meta.vtype == VType::async_res)
 				return ValueItem(AttachA::Interface::constructStructure<typed_lgr<Task>>(define_Task, (typed_lgr<Task>&)args[0]), no_copy);
 			else if(args[0].meta.vtype == VType::function){
-				typed_lgr<FuncEnviropment> func;
-				typed_lgr<FuncEnviropment> fault_func;
+				typed_lgr<FuncEnvironment> func;
+				typed_lgr<FuncEnvironment> fault_func;
 				std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min();
 				bool used_task_local = false;
 				ValueItem values;
@@ -844,23 +844,23 @@ namespace parallel {
 		AttachA::arguments_range(len, 1);
 
 		if (len != 1) {
-			typed_lgr<FuncEnviropment> func = *vals->funPtr();
+			typed_lgr<FuncEnvironment> func = *vals->funPtr();
 			ValueItem* copyArgs = new ValueItem[len - 1];
 			vals++;
 			len--;
 			uint32_t i = 0;
 			while (len--)
 				copyArgs[i++] = *vals++;
-			run_time::threading::thread([](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
-				auto tmp = FuncEnviropment::sync_call(func, args, len);
+			run_time::threading::thread([](typed_lgr<FuncEnvironment> func, ValueItem* args, uint32_t len) {
+				auto tmp = FuncEnvironment::sync_call(func, args, len);
 				if (tmp)
 					delete tmp;
 				delete[] args;
 			}, func, copyArgs, i).detach();
 		}
 		else {
-			run_time::threading::thread([](typed_lgr<FuncEnviropment> func) {
-				auto tmp = FuncEnviropment::sync_call(func, nullptr, 0);
+			run_time::threading::thread([](typed_lgr<FuncEnvironment> func) {
+				auto tmp = FuncEnvironment::sync_call(func, nullptr, 0);
 				if (tmp)
 					delete tmp;
 			}, *vals->funPtr()).detach();
@@ -876,11 +876,11 @@ namespace parallel {
 		std::unique_lock ul(unif);
 		bool end = false;
 		ValueItem* res = nullptr;
-		typed_lgr<FuncEnviropment> func = *vals->funPtr();
+		typed_lgr<FuncEnvironment> func = *vals->funPtr();
 		if (len != 1) {
-			run_time::threading::thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
+			run_time::threading::thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnvironment> func, ValueItem* args, uint32_t len) {
 				try{
-					auto tmp = FuncEnviropment::sync_call(func, args, len);
+					auto tmp = FuncEnvironment::sync_call(func, args, len);
 					std::unique_lock ul(mtx);
 					res = tmp;
 					end = true;
@@ -900,9 +900,9 @@ namespace parallel {
 
 		}
 		else {
-			run_time::threading::thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnviropment> func) {
+			run_time::threading::thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnvironment> func) {
 				try{
-					auto tmp = FuncEnviropment::sync_call(func, nullptr, 0);
+					auto tmp = FuncEnvironment::sync_call(func, nullptr, 0);
 					std::unique_lock ul(mtx);
 					res = tmp;
 					end = true;
@@ -958,12 +958,12 @@ namespace parallel {
 		delete awaiter;
 		return awaiter->res;
 	}
-	typed_lgr<FuncEnviropment> __createAsyncThread__Awaiter = new FuncEnviropment(_createAsyncThread__Awaiter, false);
+	typed_lgr<FuncEnvironment> __createAsyncThread__Awaiter = new FuncEnvironment(_createAsyncThread__Awaiter, false);
 
 
 	ValueItem* createAsyncThread(ValueItem* vals, uint32_t len){
 		AttachA::arguments_range(len, 1);
-		typed_lgr<FuncEnviropment> func = *vals->funPtr();
+		typed_lgr<FuncEnvironment> func = *vals->funPtr();
 		_createAsyncThread_awaiter_struct* awaiter = nullptr;
 		try{
 			awaiter = new _createAsyncThread_awaiter_struct();
@@ -976,9 +976,9 @@ namespace parallel {
 				while (len--)
 					copyArgs[i++] = *vals++;
 
-				run_time::threading::thread([awaiter](typed_lgr<FuncEnviropment> func, ValueItem* args, uint32_t len) {
+				run_time::threading::thread([awaiter](typed_lgr<FuncEnvironment> func, ValueItem* args, uint32_t len) {
 					try{
-						auto tmp = FuncEnviropment::sync_call(func, args, len);
+						auto tmp = FuncEnvironment::sync_call(func, args, len);
 						std::unique_lock ul(awaiter->mtx);
 						awaiter->res = tmp;
 						awaiter->end = true;
@@ -998,9 +998,9 @@ namespace parallel {
 
 			}
 			else {
-				run_time::threading::thread([awaiter](typed_lgr<FuncEnviropment> func) {
+				run_time::threading::thread([awaiter](typed_lgr<FuncEnvironment> func) {
 					try{
-						auto tmp = FuncEnviropment::sync_call(func, nullptr, 0);
+						auto tmp = FuncEnvironment::sync_call(func, nullptr, 0);
 						std::unique_lock ul(awaiter->mtx);
 						awaiter->res = tmp;
 						awaiter->end = true;
@@ -1030,8 +1030,8 @@ namespace parallel {
 
 	ValueItem* createTask(ValueItem* vals, uint32_t len){
 		AttachA::arguments_range(len, 1);
-		typed_lgr<FuncEnviropment> func;
-		typed_lgr<FuncEnviropment> fault_func;
+		typed_lgr<FuncEnvironment> func;
+		typed_lgr<FuncEnvironment> fault_func;
 		std::chrono::steady_clock::time_point timeout;
 		bool used_task_local;
 		ValueItem args;
@@ -1623,7 +1623,7 @@ namespace parallel {
 			static AttachAFun(__to_function, 1, {
 				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
-				return (typed_lgr<class FuncEnviropment>&)self.value;
+				return (typed_lgr<class FuncEnvironment>&)self.value;
 			})
 
 			static AttachAFun(__explicit_await, 1, {

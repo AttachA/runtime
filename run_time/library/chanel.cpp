@@ -218,7 +218,7 @@ namespace chanel {
 		}
 		return nullptr;
 	}
-	typed_lgr<FuncEnviropment> auto_notify_task = new FuncEnviropment(_auto_notify_task, false);
+	typed_lgr<FuncEnvironment> auto_notify_task = new FuncEnvironment(_auto_notify_task, false);
 
 	typed_lgr<AutoNotifyChanel> Chanel::auto_notify(typed_lgr<Task>& val){
 		AutoNotifyChanel* res = new AutoNotifyChanel();

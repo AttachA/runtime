@@ -4,7 +4,7 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "FuncEnviropment.hpp"
+#include "FuncEnvironment.hpp"
 #include "../run_time.hpp"
 #include "attacha_abi.hpp"
 #include "CASM.hpp"
@@ -19,18 +19,18 @@
 
 using namespace run_time;
 asmjit::JitRuntime jrt;
-std::unordered_map<std::string, typed_lgr<FuncEnviropment>> enviropments;
+std::unordered_map<std::string, typed_lgr<FuncEnvironment>> enviropments;
 TaskMutex enviropments_lock;
 
 
-const char* try_resolve_frame(FuncEnviropment* env){
+const char* try_resolve_frame(FuncEnvironment* env){
 	for(auto& it : enviropments)
 		if(it.second.getPtr() == env)
 			return it.first.data();
 	return "unresolved_attach_a_symbol";
 }
 
-FuncEnviropment::~FuncEnviropment() {
+FuncEnvironment::~FuncEnvironment() {
 	std::lock_guard lguard(compile_lock);
 	if (can_be_unloaded) {
 		if (_type == FuncType::own)
@@ -109,28 +109,28 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_
 		b.addArg(arg_ptr);
 		b.addArg(arg_len_32);
 		b.addArg(flags.async_mode);
-		b.finalize(&FuncEnviropment::callFunc);
+		b.finalize(&FuncEnvironment::callFunc);
 	}
 	else {
 		std::string fnn = readString(data, data_len, i);
-		typed_lgr<FuncEnviropment> fn = FuncEnviropment::enviropment(fnn);
+		typed_lgr<FuncEnvironment> fn = FuncEnvironment::enviropment(fnn);
 		if (fn->canBeUnloaded() || flags.async_mode) {
 			values.push_back(fnn);
 			b.addArg(((std::string*)values.back().val)->c_str());
 			b.addArg(arg_ptr);
 			b.addArg(arg_len_32);
 			b.addArg(flags.async_mode);
-			b.finalize(&FuncEnviropment::callFunc);
+			b.finalize(&FuncEnvironment::callFunc);
 		}
 		else {
 			switch (fn->type()) {
-			case FuncEnviropment::FuncType::own: {
+			case FuncEnvironment::FuncType::own: {
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
 				b.finalize(fn->get_func_ptr());
 				break;
 			}
-			case FuncEnviropment::FuncType::native: {
+			case FuncEnvironment::FuncType::native: {
 				if (!fn->function_template().arguments.size() && fn->function_template().result.is_void()) {
 					b.finalize(fn->get_func_ptr());
 					if constexpr (use_result)
@@ -143,14 +143,14 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_
 				b.addArg(fn.getPtr());
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				b.finalize(&FuncEnviropment::NativeProxy_DynamicToStatic);
+				b.finalize(&FuncEnvironment::NativeProxy_DynamicToStatic);
 				break;
 			}
 			default: {
 				b.addArg(fn.getPtr());
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				b.finalize(&FuncEnviropment::syncWrapper);
+				b.finalize(&FuncEnvironment::syncWrapper);
 				break;
 			}
 			}
@@ -172,17 +172,17 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_
 			inlineReleaseUnused(a, resr);
 }
 
-void _compilerFabric_call_local_any(CASM& a, FuncEnviropment* env,bool async_mode, uint32_t function_index) {
+void _compilerFabric_call_local_any(CASM& a, FuncEnvironment* env,bool async_mode, uint32_t function_index) {
 	BuildCall b(a, 5);
 	b.addArg(env);
 	b.addArg(function_index);
 	b.addArg(arg_ptr);
 	b.addArg(arg_len_32);
 	b.addArg(async_mode);
-	b.finalize(&FuncEnviropment::localWrapper);
+	b.finalize(&FuncEnvironment::localWrapper);
 }
 template<bool use_result = true, bool do_cleanup = true>
-void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, FuncEnviropment* env) {
+void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, FuncEnvironment* env) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
 	BuildCall b(a, 0);
@@ -195,7 +195,7 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 		b.addArg(arg_ptr);
 		b.addArg(arg_len_32);
 		b.addArg(flags.async_mode);
-		b.finalize(&FuncEnviropment::localWrapper);
+		b.finalize(&FuncEnvironment::localWrapper);
 		b.setArguments(0);
 	}
 	else {
@@ -207,9 +207,9 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 			_compilerFabric_call_local_any(a, env, true, fnn);
 		}
 		else {
-			typed_lgr<FuncEnviropment> fn = env->localFn(fnn);
+			typed_lgr<FuncEnvironment> fn = env->localFn(fnn);
 			switch (fn->type()) {
-			case FuncEnviropment::FuncType::own: {
+			case FuncEnvironment::FuncType::own: {
 				if(!fn->get_func_ptr()){
 					_compilerFabric_call_local_any(a, env, true, fnn);
 					break;
@@ -219,7 +219,7 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 				b.finalize(fn->get_func_ptr());
 				break;
 			}
-			case FuncEnviropment::FuncType::native: {
+			case FuncEnvironment::FuncType::native: {
 				if (!fn->function_template().arguments.size() && fn->function_template().result.is_void()) {
 					b.finalize(fn->get_func_ptr());
 					if constexpr (use_result)
@@ -232,14 +232,14 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 				b.addArg(fn.getPtr());
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				b.finalize(&FuncEnviropment::NativeProxy_DynamicToStatic);
+				b.finalize(&FuncEnvironment::NativeProxy_DynamicToStatic);
 				break;
 			}
 			default: {
 				b.addArg(fn.getPtr());
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				b.finalize(&FuncEnviropment::syncWrapper);
+				b.finalize(&FuncEnvironment::syncWrapper);
 				break;
 			}
 			}
@@ -267,7 +267,7 @@ ValueItem* _valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, 
 	switch (class_ptr->meta.vtype) {
 	case VType::struct_:
 		if constexpr (async_call)
-			return FuncEnviropment::async_call(((Structure&)*class_ptr).get_method_dynamic(name, access), args, len);
+			return FuncEnvironment::async_call(((Structure&)*class_ptr).get_method_dynamic(name, access), args, len);
 		else
 			return ((Structure&)*class_ptr).table_get_dynamic(name, access)(args, len);
 	default:
@@ -1448,7 +1448,7 @@ struct CompilerFabric{
 	list_array<ValueItem>& values;
 	bool do_jump_to_ret = false;
 	bool in_debug;
-	FuncEnviropment* build_func;
+	FuncEnvironment* build_func;
 
 	CompilerFabric(
 		CASM& a,
@@ -1462,7 +1462,7 @@ struct CompilerFabric{
 		list_array<std::pair<uint64_t, Label>>& jump_list,
 		list_array<ValueItem>& values,
 		bool in_debug,
-		FuncEnviropment* build_func
+		FuncEnvironment* build_func
 		) : a(a), scope(scope), scope_map(scope_map), prolog(prolog), self_function(self_function), data(data), data_len(data_len), i(start_from),skip_count(start_from), values(values), in_debug(in_debug), build_func(build_func) {
 			label_bind_map.reserve(jump_list.size());
 			label_map.reserve(jump_list.size());
@@ -2290,7 +2290,7 @@ struct CompilerFabric{
 		//case 0:
 		//	{
 		//		struct _filter_data {
-		//			typed_lgr<FuncEnviropment> catch
+		//			typed_lgr<FuncEnvironment> catch
 		//			std::string message;
 		//		};
 		//	}
@@ -3049,7 +3049,7 @@ public:
 		throw CompileTimeException(asmjit::DebugUtils::errorAsString(err) +  std::string(message));
 	}
 };
-void FuncEnviropment::RuntimeCompile() {
+void FuncEnvironment::RuntimeCompile() {
 	if (curr_func != nullptr)
 		FrameResult::deinit(frame, curr_func, jrt);
 	values.clear();
@@ -3127,8 +3127,8 @@ void FuncEnviropment::RuntimeCompile() {
 	curr_func = (Enviropment)tmp.init(frame, a.code(), jrt, try_resolve_frame(this));
 }
 #pragma endregion
-#pragma region FuncEnviropment
-ValueItem* FuncEnviropment::async_call(typed_lgr<FuncEnviropment> f, ValueItem* args, uint32_t args_len) {
+#pragma region FuncEnvironment
+ValueItem* FuncEnvironment::async_call(typed_lgr<FuncEnvironment> f, ValueItem* args, uint32_t args_len) {
 	ValueItem* res = new ValueItem();
 	res->meta = ValueMeta(VType::async_res, false, false).encoded;
 	res->val = new typed_lgr(new Task(f, ValueItem(args, ValueMeta(VType::saarr, false, true, args_len), no_copy)));
@@ -3136,17 +3136,17 @@ ValueItem* FuncEnviropment::async_call(typed_lgr<FuncEnviropment> f, ValueItem* 
 	return res;
 }
 
-ValueItem* FuncEnviropment::syncWrapper(ValueItem* args, uint32_t arguments_size) {
-	if(_type == FuncEnviropment::FuncType::force_unloaded)
+ValueItem* FuncEnvironment::syncWrapper(ValueItem* args, uint32_t arguments_size) {
+	if(_type == FuncEnvironment::FuncType::force_unloaded)
 		throw InvalidFunction("Function is force unloaded");
 	if (force_unload)
 		throw InvalidFunction("Function is force unloaded");
 	if (need_compile)
 		funcComp();
 	switch (_type) {
-	case FuncEnviropment::FuncType::native:
+	case FuncEnvironment::FuncType::native:
 		return NativeProxy_DynamicToStatic(args, arguments_size);
-	case FuncEnviropment::FuncType::own:{
+	case FuncEnvironment::FuncType::own:{
 		ValueItem* res;
 		try {
 			res = ((Enviropment)curr_func)(args, arguments_size);
@@ -3160,9 +3160,9 @@ ValueItem* FuncEnviropment::syncWrapper(ValueItem* args, uint32_t arguments_size
 			throw StackOverflowException();
 		return res;
 	}
-	case FuncEnviropment::FuncType::python:
-	case FuncEnviropment::FuncType::csharp:
-	case FuncEnviropment::FuncType::java:
+	case FuncEnvironment::FuncType::python:
+	case FuncEnvironment::FuncType::csharp:
+	case FuncEnvironment::FuncType::java:
 	default:
 		throw NotImplementedException();
 	}
@@ -3574,12 +3574,12 @@ ValueItem* NativeProxy_DynamicToStatic(DynamicCall::FunctionCall& call, DynamicC
 		throw NotImplementedException();
 	}
 }
-ValueItem* FuncEnviropment::NativeProxy_DynamicToStatic(ValueItem* arguments, uint32_t arguments_size) {
+ValueItem* FuncEnvironment::NativeProxy_DynamicToStatic(ValueItem* arguments, uint32_t arguments_size) {
 	DynamicCall::FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
 	return ::NativeProxy_DynamicToStatic(call, nat_templ, arguments, arguments_size);
 }
 
-std::string FuncEnviropment::to_string(){
+std::string FuncEnvironment::to_string(){
 	if(!curr_func)
 		return "fn(unknown)@0";
 	for(auto& it : enviropments)
@@ -3587,7 +3587,7 @@ std::string FuncEnviropment::to_string(){
 			return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)curr_func);
 	return "fn(" + FrameResult::JitResolveFrame(curr_func,true).fn_name + ")@" + string_help::hexstr((ptrdiff_t)curr_func);
 }
-void FuncEnviropment::fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code) {
+void FuncEnvironment::fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code) {
 	auto& tmp = enviropments[func_name];
 	if (tmp) {
 		if (!tmp->can_be_unloaded)
@@ -3597,10 +3597,10 @@ void FuncEnviropment::fastHotPath(const std::string& func_name, const std::vecto
 	uint16_t max_vals = new_cross_code[1];
 	max_vals <<= 8;
 	max_vals |= new_cross_code[0];
-	tmp = typed_lgr(new FuncEnviropment{ { new_cross_code.begin() + 2, new_cross_code.end()}, max_vals, true, false });
+	tmp = typed_lgr(new FuncEnvironment{ { new_cross_code.begin() + 2, new_cross_code.end()}, max_vals, true, false });
 	
 }
-void FuncEnviropment::fastHotPath(const std::string& func_name, typed_lgr<FuncEnviropment>& new_enviro) {
+void FuncEnvironment::fastHotPath(const std::string& func_name, typed_lgr<FuncEnvironment>& new_enviro) {
 	auto& tmp = enviropments[func_name];
 	if (tmp) {
 		if (!tmp->can_be_unloaded)
@@ -3609,10 +3609,10 @@ void FuncEnviropment::fastHotPath(const std::string& func_name, typed_lgr<FuncEn
 	}
 	tmp = new_enviro;
 }
-typed_lgr<FuncEnviropment>  FuncEnviropment::enviropment(const std::string& func_name) {
+typed_lgr<FuncEnvironment>  FuncEnvironment::enviropment(const std::string& func_name) {
 	return enviropments[func_name];
 }
-ValueItem* FuncEnviropment::callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
+ValueItem* FuncEnvironment::callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
 	if (enviropments.contains(func_name)) {
 		if (run_async)
 			return async_call(enviropments[func_name], arguments, arguments_size);
@@ -3621,27 +3621,27 @@ ValueItem* FuncEnviropment::callFunc(const std::string& func_name, ValueItem* ar
 	}
 	throw NotImplementedException();
 }
-void FuncEnviropment::AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
+void FuncEnvironment::AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
 	if (enviropments.contains(symbol_name))
 		throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
-	enviropments[symbol_name] = typed_lgr(new FuncEnviropment(function, can_be_unloaded, is_cheap));
+	enviropments[symbol_name] = typed_lgr(new FuncEnvironment(function, can_be_unloaded, is_cheap));
 }
 
-void FuncEnviropment::AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
+void FuncEnvironment::AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
 	if (enviropments.contains(symbol_name))
 		throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
-	enviropments[symbol_name] = typed_lgr(new FuncEnviropment(proc, templ, can_be_unloaded, is_cheap));
+	enviropments[symbol_name] = typed_lgr(new FuncEnvironment(proc, templ, can_be_unloaded, is_cheap));
 }
 
-bool FuncEnviropment::Exists(const std::string& symbol_name) {
+bool FuncEnvironment::Exists(const std::string& symbol_name) {
 	return enviropments.contains(symbol_name);
 }
-void FuncEnviropment::Load(typed_lgr<FuncEnviropment> fn, const std::string& symbol_name) {
+void FuncEnvironment::Load(typed_lgr<FuncEnvironment> fn, const std::string& symbol_name) {
 	if (enviropments.contains(symbol_name))
 		throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
 	enviropments[symbol_name] = fn;
 }
-void FuncEnviropment::Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
+void FuncEnvironment::Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
 	if (enviropments.contains(symbol_name))
 		throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
 	if (func_templ.size() < 2)
@@ -3649,9 +3649,9 @@ void FuncEnviropment::Load(const std::vector<uint8_t>& func_templ, const std::st
 	uint16_t max_vals = func_templ[1];
 	max_vals <<= 8;
 	max_vals |= func_templ[0];
-	enviropments[symbol_name] = typed_lgr(new FuncEnviropment{ { func_templ.begin() + 2, func_templ.end()}, max_vals, can_be_unloaded, is_cheap });
+	enviropments[symbol_name] = typed_lgr(new FuncEnvironment{ { func_templ.begin() + 2, func_templ.end()}, max_vals, can_be_unloaded, is_cheap });
 }
-void FuncEnviropment::Unload(const std::string& func_name) {
+void FuncEnvironment::Unload(const std::string& func_name) {
 	std::lock_guard guard(enviropments_lock);
 	if (enviropments.contains(func_name))
 		if (enviropments[func_name]->can_be_unloaded)
@@ -3659,7 +3659,7 @@ void FuncEnviropment::Unload(const std::string& func_name) {
 		else
 			throw SymbolException("Fail unload symbol: \"" + func_name + "\" cause them cannont be unloaded");
 }
-void FuncEnviropment::ForceUnload(const std::string& func_name) {
+void FuncEnvironment::ForceUnload(const std::string& func_name) {
 	if (enviropments.contains(func_name)) {
 		enviropments[func_name]->force_unload = true;
 		enviropments.erase(func_name);
@@ -3671,7 +3671,7 @@ void FuncEnviropment::ForceUnload(const std::string& func_name) {
 
 
 extern "C" void callFunction(const char* symbol_name, bool run_async) {
-	ValueItem* res = FuncEnviropment::callFunc(symbol_name, nullptr, 0, run_async);
+	ValueItem* res = FuncEnvironment::callFunc(symbol_name, nullptr, 0, run_async);
 	if (res)
 		delete res;
 }

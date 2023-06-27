@@ -387,7 +387,7 @@ struct ValueItem {
 
 
 
-	ValueItem(const typed_lgr<class FuncEnviropment>&);
+	ValueItem(const typed_lgr<class FuncEnvironment>&);
 	ValueItem() {
 		val = nullptr;
 		meta.encoded = 0;
@@ -422,7 +422,7 @@ struct ValueItem {
 	ValueItem(std::unordered_set<ValueItem>&, as_refrence_t);
 	ValueItem(typed_lgr<struct Task>& task, as_refrence_t);
 	ValueItem(ValueMeta&, as_refrence_t);
-	ValueItem(typed_lgr<class FuncEnviropment>&, as_refrence_t);
+	ValueItem(typed_lgr<class FuncEnvironment>&, as_refrence_t);
 
 
 	ValueItem& operator=(const ValueItem& copy);
@@ -480,13 +480,13 @@ struct ValueItem {
 	explicit operator std::unordered_map<ValueItem, ValueItem>&();
 	explicit operator std::unordered_set<ValueItem>&();
 	explicit operator typed_lgr<struct Task>&();
-	explicit operator typed_lgr<class FuncEnviropment>&();
+	explicit operator typed_lgr<class FuncEnvironment>&();
 
 	ValueItem* operator()(ValueItem* arguments, uint32_t arguments_size);
 	void getAsync();
 	void*& getSourcePtr();
 	const void*& getSourcePtr() const;
-	typed_lgr<class FuncEnviropment>* funPtr();
+	typed_lgr<class FuncEnvironment>* funPtr();
 	void make_gc();
 	void localize_gc();
 	void ungc();
@@ -527,7 +527,7 @@ struct MethodInfo{
 		list_array<list_array<ValueMeta>> arguments;
 		list_array<StructureTag> tags;
 	};
-	typed_lgr<class FuncEnviropment> ref;
+	typed_lgr<class FuncEnvironment> ref;
 	std::string name;
 	std::string owner_name;
 	Optional* optional;
@@ -535,7 +535,7 @@ struct MethodInfo{
 	bool deletable : 1;
 	MethodInfo() : ref(nullptr), name(), owner_name(), optional(nullptr), access(ClassAccess::pub), deletable(true) {}
 	MethodInfo(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
-	MethodInfo(const std::string& name, typed_lgr<class FuncEnviropment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
+	MethodInfo(const std::string& name, typed_lgr<class FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
 
 	~MethodInfo();
 	MethodInfo(const MethodInfo& copy);
@@ -555,10 +555,10 @@ struct AttachAVirtualTable {
 	//{
 	//  Enviropment[table_size] table;
 	//  MethodInfo [table_size] table_additional_info;
-	//	typed_lgr<class FuncEnviropment> holder_destructor;
-	//	typed_lgr<class FuncEnviropment> holder_copy;
-	//	typed_lgr<class FuncEnviropment> holder_move;
-	//	typed_lgr<class FuncEnviropment> holder_compare;
+	//	typed_lgr<class FuncEnvironment> holder_destructor;
+	//	typed_lgr<class FuncEnvironment> holder_copy;
+	//	typed_lgr<class FuncEnvironment> holder_move;
+	//	typed_lgr<class FuncEnvironment> holder_compare;
 	//  std::string name;
 	//	list_array<StructureTag>* tags;//can be null
 	//}
@@ -583,33 +583,33 @@ struct AttachAVirtualTable {
 	size_t getMethodIndex(const std::string& name, ClassAccess access);
 	bool hasMethod(const std::string& name, ClassAccess access);
 
-	static AttachAVirtualTable* create(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare);
+	static AttachAVirtualTable* create(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move, typed_lgr<class FuncEnvironment> compare);
 	static void destroy(AttachAVirtualTable* table);
 
 	std::string getName();
 	void setName(const std::string& name);
 private:
 	struct AfterMethods{
-		typed_lgr<class FuncEnviropment> destructor;
-		typed_lgr<class FuncEnviropment> copy;
-		typed_lgr<class FuncEnviropment> move;
-		typed_lgr<class FuncEnviropment> compare;
+		typed_lgr<class FuncEnvironment> destructor;
+		typed_lgr<class FuncEnvironment> copy;
+		typed_lgr<class FuncEnvironment> move;
+		typed_lgr<class FuncEnvironment> compare;
 		std::string name;
 		list_array<StructureTag>* tags;
 	};
 	AfterMethods* getAfterMethods();
-	AttachAVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare);
+	AttachAVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move, typed_lgr<class FuncEnvironment> compare);
 	~AttachAVirtualTable();
 };
 struct AttachADynamicVirtualTable {
-	typed_lgr<class FuncEnviropment> destructor;//args: Structure* structure
-	typed_lgr<class FuncEnviropment> copy;//args: Structure* dst, Structure* src, bool at_construct
-	typed_lgr<class FuncEnviropment> move;//args: Structure* dst, Structure* src, bool at_construct
-	typed_lgr<class FuncEnviropment> compare;//args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
+	typed_lgr<class FuncEnvironment> destructor;//args: Structure* structure
+	typed_lgr<class FuncEnvironment> copy;//args: Structure* dst, Structure* src, bool at_construct
+	typed_lgr<class FuncEnvironment> move;//args: Structure* dst, Structure* src, bool at_construct
+	typed_lgr<class FuncEnvironment> compare;//args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
 	list_array<MethodInfo> methods;
 	list_array<StructureTag>* tags;
 	std::string name;
-	AttachADynamicVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move,typed_lgr<class FuncEnviropment> compare);
+	AttachADynamicVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move,typed_lgr<class FuncEnvironment> compare);
 	~AttachADynamicVirtualTable();
 	AttachADynamicVirtualTable(const AttachADynamicVirtualTable&);
 	list_array<StructureTag>* getStructureTags();
@@ -631,7 +631,7 @@ struct AttachADynamicVirtualTable {
 	Enviropment getMethod(const std::string& name, ClassAccess access);
 
 	void addMethod(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
-	void addMethod(const std::string& name, const typed_lgr<FuncEnviropment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
+	void addMethod(const std::string& name, const typed_lgr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
 
 	void removeMethod(const std::string& name, ClassAccess access);
 
@@ -666,8 +666,8 @@ public:
 		CXX = 3
 	};
 
-	static AttachAVirtualTable* createAAVTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare,const list_array<std::tuple<void*,VTableMode>>& derive_vtables);
-	static AttachADynamicVirtualTable* createAADVTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnviropment> destructor, typed_lgr<class FuncEnviropment> copy, typed_lgr<class FuncEnviropment> move, typed_lgr<class FuncEnviropment> compare,const list_array<std::tuple<void*,VTableMode>>& derive_vtables);
+	static AttachAVirtualTable* createAAVTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move, typed_lgr<class FuncEnvironment> compare,const list_array<std::tuple<void*,VTableMode>>& derive_vtables);
+	static AttachADynamicVirtualTable* createAADVTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move, typed_lgr<class FuncEnvironment> compare,const list_array<std::tuple<void*,VTableMode>>& derive_vtables);
 	static void destroyVTable(void* table, VTableMode mode);
 private:
 	size_t struct_size;//vtable + sizeof(structure)
@@ -803,12 +803,12 @@ public:
 	Enviropment table_get_dynamic(const std::string& name, ClassAccess access);//table_get(table_get_id(name, access))
 	
 	void add_method(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
-	void add_method(const std::string& name, const typed_lgr<FuncEnviropment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
+	void add_method(const std::string& name, const typed_lgr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
 
 	bool has_method(const std::string& name, ClassAccess access);
 	void remove_method(const std::string& name, ClassAccess access);
-	typed_lgr<FuncEnviropment> get_method(size_t fn_id);
-	typed_lgr<FuncEnviropment> get_method_dynamic(const std::string& name, ClassAccess access);
+	typed_lgr<FuncEnvironment> get_method(size_t fn_id);
+	typed_lgr<FuncEnvironment> get_method_dynamic(const std::string& name, ClassAccess access);
 
 	void table_derive(void* vtable, VTableMode vtable_mode);//only for AttachADynamicVirtualTable
 	void change_table(void* vtable, VTableMode vtable_mode);//only for AttachADynamicVirtualTable, destroy old vtable and use new one

@@ -6,12 +6,12 @@
 #pragma once
 #ifndef RUN_TIME_RUN_TIME_COMPILER
 #define RUN_TIME_RUN_TIME_COMPILER
-#include "FuncEnviropment.hpp"
+#include "FuncEnvironment.hpp"
 
 class FuncEviroBuilder {
 	std::vector<uint8_t> code;
 	std::vector<uint64_t> jump_pos;
-	std::vector<typed_lgr<FuncEnviropment>> local_funs;
+	std::vector<typed_lgr<FuncEnvironment>> local_funs;
 	uint64_t cop = 0;
 	uint16_t max_values = 0;
 	void useVal(uint16_t val) {
@@ -69,9 +69,9 @@ public:
 	void call_self(bool is_async = false);
 	void call_self(uint16_t res, bool catch_ex = false, bool is_async = false);
 
-	uint32_t addLocalFn(typed_lgr<FuncEnviropment> fn);
-	void call_local(typed_lgr<FuncEnviropment> fn, bool is_async = false);
-	void call_local(typed_lgr<FuncEnviropment> fn, uint16_t res, bool catch_ex = false, bool is_async = false);
+	uint32_t addLocalFn(typed_lgr<FuncEnvironment> fn);
+	void call_local(typed_lgr<FuncEnvironment> fn, bool is_async = false);
+	void call_local(typed_lgr<FuncEnvironment> fn, uint16_t res, bool catch_ex = false, bool is_async = false);
 
 	void call_local_in_mem(uint16_t in_mem_fn, bool is_async = false);
 	void call_local_in_mem(uint16_t in_mem_fn, uint16_t res, bool catch_ex = false, bool is_async = false);
@@ -85,7 +85,7 @@ public:
 	void call_self_and_ret(bool catch_ex = false, bool is_async = false);
 
 
-	void call_local_and_ret(typed_lgr<FuncEnviropment> fn, bool catch_ex = false, bool is_async = false);
+	void call_local_and_ret(typed_lgr<FuncEnvironment> fn, bool catch_ex = false, bool is_async = false);
 	void call_local_and_ret_in_mem(uint16_t in_mem_fn, bool catch_ex = false, bool is_async = false);
 	void call_local_and_ret_idx(uint32_t fn, bool catch_ex = false, bool is_async = false);
 	void ret(uint16_t val);
@@ -201,7 +201,7 @@ public:
 		uint64_t too_small_index = 0
 	);
 
-	typed_lgr<FuncEnviropment> prepareFunc(bool can_be_unloaded = true);
+	typed_lgr<FuncEnvironment> prepareFunc(bool can_be_unloaded = true);
 	void loadFunc(const std::string& symbol_name, bool can_be_unloaded = true);
 };
 

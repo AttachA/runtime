@@ -20,7 +20,7 @@ public:
 		write_delayed
 	};
 
-	TcpNetworkServer(typed_lgr<class FuncEnviropment> on_connect, ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10, int32_t timeout_ms = 0, int32_t default_buffer = 8192);
+	TcpNetworkServer(typed_lgr<class FuncEnvironment> on_connect, ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10, int32_t timeout_ms = 0, int32_t default_buffer = 8192);
 	~TcpNetworkServer();
 	void start();
 	void pause();
@@ -36,7 +36,7 @@ public:
 	std::string server_ip();
 	ValueItem server_address();
 	void set_default_buffer_size(int32_t size);
-	void set_accept_filter(typed_lgr<class FuncEnviropment> filter);
+	void set_accept_filter(typed_lgr<class FuncEnvironment> filter);
 };
 class TcpClientSocket{
 	class TcpClientManager* handle;

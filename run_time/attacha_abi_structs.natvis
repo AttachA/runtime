@@ -67,7 +67,7 @@
 
 			<!--<Item Name="[value]" Condition="meta.vtype == VType::struct_ &amp;&amp; !meta.use_gc">UNSUPPORTED</Item>-->
 
-			<!--<Item Name="[value]" Condition="meta.vtype == VType::function &amp;&amp; !meta.use_gc">*(typed_lgr&lt;FuncEnviropment*&gt;*)val</Item>-->
+			<!--<Item Name="[value]" Condition="meta.vtype == VType::function &amp;&amp; !meta.use_gc">*(typed_lgr&lt;FuncEnvironment*&gt;*)val</Item>-->
 			<!--<Item Name="[value]" Condition="meta.vtype == VType::set &amp;&amp; !meta.use_gc">*(std::unordered_map&lt;ValueItem,ValueItem&gt;*)val</Item>-->
 			<!--<Item Name="[value]" Condition="meta.vtype == VType::set &amp;&amp; !meta.use_gc">*(std::unordered_set&lt;ValueItem&gt;*)val</Item>-->
 			<Item Name="[value]" Condition="meta.vtype == VType::time_point &amp;&amp; !meta.use_gc">*(std::chrono::steady_clock::time_point*)val</Item>

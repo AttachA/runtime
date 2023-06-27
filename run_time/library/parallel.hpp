@@ -61,7 +61,7 @@ namespace parallel {
 		}
 	}
 
-	//typed_lgr<FuncEnviropment>*, any...
+	//typed_lgr<FuncEnvironment>*, any...
 	ValueItem* createThread(ValueItem*, uint32_t);
 
 	//returns function result that what reached by native thread

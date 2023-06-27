@@ -20,7 +20,7 @@ size_t page_size = []() {
 
 #include "run_time.hpp"
 #include "library/string_help.hpp"
-#include "run_time/FuncEnviropment.hpp"
+#include "run_time/FuncEnvironment.hpp"
 #include "run_time/tasks.hpp"
 #include "run_time/dynamic_call.hpp"
 #include "run_time/tasks_util/light_stack.hpp"
@@ -350,13 +350,13 @@ CALL_FUNC NativeLib::get_func(const std::string& func_name) {
 		throw LibrayFunctionNotFoundException();
 	return (CALL_FUNC)tmp;
 }
-typed_lgr<FuncEnviropment> NativeLib::get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ) {
+typed_lgr<FuncEnvironment> NativeLib::get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ) {
 	auto& env = envs[func_name];
 	if (!env) {
 		DynamicCall::PROC tmp = (DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 		if (!tmp)
 			throw LibrayFunctionNotFoundException();
-		return env = new FuncEnviropment(tmp, templ, true, false);
+		return env = new FuncEnvironment(tmp, templ, true, false);
 	}
 	return env;
 }

@@ -11,7 +11,7 @@
 #include "dynamic_call.hpp"
 #include "library/exceptions.hpp"
 #include "tasks.hpp"
-class FuncEnviropment {
+class FuncEnvironment {
 public:
 	enum class FuncType : uint32_t {
 		own,
@@ -35,8 +35,8 @@ private:
 	TaskMutex compile_lock;
 	std::unordered_map<list_array<ValueItem>, ValueItem> cache_map;
 	DynamicCall::FunctionTemplate nat_templ;
-	std::vector<typed_lgr<FuncEnviropment>> used_envs;
-	std::vector<typed_lgr<FuncEnviropment>> local_funcs;
+	std::vector<typed_lgr<FuncEnvironment>> used_envs;
+	std::vector<typed_lgr<FuncEnvironment>> local_funcs;
 	std::vector<uint8_t> cross_code;
 	list_array<ValueItem> values;
 	Enviropment curr_func = nullptr;
@@ -61,27 +61,27 @@ public:
 		if (need_compile)
 			funcComp();
 	}
-	FuncEnviropment(const std::vector<uint8_t>& code, uint16_t values_count, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
+	FuncEnvironment(const std::vector<uint8_t>& code, uint16_t values_count, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
 		cross_code = code;
 		max_values = values_count;
 		can_be_unloaded = _can_be_unloaded;
 		_type = FuncType::own;
 	}
-	FuncEnviropment(const std::vector<uint8_t>& code, const std::vector<typed_lgr<FuncEnviropment>>& local_fns, uint16_t values_count, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
+	FuncEnvironment(const std::vector<uint8_t>& code, const std::vector<typed_lgr<FuncEnvironment>>& local_fns, uint16_t values_count, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
 		local_funcs = local_fns;
 		cross_code = code;
 		max_values = values_count;
 		can_be_unloaded = _can_be_unloaded;
 		_type = FuncType::own;
 	}
-	FuncEnviropment(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, bool _can_be_unloaded, bool is_cheap = false): is_cheap(is_cheap) {
+	FuncEnvironment(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, bool _can_be_unloaded, bool is_cheap = false): is_cheap(is_cheap) {
 		nat_templ = templ;
 		_type = FuncType::native;
 		curr_func = (Enviropment)proc;
 		need_compile = false;
 		can_be_unloaded = _can_be_unloaded;
 	}
-	FuncEnviropment(Enviropment proc, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
+	FuncEnvironment(Enviropment proc, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
 		_type = FuncType::own;
 		curr_func = (Enviropment)proc;
 		need_compile = false;
@@ -89,15 +89,15 @@ public:
 	}
 
 	ValueItem* NativeProxy_DynamicToStatic(ValueItem*, uint32_t arguments_size);
-	FuncEnviropment() {
+	FuncEnvironment() {
 		need_compile = false;
 		_type = FuncType::own;
 	}
-	FuncEnviropment(FuncEnviropment&& move) noexcept {
+	FuncEnvironment(FuncEnvironment&& move) noexcept {
 		operator=(std::move(move));
 	}
-	~FuncEnviropment();
-	FuncEnviropment& operator=(FuncEnviropment&& move) noexcept {
+	~FuncEnvironment();
+	FuncEnvironment& operator=(FuncEnvironment&& move) noexcept {
 		used_envs = std::move(move.used_envs);
 		cross_code = std::move(move.cross_code);
 		nat_templ = std::move(move.nat_templ);
@@ -113,7 +113,7 @@ public:
 		return *this;
 	}
 
-	typed_lgr<FuncEnviropment> localFn(size_t indx) {
+	typed_lgr<FuncEnvironment> localFn(size_t indx) {
 		return local_funcs[indx];
 	}
 	size_t localFnSize() {
@@ -131,8 +131,8 @@ public:
 	ValueItem* syncWrapper(ValueItem* arguments, uint32_t arguments_size);
 
 	static void fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code);
-	static void fastHotPath(const std::string& func_name, typed_lgr<FuncEnviropment>& new_enviro);
-	static typed_lgr<FuncEnviropment> enviropment(const std::string& func_name);
+	static void fastHotPath(const std::string& func_name, typed_lgr<FuncEnvironment>& new_enviro);
+	static typed_lgr<FuncEnvironment> enviropment(const std::string& func_name);
 	static ValueItem* callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async);
 
 	template<class Ret>
@@ -151,7 +151,7 @@ public:
 	static void AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false);
 
 	static bool Exists(const std::string& symbol_name);
-	static void Load(typed_lgr<FuncEnviropment> fn, const std::string& symbol_name) ;
+	static void Load(typed_lgr<FuncEnvironment> fn, const std::string& symbol_name) ;
 	static void Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false);
 	static void Unload(const std::string& func_name);
 	static void ForceUnload(const std::string& func_name);
@@ -161,8 +161,8 @@ public:
 
 
 
-	static ValueItem* async_call(typed_lgr<FuncEnviropment> f, ValueItem* args, uint32_t arguments_size);
-	static ValueItem* sync_call(typed_lgr<FuncEnviropment> f, ValueItem* args, uint32_t arguments_size) {
+	static ValueItem* async_call(typed_lgr<FuncEnvironment> f, ValueItem* args, uint32_t arguments_size);
+	static ValueItem* sync_call(typed_lgr<FuncEnvironment> f, ValueItem* args, uint32_t arguments_size) {
 		return f->syncWrapper(args, arguments_size);
 	}
 

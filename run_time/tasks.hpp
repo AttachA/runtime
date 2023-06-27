@@ -173,8 +173,8 @@ struct Task {
 	static bool enable_task_naming;
 
 	TaskResult fres;
-	typed_lgr<class FuncEnviropment> ex_handle;//if ex_handle is nullptr then exception will be stored in fres
-	typed_lgr<class FuncEnviropment> func;
+	typed_lgr<class FuncEnvironment> ex_handle;//if ex_handle is nullptr then exception will be stored in fres
+	typed_lgr<class FuncEnvironment> func;
 	std::forward_list<typed_lgr<class TaskEnvironment>> _task_envs;//if _task_envs is empty then task use global task enviropment
 	ValueItem args;
 	run_time::threading::mutex no_race;
@@ -192,8 +192,8 @@ struct Task {
 	bool end_of_life : 1 = false;
 	bool make_cancel : 1 = false;
 	bool auto_bind_worker : 1 = false;//can be binded to regular worker
-	Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
-	Task(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	Task(typed_lgr<class FuncEnvironment> call_func, const ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	Task(typed_lgr<class FuncEnvironment> call_func, ValueItem&& arguments, bool used_task_local = false, typed_lgr<class FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 	Task(Task&& mov) noexcept;
 	~Task();
 	void auto_bind_worker_enable(bool enable = true);
@@ -257,11 +257,11 @@ struct Task {
 	static typed_lgr<Task> fullifed_task(const ValueItem& result);
 	static typed_lgr<Task> fullifed_task(ValueItem&& result);
 
-	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func);
-	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments);
-	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments);
-	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
-	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnvironment> func);
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments);
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments);
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 
 	static void explicitStartTimer();
 };
@@ -286,23 +286,23 @@ public:
 class EventSystem {
 	friend ValueItem* __async_notify(ValueItem* vals, uint32_t);
 	TaskMutex no_race;
-	std::list<typed_lgr<class FuncEnviropment>> heigh_priorihty;
-	std::list<typed_lgr<class FuncEnviropment>> upper_avg_priorihty;
-	std::list<typed_lgr<class FuncEnviropment>> avg_priorihty;
-	std::list<typed_lgr<class FuncEnviropment>> lower_avg_priorihty;
-	std::list<typed_lgr<class FuncEnviropment>> low_priorihty;
+	std::list<typed_lgr<class FuncEnvironment>> heigh_priorihty;
+	std::list<typed_lgr<class FuncEnvironment>> upper_avg_priorihty;
+	std::list<typed_lgr<class FuncEnvironment>> avg_priorihty;
+	std::list<typed_lgr<class FuncEnvironment>> lower_avg_priorihty;
+	std::list<typed_lgr<class FuncEnvironment>> low_priorihty;
 
-	std::list<typed_lgr<class FuncEnviropment>> async_heigh_priorihty;
-	std::list<typed_lgr<class FuncEnviropment>> async_upper_avg_priorihty;
-	std::list<typed_lgr<class FuncEnviropment>> async_avg_priorihty;
-	std::list<typed_lgr<class FuncEnviropment>> async_lower_avg_priorihty;
-	std::list<typed_lgr<class FuncEnviropment>> async_low_priorihty;
+	std::list<typed_lgr<class FuncEnvironment>> async_heigh_priorihty;
+	std::list<typed_lgr<class FuncEnvironment>> async_upper_avg_priorihty;
+	std::list<typed_lgr<class FuncEnvironment>> async_avg_priorihty;
+	std::list<typed_lgr<class FuncEnvironment>> async_lower_avg_priorihty;
+	std::list<typed_lgr<class FuncEnvironment>> async_low_priorihty;
 
-	static bool removeOne(std::list<typed_lgr<class FuncEnviropment>>& list, const typed_lgr<class FuncEnviropment>& func);
-	void async_call(std::list<typed_lgr<class FuncEnviropment>>& list, ValueItem& args);
-	bool awaitCall(std::list<typed_lgr<class FuncEnviropment>>& list, ValueItem& args);
+	static bool removeOne(std::list<typed_lgr<class FuncEnvironment>>& list, const typed_lgr<class FuncEnvironment>& func);
+	void async_call(std::list<typed_lgr<class FuncEnvironment>>& list, ValueItem& args);
+	bool awaitCall(std::list<typed_lgr<class FuncEnvironment>>& list, ValueItem& args);
 
-	bool sync_call(std::list<typed_lgr<class FuncEnviropment>>& list, ValueItem& args);
+	bool sync_call(std::list<typed_lgr<class FuncEnvironment>>& list, ValueItem& args);
 public:
 	enum class Priorithy {
 		heigh,
@@ -311,9 +311,9 @@ public:
 		lower_avg,
 		low
 	};
-	void operator+=(const typed_lgr<class FuncEnviropment>& func);
-	void join(const typed_lgr<class FuncEnviropment>& func, bool async_mode = false, Priorithy priorithy = Priorithy::avg);
-	bool leave(const typed_lgr<class FuncEnviropment>& func, bool async_mode = false, Priorithy priorithy = Priorithy::avg);
+	void operator+=(const typed_lgr<class FuncEnvironment>& func);
+	void join(const typed_lgr<class FuncEnvironment>& func, bool async_mode = false, Priorithy priorithy = Priorithy::avg);
+	bool leave(const typed_lgr<class FuncEnvironment>& func, bool async_mode = false, Priorithy priorithy = Priorithy::avg);
 
 	bool await_notify(ValueItem& args);
 	bool notify(ValueItem& args);
@@ -369,7 +369,7 @@ class TaskQuery{
 public:
 	TaskQuery(size_t at_execution_max = 0);
 	~TaskQuery();
-	typed_lgr<Task> add_task(typed_lgr<class FuncEnviropment> call_func, ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+	typed_lgr<Task> add_task(typed_lgr<class FuncEnvironment> call_func, ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 	void enable();
 	void disable();
 	bool in_query(typed_lgr<Task> task);
@@ -382,18 +382,18 @@ public:
 
 //task unsafe, TO-DO: compatible with task sync classes
 class Generator {
-	friend void prepare_generator(ValueItem& args,typed_lgr<FuncEnviropment>& func, typed_lgr<FuncEnviropment>& ex_handler, Generator*& weak_ref);
+	friend void prepare_generator(ValueItem& args,typed_lgr<FuncEnvironment>& func, typed_lgr<FuncEnvironment>& ex_handler, Generator*& weak_ref);
 	list_array<ValueItem*> results;
-	typed_lgr<class FuncEnviropment> ex_handle;//if ex_handle is nullptr then exception will be unrolled to caller
-	typed_lgr<class FuncEnviropment> func;
+	typed_lgr<class FuncEnvironment> ex_handle;//if ex_handle is nullptr then exception will be unrolled to caller
+	typed_lgr<class FuncEnvironment> func;
 	ValueItem args;
 	class ValueEnvironment* _generator_local = nullptr;
 	std::exception_ptr ex_ptr = nullptr;
 	void* context = nullptr;
 	bool end_of_life : 1 = false;
 public:
-	Generator(typed_lgr<class FuncEnviropment> call_func, const ValueItem& arguments, bool used_generator_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr);
-	Generator(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_generator_local = false, typed_lgr<class FuncEnviropment> exception_handler = nullptr);
+	Generator(typed_lgr<class FuncEnvironment> call_func, const ValueItem& arguments, bool used_generator_local = false, typed_lgr<class FuncEnvironment> exception_handler = nullptr);
+	Generator(typed_lgr<class FuncEnvironment> call_func, ValueItem&& arguments, bool used_generator_local = false, typed_lgr<class FuncEnvironment> exception_handler = nullptr);
 	Generator(Generator&& mov) noexcept;
 	~Generator();
 

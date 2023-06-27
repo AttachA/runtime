@@ -716,7 +716,7 @@ void pseudo_task_handle(const std::string& old_name, bool &caught_ex){
 		}
 		else {
 			//worker_mode_desk(old_name, " executing function - " + loc.curr_task->func->to_string())
-			ValueItem* res = FuncEnviropment::sync_call(loc.curr_task->func, (ValueItem*)loc.curr_task->args.getSourcePtr(), loc.curr_task->args.meta.val_len);
+			ValueItem* res = FuncEnvironment::sync_call(loc.curr_task->func, (ValueItem*)loc.curr_task->args.getSourcePtr(), loc.curr_task->args.meta.val_len);
 			MutexUnify mu(loc.curr_task->no_race);
 			std::unique_lock l(mu);
 			loc.curr_task->fres.finalResult(res, l);
@@ -827,9 +827,9 @@ void taskExecutor(bool end_in_task_out = false) {
 			continue;
 		}
 		//if func is nullptr then this task signal to shutdown executor
-		bool sut_down_signal = execute_task(old_name);
+		bool shut_down_signal = execute_task(old_name);
 		guard.lock();
-		if (sut_down_signal)
+		if (shut_down_signal)
 			break;
 		completions +=1;
 	}
@@ -975,7 +975,7 @@ void makeTimeWait(std::chrono::high_resolution_clock::time_point t) {
 }
 
 #pragma region Task
-Task::Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& arguments, bool used_task_local, typed_lgr<class FuncEnviropment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
+Task::Task(typed_lgr<class FuncEnvironment> call_func, const ValueItem& arguments, bool used_task_local, typed_lgr<class FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
 	ex_handle = exception_handler;
 	func = call_func;
 	put_arguments(args, arguments);
@@ -992,7 +992,7 @@ Task::Task(typed_lgr<class FuncEnviropment> call_func, const ValueItem& argument
 	}
 	++glob.planned_tasks;
 }
-Task::Task(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_task_local, typed_lgr<class FuncEnviropment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
+Task::Task(typed_lgr<class FuncEnvironment> call_func, ValueItem&& arguments, bool used_task_local, typed_lgr<class FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
 	ex_handle = exception_handler;
 	func = call_func;
 	put_arguments(args, std::move(arguments));
@@ -1344,7 +1344,7 @@ void Task::clean_up() {
 ValueItem* _empty_func(ValueItem* /*ignored*/, uint32_t /*ignored*/) {
 	return nullptr;
 }
-typed_lgr<FuncEnviropment> empty_func(new FuncEnviropment(_empty_func, false, true));
+typed_lgr<FuncEnvironment> empty_func(new FuncEnvironment(_empty_func, false, true));
 typed_lgr<Task> Task::dummy_task(){
 	return new Task(empty_func, ValueItem());
 }
@@ -1360,7 +1360,7 @@ ValueItem* _notify_native_thread(ValueItem* args, uint32_t /*ignored*/) {
 	((run_time::threading::condition_variable_any*)args[1].val)->notify_one();
 	return nullptr;
 }
-typed_lgr<FuncEnviropment> notify_native_thread(new FuncEnviropment(_notify_native_thread, false, true));
+typed_lgr<FuncEnvironment> notify_native_thread(new FuncEnvironment(_notify_native_thread, false, true));
 typed_lgr<Task> Task::cxx_native_bridge(bool& checker, run_time::threading::condition_variable_any& cd){
 	return new Task(notify_native_thread, ValueItem{ ValueItem(&checker, VType::undefined_ptr), ValueItem(std::addressof(cd), VType::undefined_ptr) });
 }
@@ -1405,36 +1405,36 @@ typed_lgr<Task> Task::fullifed_task(ValueItem&& result){
 
 
 class native_task_shedule : public NativeWorkerHandle, public NativeWorkerManager {
-	typed_lgr<class FuncEnviropment> func;
+	typed_lgr<class FuncEnvironment> func;
 	ValueItem args;
 	bool started = false;
 public:
 	typed_lgr<Task> task;
 	
-	native_task_shedule(typed_lgr<class FuncEnviropment> func) : NativeWorkerHandle(this){
+	native_task_shedule(typed_lgr<class FuncEnvironment> func) : NativeWorkerHandle(this){
 		this->func = func;
 		task = Task::dummy_task();
 		task->started = true;
 	}
-	native_task_shedule(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments) : NativeWorkerHandle(this){
+	native_task_shedule(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments) : NativeWorkerHandle(this){
 		this->func = func;
 		task = Task::dummy_task();
 		task->started = true;
 		put_arguments(args, std::move(arguments));
 	}
-	native_task_shedule(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments) : NativeWorkerHandle(this){
+	native_task_shedule(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments) : NativeWorkerHandle(this){
 		this->func = func;
 		task = Task::dummy_task();
 		task->started = true;
 		put_arguments(args, arguments);
 	}
-	native_task_shedule(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout): NativeWorkerHandle(this){
+	native_task_shedule(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout): NativeWorkerHandle(this){
 		this->func = func;
 		task = Task::callback_dummy(dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
 		task->started = true;
 		put_arguments(args, arguments);
 	}
-	native_task_shedule(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout): NativeWorkerHandle(this){
+	native_task_shedule(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout): NativeWorkerHandle(this){
 		this->func = func;
 		task = Task::callback_dummy(dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
 		task->started = true;
@@ -1443,7 +1443,7 @@ public:
 	void handle(void* unused0, NativeWorkerHandle* unused1, unsigned long unused2, bool unused3){
 		ValueItem* result = nullptr;
 		try{
-			result = FuncEnviropment::sync_call(func, (ValueItem*)args.val, args.meta.val_len);
+			result = FuncEnvironment::sync_call(func, (ValueItem*)args.val, args.meta.val_len);
 		}catch(...){
 			MutexUnify mtx(task->no_race);
 			std::unique_lock<MutexUnify> ulock(mtx);
@@ -1465,7 +1465,7 @@ public:
 	}
 };
 
-typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func){
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnvironment> func){
 	native_task_shedule* shedule = new native_task_shedule(func);
 	if(!shedule->start()){
 		delete shedule;
@@ -1473,7 +1473,7 @@ typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func){
 	}
 	return shedule->task;
 }
-typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments){
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments){
 	native_task_shedule* shedule = new native_task_shedule(func, arguments);
 	if(!shedule->start()){
 		delete shedule;
@@ -1481,7 +1481,7 @@ typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, 
 	}
 	return shedule->task;
 }
-typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments){
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments){
 	native_task_shedule* shedule = new native_task_shedule(func, std::move(arguments));
 	if(!shedule->start()){
 		delete shedule;
@@ -1489,7 +1489,7 @@ typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, 
 	}
 	return shedule->task;
 }
-typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
 	native_task_shedule* shedule = new native_task_shedule(func, arguments, dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
 	if(!shedule->start()){
 		delete shedule;
@@ -1497,7 +1497,7 @@ typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, 
 	}
 	return shedule->task;
 }
-typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnviropment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
+typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
 	native_task_shedule* shedule = new native_task_shedule(func, std::move(arguments), dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
 	if(!shedule->start()){
 		delete shedule;
@@ -1734,7 +1734,7 @@ ValueItem* _TaskMutex_lock_holder(ValueItem* args, uint32_t len){
 	}
 	return nullptr;
 }
-typed_lgr<FuncEnviropment> TaskMutex_lock_holder = new FuncEnviropment(_TaskMutex_lock_holder, false, false);
+typed_lgr<FuncEnvironment> TaskMutex_lock_holder = new FuncEnvironment(_TaskMutex_lock_holder, false, false);
 void TaskMutex::lifecycle_lock(typed_lgr<struct Task> task){
 	Task::start(new Task(TaskMutex_lock_holder, ValueItem{ValueItem(new typed_lgr(task), VType::async_res), this, false}));
 }
@@ -2057,7 +2057,7 @@ ValueItem* _TaskConditionVariable_dummy_awaiter(ValueItem* args, uint32_t len){
 	return nullptr;
 }
 void TaskConditionVariable::dummy_wait_until(typed_lgr<struct Task> task, std::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point){
-	static typed_lgr<FuncEnviropment> TaskConditionVariable_dummy_awaiter = new FuncEnviropment(_TaskConditionVariable_dummy_awaiter, false, false);
+	static typed_lgr<FuncEnvironment> TaskConditionVariable_dummy_awaiter = new FuncEnvironment(_TaskConditionVariable_dummy_awaiter, false, false);
 	delete Task::get_result(new Task(TaskConditionVariable_dummy_awaiter, ValueItem{ValueItem(new typed_lgr(task), VType::async_res), this, time_point, lock.mutex()}));
 }
 
@@ -2350,7 +2350,7 @@ bool TaskLimiter::is_locked() {
 #pragma optimize("",on)
 
 #pragma region EventSystem
-bool EventSystem::removeOne(std::list<typed_lgr<FuncEnviropment>>& list, const typed_lgr<FuncEnviropment>& func) {
+bool EventSystem::removeOne(std::list<typed_lgr<FuncEnvironment>>& list, const typed_lgr<FuncEnvironment>& func) {
 	auto iter = list.begin();
 	auto end = list.begin();
 	while (iter != end) {
@@ -2361,12 +2361,12 @@ bool EventSystem::removeOne(std::list<typed_lgr<FuncEnviropment>>& list, const t
 	}
 	return false;
 }
-void EventSystem::async_call(std::list<typed_lgr<FuncEnviropment>>& list, ValueItem& args) {
+void EventSystem::async_call(std::list<typed_lgr<FuncEnvironment>>& list, ValueItem& args) {
 	std::lock_guard guard(no_race);
 	for (auto& it : list)
 		Task::start(typed_lgr<Task>(new Task(it, args)));
 }
-bool EventSystem::awaitCall(std::list<typed_lgr<FuncEnviropment>>& list, ValueItem& args) {
+bool EventSystem::awaitCall(std::list<typed_lgr<FuncEnvironment>>& list, ValueItem& args) {
 	std::list<typed_lgr<Task>> wait_tasks;
 	{
 		std::lock_guard guard(no_race);
@@ -2391,12 +2391,12 @@ bool EventSystem::awaitCall(std::list<typed_lgr<FuncEnviropment>>& list, ValueIt
 	}
 	return need_cancel;
 }
-bool EventSystem::sync_call(std::list<typed_lgr<FuncEnviropment>>& list, ValueItem& args) {
+bool EventSystem::sync_call(std::list<typed_lgr<FuncEnvironment>>& list, ValueItem& args) {
 	std::lock_guard guard(no_race);
 	if (args.meta.vtype == VType::async_res)
 		args.getAsync();
 	if (args.meta.vtype == VType::noting)
-		for (typed_lgr<FuncEnviropment>& it : list) {
+		for (typed_lgr<FuncEnvironment>& it : list) {
 			auto res = it->syncWrapper(nullptr, 0);
 			if (res)
 				if (isTrueValue(&res->val)) {
@@ -2405,7 +2405,7 @@ bool EventSystem::sync_call(std::list<typed_lgr<FuncEnviropment>>& list, ValueIt
 				}
 		}
 	else
-		for (typed_lgr<FuncEnviropment>& it : list) {
+		for (typed_lgr<FuncEnvironment>& it : list) {
 			ValueItem copyArgs;
 			if (args.meta.vtype == VType::faarr || args.meta.vtype == VType::saarr) {
 				if (!args.meta.use_gc)
@@ -2428,11 +2428,11 @@ bool EventSystem::sync_call(std::list<typed_lgr<FuncEnviropment>>& list, ValueIt
 		return false;
 }
 
-void EventSystem::operator+=(const typed_lgr<FuncEnviropment>& func) {
+void EventSystem::operator+=(const typed_lgr<FuncEnvironment>& func) {
 	std::lock_guard guard(no_race);
 	avg_priorihty.push_back(func);
 }
-void EventSystem::join(const typed_lgr<FuncEnviropment>& func, bool async_mode, Priorithy priorithy) {
+void EventSystem::join(const typed_lgr<FuncEnvironment>& func, bool async_mode, Priorithy priorithy) {
 	std::lock_guard guard(no_race);
 	if (async_mode) {
 		switch (priorithy) {
@@ -2477,7 +2477,7 @@ void EventSystem::join(const typed_lgr<FuncEnviropment>& func, bool async_mode, 
 		}
 	}
 }
-bool EventSystem::leave(const typed_lgr<FuncEnviropment>& func, bool async_mode, Priorithy priorithy) {
+bool EventSystem::leave(const typed_lgr<FuncEnvironment>& func, bool async_mode, Priorithy priorithy) {
 	std::lock_guard guard(no_race);
 	if (async_mode) {
 		switch (priorithy) {
@@ -2570,7 +2570,7 @@ ValueItem* __async_notify(ValueItem* vals, uint32_t) {
 	if (es->awaitCall(es->async_low_priorihty, args)) return new ValueItem(true);
 	return new ValueItem(false);
 }
-typed_lgr<FuncEnviropment> _async_notify(new FuncEnviropment(__async_notify,false, false));
+typed_lgr<FuncEnvironment> _async_notify(new FuncEnvironment(__async_notify,false, false));
 
 typed_lgr<Task> EventSystem::async_notify(ValueItem& args) {
 	ValueItem vals{ ValueItem(this,VType::undefined_ptr), args };
@@ -2620,12 +2620,12 @@ void __TaskQuery_add_task_leave(TaskQueryHandle* tqh, TaskQuery* tq){
 ValueItem* __TaskQuery_add_task(ValueItem* args, uint32_t len){
 	TaskQueryHandle* tqh = (TaskQueryHandle*)args[0].val;
 	TaskQuery* tq = tqh->tq;
-	typed_lgr<FuncEnviropment>& call_func = *(typed_lgr<FuncEnviropment>*)args[1].val;
+	typed_lgr<FuncEnvironment>& call_func = *(typed_lgr<FuncEnvironment>*)args[1].val;
 	ValueItem& arguments = *(ValueItem*)args[2].val;
 
 	ValueItem* res = nullptr;
 	try{
-		res = FuncEnviropment::sync_call(call_func,(ValueItem*)arguments.getSourcePtr(),arguments.meta.val_len);
+		res = FuncEnvironment::sync_call(call_func,(ValueItem*)arguments.getSourcePtr(),arguments.meta.val_len);
 	}
 	catch(...){
 		__TaskQuery_add_task_leave(tqh, tq);
@@ -2634,15 +2634,15 @@ ValueItem* __TaskQuery_add_task(ValueItem* args, uint32_t len){
 	__TaskQuery_add_task_leave(tqh, tq);
 	return res;
 }
-typed_lgr<FuncEnviropment> _TaskQuery_add_task(new FuncEnviropment(__TaskQuery_add_task,false, false));
-typed_lgr<Task> TaskQuery::add_task(typed_lgr<class FuncEnviropment> call_func, ValueItem& arguments, bool used_task_local, typed_lgr<class FuncEnviropment> exception_handler, std::chrono::high_resolution_clock::time_point timeout) {
+typed_lgr<FuncEnvironment> _TaskQuery_add_task(new FuncEnvironment(__TaskQuery_add_task,false, false));
+typed_lgr<Task> TaskQuery::add_task(typed_lgr<class FuncEnvironment> call_func, ValueItem& arguments, bool used_task_local, typed_lgr<class FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point timeout) {
 	ValueItem copy;
 	if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
 		copy = ValueItem((ValueItem*)arguments.getSourcePtr(), arguments.meta.val_len);
 	else
 		copy = ValueItem({ arguments });
 
-	typed_lgr<Task> res = new Task(_TaskQuery_add_task, ValueItem{(void*)handle, new typed_lgr<class FuncEnviropment>(call_func), copy }, used_task_local, exception_handler, timeout);
+	typed_lgr<Task> res = new Task(_TaskQuery_add_task, ValueItem{(void*)handle, new typed_lgr<class FuncEnvironment>(call_func), copy }, used_task_local, exception_handler, timeout);
 	std::lock_guard lock(handle->no_race);
 	if(is_running && handle->now_at_execution <= handle->at_execution_max){
 		Task::start(res);
@@ -2711,7 +2711,7 @@ TaskQuery::~TaskQuery(){
 
 #pragma region Generator
 
-	void prepare_generator(ValueItem& args,typed_lgr<FuncEnviropment>& func, typed_lgr<FuncEnviropment>& ex_handler, Generator*& weak_ref){
+	void prepare_generator(ValueItem& args,typed_lgr<FuncEnvironment>& func, typed_lgr<FuncEnvironment>& ex_handler, Generator*& weak_ref){
 		weak_ref = loc.on_load_generator_ref.getPtr();
 		func = loc.on_load_generator_ref->func;
 		ex_handler = loc.on_load_generator_ref->ex_handle;
@@ -2733,8 +2733,8 @@ TaskQuery::~TaskQuery(){
 	}
 	ctx::continuation generator_execute(ctx::continuation&& sink){
 		ValueItem args;
-		typed_lgr<FuncEnviropment> func;
-		typed_lgr<FuncEnviropment> ex_handler;
+		typed_lgr<FuncEnvironment> func;
+		typed_lgr<FuncEnvironment> ex_handler;
 		Generator* weak_ref;
 		prepare_generator(args, func, ex_handler, weak_ref);
 		try{
@@ -2752,7 +2752,7 @@ TaskQuery::~TaskQuery(){
 	}
 	
 
-	Generator::Generator(typed_lgr<class FuncEnviropment> call_func, const ValueItem& arguments, bool used_generator_local, typed_lgr<class FuncEnviropment> exception_handler){
+	Generator::Generator(typed_lgr<class FuncEnvironment> call_func, const ValueItem& arguments, bool used_generator_local, typed_lgr<class FuncEnvironment> exception_handler){
 		args = arguments;
 		func = call_func;
 		if(used_generator_local)
@@ -2762,7 +2762,7 @@ TaskQuery::~TaskQuery(){
 		
 		ex_handle = exception_handler;
 	}
-	Generator::Generator(typed_lgr<class FuncEnviropment> call_func, ValueItem&& arguments, bool used_generator_local, typed_lgr<class FuncEnviropment> exception_handler){
+	Generator::Generator(typed_lgr<class FuncEnvironment> call_func, ValueItem&& arguments, bool used_generator_local, typed_lgr<class FuncEnvironment> exception_handler){
 		args = std::move(arguments);
 		func = call_func;
 		if(used_generator_local)

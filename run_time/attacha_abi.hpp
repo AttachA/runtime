@@ -73,7 +73,7 @@ class __GetType {
 		else if constexpr (std::is_same_v<T, ValueItem*>) return VType::faarr;
 		else if constexpr (std::is_same_v<T, Structure>) return VType::struct_;
 		else if constexpr (std::is_same_v<T, ValueMeta>) return VType::type_identifier;
-		else if constexpr (std::is_same_v<T, typed_lgr<class FuncEnviropment>>) return VType::function;
+		else if constexpr (std::is_same_v<T, typed_lgr<class FuncEnvironment>>) return VType::function;
 		else return VType::noting;
 	}
 public:
@@ -245,8 +245,8 @@ namespace ABI_IMPL {
 			return ValueItem(*(void**)&val, VType::type_identifier);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Structure>)
 			return ValueItem(Structure::copy(val), no_copy);
-		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnviropment>>)
-			return ValueItem(new typed_lgr<class FuncEnviropment>(val), VType::function, no_copy);
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnvironment>>)
+			return ValueItem(new typed_lgr<class FuncEnvironment>(val), VType::function, no_copy);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueItem>)
 			return val;
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, void*>)

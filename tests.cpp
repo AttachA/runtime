@@ -115,7 +115,7 @@ ValueItem* paralelize_test_0_0(ValueItem*,uint32_t) {
 ValueItem* paralelize_test_0(ValueItem*, uint32_t) {
 	auto started = std::chrono::high_resolution_clock::now();
 	list_array<typed_lgr<Task>> tasks;
-	typed_lgr<FuncEnviropment> func = new FuncEnviropment(paralelize_test_0_0,true, false);
+	typed_lgr<FuncEnvironment> func = new FuncEnvironment(paralelize_test_0_0,true, false);
 	ValueItem noting;
 	for (size_t i = 0; i < 10000; i++)
 		tasks.push_back(new Task(func, noting));
@@ -135,7 +135,7 @@ ValueItem* paralelize_test_1_0(ValueItem*, uint32_t) {
 ValueItem* paralelize_test_1(ValueItem*, uint32_t) {
 	auto started = std::chrono::high_resolution_clock::now();
 	list_array<typed_lgr<Task>> tasks;
-	typed_lgr<FuncEnviropment> func = new FuncEnviropment(paralelize_test_1_0, true, false);
+	typed_lgr<FuncEnvironment> func = new FuncEnvironment(paralelize_test_1_0, true, false);
 	ValueItem noting;
 	for (size_t i = 0; i < 50000; i++)
 		tasks.push_back(new Task(func, noting));
@@ -219,7 +219,7 @@ void __ex_handle_test() {
 }
 #pragma optimize("",off)
 void ex_handle_test() {
-	FuncEnviropment::AddNative(__ex_handle_test, "__ex_handle_test", false);
+	FuncEnvironment::AddNative(__ex_handle_test, "__ex_handle_test", false);
 	
 	{
 		FuncEviroBuilder build;
@@ -232,7 +232,7 @@ void ex_handle_test() {
 			ValueItem msq("Passed ex_handle_test 0");
 			console::printLine(&msq, 1);
 		}
-		FuncEnviropment::ForceUnload("ex_handle_test");
+		FuncEnvironment::ForceUnload("ex_handle_test");
 	}
 }
 #pragma optimize("",on)
@@ -254,12 +254,12 @@ void interface_test() {
 typedef void (*functs)(...);
 
 void task_query_test(){
-	typed_lgr<FuncEnviropment> env = FuncEnviropment::enviropment("sleep_test");
+	typed_lgr<FuncEnvironment> env = FuncEnvironment::enviropment("sleep_test");
 	TaskQuery query(300);
 	ValueItem noting;
 	//for (size_t i = 0; i < 10000; i++) {
-	//	query.add_task(FuncEnviropment::enviropment("start"), noting);
-	//	query.add_task(FuncEnviropment::enviropment("1"), noting);
+	//	query.add_task(FuncEnvironment::enviropment("start"), noting);
+	//	query.add_task(FuncEnvironment::enviropment("1"), noting);
 	//	query.add_task(env, noting);
 	//}
 	query.enable();
@@ -280,9 +280,9 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 
 
 	ValueItem noting;
-	//Task::start(new Task(new FuncEnviropment(paralelize_test_0, true), noting));
-	//Task::start(new Task(new FuncEnviropment(paralelize_test_1, true), noting));
-	//Task::start(new Task(new FuncEnviropment(timeout_test, true), noting,false,nullptr, std::chrono::high_resolution_clock::now() + std::chrono::seconds(30)));
+	//Task::start(new Task(new FuncEnvironment(paralelize_test_0, true), noting));
+	//Task::start(new Task(new FuncEnvironment(paralelize_test_1, true), noting));
+	//Task::start(new Task(new FuncEnvironment(timeout_test, true), noting,false,nullptr, std::chrono::high_resolution_clock::now() + std::chrono::seconds(30)));
 	//Task::await_end_tasks(true);
 	//Task::sleep(1000);
 
@@ -340,11 +340,11 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 		build.call_and_ret("Yay");
 		build.loadFunc("Yay");
 	}
-	typed_lgr<FuncEnviropment> env = FuncEnviropment::enviropment("sleep_test");
-	////Task::start(new Task(FuncEnviropment::enviropment("4"), nullptr));
-	//Task::start(new Task(FuncEnviropment::enviropment("3"), nullptr));
-	//Task::start(new Task(FuncEnviropment::enviropment("2"), nullptr));
-	//Task::start(new Task(FuncEnviropment::enviropment("1"), nullptr));
+	typed_lgr<FuncEnvironment> env = FuncEnvironment::enviropment("sleep_test");
+	////Task::start(new Task(FuncEnvironment::enviropment("4"), nullptr));
+	//Task::start(new Task(FuncEnvironment::enviropment("3"), nullptr));
+	//Task::start(new Task(FuncEnvironment::enviropment("2"), nullptr));
+	//Task::start(new Task(FuncEnvironment::enviropment("1"), nullptr));
 	
 	Task::await_end_tasks(true);
 	try {
@@ -371,8 +371,8 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	list_array<typed_lgr<Task>> tasks;
 
 	//for (size_t i = 0; i < 10000; i++) {
-	//	tasks.push_back(new Task(FuncEnviropment::enviropment("start"), noting));
-	//	tasks.push_back(new Task(FuncEnviropment::enviropment("1"), noting));
+	//	tasks.push_back(new Task(FuncEnvironment::enviropment("start"), noting));
+	//	tasks.push_back(new Task(FuncEnvironment::enviropment("1"), noting));
 	//	tasks.push_back(new Task(env, noting));
 	//}
 	//
@@ -434,26 +434,26 @@ int qmain(){
 	//std::cout << light_stack::shrink_current(0) << " " << light_stack::free_size() << " " << light_stack::allocated_size() << " " << light_stack::unused_size() << " " << light_stack::used_size() << std::endl;
 	//light_stack::dump_current_out();
 	initStandardLib();
-	FuncEnviropment::AddNative(TestCall, "test", false);
-	FuncEnviropment::AddNative(ThrowCall, "throwcall", false);
-	FuncEnviropment::AddNative(SOVER, "stack_owerflower", false);
+	FuncEnvironment::AddNative(TestCall, "test", false);
+	FuncEnvironment::AddNative(ThrowCall, "throwcall", false);
+	FuncEnvironment::AddNative(SOVER, "stack_owerflower", false);
 
 
-	FuncEnviropment::AddNative(gvfdasf, "1", false);
-	FuncEnviropment::AddNative(sdagfsgsfdg, "2", false);
-	FuncEnviropment::AddNative(fvbzxcbxcv, "3", false);
-	FuncEnviropment::AddNative(a3tgr4at, "4", false);
-	FuncEnviropment::AddNative(cout_test, "cout_test", false);
-	FuncEnviropment::AddNative(sleep_test, "sleep_test", false);
+	FuncEnvironment::AddNative(gvfdasf, "1", false);
+	FuncEnvironment::AddNative(sdagfsgsfdg, "2", false);
+	FuncEnvironment::AddNative(fvbzxcbxcv, "3", false);
+	FuncEnvironment::AddNative(a3tgr4at, "4", false);
+	FuncEnvironment::AddNative(cout_test, "cout_test", false);
+	FuncEnvironment::AddNative(sleep_test, "sleep_test", false);
 	enable_thread_naming = true;
 	Task::max_running_tasks = 200000;
 	Task::max_planned_tasks = 0;
 
-	Task::create_executor(5);
+	//Task::create_executor(5);
 
 	ValueItem noting;
-	typed_lgr<FuncEnviropment> main_env = new FuncEnviropment(attacha_main, false, false);
-	typed_lgr<FuncEnviropment> empty_env = new FuncEnviropment(empty_fun, false, false);
+	typed_lgr<FuncEnvironment> main_env = new FuncEnvironment(attacha_main, false, false);
+	typed_lgr<FuncEnvironment> empty_env = new FuncEnvironment(empty_fun, false, false);
 
 
 	//typed_lgr<Task> empty_task = new Task(empty_env, noting);
@@ -461,12 +461,13 @@ int qmain(){
 	//Task::await_end_tasks(false);
 
 	//attacha_main(nullptr, 0);
-
+	
 	typed_lgr<Task> main_task = new Task(main_env, noting);
+	main_task->bind_to_worker_id = Task::create_bind_only_executor(0, true);
 	Task::start(main_task);
-	//light_stack::set_buffer(1000);
-	Task::await_end_tasks(false);
+	_Task_unsafe::become_executor_count_manager(true);
 	ValueItem* res = Task::get_result(main_task);
+	Task::clean_up();
 	if (res != nullptr)
 		{
 			int int_res = (int)*res;
@@ -596,10 +597,10 @@ const char _ERROR[] = "ERROR";
 const char _WARN[] = "WARN";
 const char _INFO[] = "INFO";
 int main(){
-	unhandled_exception.join(new FuncEnviropment(logger<_FATAL>, false, false));
-	errors.join(new FuncEnviropment(logger<_ERROR>, false, false));
-	warning.join(new FuncEnviropment(logger<_WARN>, false, false));
-	info.join(new FuncEnviropment(logger<_INFO>, false, false));
+	unhandled_exception.join(new FuncEnvironment(logger<_FATAL>, false, false));
+	errors.join(new FuncEnvironment(logger<_ERROR>, false, false));
+	warning.join(new FuncEnvironment(logger<_WARN>, false, false));
+	info.join(new FuncEnvironment(logger<_INFO>, false, false));
 
 	Task::create_executor(1);
 	init_networking();
@@ -609,10 +610,12 @@ int main(){
 
 	ValueItem arg("0.0.0.0:1234");
 	ValueItem arg2("0.0.0.0:1235");
-	TcpNetworkServer server(new FuncEnviropment(test_slow_server_http, false, false), arg, TcpNetworkServer::ManageType::write_delayed,20);
-	TcpNetworkServer server2(new FuncEnviropment(test_fast_server_http, false, false), arg2, TcpNetworkServer::ManageType::write_delayed,20);
+	TcpNetworkServer server(new FuncEnvironment(test_slow_server_http, false, false), arg, TcpNetworkServer::ManageType::write_delayed,20);
+	TcpNetworkServer server2(new FuncEnvironment(test_fast_server_http, false, false), arg2, TcpNetworkServer::ManageType::write_delayed,20);
+	
 	server.start();
 	server2.start();
+	_Task_unsafe::become_executor_count_manager(false);
 	server._await();
 	server2._await();
 	return 0;
@@ -651,7 +654,7 @@ ValueItem* table_jump(int8_t default_c){
 	builder.bind_pos();//5
 	builder.set_constant(0, ValueItem(30));
 	builder.ret(0);
-	return FuncEnviropment::sync_call(builder.prepareFunc(), nullptr, 0);
+	return FuncEnvironment::sync_call(builder.prepareFunc(), nullptr, 0);
 }
 int amain(){
 	ValueItem* res = table_jump(33);
@@ -722,10 +725,10 @@ int xmain(){
 	//methods.push_back(MethodInfo("print", _test_print,ClassAccess::pub,{},{},{}, "String"));
 	//methods.push_back(MethodInfo("set_string", _test_set_string, ClassAccess::pub, { }, {}, {}, "String"));
 	//auto table = Structure::createAAVTable(methods, 
-	//	new FuncEnviropment(_test_destructor,false),
-	//	new FuncEnviropment(_test_copy,false),
-	//	new FuncEnviropment(_test_move,false),
-	//	new FuncEnviropment(_test_compare,false),
+	//	new FuncEnvironment(_test_destructor,false),
+	//	new FuncEnvironment(_test_copy,false),
+	//	new FuncEnvironment(_test_move,false),
+	//	new FuncEnvironment(_test_compare,false),
 	//	{}
 	//);
 	auto table = AttachA::Interface::createDTable<std::string>(".",

@@ -874,205 +874,205 @@ ValueItem* math_pow(ValueItem* args, uint32_t args_len) {
 
 extern "C" void initStandardLib_bytes(){
 	INIT_CHECK
-	FuncEnviropment::AddNative(bytes::to_bytes, "bytes to_bytes", false);
-	FuncEnviropment::AddNative(bytes::from_bytes, "bytes from_bytes", false);
-	FuncEnviropment::AddNative(bytes::convert_endian, "bytes convert_endian", false);
-	FuncEnviropment::AddNative(bytes::current_endian, "bytes current_endian", false);
-	FuncEnviropment::AddNative(bytes::swap_bytes, "bytes swap_bytes", false);
+	FuncEnvironment::AddNative(bytes::to_bytes, "bytes to_bytes", false);
+	FuncEnvironment::AddNative(bytes::from_bytes, "bytes from_bytes", false);
+	FuncEnvironment::AddNative(bytes::convert_endian, "bytes convert_endian", false);
+	FuncEnvironment::AddNative(bytes::current_endian, "bytes current_endian", false);
+	FuncEnvironment::AddNative(bytes::swap_bytes, "bytes swap_bytes", false);
 }
 extern "C" void initStandardLib_console(){
 	INIT_CHECK
-	FuncEnviropment::AddNative(console::printLine, "console print_line", false);
-	FuncEnviropment::AddNative(console::print, "console print", false);
+	FuncEnvironment::AddNative(console::printLine, "console print_line", false);
+	FuncEnvironment::AddNative(console::print, "console print", false);
 	{
 		DynamicCall::FunctionTemplate templ;
 		templ.is_variadic = true;
 		templ.arguments.push_back(DynamicCall::FunctionTemplate::ValueT::getFromType<const char*>());
-		FuncEnviropment::AddNative((DynamicCall::PROC)printf, templ, "console printf", false);
+		FuncEnvironment::AddNative((DynamicCall::PROC)printf, templ, "console printf", false);
 	}
-	FuncEnviropment::AddNative(console::resetModifiers, "console reset_modifiers", false);
-	FuncEnviropment::AddNative(console::boldText, "console bold_text", false);
-	FuncEnviropment::AddNative(console::italicText, "console italic_text", false);
-	FuncEnviropment::AddNative(console::underlineText, "console underline_text", false);
-	FuncEnviropment::AddNative(console::slowBlink, "console slow_blink", false);
-	FuncEnviropment::AddNative(console::rapidBlink, "console rapid_blink", false);
-	FuncEnviropment::AddNative(console::invertColors, "console invert_colors", false);
-	FuncEnviropment::AddNative(console::notBoldText, "console not_bold_text", false);
-	FuncEnviropment::AddNative(console::notUnderlinedText, "console not_underlined_text", false);
-	FuncEnviropment::AddNative(console::hideBlinkText, "console hide_blink_text", false);
+	FuncEnvironment::AddNative(console::resetModifiers, "console reset_modifiers", false);
+	FuncEnvironment::AddNative(console::boldText, "console bold_text", false);
+	FuncEnvironment::AddNative(console::italicText, "console italic_text", false);
+	FuncEnvironment::AddNative(console::underlineText, "console underline_text", false);
+	FuncEnvironment::AddNative(console::slowBlink, "console slow_blink", false);
+	FuncEnvironment::AddNative(console::rapidBlink, "console rapid_blink", false);
+	FuncEnvironment::AddNative(console::invertColors, "console invert_colors", false);
+	FuncEnvironment::AddNative(console::notBoldText, "console not_bold_text", false);
+	FuncEnvironment::AddNative(console::notUnderlinedText, "console not_underlined_text", false);
+	FuncEnvironment::AddNative(console::hideBlinkText, "console hide_blink_text", false);
 
-	FuncEnviropment::AddNative(console::resetTextColor, "console reset_text_color", false);
-	FuncEnviropment::AddNative(console::resetBgColor, "console reset_bg_color", false);
-	FuncEnviropment::AddNative(console::setTextColor, "console set_text_color", false);
-	FuncEnviropment::AddNative(console::setBgColor, "console set_bg_color", false);
-	FuncEnviropment::AddNative(console::setPos, "console set_pos", false);
-	FuncEnviropment::AddNative(console::saveCurPos, "console save_cur_pos", false);
-	FuncEnviropment::AddNative(console::loadCurPos, "console load_cur_pos", false);
-	FuncEnviropment::AddNative(console::setLine, "console set_line", false);
-	FuncEnviropment::AddNative(console::showCursor, "console show_cursor", false);
-	FuncEnviropment::AddNative(console::hideCursor, "console hide_cursor", false);
+	FuncEnvironment::AddNative(console::resetTextColor, "console reset_text_color", false);
+	FuncEnvironment::AddNative(console::resetBgColor, "console reset_bg_color", false);
+	FuncEnvironment::AddNative(console::setTextColor, "console set_text_color", false);
+	FuncEnvironment::AddNative(console::setBgColor, "console set_bg_color", false);
+	FuncEnvironment::AddNative(console::setPos, "console set_pos", false);
+	FuncEnvironment::AddNative(console::saveCurPos, "console save_cur_pos", false);
+	FuncEnvironment::AddNative(console::loadCurPos, "console load_cur_pos", false);
+	FuncEnvironment::AddNative(console::setLine, "console set_line", false);
+	FuncEnvironment::AddNative(console::showCursor, "console show_cursor", false);
+	FuncEnvironment::AddNative(console::hideCursor, "console hide_cursor", false);
 
-	FuncEnviropment::AddNative(console::readWord, "console read_word", false);
-	FuncEnviropment::AddNative(console::readLine, "console read_line", false);
-	FuncEnviropment::AddNative(console::readInput, "console read_input", false);
-	FuncEnviropment::AddNative(console::readValue, "console read_value", false);
-	FuncEnviropment::AddNative(console::readInt, "console read_int", false);
+	FuncEnvironment::AddNative(console::readWord, "console read_word", false);
+	FuncEnvironment::AddNative(console::readLine, "console read_line", false);
+	FuncEnvironment::AddNative(console::readInput, "console read_input", false);
+	FuncEnvironment::AddNative(console::readValue, "console read_value", false);
+	FuncEnvironment::AddNative(console::readInt, "console read_int", false);
 }
 extern "C" void initStandardLib_math(){
 	INIT_CHECK
-	FuncEnviropment::AddNative(math_abs, "math abs", false);
+	FuncEnvironment::AddNative(math_abs, "math abs", false);
 
-	FuncEnviropment::AddNative(math_min, "math min", false);
-	FuncEnviropment::AddNative(math_max, "math max", false);
-	FuncEnviropment::AddNative(math_median, "math median", false);
-	FuncEnviropment::AddNative(math_range, "math range", false);
-	FuncEnviropment::AddNative(math_mode, "math mode", false);
+	FuncEnvironment::AddNative(math_min, "math min", false);
+	FuncEnvironment::AddNative(math_max, "math max", false);
+	FuncEnvironment::AddNative(math_median, "math median", false);
+	FuncEnvironment::AddNative(math_range, "math range", false);
+	FuncEnvironment::AddNative(math_mode, "math mode", false);
 
-	FuncEnviropment::AddNative(math_transform_fn<(float(*)(float))round, (double(*)(double))round>, "math round", false);
-	FuncEnviropment::AddNative(math_transform_fn<(float(*)(float))floor, (double(*)(double))floor>, "math floor", false);
-	FuncEnviropment::AddNative(math_transform_fn<(float(*)(float))ceil, (double(*)(double))ceil>, "math ceil", false);
-	FuncEnviropment::AddNative(math_transform_fn<(float(*)(float))trunc, (double(*)(double))trunc>, "math fix", false);
+	FuncEnvironment::AddNative(math_transform_fn<(float(*)(float))round, (double(*)(double))round>, "math round", false);
+	FuncEnvironment::AddNative(math_transform_fn<(float(*)(float))floor, (double(*)(double))floor>, "math floor", false);
+	FuncEnvironment::AddNative(math_transform_fn<(float(*)(float))ceil, (double(*)(double))ceil>, "math ceil", false);
+	FuncEnvironment::AddNative(math_transform_fn<(float(*)(float))trunc, (double(*)(double))trunc>, "math fix", false);
 	
-	FuncEnviropment::AddNative(math_factorial, "math factorial", false);
-	FuncEnviropment::AddNative(math_thrigonomic<sin>, "math sin", false);
-	FuncEnviropment::AddNative(math_thrigonomic<asin>, "math asin", false);
-	FuncEnviropment::AddNative(math_thrigonomic<cos>, "math cos", false);
-	FuncEnviropment::AddNative(math_thrigonomic<acos>, "math acos", false);
-	FuncEnviropment::AddNative(math_thrigonomic<tan>, "math tan", false);
-	FuncEnviropment::AddNative(math_thrigonomic<atan>, "math atan", false);
-	FuncEnviropment::AddNative(math_thrigonomic<csc>, "math csc", false);
-	FuncEnviropment::AddNative(math_thrigonomic<acsc>, "math acsc", false);
-	FuncEnviropment::AddNative(math_thrigonomic<sec>, "math sec", false);
-	FuncEnviropment::AddNative(math_thrigonomic<asec>, "math asec", false);
-	FuncEnviropment::AddNative(math_thrigonomic<cot>, "math cot", false);
-	FuncEnviropment::AddNative(math_thrigonomic<acot>, "math acot", false);
-	FuncEnviropment::AddNative(math_thrigonomic<sinh>, "math sinh", false);
-	FuncEnviropment::AddNative(math_thrigonomic<asinh>, "math asinh", false);
-	FuncEnviropment::AddNative(math_thrigonomic<cosh>, "math cosh", false);
-	FuncEnviropment::AddNative(math_thrigonomic<acosh>, "math acosh", false);
-	FuncEnviropment::AddNative(math_thrigonomic<tanh>, "math tanh", false);
-	FuncEnviropment::AddNative(math_thrigonomic<atanh>, "math atanh", false);
-	FuncEnviropment::AddNative(math_thrigonomic<csch>, "math csch", false);
-	FuncEnviropment::AddNative(math_thrigonomic<acsch>, "math acsch", false);
-	FuncEnviropment::AddNative(math_thrigonomic<sech>, "math sech", false);
-	FuncEnviropment::AddNative(math_thrigonomic<asech>, "math asech", false);
-	FuncEnviropment::AddNative(math_thrigonomic<coth>, "math coth", false);
-	FuncEnviropment::AddNative(math_thrigonomic<acoth>, "math acoth", false);
+	FuncEnvironment::AddNative(math_factorial, "math factorial", false);
+	FuncEnvironment::AddNative(math_thrigonomic<sin>, "math sin", false);
+	FuncEnvironment::AddNative(math_thrigonomic<asin>, "math asin", false);
+	FuncEnvironment::AddNative(math_thrigonomic<cos>, "math cos", false);
+	FuncEnvironment::AddNative(math_thrigonomic<acos>, "math acos", false);
+	FuncEnvironment::AddNative(math_thrigonomic<tan>, "math tan", false);
+	FuncEnvironment::AddNative(math_thrigonomic<atan>, "math atan", false);
+	FuncEnvironment::AddNative(math_thrigonomic<csc>, "math csc", false);
+	FuncEnvironment::AddNative(math_thrigonomic<acsc>, "math acsc", false);
+	FuncEnvironment::AddNative(math_thrigonomic<sec>, "math sec", false);
+	FuncEnvironment::AddNative(math_thrigonomic<asec>, "math asec", false);
+	FuncEnvironment::AddNative(math_thrigonomic<cot>, "math cot", false);
+	FuncEnvironment::AddNative(math_thrigonomic<acot>, "math acot", false);
+	FuncEnvironment::AddNative(math_thrigonomic<sinh>, "math sinh", false);
+	FuncEnvironment::AddNative(math_thrigonomic<asinh>, "math asinh", false);
+	FuncEnvironment::AddNative(math_thrigonomic<cosh>, "math cosh", false);
+	FuncEnvironment::AddNative(math_thrigonomic<acosh>, "math acosh", false);
+	FuncEnvironment::AddNative(math_thrigonomic<tanh>, "math tanh", false);
+	FuncEnvironment::AddNative(math_thrigonomic<atanh>, "math atanh", false);
+	FuncEnvironment::AddNative(math_thrigonomic<csch>, "math csch", false);
+	FuncEnvironment::AddNative(math_thrigonomic<acsch>, "math acsch", false);
+	FuncEnvironment::AddNative(math_thrigonomic<sech>, "math sech", false);
+	FuncEnvironment::AddNative(math_thrigonomic<asech>, "math asech", false);
+	FuncEnvironment::AddNative(math_thrigonomic<coth>, "math coth", false);
+	FuncEnvironment::AddNative(math_thrigonomic<acoth>, "math acoth", false);
 
-	FuncEnviropment::AddNative(math_thrigonomic<sqrt>, "math sqrt", false);
-	FuncEnviropment::AddNative(math_thrigonomic<cbrt>, "math cbrt", false);
-	FuncEnviropment::AddNative(math_pow, "math pow", false);
-	FuncEnviropment::AddNative(math_thrigonomic<log>, "math log", false);
-	FuncEnviropment::AddNative(math_thrigonomic<log2>, "math log2", false);
-	FuncEnviropment::AddNative(math_thrigonomic<log10>, "math log10", false);
+	FuncEnvironment::AddNative(math_thrigonomic<sqrt>, "math sqrt", false);
+	FuncEnvironment::AddNative(math_thrigonomic<cbrt>, "math cbrt", false);
+	FuncEnvironment::AddNative(math_pow, "math pow", false);
+	FuncEnvironment::AddNative(math_thrigonomic<log>, "math log", false);
+	FuncEnvironment::AddNative(math_thrigonomic<log2>, "math log2", false);
+	FuncEnvironment::AddNative(math_thrigonomic<log10>, "math log10", false);
 }
 extern "C" void initStandardLib_file(){
 	INIT_CHECK
 	file::init();
-	FuncEnviropment::AddNative(file::constructor::createProxy_FileHandle, "# file file_handle", false);
-	FuncEnviropment::AddNative(file::constructor::createProxy_BlockingFileHandle, "# file blocking_file_handle", false);
-	FuncEnviropment::AddNative(file::constructor::createProxy_TextFile, "# file text_file", false);
-	FuncEnviropment::AddNative(file::remove, "file remove", false);
+	FuncEnvironment::AddNative(file::constructor::createProxy_FileHandle, "# file file_handle", false);
+	FuncEnvironment::AddNative(file::constructor::createProxy_BlockingFileHandle, "# file blocking_file_handle", false);
+	FuncEnvironment::AddNative(file::constructor::createProxy_TextFile, "# file text_file", false);
+	FuncEnvironment::AddNative(file::remove, "file remove", false);
 }
 extern "C" void initStandardLib_paralel(){
 	INIT_CHECK
 	parallel::init();
-	FuncEnviropment::AddNative(parallel::constructor::createProxy_Mutex, "# parallel mutex", false);
-	FuncEnviropment::AddNative(parallel::constructor::createProxy_RecursiveMutex, "# parallel recursive_mutex", false);
-	FuncEnviropment::AddNative(parallel::constructor::createProxy_ConditionVariable, "# parallel condition_variable", false);
-	FuncEnviropment::AddNative(parallel::constructor::createProxy_Semaphore, "# parallel semaphore", false);
-	FuncEnviropment::AddNative(parallel::constructor::createProxy_EventSystem, "# parallel event_system", false);
-	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskLimiter, "# parallel task_limiter", false);
-	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskQuery, "# parallel task_query", false);
-	FuncEnviropment::AddNative(parallel::constructor::construct_Task, "# parallel task", false);
-	FuncEnviropment::AddNative(parallel::constructor::createProxy_TaskGroup, "# parallel task_group", false);
-	FuncEnviropment::AddNative(parallel::createThread, "parallel create_thread", false);
-	FuncEnviropment::AddNative(parallel::createThreadAndWait, "parallel create_thread_and_wait", false);
-	FuncEnviropment::AddNative(parallel::createAsyncThread, "parallel create_async_thread", false);
-	FuncEnviropment::AddNative(parallel::createTask, "parallel create_task", false);
-	FuncEnviropment::AddNative(parallel::task_runtime::await_end_tasks, "parallel task_runtime await_end_tasks", false);
-	FuncEnviropment::AddNative(parallel::task_runtime::await_no_tasks, "parallel task_runtime await_no_tasks", false);
-	FuncEnviropment::AddNative(parallel::task_runtime::become_task_executor, "parallel task_runtime become_task_executor", false);
-	FuncEnviropment::AddNative(parallel::task_runtime::clean_up, "parallel task_runtime clean_up", false);
-	FuncEnviropment::AddNative(parallel::task_runtime::create_executor, "parallel task_runtime create_executor", false);
-	FuncEnviropment::AddNative(parallel::task_runtime::explicitStartTimer, "parallel task_runtime explicitStartTimer", false);
-	FuncEnviropment::AddNative(parallel::task_runtime::reduce_executor, "parallel task_runtime reduce_executor", false);
-	FuncEnviropment::AddNative(parallel::task_runtime::total_executors, "parallel task_runtime total_executors", false);
-	FuncEnviropment::AddNative(parallel::this_task::check_cancelation, "parallel this_task check_cancelation", false);
-	FuncEnviropment::AddNative(parallel::this_task::is_task, "parallel this_task is_task", false);
-	FuncEnviropment::AddNative(parallel::this_task::self_cancel, "parallel this_task self_cancel", false);
-	FuncEnviropment::AddNative(parallel::this_task::sleep, "parallel this_task sleep", false);
-	FuncEnviropment::AddNative(parallel::this_task::sleep_until, "parallel this_task sleep_until", false);
-	FuncEnviropment::AddNative(parallel::this_task::task_id, "parallel this_task task_id", false);
-	FuncEnviropment::AddNative(parallel::this_task::yield, "parallel this_task yield", false);
-	FuncEnviropment::AddNative(parallel::this_task::yield_result, "parallel this_task yield_result", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_Any, "# parallel atomic any", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_Bool, "# parallel atomic boolean", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_I8, "# parallel atomic i8", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_I16, "# parallel atomic i16", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_I32, "# parallel atomic i32", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_I64, "# parallel atomic i64", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_UI8, "# parallel atomic ui8", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_UI16, "# parallel atomic ui16", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_UI32, "# parallel atomic ui32", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_UI64, "# parallel atomic ui64", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_Float, "# parallel atomic float", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_Double, "# parallel atomic double", false);
-	FuncEnviropment::AddNative(parallel::atomic::constructor::createProxy_UndefinedPtr, "# parallel atomic undefined_ptr", false);
+	FuncEnvironment::AddNative(parallel::constructor::createProxy_Mutex, "# parallel mutex", false);
+	FuncEnvironment::AddNative(parallel::constructor::createProxy_RecursiveMutex, "# parallel recursive_mutex", false);
+	FuncEnvironment::AddNative(parallel::constructor::createProxy_ConditionVariable, "# parallel condition_variable", false);
+	FuncEnvironment::AddNative(parallel::constructor::createProxy_Semaphore, "# parallel semaphore", false);
+	FuncEnvironment::AddNative(parallel::constructor::createProxy_EventSystem, "# parallel event_system", false);
+	FuncEnvironment::AddNative(parallel::constructor::createProxy_TaskLimiter, "# parallel task_limiter", false);
+	FuncEnvironment::AddNative(parallel::constructor::createProxy_TaskQuery, "# parallel task_query", false);
+	FuncEnvironment::AddNative(parallel::constructor::construct_Task, "# parallel task", false);
+	FuncEnvironment::AddNative(parallel::constructor::createProxy_TaskGroup, "# parallel task_group", false);
+	FuncEnvironment::AddNative(parallel::createThread, "parallel create_thread", false);
+	FuncEnvironment::AddNative(parallel::createThreadAndWait, "parallel create_thread_and_wait", false);
+	FuncEnvironment::AddNative(parallel::createAsyncThread, "parallel create_async_thread", false);
+	FuncEnvironment::AddNative(parallel::createTask, "parallel create_task", false);
+	FuncEnvironment::AddNative(parallel::task_runtime::await_end_tasks, "parallel task_runtime await_end_tasks", false);
+	FuncEnvironment::AddNative(parallel::task_runtime::await_no_tasks, "parallel task_runtime await_no_tasks", false);
+	FuncEnvironment::AddNative(parallel::task_runtime::become_task_executor, "parallel task_runtime become_task_executor", false);
+	FuncEnvironment::AddNative(parallel::task_runtime::clean_up, "parallel task_runtime clean_up", false);
+	FuncEnvironment::AddNative(parallel::task_runtime::create_executor, "parallel task_runtime create_executor", false);
+	FuncEnvironment::AddNative(parallel::task_runtime::explicitStartTimer, "parallel task_runtime explicitStartTimer", false);
+	FuncEnvironment::AddNative(parallel::task_runtime::reduce_executor, "parallel task_runtime reduce_executor", false);
+	FuncEnvironment::AddNative(parallel::task_runtime::total_executors, "parallel task_runtime total_executors", false);
+	FuncEnvironment::AddNative(parallel::this_task::check_cancelation, "parallel this_task check_cancelation", false);
+	FuncEnvironment::AddNative(parallel::this_task::is_task, "parallel this_task is_task", false);
+	FuncEnvironment::AddNative(parallel::this_task::self_cancel, "parallel this_task self_cancel", false);
+	FuncEnvironment::AddNative(parallel::this_task::sleep, "parallel this_task sleep", false);
+	FuncEnvironment::AddNative(parallel::this_task::sleep_until, "parallel this_task sleep_until", false);
+	FuncEnvironment::AddNative(parallel::this_task::task_id, "parallel this_task task_id", false);
+	FuncEnvironment::AddNative(parallel::this_task::yield, "parallel this_task yield", false);
+	FuncEnvironment::AddNative(parallel::this_task::yield_result, "parallel this_task yield_result", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_Any, "# parallel atomic any", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_Bool, "# parallel atomic boolean", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_I8, "# parallel atomic i8", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_I16, "# parallel atomic i16", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_I32, "# parallel atomic i32", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_I64, "# parallel atomic i64", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_UI8, "# parallel atomic ui8", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_UI16, "# parallel atomic ui16", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_UI32, "# parallel atomic ui32", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_UI64, "# parallel atomic ui64", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_Float, "# parallel atomic float", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_Double, "# parallel atomic double", false);
+	FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_UndefinedPtr, "# parallel atomic undefined_ptr", false);
 }
 extern "C" void initStandardLib_chanel(){
 	INIT_CHECK
-	FuncEnviropment::AddNative(chanel::constructor::createProxy_Chanel, "# chanel chanel", false);
-	FuncEnviropment::AddNative(chanel::constructor::createProxy_ChanelHandler, "# chanel chanel_handler", false);
+	FuncEnvironment::AddNative(chanel::constructor::createProxy_Chanel, "# chanel chanel", false);
+	FuncEnvironment::AddNative(chanel::constructor::createProxy_ChanelHandler, "# chanel chanel_handler", false);
 }
 extern "C" void initStandardLib_internal_memory(){
 	INIT_CHECK
-	FuncEnviropment::AddNative(internal::memory::dump, "internal memory dump", false);
+	FuncEnvironment::AddNative(internal::memory::dump, "internal memory dump", false);
 
 }
 extern "C" void initStandardLib_internal_run_time(){
 	INIT_CHECK
-	FuncEnviropment::AddNative(internal::run_time::gc_hinit_collect, "internal run_time gc_hinit_collect", false);
-	FuncEnviropment::AddNative(internal::run_time::gc_pause, "internal run_time gc_pause", false);
-	FuncEnviropment::AddNative(internal::run_time::gc_resume, "internal run_time gc_resume", false);
+	FuncEnvironment::AddNative(internal::run_time::gc_hinit_collect, "internal run_time gc_hinit_collect", false);
+	FuncEnvironment::AddNative(internal::run_time::gc_pause, "internal run_time gc_pause", false);
+	FuncEnvironment::AddNative(internal::run_time::gc_resume, "internal run_time gc_resume", false);
 }
 extern "C" void initStandardLib_internal_run_time_native(){
 	INIT_CHECK
 	internal::init();
-	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeLib, "# internal run_time native native_lib", false);
-	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeValue, "# internal run_time native native_value", false);
-	FuncEnviropment::AddNative(internal::run_time::native::construct::createProxy_NativeTemplate, "# internal run_time native native_template", false);
+	FuncEnvironment::AddNative(internal::run_time::native::construct::createProxy_NativeLib, "# internal run_time native native_lib", false);
+	FuncEnvironment::AddNative(internal::run_time::native::construct::createProxy_NativeValue, "# internal run_time native native_value", false);
+	FuncEnvironment::AddNative(internal::run_time::native::construct::createProxy_NativeTemplate, "# internal run_time native native_template", false);
 
 }
 extern "C" void initStandardLib_internal_stack(){
 	INIT_CHECK
-	FuncEnviropment::AddNative(internal::stack::dump, "internal stack dump", false);
+	FuncEnvironment::AddNative(internal::stack::dump, "internal stack dump", false);
 
-	FuncEnviropment::AddNative(internal::stack::bs_supported, "internal stack bs_supported", false);
-	FuncEnviropment::AddNative(internal::stack::allocated_size, "internal stack allocated_size", false);
-	FuncEnviropment::AddNative(internal::stack::free_size, "internal stack free_size", false);
-	FuncEnviropment::AddNative(internal::stack::prepare, "internal stack prepare", false);
-	FuncEnviropment::AddNative(internal::stack::reserve, "internal stack reserve", false);
-	FuncEnviropment::AddNative(internal::stack::shrink, "internal stack shrink", false);
-	FuncEnviropment::AddNative(internal::stack::unused_size, "internal stack unused_size", false);
-	FuncEnviropment::AddNative(internal::stack::used_size, "internal stack used_size", false);
+	FuncEnvironment::AddNative(internal::stack::bs_supported, "internal stack bs_supported", false);
+	FuncEnvironment::AddNative(internal::stack::allocated_size, "internal stack allocated_size", false);
+	FuncEnvironment::AddNative(internal::stack::free_size, "internal stack free_size", false);
+	FuncEnvironment::AddNative(internal::stack::prepare, "internal stack prepare", false);
+	FuncEnvironment::AddNative(internal::stack::reserve, "internal stack reserve", false);
+	FuncEnvironment::AddNative(internal::stack::shrink, "internal stack shrink", false);
+	FuncEnvironment::AddNative(internal::stack::unused_size, "internal stack unused_size", false);
+	FuncEnvironment::AddNative(internal::stack::used_size, "internal stack used_size", false);
 
-	FuncEnviropment::AddNative(internal::stack::trace, "internal stack trace", false);
-	FuncEnviropment::AddNative(internal::stack::trace_frames, "internal stack trace_frames", false);
-	FuncEnviropment::AddNative(internal::stack::resolve_frame, "internal stack resolve_frame", false);
+	FuncEnvironment::AddNative(internal::stack::trace, "internal stack trace", false);
+	FuncEnvironment::AddNative(internal::stack::trace_frames, "internal stack trace_frames", false);
+	FuncEnvironment::AddNative(internal::stack::resolve_frame, "internal stack resolve_frame", false);
 }
 
 extern "C" void initStandardLib_net(){
 	INIT_CHECK
 	net::init();
-	FuncEnviropment::AddNative(net::constructor::createProxy_TcpServer, "# net tcp_server", false);
-	FuncEnviropment::AddNative(net::constructor::createProxy_Address, "# net ip#address", false);
-	FuncEnviropment::AddNative(net::constructor::createProxy_UdpSocket, "# net udp_socket", false);
-	FuncEnviropment::AddNative(net::constructor::createProxy_IP4, "# net ip#v4", false);
-	FuncEnviropment::AddNative(net::constructor::createProxy_IP6, "# net ip#v6", false);
-	FuncEnviropment::AddNative(net::constructor::createProxy_IP, "# net ip", false);
-	FuncEnviropment::AddNative(net::ipv6_supported, "net ipv6_supported", false);
-	FuncEnviropment::AddNative(net::tcp_client_connect, "net tcp_client_connect", false);
+	FuncEnvironment::AddNative(net::constructor::createProxy_TcpServer, "# net tcp_server", false);
+	FuncEnvironment::AddNative(net::constructor::createProxy_Address, "# net ip#address", false);
+	FuncEnvironment::AddNative(net::constructor::createProxy_UdpSocket, "# net udp_socket", false);
+	FuncEnvironment::AddNative(net::constructor::createProxy_IP4, "# net ip#v4", false);
+	FuncEnvironment::AddNative(net::constructor::createProxy_IP6, "# net ip#v6", false);
+	FuncEnvironment::AddNative(net::constructor::createProxy_IP, "# net ip", false);
+	FuncEnvironment::AddNative(net::ipv6_supported, "net ipv6_supported", false);
+	FuncEnvironment::AddNative(net::tcp_client_connect, "net tcp_client_connect", false);
 }
 namespace configuration{
 	ValueItem* modify_configuration(ValueItem* args, uint32_t len){
@@ -1104,8 +1104,8 @@ namespace configuration{
 }
 extern "C" void initStandardLib_configuration(){
 	INIT_CHECK
-	FuncEnviropment::AddNative(configuration::modify_configuration, "configuration modify", false);
-	FuncEnviropment::AddNative(configuration::get_configuration, "configuration get", false);
+	FuncEnvironment::AddNative(configuration::modify_configuration, "configuration modify", false);
+	FuncEnvironment::AddNative(configuration::get_configuration, "configuration get", false);
 }
 
 namespace debug{
@@ -1138,10 +1138,10 @@ namespace debug{
 }
 extern "C" void initStandardLib_debug(){
 	INIT_CHECK
-	FuncEnviropment::AddNative(debug::thread_id, "debug thread_id", false);
-	FuncEnviropment::AddNative(debug::set_thread_name, "debug set_thread_name", false);
-	FuncEnviropment::AddNative(debug::get_thread_name, "debug get_thread_name", false);
-	FuncEnviropment::AddNative(debug::invite, "debug invite", false);
+	FuncEnvironment::AddNative(debug::thread_id, "debug thread_id", false);
+	FuncEnvironment::AddNative(debug::set_thread_name, "debug set_thread_name", false);
+	FuncEnvironment::AddNative(debug::get_thread_name, "debug get_thread_name", false);
+	FuncEnvironment::AddNative(debug::invite, "debug invite", false);
 }
 
 ValueItem* start_debug(ValueItem*, uint32_t){
@@ -1150,7 +1150,7 @@ ValueItem* start_debug(ValueItem*, uint32_t){
 }
 extern "C" void initStandardLib_start_debug(){
 	INIT_CHECK
-	FuncEnviropment::AddNative(start_debug, "debug start", false);
+	FuncEnvironment::AddNative(start_debug, "debug start", false);
 }
 
 extern "C" void initStandardLib() {
@@ -1235,60 +1235,60 @@ ValueItem* cmath_nexttoward(ValueItem* args, uint32_t args_len) {
 	return new ValueItem(std::nexttoward(doub0, doub1));
 }
 extern "C" void initCMathLib() {
-	FuncEnviropment::AddNative((double(*)(double))std::acos, "cmath acos", false);
-	FuncEnviropment::AddNative((double(*)(double))std::acosh, "cmath acosh", false);
-	FuncEnviropment::AddNative((double(*)(double))std::asin, "cmath asin", false);
-	FuncEnviropment::AddNative((double(*)(double))std::asinh, "cmath asinh", false);
-	FuncEnviropment::AddNative((double(*)(double))std::atan, "cmath atan", false);
-	FuncEnviropment::AddNative((double(*)(double))std::atanh, "cmath atanh", false);
-	FuncEnviropment::AddNative((double(*)(double, double))std::atan2, "cmath atan2", false);
-	FuncEnviropment::AddNative((double(*)(double))std::cbrt, "cmath cbrt", false);
-	FuncEnviropment::AddNative((double(*)(double))std::ceil, "cmath ceil", false);
-	FuncEnviropment::AddNative((double(*)(double, double))std::copysign, "cmath copysign", false);
-	FuncEnviropment::AddNative((double(*)(double))std::cos, "cmath cos", false);
-	FuncEnviropment::AddNative((double(*)(double))std::cosh, "cmath cosh", false);
-	FuncEnviropment::AddNative((double(*)(double))std::erf, "cmath erf", false);
-	FuncEnviropment::AddNative((double(*)(double))std::erfc, "cmath erfc", false);
-	FuncEnviropment::AddNative((double(*)(double))std::exp, "cmath exp", false);
-	FuncEnviropment::AddNative((double(*)(double))std::exp2, "cmath exp2", false);
-	FuncEnviropment::AddNative((double(*)(double))std::expm1, "cmath expm1", false);
-	FuncEnviropment::AddNative((double(*)(double))std::fabs, "cmath fabs", false);
-	FuncEnviropment::AddNative((double(*)(double, double))std::fdim, "cmath fdim", false);
-	FuncEnviropment::AddNative((double(*)(double))std::floor, "cmath floor", false);
-	FuncEnviropment::AddNative((double(*)(double, double, double))std::fma, "cmath fma", false);
-	FuncEnviropment::AddNative((double(*)(double, double))std::fmax, "cmath fmax", false);
-	FuncEnviropment::AddNative((double(*)(double, double))std::fmin, "cmath fmin", false);
-	FuncEnviropment::AddNative((double(*)(double, double))std::fmod, "cmath fmod", false);
-	FuncEnviropment::AddNative(cmath_frexp, "cmath frexp", false);
-	FuncEnviropment::AddNative((double(*)(double, double))std::hypot, "cmath hypot", false);
-	FuncEnviropment::AddNative((int(*)(double))std::ilogb, "cmath ilogb", false);
-	FuncEnviropment::AddNative((double(*)(double, int))std::ldexp, "cmath ldexp", false);
-	FuncEnviropment::AddNative((double(*)(double))std::lgamma, "cmath lgamma", false);
-	FuncEnviropment::AddNative((long long(*)(double))std::llrint, "cmath llrint", false);
-	FuncEnviropment::AddNative((long long(*)(double))std::llround, "cmath llround", false);
-	FuncEnviropment::AddNative((double(*)(double))std::log, "cmath log", false);
-	FuncEnviropment::AddNative((double(*)(double))std::log10, "cmath log10", false);
-	FuncEnviropment::AddNative((double(*)(double))std::log1p, "cmath log1p", false);
-	FuncEnviropment::AddNative((double(*)(double))std::log2, "cmath log2", false);
-	FuncEnviropment::AddNative((double(*)(double))std::logb, "cmath logb", false);
-	FuncEnviropment::AddNative((long(*)(double))std::lrint, "cmath lrint", false);
-	FuncEnviropment::AddNative((long(*)(double))std::lround, "cmath lround", false);
-	FuncEnviropment::AddNative(cmath_modf, "cmath modf", false);
-	FuncEnviropment::AddNative((double(*)(double))std::nearbyint, "cmath nearbyint", false);
-	FuncEnviropment::AddNative((double(*)(double, double))std::nextafter, "cmath nextafter", false);
-	FuncEnviropment::AddNative(cmath_nexttoward, "cmath nexttoward", false);
-	FuncEnviropment::AddNative((double(*)(double, double))std::pow, "cmath pow", false);
-	FuncEnviropment::AddNative((double(*)(double, double))std::remainder, "cmath remainder", false);
-	FuncEnviropment::AddNative(cmath_remquo, "math remquo", false);
-	FuncEnviropment::AddNative((double(*)(double))std::round, "cmath round", false);
-	FuncEnviropment::AddNative((double(*)(double, long))std::scalbln, "cmath scalbln", false);
-	FuncEnviropment::AddNative((double(*)(double, int))std::scalbn, "cmath scalbn", false);
-	FuncEnviropment::AddNative((double(*)(double))std::sin, "cmath sin", false);
-	FuncEnviropment::AddNative((double(*)(double))std::sinh, "cmath sinh", false);
-	FuncEnviropment::AddNative((double(*)(double))std::sqrt, "cmath sqrt", false);
-	FuncEnviropment::AddNative((double(*)(double))std::tan, "cmath tan", false);
-	FuncEnviropment::AddNative((double(*)(double))std::tanh, "cmath tanh", false);
-	FuncEnviropment::AddNative((double(*)(double))std::tgamma, "cmath tgamma", false);
-	FuncEnviropment::AddNative((double(*)(double))std::trunc, "cmath trunc", false);
+	FuncEnvironment::AddNative((double(*)(double))std::acos, "cmath acos", false);
+	FuncEnvironment::AddNative((double(*)(double))std::acosh, "cmath acosh", false);
+	FuncEnvironment::AddNative((double(*)(double))std::asin, "cmath asin", false);
+	FuncEnvironment::AddNative((double(*)(double))std::asinh, "cmath asinh", false);
+	FuncEnvironment::AddNative((double(*)(double))std::atan, "cmath atan", false);
+	FuncEnvironment::AddNative((double(*)(double))std::atanh, "cmath atanh", false);
+	FuncEnvironment::AddNative((double(*)(double, double))std::atan2, "cmath atan2", false);
+	FuncEnvironment::AddNative((double(*)(double))std::cbrt, "cmath cbrt", false);
+	FuncEnvironment::AddNative((double(*)(double))std::ceil, "cmath ceil", false);
+	FuncEnvironment::AddNative((double(*)(double, double))std::copysign, "cmath copysign", false);
+	FuncEnvironment::AddNative((double(*)(double))std::cos, "cmath cos", false);
+	FuncEnvironment::AddNative((double(*)(double))std::cosh, "cmath cosh", false);
+	FuncEnvironment::AddNative((double(*)(double))std::erf, "cmath erf", false);
+	FuncEnvironment::AddNative((double(*)(double))std::erfc, "cmath erfc", false);
+	FuncEnvironment::AddNative((double(*)(double))std::exp, "cmath exp", false);
+	FuncEnvironment::AddNative((double(*)(double))std::exp2, "cmath exp2", false);
+	FuncEnvironment::AddNative((double(*)(double))std::expm1, "cmath expm1", false);
+	FuncEnvironment::AddNative((double(*)(double))std::fabs, "cmath fabs", false);
+	FuncEnvironment::AddNative((double(*)(double, double))std::fdim, "cmath fdim", false);
+	FuncEnvironment::AddNative((double(*)(double))std::floor, "cmath floor", false);
+	FuncEnvironment::AddNative((double(*)(double, double, double))std::fma, "cmath fma", false);
+	FuncEnvironment::AddNative((double(*)(double, double))std::fmax, "cmath fmax", false);
+	FuncEnvironment::AddNative((double(*)(double, double))std::fmin, "cmath fmin", false);
+	FuncEnvironment::AddNative((double(*)(double, double))std::fmod, "cmath fmod", false);
+	FuncEnvironment::AddNative(cmath_frexp, "cmath frexp", false);
+	FuncEnvironment::AddNative((double(*)(double, double))std::hypot, "cmath hypot", false);
+	FuncEnvironment::AddNative((int(*)(double))std::ilogb, "cmath ilogb", false);
+	FuncEnvironment::AddNative((double(*)(double, int))std::ldexp, "cmath ldexp", false);
+	FuncEnvironment::AddNative((double(*)(double))std::lgamma, "cmath lgamma", false);
+	FuncEnvironment::AddNative((long long(*)(double))std::llrint, "cmath llrint", false);
+	FuncEnvironment::AddNative((long long(*)(double))std::llround, "cmath llround", false);
+	FuncEnvironment::AddNative((double(*)(double))std::log, "cmath log", false);
+	FuncEnvironment::AddNative((double(*)(double))std::log10, "cmath log10", false);
+	FuncEnvironment::AddNative((double(*)(double))std::log1p, "cmath log1p", false);
+	FuncEnvironment::AddNative((double(*)(double))std::log2, "cmath log2", false);
+	FuncEnvironment::AddNative((double(*)(double))std::logb, "cmath logb", false);
+	FuncEnvironment::AddNative((long(*)(double))std::lrint, "cmath lrint", false);
+	FuncEnvironment::AddNative((long(*)(double))std::lround, "cmath lround", false);
+	FuncEnvironment::AddNative(cmath_modf, "cmath modf", false);
+	FuncEnvironment::AddNative((double(*)(double))std::nearbyint, "cmath nearbyint", false);
+	FuncEnvironment::AddNative((double(*)(double, double))std::nextafter, "cmath nextafter", false);
+	FuncEnvironment::AddNative(cmath_nexttoward, "cmath nexttoward", false);
+	FuncEnvironment::AddNative((double(*)(double, double))std::pow, "cmath pow", false);
+	FuncEnvironment::AddNative((double(*)(double, double))std::remainder, "cmath remainder", false);
+	FuncEnvironment::AddNative(cmath_remquo, "math remquo", false);
+	FuncEnvironment::AddNative((double(*)(double))std::round, "cmath round", false);
+	FuncEnvironment::AddNative((double(*)(double, long))std::scalbln, "cmath scalbln", false);
+	FuncEnvironment::AddNative((double(*)(double, int))std::scalbn, "cmath scalbn", false);
+	FuncEnvironment::AddNative((double(*)(double))std::sin, "cmath sin", false);
+	FuncEnvironment::AddNative((double(*)(double))std::sinh, "cmath sinh", false);
+	FuncEnvironment::AddNative((double(*)(double))std::sqrt, "cmath sqrt", false);
+	FuncEnvironment::AddNative((double(*)(double))std::tan, "cmath tan", false);
+	FuncEnvironment::AddNative((double(*)(double))std::tanh, "cmath tanh", false);
+	FuncEnvironment::AddNative((double(*)(double))std::tgamma, "cmath tgamma", false);
+	FuncEnvironment::AddNative((double(*)(double))std::trunc, "cmath trunc", false);
 }
 

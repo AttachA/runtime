@@ -11,7 +11,7 @@
 #include "../configuration/agreement/symbols.hpp"
 namespace AttachA {
 	template<class ...Types>
-	ValueItem cxxCall(typed_lgr<FuncEnviropment> func, Types... types) {
+	ValueItem cxxCall(typed_lgr<FuncEnvironment> func, Types... types) {
 		ValueItem args[] = {ABI_IMPL::BVcast(types)...};
 		ValueItem* res = func->syncWrapper(args, sizeof...(Types));
 		if (res == nullptr)
@@ -20,7 +20,7 @@ namespace AttachA {
 		delete res;
 		return m;
 	}
-	inline ValueItem cxxCall(typed_lgr<FuncEnviropment> func) {
+	inline ValueItem cxxCall(typed_lgr<FuncEnvironment> func) {
 		ValueItem* res = func->syncWrapper(nullptr, 0);
 		if (res == nullptr)
 			return {};
@@ -30,10 +30,10 @@ namespace AttachA {
 	}
 	template<class ...Types>
 	ValueItem cxxCall(const std::string& fun_name, Types... types) {
-		return cxxCall(FuncEnviropment::enviropment(fun_name), std::forward<Types>(types)...);
+		return cxxCall(FuncEnvironment::enviropment(fun_name), std::forward<Types>(types)...);
 	}
 	inline ValueItem cxxCall(const std::string& fun_name) {
-		ValueItem* res = FuncEnviropment::enviropment(fun_name)->syncWrapper(nullptr, 0);
+		ValueItem* res = FuncEnvironment::enviropment(fun_name)->syncWrapper(nullptr, 0);
 		if (res == nullptr)
 			return {};
 		ValueItem m(std::move(*res));
@@ -661,13 +661,13 @@ namespace AttachA {
 
 	
 			template<class Class_>
-			static typed_lgr<FuncEnviropment> ref_destructor = _createProxyTable_Impl_::destructor<Class_> ? new FuncEnviropment(_createProxyTable_Impl_::destructor<Class_>, false) : nullptr;
+			static typed_lgr<FuncEnvironment> ref_destructor = _createProxyTable_Impl_::destructor<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::destructor<Class_>, false) : nullptr;
 			template<class Class_>
-			static typed_lgr<FuncEnviropment> ref_copy = _createProxyTable_Impl_::copy<Class_> ? new FuncEnviropment(_createProxyTable_Impl_::copy<Class_>, false) : nullptr;
+			static typed_lgr<FuncEnvironment> ref_copy = _createProxyTable_Impl_::copy<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::copy<Class_>, false) : nullptr;
 			template<class Class_>
-			static typed_lgr<FuncEnviropment> ref_move = _createProxyTable_Impl_::move<Class_> ? new FuncEnviropment(_createProxyTable_Impl_::move<Class_>, false) : nullptr;
+			static typed_lgr<FuncEnvironment> ref_move = _createProxyTable_Impl_::move<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::move<Class_>, false) : nullptr;
 			template<class Class_>
-			static typed_lgr<FuncEnviropment> ref_compare = _createProxyTable_Impl_::compare<Class_> ? new FuncEnviropment(_createProxyTable_Impl_::compare<Class_>, false) : nullptr;
+			static typed_lgr<FuncEnvironment> ref_compare = _createProxyTable_Impl_::compare<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::compare<Class_>, false) : nullptr;
 		}
 		template<class Class_,class ...Methods>
 		MethodInfo make_method(const std::string& name, Methods... methods) {
@@ -732,7 +732,7 @@ namespace AttachA {
 				proxed[i].owner_name = owner_name;
 				proxed[i].name = methods.name;
 				proxed[i].access = methods.access;
-				proxed[i++].ref = new FuncEnviropment(methods.env,false);
+				proxed[i++].ref = new FuncEnvironment(methods.env,false);
 			}(),...);
 
 			auto res = new AttachADynamicVirtualTable(
@@ -756,7 +756,7 @@ namespace AttachA {
 				proxed[i].owner_name = owner_name;
 				proxed[i].name = methods.name;
 				proxed[i].access = methods.access;
-				proxed[i++].ref = new FuncEnviropment(methods.env,false);
+				proxed[i++].ref = new FuncEnvironment(methods.env,false);
 			}(),...);
 			auto res = AttachAVirtualTable::create(
 				proxed,
@@ -821,7 +821,7 @@ namespace AttachA {
 				proxed[i].owner_name = owner_name;
 				proxed[i].name = methods.name;
 				proxed[i].access = methods.access;
-				proxed[i++].ref = new FuncEnviropment(methods.env,false);
+				proxed[i++].ref = new FuncEnvironment(methods.env,false);
 			}(),...);
 
 			auto res = new AttachADynamicVirtualTable(
@@ -844,7 +844,7 @@ namespace AttachA {
 				proxed[i].owner_name = owner_name;
 				proxed[i].name = methods.name;
 				proxed[i].access = methods.access;
-				proxed[i++].ref = new FuncEnviropment(methods.env,false);
+				proxed[i++].ref = new FuncEnvironment(methods.env,false);
 			}(),...);
 
 			auto res = AttachAVirtualTable::create(

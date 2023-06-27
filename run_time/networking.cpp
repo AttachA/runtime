@@ -25,7 +25,7 @@ void init_define_TcpNetworkBlocking();
 #pragma comment(lib, "Ws2_32.lib")
 
 #include "networking.hpp"
-#include "FuncEnviropment.hpp"
+#include "FuncEnvironment.hpp"
 #include "../configuration/agreement/symbols.hpp"
 #include <condition_variable>
 #include <utf8cpp/utf8.h>
@@ -1196,8 +1196,8 @@ void init_define_TcpNetworkBlocking(){
 
 class TcpNetworkManager : public NativeWorkerManager {
 	TaskMutex safety;
-	typed_lgr<class FuncEnviropment> handler_fn;
-	typed_lgr<class FuncEnviropment> accept_filter;
+	typed_lgr<class FuncEnvironment> handler_fn;
+	typed_lgr<class FuncEnvironment> accept_filter;
     sockaddr_in6 connectionAddress;
 	SOCKET main_socket;
 public:
@@ -1402,7 +1402,7 @@ public:
 			data.connection_reset();
 		}
 	}
-	void set_on_connect(typed_lgr<class FuncEnviropment> handler_fn, TcpNetworkServer::ManageType manage_type){
+	void set_on_connect(typed_lgr<class FuncEnvironment> handler_fn, TcpNetworkServer::ManageType manage_type){
 		if(corrupted)
 			throw AttachARuntimeException("TcpNetworkManager is corrupted");
 		std::lock_guard lock(safety);
@@ -1457,7 +1457,7 @@ public:
 	}
 
 
-	void set_accept_filter(typed_lgr<class FuncEnviropment> filter){
+	void set_accept_filter(typed_lgr<class FuncEnvironment> filter){
 		if(corrupted)
 			throw AttachARuntimeException("TcpNetworkManager is corrupted");
 		std::lock_guard lock(safety);
@@ -1773,7 +1773,7 @@ void deinit_networking(){
 }
 #endif
 
-TcpNetworkServer::TcpNetworkServer(typed_lgr<class FuncEnviropment> on_connect, ValueItem& ip_port, ManageType mt, size_t acceptors, int32_t timeout_ms, int32_t default_buffer){
+TcpNetworkServer::TcpNetworkServer(typed_lgr<class FuncEnvironment> on_connect, ValueItem& ip_port, ManageType mt, size_t acceptors, int32_t timeout_ms, int32_t default_buffer){
 	if(!inited)
 		throw InternalException("Network module not initialized");
 	sockaddr_storage address;
@@ -1828,7 +1828,7 @@ void TcpNetworkServer::set_default_buffer_size(int32_t size){
 		handle->default_len = size;
 	}
 }
-void TcpNetworkServer::set_accept_filter(typed_lgr<class FuncEnviropment> filter){
+void TcpNetworkServer::set_accept_filter(typed_lgr<class FuncEnvironment> filter){
 	if(handle)
 		handle->set_accept_filter(filter);
 }

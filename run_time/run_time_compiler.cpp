@@ -245,14 +245,14 @@ void FuncEviroBuilder::call_self(uint16_t res, bool catch_ex, bool is_async) {
 }
 
 
-uint32_t FuncEviroBuilder::addLocalFn(typed_lgr<FuncEnviropment> fn) {
+uint32_t FuncEviroBuilder::addLocalFn(typed_lgr<FuncEnvironment> fn) {
 	local_funs.push_back(fn);
 	uint32_t res = static_cast<uint32_t>(local_funs.size() - 1);
 	if (res != (local_funs.size() - 1))
 		throw CompileTimeException("too many local funcs");
 	return res;
 }
-void FuncEviroBuilder::call_local(typed_lgr<FuncEnviropment> fn, bool is_async) {
+void FuncEviroBuilder::call_local(typed_lgr<FuncEnvironment> fn, bool is_async) {
 	code.push_back(Command(Opcode::call_local).toCmd());
 	CallFlags f;
 	f.in_memory = false;
@@ -261,7 +261,7 @@ void FuncEviroBuilder::call_local(typed_lgr<FuncEnviropment> fn, bool is_async) 
 	code.push_back(f.encoded);
 	builder::write(code, addLocalFn(fn));
 }
-void FuncEviroBuilder::call_local(typed_lgr<FuncEnviropment> fn, uint16_t res, bool catch_ex, bool is_async) {
+void FuncEviroBuilder::call_local(typed_lgr<FuncEnvironment> fn, uint16_t res, bool catch_ex, bool is_async) {
 	code.push_back(Command(Opcode::call_local).toCmd());
 	CallFlags f;
 	f.in_memory = false;
@@ -352,7 +352,7 @@ void FuncEviroBuilder::call_self_and_ret(bool catch_ex, bool is_async) {
 
 
 
-void FuncEviroBuilder::call_local_and_ret(typed_lgr<FuncEnviropment> fn, bool catch_ex, bool is_async) {
+void FuncEviroBuilder::call_local_and_ret(typed_lgr<FuncEnvironment> fn, bool catch_ex, bool is_async) {
 	code.push_back(Command(Opcode::call_local_and_ret).toCmd());
 	CallFlags f;
 	f.in_memory = false;
@@ -1067,7 +1067,7 @@ void FuncEviroBuilder::table_jump(
 #pragma endregion
 #pragma endregion
 
-typed_lgr<FuncEnviropment> FuncEviroBuilder::prepareFunc(bool can_be_unloaded) {
+typed_lgr<FuncEnvironment> FuncEviroBuilder::prepareFunc(bool can_be_unloaded) {
 	//create header
 	std::vector<uint8_t> fn;
 	if (jump_pos.size() == 0) {
@@ -1094,8 +1094,8 @@ typed_lgr<FuncEnviropment> FuncEviroBuilder::prepareFunc(bool can_be_unloaded) {
 
 	fn.insert(fn.end(),code.begin(), code.end());
 
-	return new FuncEnviropment(fn, local_funs, max_values, can_be_unloaded);
+	return new FuncEnvironment(fn, local_funs, max_values, can_be_unloaded);
 }
 void FuncEviroBuilder::loadFunc(const std::string& str,bool can_be_unloaded) {
-	FuncEnviropment::Load(prepareFunc(can_be_unloaded), str);
+	FuncEnvironment::Load(prepareFunc(can_be_unloaded), str);
 }
