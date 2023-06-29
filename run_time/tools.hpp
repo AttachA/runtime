@@ -13,7 +13,7 @@
 #include "attacha_abi_structs.hpp"
 namespace run_time {
 	template<class T>
-	inline T readData(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {
+	inline typename std::enable_if<!std::is_same_v<T,ValueIndexPos>, T>::type readData(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {
 		if (data_len < i + sizeof(T))
 			throw InvalidFunction("Function is not full cause in pos " + std::to_string(i) + " try read " + std::to_string(sizeof(T)) + " bytes, but function length is " + std::to_string(data_len) + ", fail compile function");
 		uint8_t res[sizeof(T)]{ 0 };
@@ -31,6 +31,8 @@ namespace run_time {
 	template<class T>
 	inline T* extractRawArray(const std::vector<uint8_t>& data, size_t data_len, size_t& i, size_t len) {
 		T* result = (T*)(data.data() + i);
+		if (data_len < i + len * sizeof(T))
+			throw InvalidFunction("Function is not full cause in pos " + std::to_string(i) + " try read " + std::to_string(len * sizeof(T)) + " bytes, but function length is " + std::to_string(data_len) + ", fail compile function");
 		i += len * sizeof(T);
 		return result;
 	}
@@ -64,6 +66,7 @@ namespace run_time {
 
 	inline ValueItem readAny(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {
 		ValueMeta meta = readData<ValueMeta>(data, data_len, i);
+		meta.as_ref = false;
 		ValueItem res;
 		res.meta = meta;
 		switch (meta.vtype) {
@@ -152,12 +155,31 @@ namespace run_time {
 			res.val = new lgr(res.val);
 		return res;
 	}
+	inline uint64_t readPackedLen(const std::vector<uint8_t>& data, size_t data_len, size_t& i){
+		switch(readData<uint8_t>(data, data_len, i)){
+			case 0: return 0;
+			case 1: return readData<uint8_t>(data, data_len, i);
+			case 2: return readData<uint16_t>(data, data_len, i);
+			case 3: return readData<uint32_t>(data, data_len, i);
+			case 4: return readData<uint64_t>(data, data_len, i);
+			default: throw NotImplementedException();
+		}
+	}
+
+
+	inline ValueIndexPos readIndexPos(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {
+		ValueIndexPos res;
+		res.index = readData<uint16_t>(data, data_len, i);
+		res.pos = readData<ValuePos>(data, data_len, i);
+		return res;
+	}
 
 
 
 	namespace builder {
 		template<class T>
-		void write(std::vector<uint8_t>& data, const T& v) {
+		typename std::enable_if<!std::is_same_v<T,ValueIndexPos>, void>::type
+		write(std::vector<uint8_t>& data, const T& v) {
 			const uint8_t* res = reinterpret_cast<const uint8_t*>(&v);
 			for (size_t i = 0; i < sizeof(T); i++)
 				data.push_back(res[i]);
@@ -246,6 +268,32 @@ namespace run_time {
 				throw NotImplementedException();
 			}
 		}
+		inline void writePackedLen(std::vector<uint8_t>& data, uint64_t len){
+			if (len == 0) 
+				builder::write(data, 0ui8);
+			else if (len <= UINT8_MAX) {
+				builder::write(data, 1ui8);
+				builder::write(data, (uint8_t)len);
+			}
+			else if (len <= UINT16_MAX) {
+				builder::write(data, 2ui8);
+				builder::write(data, (uint16_t)len);
+			}
+			else if (len <= UINT32_MAX) {
+				builder::write(data, 4ui8);
+				builder::write(data, (uint32_t)len);
+			}
+			else {
+				builder::write(data, 8ui8);
+				builder::write(data, len);
+			}
+		}
+
+
+		inline void writeIndexPos(std::vector<uint8_t>& data, ValueIndexPos ipos) {
+			write(data, ipos.index);
+			write(data, ipos.pos);
+		}
 	}
 }
-#endif
+#endif /* RUN_TIME_TOOLS */
