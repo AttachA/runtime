@@ -71,11 +71,8 @@ ENUM_t(Opcode,uint8_t,
 	(set_structure_value)
 	(get_structure_value)
 	(explicit_await)
-
-
-	(async_get)//get result from task by index
-	(generator_next)//get next result for task or generator//TO-DO: implement
-	(yield)//suspend generator or async task and return value to caller //TO-DO: implement
+	(generator_get)//get value from generator or async task
+	(yield)
 
 	(handle_begin)
 	(handle_catch)
@@ -555,6 +552,7 @@ struct ValueItem {
 
 	ValueItem* operator()(ValueItem* arguments, uint32_t arguments_size);
 	void getAsync();
+	void getGeneratorResult(ValueItem* res, uint64_t result_id);
 	void*& getSourcePtr();
 	const void*& getSourcePtr() const;
 	typed_lgr<class FuncEnvironment>* funPtr();

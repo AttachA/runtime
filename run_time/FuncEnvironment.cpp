@@ -1164,17 +1164,11 @@ void takeRange(list_array<ValueItem>* dest, void** insert, size_t start, size_t 
 
 
 
-void throwDirEx(void** typ, void** desc) {
-	throw AException(
-		*(const std::string*)getSpecificValue(typ, VType::string),
-		*(const std::string*)getSpecificValue(desc, VType::string)
-	);
+void throwDirEx(ValueItem* typ, ValueItem* desc) {
+	throw AException((std::string)*typ,(std::string)*desc);
 }
-void throwStatEx(void** typ, void** desc) {
-	throw AException(
-		*(const std::string*)getValue(typ),
-		*(const std::string*)getValue(desc)
-	);
+void throwStatEx(ValueItem* typ, ValueItem* desc) {
+	throw AException(*(std::string*)typ->getSourcePtr(),*(std::string*)desc->getSourcePtr());
 }
 void throwEx(const std::string* typ, const std::string* desc) {
 	throw AException(*typ, *desc);
@@ -2062,6 +2056,19 @@ struct CompilerFabric{
 		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(&ValueItem::getAsync);
 	}
+	void dynamic_generator_get(){
+		BuildCall b(a, 3);
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.addArg(readData<uint64_t>(data, data_len, i));
+		b.finalize(&ValueItem::getGeneratorResult);
+	}
+	void dynamic_yield(){
+		BuildCall b(a, 2);
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.finalize(Task::result);//generators actually not implemented yet, use task
+	}
+
 	void dynamic_ret() {
 		BuildCall b(a, 1);
 		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
@@ -2480,8 +2487,8 @@ struct CompilerFabric{
 	}
 	template<bool direction>
 	void _dynamic_table_jump_bound_check(TableJumpFlags flags, TableJumpCheckFailAction action, uint32_t table_size, uint64_t index, const char* action_name) {
-		static const auto exception_name = std::string("IndexError");
-		static const auto exception_description = std::string("Index out of range");
+		static const std::string exception_name( "IndexError");
+		static const std::string exception_description("Index out of range");
 
 		switch (action) {
 		case TableJumpCheckFailAction::jump_specified:
@@ -2515,7 +2522,7 @@ struct CompilerFabric{
 			BuildCall b(a, 2);
 			b.addArg(&exception_name);
 			b.addArg(&exception_description);
-			b.finalize(&throwEx);
+			b.finalize(throwEx);
 			a.label_bind(no_exception_label);
 			break;
 		}
@@ -2683,7 +2690,7 @@ struct CompilerFabric{
 				bool in_memory = readData<bool>(data, data_len, i);
 				if (in_memory) {
 					BuildCall b(a, 2);
-					b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));//TO-DO bug fix
+					b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));
 					b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));
 					b.finalize(throwStatEx);
 				}
@@ -3150,11 +3157,8 @@ struct CompilerFabric{
 			case Opcode::set_structure_value: dynamic_set_structure_value(); break;
 			case Opcode::get_structure_value: dynamic_get_structure_value(); break;
 			case Opcode::explicit_await: dynamic_explicit_await(); break;
-			case Opcode::async_get:
-			case Opcode::generator_next:
-			case Opcode::yield:
-				throw NotImplementedException();
-			//TODO: implement
+			case Opcode::generator_get: dynamic_generator_get(); break;
+			case Opcode::yield: dynamic_yield(); break;
 			case Opcode::handle_begin:
 				scope_map.mapHandle(readData<uint64_t>(data, data_len, i));
 				break;

@@ -1583,6 +1583,72 @@ namespace parallel {
 				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
 				return (double)self.value;
 			})
+			static AttachAFun(__to_i8_arr, 1,{
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
+				int8_t* arr = ABI_IMPL::Vcast<int8_t*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
+			static AttachAFun(__to_i16_arr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);				
+				int16_t* arr = ABI_IMPL::Vcast<int16_t*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
+			static AttachAFun(__to_i32_arr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);				
+				int32_t* arr = ABI_IMPL::Vcast<int32_t*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
+			static AttachAFun(__to_i64_arr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);				
+				int64_t* arr = ABI_IMPL::Vcast<int64_t*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
+			static AttachAFun(__to_ui8_arr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);				
+				uint8_t* arr = ABI_IMPL::Vcast<uint8_t*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
+			static AttachAFun(__to_ui16_arr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);				
+				uint16_t* arr = ABI_IMPL::Vcast<uint16_t*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
+			static AttachAFun(__to_ui32_arr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);				
+				uint32_t* arr = ABI_IMPL::Vcast<uint32_t*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
+			static AttachAFun(__to_ui64_arr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);				
+				uint64_t* arr = ABI_IMPL::Vcast<uint64_t*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
+			static AttachAFun(__to_float_arr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);				
+				float* arr = ABI_IMPL::Vcast<float*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
+			static AttachAFun(__to_double_arr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);				
+				double* arr = ABI_IMPL::Vcast<double*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
+			static AttachAFun(__to_farr, 1, {
+				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
+				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);				
+				ValueItem* arr = ABI_IMPL::Vcast<ValueItem*>(self.value.val, self.value.meta);
+				return ValueItem(arr, self.value.meta.val_len, no_copy);
+			})
 			static AttachAFun(__to_undefined_pointer, 1, {
 				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
@@ -1593,8 +1659,6 @@ namespace parallel {
 				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
 				return (std::string)self.value;
 			})
-			
-			
 			static AttachAFun(__to_uarr, 1, {
 				auto& self = AttachA::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 				std::lock_guard<TaskRecursiveMutex> lock(self.mutex);
@@ -1686,18 +1750,6 @@ namespace parallel {
 
 
 			static void init(){
-				//TO-DO: implement all functions
-            	constexpr const char* const to_ui8_arr = "to_ui8[]";
-            	constexpr const char* const to_ui16_arr = "to_ui16[]";
-            	constexpr const char* const to_ui32_arr = "to_ui32[]";
-            	constexpr const char* const to_ui64_arr = "to_ui64[]";
-            	constexpr const char* const to_i8_arr = "to_i8[]";
-            	constexpr const char* const to_i16_arr = "to_i16[]";
-            	constexpr const char* const to_i32_arr = "to_i32[]";
-            	constexpr const char* const to_i64_arr = "to_i64[]";
-            	constexpr const char* const to_float_arr = "to_float[]";
-            	constexpr const char* const to_double_arr = "to_double[]";
-            	constexpr const char* const to_farr = "to_farr";
 				virtual_table = AttachA::Interface::createTable<AtomicObject>("AtomicAny",
 					AttachA::Interface::direct_method(symbols::structures::add_operator, __add),
 					AttachA::Interface::direct_method(symbols::structures::subtract_operator, __sub),
@@ -1731,6 +1783,17 @@ namespace parallel {
 					AttachA::Interface::direct_method(symbols::structures::convert::to_i64, __to_i64),
 					AttachA::Interface::direct_method(symbols::structures::convert::to_float, __to_float),
 					AttachA::Interface::direct_method(symbols::structures::convert::to_double, __to_double),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_ui8_arr, __to_ui8_arr),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_ui16_arr, __to_ui16_arr),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_ui32_arr, __to_ui32_arr),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_ui64_arr, __to_ui64_arr),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_i8_arr, __to_i8_arr),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_i16_arr, __to_i16_arr),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_i32_arr, __to_i32_arr),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_i64_arr, __to_i64_arr),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_float_arr, __to_float_arr),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_double_arr, __to_double_arr),
+					AttachA::Interface::direct_method(symbols::structures::convert::to_farr, __to_farr),
 					AttachA::Interface::direct_method(symbols::structures::convert::to_timepoint, __to_timepoint),
 					AttachA::Interface::direct_method(symbols::structures::convert::to_type_identifier, __to_type_identifier),
 					AttachA::Interface::direct_method(symbols::structures::convert::to_function, __to_function),

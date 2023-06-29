@@ -1393,6 +1393,19 @@ FuncEviroBuilder& FuncEviroBuilder::O_flag_used_vec128(uint8_t index){
 	}
 	return *this;
 }
+
+
+FuncEviroBuilder_line_info FuncEviroBuilder::O_line_info_begin(){
+	FuncEviroBuilder_line_info ret;
+	ret.begin = code.size();
+	return ret;
+}
+void FuncEviroBuilder::O_line_info_end(FuncEviroBuilder_line_info line_info){
+	//TODO: add line info
+}
+
+
+
 std::vector<uint8_t> FuncEviroBuilder::O_build_func() {
 	if(flags.run_time_computable)
 		throw CompileTimeException("to build function, function must not use run time computable functions, ie dynamic");

@@ -296,7 +296,7 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int8_t)(ptrdiff_t)val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 					return AsPointer<std::remove_pointer_t<T>, int8_t>(val);
 				else
 					return (T)val;
@@ -309,7 +309,7 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int16_t)(ptrdiff_t)val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 					return AsPointer<std::remove_pointer_t<T>, int16_t>(val);
 				else
 					return (T)val;
@@ -322,7 +322,7 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int32_t)(ptrdiff_t)val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 					return AsPointer<std::remove_pointer_t<T>, int32_t>(val);
 				else
 					return (T)val;
@@ -335,7 +335,7 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(int64_t)(ptrdiff_t)val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 					return AsPointer<std::remove_pointer_t<T>, int64_t>(val);
 				else
 					return (T)val;
@@ -348,7 +348,7 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint8_t)val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 					return AsPointer<std::remove_pointer_t<T>, uint8_t>(val);
 				else
 					return (T)val;
@@ -361,7 +361,7 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint16_t)val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 					return AsPointer<std::remove_pointer_t<T>, uint16_t>(val);
 				else
 					return (T)val;
@@ -374,7 +374,7 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint32_t)val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 					return AsPointer<std::remove_pointer_t<T>, uint32_t>(val);
 				else
 					return (T)val;
@@ -387,7 +387,7 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T)(uint64_t)val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 					return AsPointer<std::remove_pointer_t<T>, uint64_t>(val);
 				else
 					return (T)val;
@@ -400,7 +400,7 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * (float*)&val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 					return AsPointer<std::remove_pointer_t<T>, float>(val);
 				else
 					return (T)val;
@@ -413,7 +413,7 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * (double*)&val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>)
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 					return AsPointer<std::remove_pointer_t<T>, double>(val);
 				else
 					return (T)val;
@@ -424,7 +424,7 @@ namespace ABI_IMPL {
 					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<int8_t*>(val);
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++)
@@ -451,7 +451,7 @@ namespace ABI_IMPL {
 					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<int16_t*>(val);
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++)
@@ -478,7 +478,7 @@ namespace ABI_IMPL {
 					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<int32_t*>(val);
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++)
@@ -505,7 +505,7 @@ namespace ABI_IMPL {
 					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * (int64_t*)val;
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++)
@@ -532,7 +532,7 @@ namespace ABI_IMPL {
 					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<uint8_t*>(val);
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++)
@@ -559,7 +559,7 @@ namespace ABI_IMPL {
 					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<uint16_t*>(val);
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++)
@@ -586,7 +586,7 @@ namespace ABI_IMPL {
 					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<uint32_t*>(val);
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++)
@@ -613,7 +613,7 @@ namespace ABI_IMPL {
 					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<uint64_t*>(val);
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++)
@@ -640,7 +640,7 @@ namespace ABI_IMPL {
 					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<float*>(val);
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++)
@@ -667,7 +667,7 @@ namespace ABI_IMPL {
 					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
 					return (T) * reinterpret_cast<double*>(val);
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 						for (uint32_t i = 0; i < meta.val_len; i++)
@@ -702,7 +702,7 @@ namespace ABI_IMPL {
 						return (T)tmp;
 					}
 				}
-				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>>) {
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 					if (meta.val_len) {
 						list_array<ValueItem>& ref = reinterpret_cast<list_array<ValueItem>&>(val);
 						std::remove_pointer_t<T>* res = new std::remove_pointer_t<T>[meta.val_len];
@@ -723,16 +723,12 @@ namespace ABI_IMPL {
 			case VType::string: {
 				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				else {
-					ValueItem tmp = SBcast(reinterpret_cast<const std::string&>(val));
-					if (tmp.meta.vtype == VType::string) {
-						if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-							return { ValueItem(val,meta) };
-						else throw InvalidCast("Fail cast string");
-					}
-					else
-						return (T)tmp;
+				else if constexpr (std::is_same_v<T, std::string>) 
+					return reinterpret_cast<const std::string&>(val);
+				else if constexpr (!std::is_pointer_v<T>) {
+					return (T)SBcast(reinterpret_cast<const std::string&>(val));
 				}
+				else throw InvalidCast("Fail cast string");
 				break;
 			}
 			case VType::undefined_ptr:{
@@ -742,6 +738,10 @@ namespace ABI_IMPL {
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
 					return *reinterpret_cast<T*>(&val);
+				else if constexpr (std::is_floating_point_v<std::remove_pointer_t<T>>)
+					return new std::remove_pointer_t<T>[]{*reinterpret_cast<std::remove_pointer_t<T>*>(&val)};
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
+					return new std::remove_pointer_t<T>[]{(std::remove_pointer_t<T>)val};
 				else if constexpr (std::is_pointer_v<T>)
 					return (T)val;
 				else throw InvalidCast("Fail cast undefined_ptr");
@@ -751,9 +751,11 @@ namespace ABI_IMPL {
 				if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 					return { ValueItem(val,meta) };
 				else if constexpr (std::is_arithmetic_v<T>)
-					return (T)meta.vtype;
+					return (T)meta.encoded;
 				else if constexpr (std::is_same_v<T, VType>)
 					return meta.vtype;
+				else if constexpr (std::is_same_v<T, ValueMeta>)
+					return meta;
 				else
 					throw InvalidCast("Fail cast type_identifier");
 				break;
@@ -761,12 +763,21 @@ namespace ABI_IMPL {
 			case VType::faarr: {
 				if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 					return list_array<ValueItem>((ValueItem*)val, ((ValueItem*)val) + meta.val_len);
+				else if constexpr (std::is_same_v<T, void*>)
+					return val;
 				else if constexpr (std::is_arithmetic_v<T>)
-					return (T)meta.vtype;
-				else if constexpr (std::is_same_v<T, VType>)
-					return meta.vtype;
+					return (T)meta.val_len;
+				else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
+					if (meta.val_len) {
+						std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
+						for (uint32_t i = 0; i < meta.val_len; i++)
+							tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<ValueItem*>(val)[i];
+						return tmp;
+					}
+					else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)*reinterpret_cast<ValueItem*>(val) };
+				}
 				else
-					throw InvalidCast("Fail cast type_identifier");
+					throw InvalidCast("Fail cast faarr");
 				break;
 			}
 			case VType::struct_: {
@@ -785,11 +796,12 @@ namespace ABI_IMPL {
 				break;
 			}
 			case VType::function: {
-				if constexpr (std::is_same_v<T, void*>) {
+				if constexpr (std::is_same_v<T, void*>)
 					return val;
-				}
-				else {
+				else if constexpr (!std::is_pointer_v<T>){
 					auto tmp = _Vcast_callFN(val);
+					if(!tmp)
+						return T();
 					T res;
 					try {
 						res = (T)*tmp;
@@ -801,6 +813,7 @@ namespace ABI_IMPL {
 					delete tmp;
 					return res;
 				}
+				else throw InvalidCast("Fail cast function");
 				break;
 			}
 			default:

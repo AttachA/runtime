@@ -266,7 +266,11 @@ ValueItem* getAsyncValueItem(void* val) {
 	if(!val)
 		return nullptr;
 	typed_lgr<Task>& tmp = *(typed_lgr<Task>*)val;
-	return Task::get_result(tmp);
+	auto res = Task::await_results(tmp);
+	if(res.size() == 1)
+		return new ValueItem(std::move(res[0]));
+	else
+		return new ValueItem(std::move(res));
 }
 void getValueItem(void** value, ValueItem* f_res) {
 	universalRemove(value);
@@ -2941,6 +2945,19 @@ void ValueItem::getAsync() {
 	if(val)
 		while (meta.vtype == VType::async_res)
 			getAsyncResult(val, meta);
+}
+void ValueItem::getGeneratorResult(ValueItem* result, uint64_t index) {
+	if (val)
+		while (meta.vtype == VType::async_res){
+			typed_lgr<Task>& task = *(typed_lgr<Task>*)getSourcePtr();
+			ValueItem* res = Task::get_result(task, index);
+			if (res) {
+				*result = *res;
+				delete res;
+				return;
+			}
+		}
+	throw InvalidCast("This type is not async_res");
 }
 
 void*& ValueItem::getSourcePtr() {
