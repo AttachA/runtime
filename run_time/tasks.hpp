@@ -59,7 +59,7 @@ public:
 };
 class TaskRecursiveMutex{
 	TaskMutex mutex;
-	uint64_t recursive_count = 0;
+	uint32_t recursive_count = 0;
 public:
 	TaskRecursiveMutex() {}
 	~TaskRecursiveMutex();
