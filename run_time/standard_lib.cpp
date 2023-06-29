@@ -1025,6 +1025,13 @@ extern "C" void initStandardLib_chanel(){
 	FuncEnvironment::AddNative(chanel::constructor::createProxy_Chanel, "# chanel chanel", false);
 	FuncEnvironment::AddNative(chanel::constructor::createProxy_ChanelHandler, "# chanel chanel_handler", false);
 }
+extern "C" void initStandardLib_internal(){
+	INIT_CHECK
+	internal::init();
+	FuncEnvironment::AddNative(internal::construct::createProxy_function_builder, "# internal function_builder", false);
+	FuncEnvironment::AddNative(internal::construct::createProxy_index_pos, "# internal index_pos", false);
+	FuncEnvironment::AddNative(internal::construct::createProxy_line_info, "# internal line_info", false);
+}
 extern "C" void initStandardLib_internal_memory(){
 	INIT_CHECK
 	FuncEnvironment::AddNative(internal::memory::dump, "internal memory dump", false);
@@ -1038,7 +1045,7 @@ extern "C" void initStandardLib_internal_run_time(){
 }
 extern "C" void initStandardLib_internal_run_time_native(){
 	INIT_CHECK
-	internal::init();
+	internal::run_time::native::init();
 	FuncEnvironment::AddNative(internal::run_time::native::construct::createProxy_NativeLib, "# internal run_time native native_lib", false);
 	FuncEnvironment::AddNative(internal::run_time::native::construct::createProxy_NativeValue, "# internal run_time native native_value", false);
 	FuncEnvironment::AddNative(internal::run_time::native::construct::createProxy_NativeTemplate, "# internal run_time native native_template", false);
@@ -1160,6 +1167,7 @@ extern "C" void initStandardLib() {
 	initStandardLib_file();
 	initStandardLib_paralel();
 	initStandardLib_chanel();
+	initStandardLib_internal();
 	initStandardLib_internal_memory();
 	initStandardLib_internal_run_time();
 	initStandardLib_internal_run_time_native();
@@ -1177,6 +1185,7 @@ extern "C" void initStandardLib_safe(){
 	initStandardLib_paralel();
 	initStandardLib_chanel();
 	initStandardLib_net();
+	initStandardLib_internal();
 }
 
 

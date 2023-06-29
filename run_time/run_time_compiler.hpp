@@ -124,7 +124,7 @@ public:
 	void call_and_ret(ValueIndexPos fn_mem, bool is_async = false, bool fn_mem_only_str = false);
 
 
-	void call_self_and_ret(bool catch_ex = false, bool is_async = false);
+	void call_self_and_ret(bool is_async = false);
 
 
 	void call_local_and_ret(typed_lgr<FuncEnvironment> fn, bool is_async = false);
@@ -256,6 +256,7 @@ public:
 	void to_gc(ValueIndexPos val);
 	void localize_gc(ValueIndexPos val);
 	void from_gc(ValueIndexPos val);
+	void xarray_slice(ValueIndexPos result, ValueIndexPos val);
 	void xarray_slice(ValueIndexPos result, ValueIndexPos val, uint32_t from);
 	void xarray_slice(ValueIndexPos result, ValueIndexPos val, ValueIndexPos from);
 	void xarray_slice(ValueIndexPos result, ValueIndexPos val, bool unused, uint32_t to);

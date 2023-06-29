@@ -21,6 +21,7 @@ extern "C" {
 	void initStandardLib_file();
 	void initStandardLib_paralel();
 	void initStandardLib_chanel();
+	void initStandardLib_internal();
 	void initStandardLib_internal_memory();
 	void initStandardLib_internal_run_time();
 	void initStandardLib_internal_run_time_native();

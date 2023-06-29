@@ -71,7 +71,13 @@ namespace internal {
                 ValueItem* createProxy_NativeTemplate(ValueItem*, uint32_t);// used in NativeLib
                 ValueItem* createProxy_NativeLib(ValueItem*, uint32_t);// args: str lib path(resolved by os), do not use functions from this instance when destructor called
             }
+            void init();
         }
+    }
+    namespace construct{
+        ValueItem* createProxy_function_builder(ValueItem*, uint32_t);
+        ValueItem* createProxy_index_pos(ValueItem*, uint32_t);
+        ValueItem* createProxy_line_info(ValueItem*, uint32_t);
     }
     void init();
 }

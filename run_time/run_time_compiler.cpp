@@ -354,7 +354,7 @@ void FuncEviroBuilder::call_and_ret(ValueIndexPos fn_mem, bool is_async, bool fn
 	useVal(fn_mem);
 }
 
-void FuncEviroBuilder::call_self_and_ret(bool catch_ex, bool is_async) {
+void FuncEviroBuilder::call_self_and_ret(bool is_async) {
 	code.push_back(Command(Opcode::call_self_and_ret).toCmd());
 	CallFlags f;
 	f.async_mode = is_async;
@@ -1237,6 +1237,13 @@ union xarray_slice_flags{
 	};
 	uint8_t encoded;
 };
+
+void FuncEviroBuilder::xarray_slice(ValueIndexPos result, ValueIndexPos val){
+	code.push_back(Command(Opcode::xarray_slice).toCmd());
+	builder::writeIndexPos(code, result);
+	builder::writeIndexPos(code, val);
+	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::all_inlined, xarray_slice_flags::_use_index_pos::none).encoded);
+}
 void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, uint32_t from){
 	code.push_back(Command(Opcode::xarray_slice).toCmd());
 	builder::writeIndexPos(code, result);
