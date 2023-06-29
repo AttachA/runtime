@@ -1752,15 +1752,25 @@ TaskRecursiveMutex::~TaskRecursiveMutex() {
 }
 void TaskRecursiveMutex::lock() {
 	if(loc.is_task_thread){
-		if (mutex.current_task == loc.curr_task.getPtr()) 
+		if (mutex.current_task == loc.curr_task.getPtr()) {
             recursive_count++;
+			if(recursive_count == 0) {
+				recursive_count--;
+				throw InvalidOperation("Recursive mutex overflow");
+			}
+		}
 		else{
 			mutex.lock();
             recursive_count = 1;
 		}
 	}else{
-		if (mutex.current_task == reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag)) 
+		if (mutex.current_task == reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag)) {
 			recursive_count++;
+			if(recursive_count == 0) {
+				recursive_count--;
+				throw InvalidOperation("Recursive mutex overflow");
+			}
+		}
 		else{
 			mutex.lock();
 			recursive_count = 1;
@@ -1771,6 +1781,10 @@ bool TaskRecursiveMutex::try_lock() {
 	if(loc.is_task_thread){
 		if (mutex.current_task == loc.curr_task.getPtr()) {
 			recursive_count++;
+			if(recursive_count == 0) {
+				recursive_count--;
+				return false;
+			}
 			return true;
 		}
 		else if (mutex.try_lock()) {
@@ -1781,6 +1795,10 @@ bool TaskRecursiveMutex::try_lock() {
 	}else{
 		if (mutex.current_task == reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag)) {
 			recursive_count++;
+			if(recursive_count == 0) {
+				recursive_count--;
+				return false;
+			}
 			return true;
 		}
 		else if (mutex.try_lock()) {
@@ -1794,6 +1812,10 @@ bool TaskRecursiveMutex::try_lock_for(size_t milliseconds) {
 	if(loc.is_task_thread){
 		if (mutex.current_task == loc.curr_task.getPtr()) {
 			recursive_count++;
+			if(recursive_count == 0) {
+				recursive_count--;
+				return false;
+			}
 			return true;
 		}
 		else if (mutex.try_lock_for(milliseconds)) {
@@ -1804,6 +1826,10 @@ bool TaskRecursiveMutex::try_lock_for(size_t milliseconds) {
 	}else{
 		if (mutex.current_task == reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag)) {
 			recursive_count++;
+			if(recursive_count == 0) {
+				recursive_count--;
+				return false;
+			}
 			return true;
 		}
 		else if (mutex.try_lock_for(milliseconds)) {
@@ -1817,6 +1843,10 @@ bool TaskRecursiveMutex::try_lock_until(std::chrono::high_resolution_clock::time
 	if(loc.is_task_thread){
 		if (mutex.current_task == loc.curr_task.getPtr()) {
 			recursive_count++;
+			if(recursive_count == 0) {
+				recursive_count--;
+				return false;
+			}
 			return true;
 		}
 		else if (mutex.try_lock_until(time_point)) {
@@ -1827,6 +1857,10 @@ bool TaskRecursiveMutex::try_lock_until(std::chrono::high_resolution_clock::time
 	}else{
 		if (mutex.current_task == reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag)) {
 			recursive_count++;
+			if(recursive_count == 0) {
+				recursive_count--;
+				return false;
+			}
 			return true;
 		}
 		else if (mutex.try_lock_until(time_point)) {
@@ -1862,8 +1896,7 @@ bool TaskRecursiveMutex::is_own() {
 			return true;
 	}else if (mutex.current_task == reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag))
 		return true;
-	else
-		return false;
+	return false;
 }
 #pragma endregion
 
