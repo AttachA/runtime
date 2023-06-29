@@ -115,7 +115,8 @@ void universalFree(void** value, ValueMeta meta) {
 		delete (typed_lgr<FuncEnvironment>*)*value;
 		break;
 	default:
-		delete *value;
+		if(needAlloc(meta))
+			delete *value;
 	}
 	*value = nullptr;
 	return;
@@ -278,20 +279,21 @@ void getValueItem(void** value, ValueItem* f_res) {
 	}
 }
 ValueItem* buildRes(void** value) {
-	ValueItem* res;
 	try {
-		res = new ValueItem();
+		return new ValueItem(*(ValueItem*)value);
 	}
-	catch (const std::bad_alloc&)
-	{
+	catch (const std::bad_alloc&) {
 		throw EnviropmentRuinException();
 	}
-	res->val = *value;
-	res->meta = (size_t)*(value + 1);
-	*value = *(value + 1) = nullptr;
-	return res;
 }
-
+ValueItem* buildResTake(void** value) {
+	try {
+		return new ValueItem(std::move(*(ValueItem*)value));
+	}
+	catch (const std::bad_alloc&) {
+		throw EnviropmentRuinException();
+	}
+}
 
 void getAsyncResult(void*& value, ValueMeta& meta) {
 	while (meta.vtype == VType::async_res) {
@@ -2322,7 +2324,7 @@ ValueItem::ValueItem(const ValueItem& copy) : val(0) {
 
 ValueItem::ValueItem(nullptr_t) : val(0), meta(0) {}
 ValueItem::ValueItem(bool val) : val(0) {
-	*this = ABI_IMPL::BVcast((uint8_t)val);
+	*this = ABI_IMPL::BVcast(val);
 }
 ValueItem::ValueItem(int8_t val) : val(0) {
 	*this = ABI_IMPL::BVcast(val);
@@ -3263,7 +3265,7 @@ AttachAVirtualTable::AttachAVirtualTable(list_array<MethodInfo>& methods, typed_
 	table_size = methods.size();
 	Enviropment* table = getMethods(table_size);
 	MethodInfo* table_additional_info = getMethodsInfo(table_size);
-	for (size_t i = 0; i < table_size; i++) {
+	for (uint64_t i = 0; i < table_size; i++) {
 		table[i] = (Enviropment)(methods[i].ref? methods[i].ref->get_func_ptr() : nullptr);
 		new(table_additional_info + i)MethodInfo(methods[i]);
 	}
@@ -3294,7 +3296,7 @@ void AttachAVirtualTable::destroy(AttachAVirtualTable* table){
 }
 AttachAVirtualTable::~AttachAVirtualTable(){
 	MethodInfo* table_additional_info = (MethodInfo*)(data + sizeof(Enviropment) * table_size);
-	for (size_t i = 0; i < table_size; i++) 
+	for (uint64_t i = 0; i < table_size; i++) 
 		table_additional_info[i].~MethodInfo();
 		
 	auto tmp = getAfterMethods();
@@ -3304,7 +3306,7 @@ AttachAVirtualTable::~AttachAVirtualTable(){
 list_array<StructureTag>* AttachAVirtualTable::getStructureTags(){
 	return getAfterMethods()->tags;
 }
-list_array<MethodTag>* AttachAVirtualTable::getMethodTags(size_t index){
+list_array<MethodTag>* AttachAVirtualTable::getMethodTags(uint64_t index){
 	MethodInfo& info = getMethodInfo(index);
 	if(info.optional == nullptr) return nullptr;
 	return &info.optional->tags;
@@ -3314,7 +3316,7 @@ list_array<MethodTag>* AttachAVirtualTable::getMethodTags(const std::string& nam
 	if(info.optional == nullptr) return nullptr;
 	return &info.optional->tags;
 }
-list_array<list_array<ValueMeta>>* AttachAVirtualTable::getMethodArguments(size_t index){
+list_array<list_array<ValueMeta>>* AttachAVirtualTable::getMethodArguments(uint64_t index){
 	MethodInfo& info = getMethodInfo(index);
 	if(info.optional == nullptr) return nullptr;
 	return &info.optional->arguments;
@@ -3324,7 +3326,7 @@ list_array<list_array<ValueMeta>>* AttachAVirtualTable::getMethodArguments(const
 	if(info.optional == nullptr) return nullptr;
 	return &info.optional->arguments;
 }
-list_array<ValueMeta>* AttachAVirtualTable::getMethodReturnValues(size_t index){
+list_array<ValueMeta>* AttachAVirtualTable::getMethodReturnValues(uint64_t index){
 	MethodInfo& info = getMethodInfo(index);
 	if(info.optional == nullptr) return nullptr;
 	return &info.optional->return_values;
@@ -3334,27 +3336,27 @@ list_array<ValueMeta>* AttachAVirtualTable::getMethodReturnValues(const std::str
 	if(info.optional == nullptr) return nullptr;
 	return &info.optional->return_values;
 }
-MethodInfo* AttachAVirtualTable::getMethodsInfo(size_t& size){
+MethodInfo* AttachAVirtualTable::getMethodsInfo(uint64_t& size){
 	size = table_size;
 	return (MethodInfo*)(data + sizeof(Enviropment) * table_size);
 }
-MethodInfo& AttachAVirtualTable::getMethodInfo(size_t index){
+MethodInfo& AttachAVirtualTable::getMethodInfo(uint64_t index){
 	if(index >= table_size) throw InvalidOperation("Index out of range");
 	return getMethodsInfo(table_size)[index];
 }
 MethodInfo& AttachAVirtualTable::getMethodInfo(const std::string& name, ClassAccess access){
 	MethodInfo* table_additional_info = getMethodsInfo(table_size);
-	for (size_t i = 0; i < table_size; i++) {
+	for (uint64_t i = 0; i < table_size; i++) {
 		if(table_additional_info[i].name == name && Structure::checkAccess(table_additional_info[i].access,access))
 			return table_additional_info[i];
 	}
 	throw InvalidOperation("Method not found");
 }
-Enviropment* AttachAVirtualTable::getMethods(size_t& size){
+Enviropment* AttachAVirtualTable::getMethods(uint64_t& size){
 	size = table_size;
 	return (Enviropment*)data;
 }
-Enviropment AttachAVirtualTable::getMethod(size_t index){
+Enviropment AttachAVirtualTable::getMethod(uint64_t index){
 	if(index >= table_size) throw InvalidOperation("Index out of range");
 	Enviropment* table = (Enviropment*)data;
 	return table[index];
@@ -3363,16 +3365,16 @@ Enviropment AttachAVirtualTable::getMethod(const std::string& name, ClassAccess 
 	return (Enviropment)getMethodInfo(name,access).ref->get_func_ptr();
 }
 
-size_t AttachAVirtualTable::getMethodIndex(const std::string& name, ClassAccess access){
+uint64_t AttachAVirtualTable::getMethodIndex(const std::string& name, ClassAccess access){
 	MethodInfo* table_additional_info = getMethodsInfo(table_size);
-	for (size_t i = 0; i < table_size; i++) 
+	for (uint64_t i = 0; i < table_size; i++) 
 		if(table_additional_info[i].name == name && Structure::checkAccess(table_additional_info[i].access,access))
 			return i;
 	throw InvalidOperation("Method not found");
 }
 bool AttachAVirtualTable::hasMethod(const std::string& name, ClassAccess access){
 	MethodInfo* table_additional_info = getMethodsInfo(table_size);
-	for (size_t i = 0; i < table_size; i++) 
+	for (uint64_t i = 0; i < table_size; i++) 
 		if(table_additional_info[i].name == name && Structure::checkAccess(table_additional_info[i].access,access))
 			return true;
 	return false;
@@ -3405,7 +3407,7 @@ AttachADynamicVirtualTable::AttachADynamicVirtualTable(const AttachADynamicVirtu
 list_array<StructureTag>* AttachADynamicVirtualTable::getStructureTags(){
 	return tags;
 }
-list_array<MethodTag>* AttachADynamicVirtualTable::getMethodTags(size_t index){
+list_array<MethodTag>* AttachADynamicVirtualTable::getMethodTags(uint64_t index){
 	MethodInfo& info = getMethodInfo(index);
 	if(info.optional == nullptr) return nullptr;
 	return &info.optional->tags;
@@ -3416,7 +3418,7 @@ list_array<MethodTag>* AttachADynamicVirtualTable::getMethodTags(const std::stri
 	return &info.optional->tags;
 }
 
-list_array<list_array<ValueMeta>>* AttachADynamicVirtualTable::getMethodArguments(size_t index){
+list_array<list_array<ValueMeta>>* AttachADynamicVirtualTable::getMethodArguments(uint64_t index){
 	MethodInfo& info = getMethodInfo(index);
 	if(info.optional == nullptr) return nullptr;
 	return &info.optional->arguments;
@@ -3427,7 +3429,7 @@ list_array<list_array<ValueMeta>>* AttachADynamicVirtualTable::getMethodArgument
 	return &info.optional->arguments;
 }
 
-list_array<ValueMeta>* AttachADynamicVirtualTable::getMethodReturnValues(size_t index){
+list_array<ValueMeta>* AttachADynamicVirtualTable::getMethodReturnValues(uint64_t index){
 	MethodInfo& info = getMethodInfo(index);
 	if(info.optional == nullptr) return nullptr;
 	return &info.optional->return_values;
@@ -3438,23 +3440,23 @@ list_array<ValueMeta>* AttachADynamicVirtualTable::getMethodReturnValues(const s
 	return &info.optional->return_values;
 }
 
-MethodInfo* AttachADynamicVirtualTable::getMethodsInfo(size_t& size){
+MethodInfo* AttachADynamicVirtualTable::getMethodsInfo(uint64_t& size){
 	size = methods.size();
 	return methods.data();
 }
-MethodInfo& AttachADynamicVirtualTable::getMethodInfo(size_t index){
+MethodInfo& AttachADynamicVirtualTable::getMethodInfo(uint64_t index){
 	if(index >= methods.size()) throw InvalidOperation("Index out of range");
 	return methods[index];
 }
 MethodInfo& AttachADynamicVirtualTable::getMethodInfo(const std::string& name, ClassAccess access){
-	for (size_t i = 0; i < methods.size(); i++) {
+	for (uint64_t i = 0; i < methods.size(); i++) {
 		if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
 			return methods[i];
 	}
 	throw InvalidOperation("Method not found");
 }
 
-Enviropment AttachADynamicVirtualTable::getMethod(size_t index){
+Enviropment AttachADynamicVirtualTable::getMethod(uint64_t index){
 	if(index >= methods.size()) throw InvalidOperation("Index out of range");
 	return (Enviropment)methods[index].ref->get_func_ptr();
 }
@@ -3470,7 +3472,7 @@ void AttachADynamicVirtualTable::addMethod(const std::string& name, const typed_
 }
 
 void AttachADynamicVirtualTable::removeMethod(const std::string& name, ClassAccess access){
-	for (size_t i = 0; i < methods.size(); i++) 
+	for (uint64_t i = 0; i < methods.size(); i++) 
 		if(methods[i].deletable)
 			if(methods[i].name == name && Structure::checkAccess(methods[i].access,access)){
 				methods.remove(i);
@@ -3494,21 +3496,21 @@ void AttachADynamicVirtualTable::addTag(const std::string& name, ValueItem&& val
 }
 void AttachADynamicVirtualTable::removeTag(const std::string& name){
 	if(tags == nullptr) return;
-	for (size_t i = 0; i < tags->size(); i++) 
+	for (uint64_t i = 0; i < tags->size(); i++) 
 		if((*tags)[i].name == name){
 			tags->remove(i);
 			return;
 		}
 }
 
-size_t AttachADynamicVirtualTable::getMethodIndex(const std::string& name, ClassAccess access){
-	for (size_t i = 0; i < methods.size(); i++) 
+uint64_t AttachADynamicVirtualTable::getMethodIndex(const std::string& name, ClassAccess access){
+	for (uint64_t i = 0; i < methods.size(); i++) 
 		if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
 			return i;
 	throw InvalidOperation("Method not found");
 }
 bool AttachADynamicVirtualTable::hasMethod(const std::string& name, ClassAccess access){
-	for (size_t i = 0; i < methods.size(); i++) 
+	for (uint64_t i = 0; i < methods.size(); i++) 
 		if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
 			return true;
 	return false;
@@ -3527,9 +3529,9 @@ void AttachADynamicVirtualTable::derive(AttachADynamicVirtualTable& parent){
 	}
 }
 void AttachADynamicVirtualTable::derive(AttachAVirtualTable& parent){
-	size_t total_methods;
+	uint64_t total_methods;
 	auto methods = parent.getMethodsInfo(total_methods);
-	for (size_t i = 0; i < total_methods; i++){
+	for (uint64_t i = 0; i < total_methods; i++){
 		auto tmp = getMethodIndex(methods[i].name, methods[i].access);
 		if(tmp == -1)
 			this->methods.push_back(methods[i]);
@@ -3559,7 +3561,7 @@ AttachAVirtualTable* Structure::createAAVTable(list_array<MethodInfo>& methods, 
 				methods_copy.push_back(reinterpret_cast<AttachADynamicVirtualTable*>(std::get<0>(table))->methods);
 				break;
 			case VTableMode::AttachAVirtualTable:{
-				size_t total_methods;
+				uint64_t total_methods;
 				auto methods = reinterpret_cast<AttachAVirtualTable*>(std::get<0>(table))->getMethodsInfo(total_methods);
 				methods_copy.push_back(methods, total_methods);
 				break;
@@ -3949,7 +3951,7 @@ void Structure::dynamic_value_set(const std::string& name, ValueItem value){
 }
 
 
-size_t Structure::table_get_id(const std::string& name, ClassAccess access){
+uint64_t Structure::table_get_id(const std::string& name, ClassAccess access){
 	char* data = raw_data + count * sizeof(Item);
 	switch (vtable_mode) {
 	case VTableMode::disabled:
@@ -3963,7 +3965,7 @@ size_t Structure::table_get_id(const std::string& name, ClassAccess access){
 		throw NotImplementedException();
 	}
 }
-Enviropment Structure::table_get(size_t fn_id){
+Enviropment Structure::table_get(uint64_t fn_id){
 	switch (vtable_mode) {
 	case VTableMode::disabled:
 		throw InvalidArguments("vtable disabled");
@@ -4012,7 +4014,7 @@ void Structure::remove_method(const std::string& name, ClassAccess access){
 		throw InvalidOperation("vtable must be dynamic to remove method");
 	((AttachADynamicVirtualTable*)get_vtable())->removeMethod(name, access);
 }
-typed_lgr<FuncEnvironment> Structure::get_method(size_t fn_id){
+typed_lgr<FuncEnvironment> Structure::get_method(uint64_t fn_id){
 	switch (vtable_mode) {
 	case VTableMode::disabled:
 		throw InvalidArguments("vtable disabled");
@@ -4183,14 +4185,15 @@ Structure* Structure::copy(Structure* src){
 	case VTableMode::AttachAVirtualTable:
 		if(reinterpret_cast<AttachAVirtualTable*>(vtable)->copy){
 			ValueItem args = {ValueItem(dst,as_refrence), ValueItem(src,as_refrence), true};
-			reinterpret_cast<AttachAVirtualTable*>(vtable)->copy(&args,3);
+			auto res = reinterpret_cast<AttachAVirtualTable*>(vtable)->copy((ValueItem*)args.getSourcePtr(),3);
+			if(res)
+				delete res;
 		}
 		else throw NotImplementedException();
 		break;
 	case VTableMode::AttachADynamicVirtualTable:
 		if(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->copy){
 			AttachA::cxxCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->copy, ValueItem(dst,as_refrence), ValueItem(src,as_refrence), true);
-
 		}
 		else throw NotImplementedException();
 		break;
@@ -4224,7 +4227,9 @@ void Structure::move(Structure* dst, Structure* src, bool at_construct){
 			ValueItem _src(src,no_copy);
 			_src.meta.as_ref = true;
 			ValueItem args = {_dst, _src, at_construct};
-			reinterpret_cast<AttachAVirtualTable*>(vtable)->move(&args,3);
+			auto res = reinterpret_cast<AttachAVirtualTable*>(vtable)->move((ValueItem*)args.getSourcePtr(),3);
+			if(res)
+				delete res;
 		}
 		else throw NotImplementedException();
 		break;
@@ -4272,7 +4277,7 @@ int8_t Structure::compare(Structure* a, Structure* b){
 			ValueItem _b(b,no_copy);
 			_b.meta.as_ref = true;
 			ValueItem args = {_a, _b};
-			ValueItem* res = reinterpret_cast<AttachAVirtualTable*>(vtable)->compare(&args,2);
+			ValueItem* res = reinterpret_cast<AttachAVirtualTable*>(vtable)->compare((ValueItem*)args.getSourcePtr(),2);
 			if(res){
 				int8_t ret = (int8_t)*res;
 				delete res;

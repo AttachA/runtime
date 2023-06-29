@@ -9,6 +9,7 @@
 #define RUN_TIME_ATTACHA_ABI_STRUCTS
 
 #include <cstdint>
+#include <cassert>
 #include <unordered_map>
 #include <unordered_set>
 #include <chrono>
@@ -45,6 +46,7 @@ ENUM_t(Opcode,uint8_t,
 	(call_self_and_ret)
 	(call_local_and_ret)
 	(ret)
+	(ret_take)
 	(ret_noting)
 	(copy)
 	(move)
@@ -59,9 +61,13 @@ ENUM_t(Opcode,uint8_t,
 
 	(inline_native)
 	(call_value_function)
+	(call_value_function_id)
 	(call_value_function_and_ret)
+	(call_value_function_id_and_ret)
 	(static_call_value_function)
 	(static_call_value_function_and_ret)
+	(static_call_value_function_id)
+	(static_call_value_function_id_and_ret)
 	(set_structure_value)
 	(get_structure_value)
 	(explicit_await)
@@ -84,6 +90,7 @@ ENUM_t(Opcode,uint8_t,
 	(from_gc)
 	(table_jump)
 	(xarray_slice)//farray and sarray slice by creating reference to original array with moved pointer and new size
+	(store_constant)
 )
 
 
@@ -202,29 +209,27 @@ union CallFlags {
 		uint8_t in_memory : 1;
 		uint8_t async_mode : 1;
 		uint8_t use_result : 1;
-		uint8_t except_catch : 1;
-		uint8_t compiletime_constant : 1;//invalid when in_memory true, if true async_mode ignored
-		uint8_t : 3;
+		uint8_t : 5;
 	};
 	uint8_t encoded = 0;
 };
 
 struct RFLAGS {
-	uint16_t : 1;
-	uint16_t nt : 1;
-	uint16_t iopl : 1;
-	uint16_t overflow : 1;
-	uint16_t direction : 1;
-	uint16_t ief : 1;
-	uint16_t tf : 1;
-	uint16_t sign_f : 1;
-	uint16_t zero : 1;
-	uint16_t : 1;
-	uint16_t auxiliary_carry : 1;
+	uint16_t carry : 1;
 	uint16_t : 1;
 	uint16_t parity : 1;
 	uint16_t : 1;
-	uint16_t carry : 1;
+	uint16_t auxiliary_carry : 1;
+	uint16_t : 1;
+	uint16_t zero : 1;
+	uint16_t sign_f : 1;
+	uint16_t tf : 1;
+	uint16_t ief : 1;
+	uint16_t direction : 1;
+	uint16_t overflow : 1;
+	uint16_t iopl : 1;
+	uint16_t nt : 1;
+	uint16_t : 1;
 	struct off_left {
 		static constexpr uint8_t nt = 13;
 		static constexpr uint8_t iopl = 12;
@@ -295,6 +300,72 @@ ENUM_t(VType, uint8_t,
 
 	(generator)//holds function context
 )
+
+ENUM_t(ValuePos, uint8_t,
+	(in_enviro)
+	(in_arguments)
+	(in_static)
+	(in_constants)
+)
+struct ValueIndexPos{
+	uint16_t index;
+	ValuePos pos = ValuePos::in_enviro;
+
+	bool operator==(const ValueIndexPos& compare){
+		return index == compare.index && pos == compare.pos;
+	}
+	bool operator!=(const ValueIndexPos& compare){
+		return index != compare.index || pos != compare.pos;
+	}
+};
+inline ValueIndexPos operator""_env(unsigned long long index){
+	assert(index <= UINT16_MAX);
+	return ValueIndexPos(index,ValuePos::in_enviro);
+}
+inline ValueIndexPos operator""_arg(unsigned long long index){
+	assert(index <= UINT16_MAX);
+	return ValueIndexPos(index,ValuePos::in_arguments);
+}
+inline ValueIndexPos operator""_sta(unsigned long long index){
+	assert(index <= UINT16_MAX);
+	return ValueIndexPos(index,ValuePos::in_static);
+}
+inline ValueIndexPos operator""_con(unsigned long long index){
+	assert(index <= UINT16_MAX);
+	return ValueIndexPos(index,ValuePos::in_constants);
+}
+struct FunctionMetaFlags{
+	uint64_t length;//length including meta
+	struct {
+		bool vec128_0 : 1;
+		bool vec128_1 : 1;
+		bool vec128_2 : 1;
+		bool vec128_3 : 1;
+		bool vec128_4 : 1;
+		bool vec128_5 : 1;
+		bool vec128_6 : 1;
+		bool vec128_7 : 1;
+		bool vec128_8 : 1;
+		bool vec128_9 : 1;
+		bool vec128_10 : 1;
+		bool vec128_11 : 1;
+		bool vec128_12 : 1;
+		bool vec128_13 : 1;
+		bool vec128_14 : 1;
+		bool vec128_15 : 1;
+	} used_vec;
+	bool can_be_unloaded : 1;
+	bool is_translated : 1;//function that returns another function, used to implement generics, lambdas or dynamic functions
+	bool has_local_functions : 1;
+	bool has_debug_info : 1;
+	bool is_cheap : 1;
+	bool used_enviro_vals : 1;
+	bool used_arguments : 1;
+	bool used_static : 1;
+	bool in_debug : 1;
+	bool run_time_computable : 1;//in files always false
+	//11bits left
+};
 
 union ValueMeta {
 	size_t encoded;
@@ -549,7 +620,7 @@ struct AttachAVirtualTable {
 	Enviropment copy;//args: Structure* dst, Structure* src, bool at_construct
 	Enviropment move;//args: Structure* dst, Structure* src, bool at_construct
 	Enviropment compare;//args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
-	size_t table_size;
+	uint64_t table_size;
 	char data[];
 
 	//{
@@ -563,24 +634,24 @@ struct AttachAVirtualTable {
 	//	list_array<StructureTag>* tags;//can be null
 	//}
 	list_array<StructureTag>* getStructureTags();
-	list_array<MethodTag>* getMethodTags(size_t index);
+	list_array<MethodTag>* getMethodTags(uint64_t index);
 	list_array<MethodTag>* getMethodTags(const std::string& name, ClassAccess access);
 
-	list_array<list_array<ValueMeta>>* getMethodArguments(size_t index);
+	list_array<list_array<ValueMeta>>* getMethodArguments(uint64_t index);
 	list_array<list_array<ValueMeta>>* getMethodArguments(const std::string& name, ClassAccess access);
 
-	list_array<ValueMeta>* getMethodReturnValues(size_t index);
+	list_array<ValueMeta>* getMethodReturnValues(uint64_t index);
 	list_array<ValueMeta>* getMethodReturnValues(const std::string& name, ClassAccess access);
 
-	MethodInfo* getMethodsInfo(size_t& size);
-	MethodInfo& getMethodInfo(size_t index);
+	MethodInfo* getMethodsInfo(uint64_t& size);
+	MethodInfo& getMethodInfo(uint64_t index);
 	MethodInfo& getMethodInfo(const std::string& name, ClassAccess access);
 
-	Enviropment* getMethods(size_t& size);
-	Enviropment getMethod(size_t index);
+	Enviropment* getMethods(uint64_t& size);
+	Enviropment getMethod(uint64_t index);
 	Enviropment getMethod(const std::string& name, ClassAccess access);
 
-	size_t getMethodIndex(const std::string& name, ClassAccess access);
+	uint64_t getMethodIndex(const std::string& name, ClassAccess access);
 	bool hasMethod(const std::string& name, ClassAccess access);
 
 	static AttachAVirtualTable* create(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move, typed_lgr<class FuncEnvironment> compare);
@@ -613,21 +684,21 @@ struct AttachADynamicVirtualTable {
 	~AttachADynamicVirtualTable();
 	AttachADynamicVirtualTable(const AttachADynamicVirtualTable&);
 	list_array<StructureTag>* getStructureTags();
-	list_array<MethodTag>* getMethodTags(size_t index);
+	list_array<MethodTag>* getMethodTags(uint64_t index);
 	list_array<MethodTag>* getMethodTags(const std::string& name, ClassAccess access);
 
-	list_array<list_array<ValueMeta>>* getMethodArguments(size_t index);
+	list_array<list_array<ValueMeta>>* getMethodArguments(uint64_t index);
 	list_array<list_array<ValueMeta>>* getMethodArguments(const std::string& name, ClassAccess access);
 
-	list_array<ValueMeta>* getMethodReturnValues(size_t index);
+	list_array<ValueMeta>* getMethodReturnValues(uint64_t index);
 	list_array<ValueMeta>* getMethodReturnValues(const std::string& name, ClassAccess access);
 
-	MethodInfo* getMethodsInfo(size_t& size);
-	MethodInfo& getMethodInfo(size_t index);
+	MethodInfo* getMethodsInfo(uint64_t& size);
+	MethodInfo& getMethodInfo(uint64_t index);
 	MethodInfo& getMethodInfo(const std::string& name, ClassAccess access);
 
-	Enviropment* getMethods(size_t& size);
-	Enviropment getMethod(size_t index);
+	Enviropment* getMethods(uint64_t& size);
+	Enviropment getMethod(uint64_t index);
 	Enviropment getMethod(const std::string& name, ClassAccess access);
 
 	void addMethod(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
@@ -639,7 +710,7 @@ struct AttachADynamicVirtualTable {
 	void addTag(const std::string& name, ValueItem&& value);
 	void removeTag(const std::string& name);
 
-	size_t getMethodIndex(const std::string& name, ClassAccess access);
+	uint64_t getMethodIndex(const std::string& name, ClassAccess access);
 	bool hasMethod(const std::string& name, ClassAccess access);
 
 	void derive(AttachADynamicVirtualTable& parent);
@@ -798,8 +869,8 @@ public:
 	ValueItem dynamic_value_get_ref(const std::string& name);
 	void dynamic_value_set(const std::string& name, ValueItem value);
 
-	size_t table_get_id(const std::string& name, ClassAccess access);
-	Enviropment table_get(size_t fn_id);
+	uint64_t table_get_id(const std::string& name, ClassAccess access);
+	Enviropment table_get(uint64_t fn_id);
 	Enviropment table_get_dynamic(const std::string& name, ClassAccess access);//table_get(table_get_id(name, access))
 	
 	void add_method(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
@@ -807,7 +878,7 @@ public:
 
 	bool has_method(const std::string& name, ClassAccess access);
 	void remove_method(const std::string& name, ClassAccess access);
-	typed_lgr<FuncEnvironment> get_method(size_t fn_id);
+	typed_lgr<FuncEnvironment> get_method(uint64_t fn_id);
 	typed_lgr<FuncEnvironment> get_method_dynamic(const std::string& name, ClassAccess access);
 
 	void table_derive(void* vtable, VTableMode vtable_mode);//only for AttachADynamicVirtualTable

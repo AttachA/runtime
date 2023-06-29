@@ -94,15 +94,49 @@ list_array<std::pair<uint64_t, Label>> prepareJumpList(CASM& a, const std::vecto
 	}
 	return {};
 }
+
+std::tuple<list_array<std::pair<uint64_t, Label>>, std::vector<typed_lgr<FuncEnvironment>>, FunctionMetaFlags, uint16_t, uint16_t, uint32_t, uint64_t> decodeFunctionHeader(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& to_be_skiped) {
+	FunctionMetaFlags flags = readData<FunctionMetaFlags>(data, data_len, to_be_skiped);
+	if(flags.length != data_len)
+		throw InvalidFunction("Invalid function header, invalid function length");
+
+	uint16_t used_static_values = 0;
+	uint16_t used_enviro_vals = 0;
+	uint32_t used_arguments = 0;
+	uint64_t constants_values = 0;
+
+	if(flags.used_static)
+		used_static_values = readData<uint16_t>(data, data_len, to_be_skiped);
+	if(flags.used_enviro_vals)
+		used_enviro_vals = readData<uint16_t>(data, data_len, to_be_skiped);
+	if(flags.used_arguments)
+		used_arguments = readData<uint32_t>(data, data_len, to_be_skiped);
+	constants_values = readPackedLen(data, data_len, to_be_skiped);
+	std::vector<typed_lgr<FuncEnvironment>> locals;
+	if(flags.has_local_functions){
+		uint64_t locals_count = readPackedLen(data, data_len, to_be_skiped);
+		locals.resize(locals_count);
+		for (uint64_t i = 0; i < locals_count; i++) {
+			uint64_t local_fn_len = readPackedLen(data, data_len, to_be_skiped);
+			uint8_t* local_fn = extractRawArray<uint8_t>(data, data_len, to_be_skiped, local_fn_len);
+			std::vector<uint8_t> local_fn_data(local_fn, local_fn + local_fn_len);
+			locals[i] = new FuncEnvironment(local_fn_data);
+		}
+	}
+	return { prepareJumpList(a, data, data_len, to_be_skiped), std::move(locals), flags, used_static_values, used_enviro_vals, used_arguments, constants_values};
+}
+
+
 #pragma region CompilerFabric helpers
 template<bool use_result = true, bool do_cleanup = true>
-void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values) {
+void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values, std::vector<ValueItem*> static_map) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
 	BuildCall b(a, 0);
 	if (flags.in_memory) {
-		uint16_t value_index = readData<uint16_t>(data, data_len, i);
-		b.leaEnviro(value_index);
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		ValueIndexPos value_index = readIndexPos(data, data_len, i);
+		b.lea_valindex({static_map, values},value_index);
 		b.addArg(VType::string);
 		b.finalize(getSpecificValue);
 		b.addArg(resr);
@@ -135,7 +169,7 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_
 					b.finalize(fn->get_func_ptr());
 					if constexpr (use_result)
 						if (flags.use_result) {
-							a.movEnviro(readData<uint16_t>(data, data_len, i), 0);
+							a.mov_valindex({static_map, values}, readIndexPos(data, data_len, i), 0);
 							return;
 						}
 					break;
@@ -158,7 +192,7 @@ void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_
 	}
 	if constexpr (use_result) {
 		if (flags.use_result) {
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.addArg(resr);
 			b.finalize(getValueItem);
 			return;
@@ -182,12 +216,12 @@ void _compilerFabric_call_local_any(CASM& a, FuncEnvironment* env,bool async_mod
 	b.finalize(&FuncEnvironment::localWrapper);
 }
 template<bool use_result = true, bool do_cleanup = true>
-void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, FuncEnvironment* env) {
+void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, FuncEnvironment* env, list_array<ValueItem>& values,  std::vector<ValueItem*> static_map) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
 	BuildCall b(a, 0);
 	if (flags.in_memory) {
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(getSize);
 		b.setArguments(5);
 		b.addArg(env);
@@ -224,7 +258,7 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 					b.finalize(fn->get_func_ptr());
 					if constexpr (use_result)
 						if (flags.use_result) {
-							a.movEnviro(readData<uint16_t>(data, data_len, i), 0);
+							a.mov_valindex({static_map, values}, readIndexPos(data, data_len, i), 0);
 							return;
 						}
 					break;
@@ -247,7 +281,7 @@ void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t
 	}
 	if constexpr (use_result) {
 		if (flags.use_result) {
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.addArg(resr);
 			b.finalize(getValueItem);
 			return;
@@ -274,6 +308,18 @@ ValueItem* _valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, 
 		throw NotImplementedException();
 	}
 }
+template<bool async_call>
+ValueItem* _valueItemDynamicCall(uint64_t id, ValueItem* class_ptr, ValueItem* args, uint32_t len) {
+	switch (class_ptr->meta.vtype) {
+	case VType::struct_:
+		if constexpr (async_call)
+			return FuncEnvironment::async_call(((Structure&)*class_ptr).get_method(id), args, len);
+		else
+			return ((Structure&)*class_ptr).table_get(id)(args, len);
+	default:
+		throw NotImplementedException();
+	}
+}
 template<bool async_mode>
 ValueItem* valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueItem* args, uint32_t len, ClassAccess access) {
 	if (!class_ptr)
@@ -281,19 +327,33 @@ ValueItem* valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, V
 	class_ptr->getAsync();
 	list_array<ValueItem> args_tmp;
 	args_tmp.reserve_push_back(len + 1);
-	args_tmp.push_back(*class_ptr);
-	args_tmp.push_back(args, len);
+	args_tmp.push_back(ValueItem(*class_ptr, as_refrence));
+	for(uint32_t i = 0; i < len; i++)
+		args_tmp.push_back(ValueItem(args[i], as_refrence));
 	return _valueItemDynamicCall<async_mode>(name, class_ptr, access, args_tmp.data(), len + 1);
 }
 
+template<bool async_mode>
+ValueItem* valueItemDynamicCallId(uint64_t id, ValueItem* class_ptr, ValueItem* args, uint32_t len) {
+	if (!class_ptr)
+		throw NullPointerException();
+	class_ptr->getAsync();
+	list_array<ValueItem> args_tmp;
+	args_tmp.reserve_push_back(len + 1);
+	args_tmp.push_back(ValueItem(*class_ptr, as_refrence));
+	for(uint32_t i = 0; i < len; i++)
+		args_tmp.push_back(ValueItem(args[i], as_refrence));
+		
+	return _valueItemDynamicCall<async_mode>(id, class_ptr, args_tmp.data(), len + 1);
+}
+
 template<bool use_result = true, bool do_cleanup = true>
-void compilerFabric_value_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values) {
+void compilerFabric_value_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values, std::vector<ValueItem*> static_map) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
 	BuildCall b(a, 0);
 	if (flags.in_memory) {
-		uint16_t value_index = readData<uint16_t>(data, data_len, i);
-		b.leaEnviro(value_index);
+		b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));//value
 		b.addArg(VType::string);
 		b.finalize(getSpecificValue);
 		b.setArguments(5);
@@ -306,8 +366,7 @@ void compilerFabric_value_call(CASM& a, const std::vector<uint8_t>& data, size_t
 		b.addArg((std::string*)values.back().val);
 	}
 
-	uint16_t class_ptr = readData<uint16_t>(data, data_len, i);
-	b.leaEnviro(class_ptr);
+	b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));//class
 	b.addArg(arg_ptr);
 	b.addArg(arg_len_32);
 	b.addArg((uint8_t)readData<ClassAccess>(data, data_len, i));
@@ -319,7 +378,37 @@ void compilerFabric_value_call(CASM& a, const std::vector<uint8_t>& data, size_t
 	b.setArguments(0);
 	if constexpr (use_result) {
 		if (flags.use_result) {
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+			b.addArg(resr);
+			b.finalize(getValueItem);
+			return;
+		}
+		else if constexpr (do_cleanup)
+			if (!flags.use_result)
+				inlineReleaseUnused(a, resr);
+	}
+	else if constexpr (do_cleanup)
+		if (!flags.use_result)
+			inlineReleaseUnused(a, resr);
+}
+template<bool use_result = true, bool do_cleanup = true>
+void compilerFabric_value_call_id(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values, std::vector<ValueItem*> static_map) {
+	CallFlags flags;
+	flags.encoded = readData<uint8_t>(data, data_len, i);
+	BuildCall b(a, 4);
+	b.addArg(readData<uint64_t>(data, data_len, i));
+	b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//class
+	b.addArg(arg_ptr);
+	b.addArg(arg_len_32);
+	if (flags.async_mode)
+		b.finalize(valueItemDynamicCallId<true>);
+	else
+		b.finalize(valueItemDynamicCallId<false>);
+
+	b.setArguments(0);
+	if constexpr (use_result) {
+		if (flags.use_result) {
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.addArg(resr);
 			b.finalize(getValueItem);
 			return;
@@ -333,25 +422,25 @@ void compilerFabric_value_call(CASM& a, const std::vector<uint8_t>& data, size_t
 			inlineReleaseUnused(a, resr);
 }
 
+
 template<bool async_mode>
 void* staticValueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueItem* args, uint32_t len, ClassAccess access) {
 	if (!class_ptr)
 		throw NullPointerException();
 	class_ptr->getAsync();
-	if (async_mode)
+	if constexpr (async_mode)
 		return _valueItemDynamicCall<true>(name, class_ptr, access, args, len);
 	else
 		return _valueItemDynamicCall<false>(name, class_ptr, access, args, len);
 }
 
 template<bool use_result = true, bool do_cleanup = true>
-void compilerFabric_static_value_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values) {
+void compilerFabric_static_value_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values, std::vector<ValueItem*> static_map) {
 	CallFlags flags;
 	flags.encoded = readData<uint8_t>(data, data_len, i);
 	BuildCall b(a, 0);
 	if (flags.in_memory) {
-		uint16_t value_index = readData<uint16_t>(data, data_len, i);
-		b.leaEnviro(value_index);
+		b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));//value
 		b.addArg(VType::string);
 		b.finalize(getSpecificValue);
 		b.setArguments(5);
@@ -363,10 +452,8 @@ void compilerFabric_static_value_call(CASM& a, const std::vector<uint8_t>& data,
 		b.setArguments(5);
 		b.addArg((std::string*)values.back().val);
 	}
-	//fn_nam
 
-	uint16_t class_ptr = readData<uint16_t>(data, data_len, i);
-	b.leaEnviro(class_ptr);
+	b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));
 	b.addArg(arg_ptr);
 	b.addArg(arg_len_32);
 	b.addArg((uint8_t)readData<ClassAccess>(data, data_len, i));
@@ -380,7 +467,49 @@ void compilerFabric_static_value_call(CASM& a, const std::vector<uint8_t>& data,
 	b.setArguments(0);
 	if constexpr (use_result) {
 		if (flags.use_result) {
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+			b.addArg(resr);
+			b.finalize(getValueItem);
+			return;
+		}
+		else if constexpr (do_cleanup)
+			if (!flags.use_result)
+				inlineReleaseUnused(a, resr);
+	}
+	else if constexpr (do_cleanup)
+		if (!flags.use_result)
+			inlineReleaseUnused(a, resr);
+}
+template<bool async_mode>
+void* staticValueItemDynamicCallId(uint64_t id, ValueItem* class_ptr, ValueItem* args, uint32_t len) {
+	if (!class_ptr)
+		throw NullPointerException();
+	class_ptr->getAsync();
+	if constexpr (async_mode)
+		return _valueItemDynamicCall<true>(id, class_ptr, args, len);
+	else
+		return _valueItemDynamicCall<false>(id, class_ptr, args, len);
+}
+
+template<bool use_result = true, bool do_cleanup = true>
+void compilerFabric_static_value_call_id(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values, std::vector<ValueItem*> static_map) {
+	CallFlags flags;
+	flags.encoded = readData<uint8_t>(data, data_len, i);
+	BuildCall b(a, 4);
+	b.addArg(readData<uint64_t>(data, data_len, i));
+	b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));
+	b.addArg(arg_ptr);
+	b.addArg(arg_len_32);
+	if (flags.async_mode)
+		b.finalize(staticValueItemDynamicCallId<true>);
+	else
+		b.finalize(staticValueItemDynamicCallId<false>);
+	
+	
+	b.setArguments(0);
+	if constexpr (use_result) {
+		if (flags.use_result) {
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.addArg(resr);
 			b.finalize(getValueItem);
 			return;
@@ -1052,7 +1181,6 @@ void throwEx(const std::string* typ, const std::string* desc) {
 }
 
 
-
 void setValue(void*& val, void* set, ValueMeta meta) {
 	val = copyValue(set, meta);
 }
@@ -1450,6 +1578,8 @@ struct CompilerFabric{
 	bool in_debug;
 	FuncEnvironment* build_func;
 
+	std::vector<ValueItem*> static_map;
+
 	CompilerFabric(
 		CASM& a,
 		ScopeManager& scope,
@@ -1479,16 +1609,26 @@ struct CompilerFabric{
 		return *label->second;
 	}
 	
+	
+	void store_constant(){
+		values.push_back(readAny(data, data_len, i));
+	}
+
+
+	
+	
 #pragma region dynamic opcodes
 #pragma region set/remove/move/copy
 	void dynamic_set(){
-		uint16_t value_index = readData<uint16_t>(data, data_len, i);
+		ValueIndexPos value_index = readIndexPos(data, data_len, i);
 		ValueMeta meta = readData<ValueMeta>(data, data_len, i);
 		meta.as_ref = false;
-		uint16_t optional_len = 0;
+		if(!meta.use_gc)
+			meta.allow_edit = true;
+		uint32_t optional_len = 0;
 		{
 			BuildCall v(a, 3);
-			v.leaEnviro(value_index);
+			v.lea_valindex({static_map, values}, value_index);
 			v.addArg(meta.encoded);
 			v.addArg(cmd.is_gc_mode);
 			v.finalize(preSetValue);
@@ -1597,132 +1737,127 @@ struct CompilerFabric{
 			b.addArg(values.back().val);
 			b.addArg(meta.encoded);
 			b.finalize(setValue);
-			if (is_raw_array(meta.vtype)) {
-				a.mov(resr, uint64_t(optional_len) << 32);
-				a.or_(resr, enviro_ptr, CASM::enviroMetaOffset(value_index));
-				a.movEnviroMeta(value_index, resr);
-			}
+			if (is_raw_array(meta.vtype)) 
+				a.mov_valindex_meta_size({static_map, values}, value_index, optional_len);
 		}
 	}
 	void dynamic_set_saarr() {
-		uint16_t value_index = readData<uint16_t>(data, data_len, i);
+		ValueIndexPos value_index = readIndexPos(data, data_len, i);
 		uint32_t len = readData<uint32_t>(data, data_len, i);
 		BuildCall b(a, 0);
-		
-		b.leaEnviro(value_index);
+		b.lea_valindex({static_map, values}, value_index);
 		b.finalize(valueDestructDyn);
-		ValueMeta set_meta(VType::saarr, false, true, len);
-		a.mov(resr, set_meta.encoded);
-		a.movEnviroMeta(value_index, resr);
+		a.mov(resr, ValueMeta(VType::saarr, false, true, len).encoded);
+		a.mov_valindex_meta({static_map, values},value_index, resr);
 
 		a.stackIncrease(len * sizeof(ValueItem));
 		b.addArg(stack_ptr);
 		b.addArg(len*2);
 		b.finalize(prepareStack);
-		a.movEnviro(value_index, resr);
+		a.mov_valindex({static_map, values}, value_index, resr);
 	}
 	void dynamic_remove(){
 		BuildCall b(a, 1);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(universalRemove);
 	}
 	void dynamic_copy(){
-		uint16_t from = readData<uint16_t>(data, data_len, i);
-		uint16_t to = readData<uint16_t>(data, data_len, i);
+		ValueIndexPos from = readIndexPos(data, data_len, i);
+		ValueIndexPos to = readIndexPos(data, data_len, i);
 		if (from != to) {
 			BuildCall b(a, 0);
-			b.leaEnviro(to);
+			b.lea_valindex({static_map, values}, to);
 			b.finalize(universalRemove);
-			b.movEnviro(from);
-			b.movEnviroMeta(from);
+			b.mov_valindex({static_map, values}, from);
+			b.mov_valindex_meta({static_map, values}, from);
 			b.finalize(copyValue);
-			a.movEnviro(to, resr);
-			a.movEnviroMeta(resr, from);
-			a.movEnviroMeta(to, resr);
+			a.mov_valindex({static_map, values}, to, resr);
+			a.mov_valindex_meta({static_map, values}, resr, from);
+			a.mov_valindex_meta({static_map, values}, to, resr);
 		}
 	}
 	void dynamic_move(){
-		uint16_t from = readData<uint16_t>(data, data_len, i);
-		uint16_t to = readData<uint16_t>(data, data_len, i);
+		ValueIndexPos from = readIndexPos(data, data_len, i);
+		ValueIndexPos to = readIndexPos(data, data_len, i);
 		if (from != to) {
 			BuildCall b(a, 1);
-			b.leaEnviro(to);
+			b.lea_valindex({static_map, values}, to);
 			b.finalize(universalRemove);
 
-			a.movEnviro(resr, from);
-			a.movEnviro(to, resr);
-			a.movEnviroMeta(resr, from);
-			a.movEnviroMeta(to, resr);
-			a.movEnviroMeta(from, 0);
+			a.mov_valindex({static_map, values},resr, from);
+			a.mov_valindex({static_map, values}, to, resr);
+			a.mov_valindex_meta({static_map, values},resr, from);
+			a.mov_valindex_meta({static_map, values}, to, resr);
+			a.mov_valindex_meta({static_map, values},from, 0);
 		}
 	}
 #pragma endregion
 #pragma region dynamic math
 	void dynamic_sum(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynSum);
 	}
 	void dynamic_minus(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynMinus);
 	}
 	void dynamic_div(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynDiv);
 	}
 	void dynamic_mul(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynMul);
 	}
 	void dynamic_rest(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynRest);
 	}
 #pragma endregion
 #pragma region dynamic bit
 	void dynamic_bit_xor(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynBitXor);
 	}
 	void dynamic_bit_or(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynBitOr);
 	}
 	void dynamic_bit_and(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynBitAnd);
 	}
 	void dynamic_bit_not(){
 		BuildCall b(a, 1);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynBitNot);
 	}
 	void dynamic_bit_shift_left(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynBitShiftLeft);
 	}
 	void dynamic_bit_shift_right(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(DynBitShiftRight);
 	}
 
@@ -1739,8 +1874,8 @@ struct CompilerFabric{
 
 		BuildCall b(a, 3);
 		b.addArg(argr0_16);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(compare);
 		a.push(resr_16);
 		a.pop_flags();
@@ -1791,11 +1926,11 @@ struct CompilerFabric{
 #pragma region dynamic call
 	void dunamic_arg_set(){
 		BuildCall b(a, 1);
-		uint16_t item = readData<uint16_t>(data, data_len, i);
-		b.leaEnviro(item);
+		ValueIndexPos item = readIndexPos(data, data_len, i);
+		b.lea_valindex({static_map, values}, item);
 		b.finalize(AsArg);
 		a.mov(arg_ptr, resr);
-		a.getEnviroMetaSize(arg_len_32, item);
+		a.mov_valindex_meta_size({static_map, values}, arg_len_32, item);
 	}
 	void dynamic_call_self(){
 		CallFlags flags;
@@ -1808,7 +1943,7 @@ struct CompilerFabric{
 		b.finalize(self_function);
 
 		if (flags.use_result) {
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.addArg(resr);
 			b.finalize(getValueItem);
 		}
@@ -1830,18 +1965,18 @@ struct CompilerFabric{
 #pragma endregion
 	void dynamic_as(){
 		BuildCall b(a, 2);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.addArg(readData<VType>(data, data_len, i));
 		b.finalize(asValue);
 	}
 	void dynamic_is(){
-		a.movEnviroMeta(resr, readData<uint16_t>(data, data_len, i));
+		a.mov_valindex_meta({static_map, values}, resr, readIndexPos(data, data_len, i));
 		a.mov(argr0_8l, readData<VType>(data, data_len, i));
 		a.cmp(resr_8l, argr0_8l);
 	}
 	void dynamic_store_bool(){
 		BuildCall b(a, 1);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(isTrueValue);
 		a.load_flag8h();
 		a.shift_left(resr_8l, RFLAGS::off_left::zero);
@@ -1854,7 +1989,7 @@ struct CompilerFabric{
 		a.store_flag8h();
 		BuildCall b(a, 2);
 		b.addArg(resr_8h);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(setBoolValue);
 	}
 
@@ -1862,8 +1997,8 @@ struct CompilerFabric{
 		bool in_memory = readData<bool>(data, data_len, i);
 		if (in_memory) {
 			BuildCall b(a, 2);
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.finalize(throwDirEx);
 		}
 		else {
@@ -1885,12 +2020,11 @@ struct CompilerFabric{
 	void dynamic_set_structure_value(){
 		BuildCall b(a, 0);
 		if (readData<bool>(data, data_len, i)) {
-			uint16_t value_index = readData<uint16_t>(data, data_len, i);
-			b.leaEnviro(value_index);
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//value name
 			b.addArg(VType::string);
 			b.finalize(getSpecificValue);
 			b.addArg(readData<ClassAccess>(data, data_len, i));
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//interface
 			b.addArg(resr);
 		}
 		else {
@@ -1898,20 +2032,19 @@ struct CompilerFabric{
 			values.push_back(fnn);
 			b.addArg((std::string*)values.back().val);
 			b.addArg(readData<ClassAccess>(data, data_len, i));
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//interface
 		}
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));//value
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//value
 		b.finalize((void(*)(ClassAccess, ValueItem&, const std::string&, ValueItem&))AttachA::Interface::setValue);
 	}
 	void dynamic_get_structure_value() {
 		BuildCall b(a, 0);
 		if (readData<bool>(data, data_len, i)) {
-			uint16_t value_index = readData<uint16_t>(data, data_len, i);
-			b.leaEnviro(value_index);
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//value name
 			b.addArg(VType::string);
 			b.finalize(getSpecificValue);
 			b.addArg(readData<ClassAccess>(data, data_len, i));
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//interface
 			b.addArg(resr);
 		}
 		else {
@@ -1919,41 +2052,47 @@ struct CompilerFabric{
 			values.push_back(fnn);
 			b.addArg((std::string*)values.back().val);
 			b.addArg(readData<ClassAccess>(data, data_len, i));
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));//interface
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//interface
 		}
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));//save to
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//save to
 		b.finalize(getInterfaceValue);
 	}
 	void dynamic_explicit_await(){
 		BuildCall b(a, 1);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(&ValueItem::getAsync);
 	}
 	void dynamic_ret() {
 		BuildCall b(a, 1);
-		b.leaEnviro(readData<uint16_t>(data, data_len, i));
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		b.finalize(buildRes);
+		do_jump_to_ret = true;
+	}
+	void dynamic_ret_take() {
+		BuildCall b(a, 1);
+		b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		b.finalize(buildResTake);
 		do_jump_to_ret = true;
 	}
 
 	void dynamic_arr_op(){
-		uint16_t arr = readData<uint16_t>(data, data_len, i);
+		ValueIndexPos arr = readIndexPos(data, data_len, i);
 		BuildCall b(a, 0);
-		b.leaEnviro(arr);
+		b.lea_valindex({static_map, values}, arr);
 		b.finalize(AsArr);
 		auto flags = readData<OpArrFlags>(data, data_len, i);
 		switch (readData<OpcodeArray>(data, data_len, i)) {
 		case OpcodeArray::set: {
 			if (flags.by_val_mode) {
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(arr);
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+				b.lea_valindex({static_map, values}, arr);
 				b.addArg(resr);
 			}
 			else {
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(arr);
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+				b.lea_valindex({static_map, values}, arr);
 				b.addArg(readData<uint64_t>(data, data_len, i));
 			}
 			if (flags.move_mode) {
@@ -1992,16 +2131,16 @@ struct CompilerFabric{
 		}
 		case OpcodeArray::insert: {
 			if (flags.by_val_mode) {
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
-				b.leaEnviro(arr);
+				b.lea_valindex({static_map, values},arr);
 				b.addArg(resr);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			}
 			else {
-				b.leaEnviro(arr);
+				b.lea_valindex({static_map, values},arr);
 				b.addArg(readData<uint64_t>(data, data_len, i));
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			}
 			if (flags.move_mode)
 				b.finalize((void (list_array<ValueItem>::*)(size_t, const ValueItem&)) & list_array<ValueItem>::insert);
@@ -2010,8 +2149,8 @@ struct CompilerFabric{
 			break;
 		}
 		case OpcodeArray::push_end: {
-			b.movEnviro(arr);
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values},arr);
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			if (flags.move_mode)
 				b.finalize((void (list_array<ValueItem>::*)(ValueItem&&)) & list_array<ValueItem>::push_back);
 			else
@@ -2019,8 +2158,8 @@ struct CompilerFabric{
 			break;
 		}
 		case OpcodeArray::push_start: {
-			b.movEnviro(arr);
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values},arr);
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			if (flags.move_mode)
 				b.finalize((void (list_array<ValueItem>::*)(ValueItem&&)) & list_array<ValueItem>::push_front);
 			else
@@ -2028,33 +2167,33 @@ struct CompilerFabric{
 			break;
 		}
 		case OpcodeArray::insert_range: {
-			uint16_t arr1 = readData<uint16_t>(data, data_len, i);
-			b.leaEnviro(arr1);
+			ValueIndexPos arr1 = readIndexPos(data, data_len, i);
+			b.lea_valindex({static_map, values},arr1);
 			b.finalize(AsArr);
 			if (flags.by_val_mode) {
-				uint16_t val1 = readData<uint16_t>(data, data_len, i);
-				uint16_t val2 = readData<uint16_t>(data, data_len, i);
-				uint16_t val3 = readData<uint16_t>(data, data_len, i);
-				b.leaEnviro(val3);
+				ValueIndexPos val1 = readIndexPos(data, data_len, i);
+				ValueIndexPos val2 = readIndexPos(data, data_len, i);
+				ValueIndexPos val3 = readIndexPos(data, data_len, i);
+				b.lea_valindex({static_map, values},val3);
 				b.finalize(getSize);
 				a.push(resr);
-				b.leaEnviro(val2);
+				b.lea_valindex({static_map, values},val2);
 				b.finalize(getSize);
 				a.push(resr);
-				b.leaEnviro(val1);
+				b.lea_valindex({static_map, values},val1);
 				b.finalize(getSize);
-				b.movEnviro(arr);
+				b.mov_valindex({static_map, values},arr);
 				b.addArg(resr);//1
-				b.leaEnviro(arr1);
+				b.lea_valindex({static_map, values},arr1);
 				a.pop(resr);
 				b.addArg(resr);//2
 				a.pop(resr);
 				b.addArg(resr);//3
 			}
 			else {
-				b.movEnviro(arr);
+				b.mov_valindex({static_map, values},arr);
 				b.addArg(readData<uint64_t>(data, data_len, i));//1
-				b.leaEnviro(arr1);
+				b.lea_valindex({static_map, values},arr1);
 				b.addArg(readData<uint64_t>(data, data_len, i));//2
 				b.addArg(readData<uint64_t>(data, data_len, i));//3
 			}
@@ -2063,15 +2202,15 @@ struct CompilerFabric{
 		}
 		case OpcodeArray::get: {
 			if (flags.by_val_mode) {
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(arr);
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+				b.lea_valindex({static_map, values},arr);
 				b.addArg(resr);
 			}
 			else {
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
-				b.leaEnviro(arr);
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+				b.lea_valindex({static_map, values},arr);
 				b.addArg(readData<uint64_t>(data, data_len, i));
 			}
 			if (flags.move_mode) {
@@ -2110,49 +2249,49 @@ struct CompilerFabric{
 		}
 		case OpcodeArray::take: {
 			if (flags.by_val_mode) {
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
 				b.addArg(resr);
-				b.leaEnviro(arr);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values},arr);
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			}
 			else {
 				b.addArg(readData<uint64_t>(data, data_len, i));
-				b.leaEnviro(arr);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values},arr);
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			}
 			b.finalize(take);
 			break;
 		}
 		case OpcodeArray::take_end: {
-			b.leaEnviro(arr);
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values},arr);
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.finalize(takeEnd);
 			break;
 		}
 		case OpcodeArray::take_start: {
-			b.leaEnviro(arr);
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values},arr);
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.finalize(takeStart);
 			break;
 		}
 		case OpcodeArray::get_range: {
 			if (flags.by_val_mode) {
-				uint16_t set_to = readData<uint16_t>(data, data_len, i);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				ValueIndexPos set_to = readIndexPos(data, data_len, i);
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
 				a.push(resr);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
 				a.pop(argr2);
-				b.leaEnviro(arr);
-				b.addArg(set_to);
+				b.lea_valindex({static_map, values},arr);
+				b.lea_valindex({static_map, values},set_to);
 				b.addArg(argr2);
 				b.addArg(resr);
 			}
 			else {
-				b.leaEnviro(arr);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values},arr);
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.addArg(readData<uint64_t>(data, data_len, i));
 				b.addArg(readData<uint64_t>(data, data_len, i));
 			}
@@ -2161,21 +2300,21 @@ struct CompilerFabric{
 		}
 		case OpcodeArray::take_range: {
 			if (flags.by_val_mode) {
-				uint16_t set_to = readData<uint16_t>(data, data_len, i);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				ValueIndexPos set_to = readIndexPos(data, data_len, i);
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
 				a.push(resr);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
 				a.pop(argr2);
-				b.leaEnviro(arr);
-				b.addArg(set_to);
+				b.lea_valindex({static_map, values},arr);
+				b.lea_valindex({static_map, values},set_to);
 				b.addArg(argr2);
 				b.addArg(resr);
 			}
 			else {
-				b.leaEnviro(arr);
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values},arr);
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.addArg(readData<uint64_t>(data, data_len, i));
 				b.addArg(readData<uint64_t>(data, data_len, i));
 			}
@@ -2183,23 +2322,23 @@ struct CompilerFabric{
 			break;
 		}
 		case OpcodeArray::pop_end: {
-			b.leaEnviro(arr);
+			b.lea_valindex({static_map, values},arr);
 			b.finalize(&list_array<ValueItem>::pop_back);
 			break;
 		}
 		case OpcodeArray::pop_start: {
-			b.leaEnviro(arr);
+			b.lea_valindex({static_map, values},arr);
 			b.finalize(&list_array<ValueItem>::pop_front);
 			break;
 		}
 		case OpcodeArray::remove_item: {
-			b.movEnviro(arr);
+			b.mov_valindex({static_map, values},arr);
 			b.addArg(readData<uint64_t>(data, data_len, i));
 			b.finalize((void(list_array<ValueItem>::*)(size_t pos)) & list_array<ValueItem>::remove);
 			break;
 		}
 		case OpcodeArray::remove_range: {
-			b.movEnviro(arr);
+			b.mov_valindex({static_map, values},arr);
 			b.addArg(readData<uint64_t>(data, data_len, i));
 			b.addArg(readData<uint64_t>(data, data_len, i));
 			b.finalize((void(list_array<ValueItem>::*)(size_t, size_t)) & list_array<ValueItem>::remove);
@@ -2207,13 +2346,13 @@ struct CompilerFabric{
 		}
 		case OpcodeArray::resize: {
 			if (flags.by_val_mode) {
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
-				b.leaEnviro(arr);
+				b.lea_valindex({static_map, values},arr);
 				b.addArg(resr);
 			}
 			else {
-				b.movEnviro(arr);
+				b.mov_valindex({static_map, values},arr);
 				b.addArg(readData<uint64_t>(data, data_len, i));
 			}
 			b.finalize((void(list_array<ValueItem>::*)(size_t)) & list_array<ValueItem>::resize);
@@ -2221,29 +2360,29 @@ struct CompilerFabric{
 		}
 		case OpcodeArray::resize_default: {
 			if (flags.by_val_mode) {
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
-				b.leaEnviro(arr);
+				b.lea_valindex({static_map, values},arr);
 				b.addArg(resr);
 			}
 			else {
-				b.movEnviro(arr);
+				b.mov_valindex({static_map, values},arr);
 				b.addArg(readData<uint64_t>(data, data_len, i));
 			}
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.finalize((void(list_array<ValueItem>::*)(size_t, const ValueItem&)) & list_array<ValueItem>::resize);
 			break;
 		}
 		case OpcodeArray::reserve_push_end: {
-			b.leaEnviro(arr);
+			b.lea_valindex({static_map, values},arr);
 			b.addArg(readData<uint64_t>(data, data_len, i));
 			b.finalize(&list_array<ValueItem>::reserve_push_back);
 			break;
 		}
 		case OpcodeArray::reserve_push_start: {
-			b.leaEnviro(arr);
+			b.lea_valindex({static_map, values},arr);
 			if (flags.by_val_mode) {
-				b.leaEnviro(readData<uint16_t>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.finalize(getSize);
 				b.addArg(resr);
 			}
@@ -2253,25 +2392,25 @@ struct CompilerFabric{
 			break;
 		}
 		case OpcodeArray::commit: {
-			b.movEnviro(arr);
+			b.mov_valindex({static_map, values},arr);
 			b.finalize(&list_array<ValueItem>::commit);
 			break;
 		}
 		case OpcodeArray::decommit: {
-			b.movEnviro(arr);
+			b.mov_valindex({static_map, values},arr);
 			b.addArg(readData<uint64_t>(data, data_len, i));
 			b.finalize(&list_array<ValueItem>::decommit);
 			break;
 		}
 		case OpcodeArray::remove_reserved: {
-			b.movEnviro(arr);
+			b.mov_valindex({static_map, values},arr);
 			b.finalize(&list_array<ValueItem>::shrink_to_fit);
 			break;
 		}
 		case OpcodeArray::size: {
-			b.movEnviro(arr);
+			b.mov_valindex({static_map, values},arr);
 			b.finalize(&list_array<ValueItem>::size);
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.addArg(resr);
 			b.finalize(setSize);
 			break;
@@ -2311,12 +2450,12 @@ struct CompilerFabric{
 	}
 
 	void dynamic_is_gc(){
-		BuildCall b(a, 1);
+		BuildCall b(a, 0);
 		bool use_result = readData<bool>(data, data_len, i);
-		b.movEnviro(readData<uint16_t>(data, data_len, i));
+		b.mov_valindex({static_map, values}, readIndexPos(data, data_len, i));
 		if(use_result){
 			b.finalize(ValueItem_is_gc_proxy);
-			b.leaEnviro(readData<uint16_t>(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.addArg(resr);
 			b.finalize(getValueItem);
 		}else{
@@ -2326,17 +2465,17 @@ struct CompilerFabric{
 	}
 	void dynamic_to_gc(){
 		BuildCall b(a, 1);
-		b.movEnviro(readData<uint16_t>(data, data_len, i));
+		b.mov_valindex({static_map, values},readIndexPos(data, data_len, i));
 		b.finalize(&ValueItem::make_gc);
 	}
 	void dynamic_from_gc(){
 		BuildCall b(a, 1);
-		b.movEnviro(readData<uint16_t>(data, data_len, i));
+		b.mov_valindex({static_map, values},readIndexPos(data, data_len, i));
 		b.finalize(&ValueItem::ungc);
 	}
 	void dynamic_localize_gc(){
 		BuildCall b(a, 1);
-		b.movEnviro(readData<uint16_t>(data, data_len, i));
+		b.mov_valindex({static_map, values},readIndexPos(data, data_len, i));
 		b.finalize(&ValueItem::localize_gc);
 	}
 	template<bool direction>
@@ -2349,9 +2488,9 @@ struct CompilerFabric{
 			if constexpr (direction) {
 				a.cmp(resr, table_size);
 				if (flags.is_signed) 
-					a.jmp_signed_more(resolve_label(index));
+					a.jmp_signed_more_or_eq(resolve_label(index));
 				else 
-					a.jmp_unsigned_more(resolve_label(index));
+					a.jmp_unsigned_more_or_eq(resolve_label(index));
 			}
 			else {
 				assert(flags.is_signed);
@@ -2371,7 +2510,7 @@ struct CompilerFabric{
 			else {
 				assert(flags.is_signed);
 				a.cmp(resr, 0);
-				a.jmp_signed_more(no_exception_label);
+				a.jmp_signed_more_or_eq(no_exception_label);
 			}
 			BuildCall b(a, 2);
 			b.addArg(&exception_name);
@@ -2397,7 +2536,7 @@ struct CompilerFabric{
 		if(flags.too_small == TableJumpCheckFailAction::jump_specified && flags.is_signed)
 			fail_too_small = readData<uint64_t>(data, data_len, i);
 
-		uint16_t value = readData<uint16_t>(data, data_len, i);
+		ValueIndexPos value = readIndexPos(data, data_len, i);
 		uint32_t table_size = readData<uint32_t>(data, data_len, i);
 		table.reserve(table_size);
 		for (uint32_t j = 0; j < table_size; j++)
@@ -2405,7 +2544,7 @@ struct CompilerFabric{
 		
 		auto table_label = a.add_table(table);
 		BuildCall b(a, 1);
-		b.leaEnviro(value);
+		b.lea_valindex({static_map, values},value);
 		if(flags.is_signed)
 			b.finalize(&ValueItem::operator int64_t);
 		else
@@ -2420,15 +2559,15 @@ struct CompilerFabric{
 		a.jmp(resr);
 	}
 	void dynamic_xarray_slice(){
-		uint16_t result_index = readData<uint16_t>(data, data_len, i);
-		uint16_t slice_index = readData<uint16_t>(data, data_len, i);
+		ValueIndexPos result_index = readIndexPos(data, data_len, i);
+		ValueIndexPos slice_index = readIndexPos(data, data_len, i);
 		uint8_t slice_flags = readData<uint8_t>(data, data_len, i);
 
 		uint8_t slice_type = slice_flags & 0x0F;
 		uint8_t slice_offset_used = slice_flags >> 4;
 		BuildCall b(a, 4);
-		b.movEnviro(result_index);
-		b.movEnviro(slice_index);
+		b.mov_valindex({static_map, values},result_index);
+		b.mov_valindex({static_map, values},slice_index);
 		switch(slice_type){
 			case 1: {
 				if(slice_offset_used & 1)
@@ -2447,12 +2586,12 @@ struct CompilerFabric{
 					b.addArg(readData<uint32_t>(data, data_len, i));
 				else
 					b.addArg(0);
-				b.movEnviro(readData<uint16_t>(data, data_len, i));
+				b.mov_valindex({static_map, values},readIndexPos(data, data_len, i));
 				b.finalize(ValueItem_xmake_slice01);
 				break;
 			}
 			case 3: {
-				b.movEnviro(readData<uint16_t>(data, data_len, i));
+				b.mov_valindex({static_map, values},readIndexPos(data, data_len, i));
 				if(slice_offset_used & 2)
 					b.addArg(readData<uint32_t>(data, data_len, i));
 				else
@@ -2461,8 +2600,8 @@ struct CompilerFabric{
 				break;
 			}
 			case 4: {
-				b.movEnviro(readData<uint16_t>(data, data_len, i));
-				b.movEnviro(readData<uint16_t>(data, data_len, i));
+				b.mov_valindex({static_map, values},readIndexPos(data, data_len, i));
+				b.mov_valindex({static_map, values},readIndexPos(data, data_len, i));
 				b.finalize(ValueItem_xmake_slice11);
 				break;
 			}
@@ -2478,19 +2617,19 @@ struct CompilerFabric{
 	void static_build(){
 		switch (cmd.code) {
 			case Opcode::set: {
-				uint16_t value_index = readData<uint16_t>(data, data_len, i);
+				ValueIndexPos value_index = readIndexPos(data, data_len, i);
 				ValueMeta meta = readData<ValueMeta>(data, data_len, i);
 				meta.as_ref = false;
 				{
 					if (needAlloc(meta)) {
 						BuildCall v(a, 3);
-						v.leaEnviro(value_index);
+						v.lea_valindex({static_map, values},value_index);
 						v.addArg(meta.encoded);
 						v.addArg(cmd.is_gc_mode);
 						v.finalize(preSetValue);
 					}
 					else
-						a.movEnviroMeta(value_index, meta.encoded);
+						a.mov_valindex_meta({static_map, values},value_index, meta.encoded);
 				}
 				switch (meta.vtype) {
 				case VType::i8:
@@ -2528,24 +2667,24 @@ struct CompilerFabric{
 			case Opcode::remove:
 				if (needAlloc(readData<ValueMeta>(data, data_len, i))) {
 					BuildCall b(a, 1);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
+					b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					b.finalize(universalRemove);
 				}
 				else
-					a.movEnviroMeta(readData<uint16_t>(data, data_len, i), 0);
+					a.mov_valindex_meta({static_map, values}, readIndexPos(data, data_len, i), 0);
 				break;
 			case Opcode::arg_set: {
-				uint16_t item = readData<uint16_t>(data, data_len, i);
-				a.movEnviro(arg_ptr, item);
-				a.getEnviroMetaSize(arg_len_32, item);
+				ValueIndexPos item = readIndexPos(data, data_len, i);
+				a.mov_valindex({static_map, values}, arg_ptr, item);
+				a.mov_valindex_meta_size({static_map, values}, arg_len_32, item);
 				break;
 			}
 			case Opcode::throw_ex: {
 				bool in_memory = readData<bool>(data, data_len, i);
 				if (in_memory) {
 					BuildCall b(a, 2);
-					b.addArg(readData<uint16_t>(data, data_len, i));
-					b.addArg(readData<uint16_t>(data, data_len, i));
+					b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));//TO-DO bug fix
+					b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));
 					b.finalize(throwStatEx);
 				}
 				else {
@@ -2561,22 +2700,22 @@ struct CompilerFabric{
 				break;
 			}
 			case Opcode::arr_op: {
-				uint16_t arr = readData<uint16_t>(data, data_len, i);
+				ValueIndexPos arr = readIndexPos(data, data_len, i);
 				BuildCall b(a, 0);
 				auto flags = readData<OpArrFlags>(data, data_len, i);
 				switch (readData<OpcodeArray>(data, data_len, i)) {
 				case OpcodeArray::set: {
 					VType type = readData<VType>(data, data_len, i);
 					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.leaEnviro(arr);
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+						b.lea_valindex({static_map, values},arr);
 						b.addArg(resr);
 					}
 					else {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.leaEnviro(arr);
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+						b.lea_valindex({static_map, values},arr);
 						b.addArg(readData<uint64_t>(data, data_len, i));
 					}
 					if (flags.move_mode) {
@@ -2614,16 +2753,16 @@ struct CompilerFabric{
 				}
 				case OpcodeArray::insert: {
 					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
-						b.leaEnviro(arr);
+						b.lea_valindex({static_map, values},arr);
 						b.addArg(resr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					}
 					else {
-						b.leaEnviro(arr);
+						b.lea_valindex({static_map, values},arr);
 						b.addArg(readData<uint64_t>(data, data_len, i));
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					}
 					if (flags.move_mode)
 						b.finalize((void (list_array<ValueItem>::*)(size_t, const ValueItem&)) & list_array<ValueItem>::insert);
@@ -2632,8 +2771,8 @@ struct CompilerFabric{
 					break;
 				}
 				case OpcodeArray::push_end: {
-					b.movEnviro(arr);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
+					b.mov_valindex({static_map, values},arr);
+					b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					if (flags.move_mode)
 						b.finalize((void (list_array<ValueItem>::*)(ValueItem&&)) & list_array<ValueItem>::push_back);
 					else
@@ -2641,8 +2780,8 @@ struct CompilerFabric{
 					break;
 				}
 				case OpcodeArray::push_start: {
-					b.movEnviro(arr);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
+					b.mov_valindex({static_map, values},arr);
+					b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					if (flags.move_mode)
 						b.finalize((void (list_array<ValueItem>::*)(ValueItem&&)) & list_array<ValueItem>::push_front);
 					else
@@ -2650,32 +2789,32 @@ struct CompilerFabric{
 					break;
 				}
 				case OpcodeArray::insert_range: {
-					uint16_t arr1 = readData<uint16_t>(data, data_len, i);
-					b.leaEnviro(arr1);
+					ValueIndexPos arr1 = readIndexPos(data, data_len, i);
+					b.lea_valindex({static_map, values},arr1);
 					b.finalize(AsArr);
 					if (flags.by_val_mode) {
-						uint16_t val1 = readData<uint16_t>(data, data_len, i);
-						uint16_t val2 = readData<uint16_t>(data, data_len, i);
-						uint16_t val3 = readData<uint16_t>(data, data_len, i);
+						ValueIndexPos val1 = readIndexPos(data, data_len, i);
+						ValueIndexPos val2 = readIndexPos(data, data_len, i);
+						ValueIndexPos val3 = readIndexPos(data, data_len, i);
 
-						b.leaEnviro(val3);
+						b.lea_valindex({static_map, values},val3);
 						b.finalize(getSize);
 						a.push(resr);
 						a.push(0);//align
 
-						b.leaEnviro(val2);
+						b.lea_valindex({static_map, values},val2);
 						b.finalize(getSize);
 						a.pop();//align
 						a.push(resr);
 
-						b.leaEnviro(val1);
+						b.lea_valindex({static_map, values},val1);
 						b.finalize(getSize);
 
 
 						b.setArguments(5);
-						b.movEnviro(arr);
+						b.mov_valindex({static_map, values},arr);
 						b.addArg(resr);//1
-						b.leaEnviro(arr1);
+						b.lea_valindex({static_map, values},arr1);
 						a.pop(resr);
 						b.addArg(resr);//2
 						a.pop(resr);
@@ -2683,9 +2822,9 @@ struct CompilerFabric{
 					}
 					else {
 						b.setArguments(5);
-						b.movEnviro(arr);
+						b.mov_valindex({static_map, values},arr);
 						b.addArg(readData<uint64_t>(data, data_len, i));//1
-						b.leaEnviro(arr1);
+						b.lea_valindex({static_map, values},arr1);
 
 						b.addArg(readData<uint64_t>(data, data_len, i));//2
 						b.addArg(readData<uint64_t>(data, data_len, i));//3
@@ -2697,15 +2836,15 @@ struct CompilerFabric{
 				case OpcodeArray::get: {
 					VType type = readData<VType>(data, data_len, i);
 					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.leaEnviro(arr);
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+						b.lea_valindex({static_map, values},arr);
 						b.addArg(resr);
 					}
 					else {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
-						b.leaEnviro(arr);
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+						b.lea_valindex({static_map, values},arr);
 						b.addArg(readData<uint64_t>(data, data_len, i));
 					}
 					if (flags.move_mode) {
@@ -2744,51 +2883,51 @@ struct CompilerFabric{
 				}
 				case OpcodeArray::take: {
 					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
 						b.addArg(resr);
-						b.leaEnviro(arr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values},arr);
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					}
 					else {
 						b.addArg(readData<uint64_t>(data, data_len, i));
-						b.leaEnviro(arr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values},arr);
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					}
 					b.finalize(take);
 					break;
 				}
 				case OpcodeArray::take_end: {
-					b.leaEnviro(arr);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
+					b.lea_valindex({static_map, values},arr);
+					b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					b.finalize(takeEnd);
 					break;
 				}
 				case OpcodeArray::take_start: {
-					b.leaEnviro(arr);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
+					b.lea_valindex({static_map, values},arr);
+					b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					b.finalize(takeStart);
 					break;
 				}
 				case OpcodeArray::get_range: {
 					if (flags.by_val_mode) {
-						uint16_t set_to = readData<uint16_t>(data, data_len, i);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						ValueIndexPos set_to = readIndexPos(data, data_len, i);
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
 						a.push(resr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
 
 						a.pop(argr2);
 
-						b.leaEnviro(arr);
-						b.addArg(set_to);
+						b.lea_valindex({static_map, values},arr);
+						b.lea_valindex({static_map, values}, set_to);
 						b.addArg(argr2);
 						b.addArg(resr);
 					}
 					else {
-						b.leaEnviro(arr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values},arr);
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.addArg(readData<uint64_t>(data, data_len, i));
 						b.addArg(readData<uint64_t>(data, data_len, i));
 					}
@@ -2797,23 +2936,23 @@ struct CompilerFabric{
 				}
 				case OpcodeArray::take_range: {
 					if (flags.by_val_mode) {
-						uint16_t set_to = readData<uint16_t>(data, data_len, i);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						ValueIndexPos set_to = readIndexPos(data, data_len, i);
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
 						a.push(resr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
 
 						a.pop(argr2);
 
-						b.leaEnviro(arr);
-						b.addArg(set_to);
+						b.lea_valindex({static_map, values},arr);
+						b.lea_valindex({static_map, values},set_to);
 						b.addArg(argr2);
 						b.addArg(resr);
 					}
 					else {
-						b.leaEnviro(arr);
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values},arr);
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.addArg(readData<uint64_t>(data, data_len, i));
 						b.addArg(readData<uint64_t>(data, data_len, i));
 					}
@@ -2821,23 +2960,23 @@ struct CompilerFabric{
 					break;
 				}
 				case OpcodeArray::pop_end: {
-					b.leaEnviro(arr);
+					b.lea_valindex({static_map, values},arr);
 					b.finalize(&list_array<ValueItem>::pop_back);
 					break;
 				}
 				case OpcodeArray::pop_start: {
-					b.leaEnviro(arr);
+					b.lea_valindex({static_map, values},arr);
 					b.finalize(&list_array<ValueItem>::pop_front);
 					break;
 				}
 				case OpcodeArray::remove_item: {
-					b.movEnviro(arr);
+					b.mov_valindex({static_map, values},arr);
 					b.addArg(readData<uint64_t>(data, data_len, i));
 					b.finalize((void(list_array<ValueItem>::*)(size_t pos)) & list_array<ValueItem>::remove);
 					break;
 				}
 				case OpcodeArray::remove_range: {
-					b.movEnviro(arr);
+					b.mov_valindex({static_map, values},arr);
 					b.addArg(readData<uint64_t>(data, data_len, i));
 					b.addArg(readData<uint64_t>(data, data_len, i));
 					b.finalize((void(list_array<ValueItem>::*)(size_t, size_t)) & list_array<ValueItem>::remove);
@@ -2846,13 +2985,13 @@ struct CompilerFabric{
 
 				case OpcodeArray::resize: {
 					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
-						b.leaEnviro(arr);
+						b.lea_valindex({static_map, values},arr);
 						b.addArg(resr);
 					}
 					else {
-						b.movEnviro(arr);
+						b.mov_valindex({static_map, values},arr);
 						b.addArg(readData<uint64_t>(data, data_len, i));
 					}
 					b.finalize((void(list_array<ValueItem>::*)(size_t)) & list_array<ValueItem>::resize);
@@ -2860,29 +2999,29 @@ struct CompilerFabric{
 				}
 				case OpcodeArray::resize_default: {
 					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
-						b.leaEnviro(arr);
+						b.lea_valindex({static_map, values},arr);
 						b.addArg(resr);
 					}
 					else {
-						b.movEnviro(arr);
+						b.mov_valindex({static_map, values},arr);
 						b.addArg(readData<uint64_t>(data, data_len, i));
 					}
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
+					b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					b.finalize((void(list_array<ValueItem>::*)(size_t, const ValueItem&)) & list_array<ValueItem>::resize);
 					break;
 				}
 				case OpcodeArray::reserve_push_end: {
-					b.leaEnviro(arr);
+					b.lea_valindex({static_map, values},arr);
 					b.addArg(readData<uint64_t>(data, data_len, i));
 					b.finalize(&list_array<ValueItem>::reserve_push_back);
 					break;
 				}
 				case OpcodeArray::reserve_push_start: {
-					b.leaEnviro(arr);
+					b.lea_valindex({static_map, values},arr);
 					if (flags.by_val_mode) {
-						b.leaEnviro(readData<uint16_t>(data, data_len, i));
+						b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 						b.finalize(getSize);
 						b.addArg(resr);
 					}
@@ -2892,25 +3031,25 @@ struct CompilerFabric{
 					break;
 				}
 				case OpcodeArray::commit: {
-					b.movEnviro(arr);
+					b.mov_valindex({static_map, values},arr);
 					b.finalize(&list_array<ValueItem>::commit);
 					break;
 				}
 				case OpcodeArray::decommit: {
-					b.movEnviro(arr);
+					b.mov_valindex({static_map, values},arr);
 					b.addArg(readData<uint64_t>(data, data_len, i));
 					b.finalize(&list_array<ValueItem>::decommit);
 					break;
 				}
 				case OpcodeArray::remove_reserved: {
-					b.movEnviro(arr);
+					b.mov_valindex({static_map, values},arr);
 					b.finalize(&list_array<ValueItem>::shrink_to_fit);
 					break;
 				}
 				case OpcodeArray::size: {
-					b.movEnviro(arr);
+					b.mov_valindex({static_map, values},arr);
 					b.finalize(&list_array<ValueItem>::size);
-					b.leaEnviro(readData<uint16_t>(data, data_len, i));
+					b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 					b.addArg(resr);
 					b.finalize(setSize);
 					break;
@@ -2947,21 +3086,22 @@ struct CompilerFabric{
 			case Opcode::compare: dynamic_compare(); break;
 			case Opcode::jump: dynamic_jump(); break;
 			case Opcode::arg_set: dunamic_arg_set(); break;
-			case Opcode::call: compilerFabric_call<true>(a, data, data_len, i, values); break;
+			case Opcode::call: compilerFabric_call<true>(a, data, data_len, i, values, static_map); break;
 			case Opcode::call_self: dynamic_call_self(); break;
-			case Opcode::call_local: compilerFabric_call_local<true>(a, data, data_len, i, build_func);
+			case Opcode::call_local: compilerFabric_call_local<true>(a, data, data_len, i, build_func, values, static_map);
 			case Opcode::call_and_ret: {
-				compilerFabric_call<false, false>(a, data, data_len, i, values);
+				compilerFabric_call<false, false>(a, data, data_len, i, values, static_map);
 				do_jump_to_ret = true;
 				break;
 			}
 			case Opcode::call_self_and_ret: dynamic_call_self_and_ret(); break;
 			case Opcode::call_local_and_ret: {
-				compilerFabric_call_local<false, false>(a, data, data_len, i, build_func);
+				compilerFabric_call_local<false, false>(a, data, data_len, i, build_func, values, static_map);
 				do_jump_to_ret = true;
 				break;
 			}
 			case Opcode::ret: dynamic_ret(); break;
+			case Opcode::ret_take: dynamic_ret_take(); break;
 			case Opcode::ret_noting: {
 				a.xor_(resr, resr);
 				do_jump_to_ret = true;
@@ -2983,15 +3123,27 @@ struct CompilerFabric{
 			case Opcode::store_bool: dynamic_store_bool(); break;
 			case Opcode::load_bool: dynamic_load_bool(); break;
 			case Opcode::inline_native: dynamic_insert_native(); break;
-			case Opcode::call_value_function: compilerFabric_value_call<true, true>(a, data, data_len, i, values); break;
+			case Opcode::call_value_function: compilerFabric_value_call<true, true>(a, data, data_len, i, values, static_map); break;
+			case Opcode::call_value_function_id: compilerFabric_value_call_id<true, true>(a, data, data_len, i, values, static_map); break;
 			case Opcode::call_value_function_and_ret: {
-				compilerFabric_value_call<false, false>(a, data, data_len, i, values);
+				compilerFabric_value_call<false, false>(a, data, data_len, i, values, static_map);
 				do_jump_to_ret = true;
 				break;
 			}
-			case Opcode::static_call_value_function:  compilerFabric_static_value_call<true, true>(a, data, data_len, i, values); break;
+			case Opcode::call_value_function_id_and_ret: {
+				compilerFabric_value_call_id<false, false>(a, data, data_len, i, values, static_map);
+				do_jump_to_ret = true;
+				break;
+			}
+			case Opcode::static_call_value_function:  compilerFabric_static_value_call<true, true>(a, data, data_len, i, values, static_map); break;
+			case Opcode::static_call_value_function_id:  compilerFabric_static_value_call_id<true, true>(a, data, data_len, i, values, static_map); break;
 			case Opcode::static_call_value_function_and_ret: {
-				compilerFabric_static_value_call<false, false>(a, data, data_len, i, values);
+				compilerFabric_static_value_call<false, false>(a, data, data_len, i, values, static_map);
+				do_jump_to_ret = true;
+				break;
+			}
+			case Opcode::static_call_value_function_id_and_ret: {
+				compilerFabric_static_value_call_id<false, false>(a, data, data_len, i, values, static_map);
 				do_jump_to_ret = true;
 				break;
 			}
@@ -3002,7 +3154,7 @@ struct CompilerFabric{
 			case Opcode::generator_next:
 			case Opcode::yield:
 				throw NotImplementedException();
-			//[TODO]
+			//TODO: implement
 			case Opcode::handle_begin:
 				scope_map.mapHandle(readData<uint64_t>(data, data_len, i));
 				break;
@@ -3017,12 +3169,12 @@ struct CompilerFabric{
 			
 			
 			case Opcode::is_gc: dynamic_is_gc(); break;
-			
 			case Opcode::to_gc: dynamic_to_gc(); break;
 			case Opcode::localize_gc: dynamic_localize_gc(); break;
 			case Opcode::from_gc: dynamic_from_gc(); break;
 			case Opcode::table_jump: dynamic_table_jump(); break;
 			case Opcode::xarray_slice: dynamic_xarray_slice(); break;
+			case Opcode::store_constant: store_constant(); break;
 			default:
 				throw InvalidIL("Invalid opcode");
 		}
@@ -3049,6 +3201,7 @@ public:
 		throw CompileTimeException(asmjit::DebugUtils::errorAsString(err) +  std::string(message));
 	}
 };
+
 void FuncEnvironment::RuntimeCompile() {
 	if (curr_func != nullptr)
 		FrameResult::deinit(frame, curr_func, jrt);
@@ -3057,10 +3210,26 @@ void FuncEnvironment::RuntimeCompile() {
 	CodeHolder code;
 	code.setErrorHandler(&error_handler);
 	code.init(jrt.environment());
-		
 	CASM a(code);
 	Label self_function = a.newLabel();
 	a.label_bind(self_function);
+
+	size_t to_be_skiped = 0;
+	auto&& [jump_list, function_locals, flags, used_static_values, used_enviro_vals, used_arguments, constants_values] = decodeFunctionHeader(a, cross_code, cross_code.size(), to_be_skiped);
+	uint32_t to_alloc_statics = flags.used_static ? uint32_t(used_static_values) + 1 : 0;
+	if(flags.run_time_computable){
+		//local_funcs already contains all local functions
+		values.reserve_push_front(to_alloc_statics);
+		for(uint32_t i = 0; i < to_alloc_statics; i++)
+			values.push_front(nullptr);
+	}else{
+		local_funcs = std::move(function_locals);
+		values.resize(to_alloc_statics, nullptr);
+	}
+	constants_values += to_alloc_statics;
+	values.reserve_push_back(std::clamp<uint32_t>(constants_values, 0, UINT32_MAX));
+	uint32_t max_values = flags.used_enviro_vals ? uint32_t(used_enviro_vals) + 1 : 0;
+
 
 	//OS dependent prolog begin
 	BuildProlog bprolog(a);
@@ -3078,36 +3247,50 @@ void FuncEnvironment::RuntimeCompile() {
 	//Init enviropment
 	a.mov(arg_ptr, argr0);
 	a.mov(arg_len_32, argr1_32);
-	
 	a.mov(enviro_ptr, stack_ptr);
-	a.stackIncrease(CASM::alignStackBytes(max_values<<1));
+	if(max_values)
+		a.stackIncrease(CASM::alignStackBytes(max_values<<1));
 	a.stackAlign();
 
+	if(flags.used_arguments){
+		Label correct = a.newLabel();
+		a.cmp(arg_len_32, uint32_t(used_arguments));
+		a.jmp_unsigned_more_or_eq(correct);
+		BuildCall b(a, 2);
+		b.addArg(arg_len_32);
+		b.addArg(uint32_t(used_arguments));
+		b.finalize((void(*)(uint32_t,uint32_t))AttachA::arguments_range);
+		a.label_bind(correct);
+	}
 
 	//Clean enviropment
 	ScopeManager scope(bprolog);
 	ScopeManagerMap scope_map(scope);
-	for(size_t i=0;i<max_values;i++){
-		a.movEnviro(i, 0);
-		a.movEnviroMeta(i, 0);
-		scope.createValueLifetimeScope(valueDestructDyn, i<<1);
+	{
+		std::vector<ValueItem*> empty_static_map;
+		ValueIndexPos ipos;
+		ipos.pos = ValuePos::in_enviro;
+		for(size_t i=0;i<max_values;i++){
+			ipos.index = i;
+			a.mov_valindex({empty_static_map, values} ,ipos, 0);
+			a.mov_valindex_meta({empty_static_map, values} ,ipos, 0);
+			scope.createValueLifetimeScope(valueDestructDyn, i<<1);
+		}
 	}
-	
 	Label prolog = a.newLabel();
-	size_t to_be_skiped = 0;
-	list_array<std::pair<uint64_t, Label>> jump_list = prepareJumpList(a, cross_code, cross_code.size(), to_be_skiped);
-	CompilerFabric fabric(a,scope,scope_map,prolog, self_function, cross_code, cross_code.size(), to_be_skiped, jump_list, values, in_debug, this);
+	CompilerFabric fabric(a,scope,scope_map,prolog, self_function, cross_code, cross_code.size(), to_be_skiped, jump_list, values, flags.in_debug, this);
 	fabric.build();
-
-
 
 	a.label_bind(prolog);
 	a.push(resr);
 	a.push(0);
 	{
 		BuildCall b(a, 1);
+		ValueIndexPos ipos;
+		ipos.pos = ValuePos::in_enviro;
 		for(size_t i=0;i<max_values;i++){
-			b.leaEnviro(i);
+			ipos.index = i;
+			b.lea_valindex({fabric.static_map, values},ipos);
 			b.finalize(valueDestructDyn);
 			scope.endValueLifetime(i);
 		}
@@ -3587,6 +3770,10 @@ std::string FuncEnvironment::to_string(){
 			return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)curr_func);
 	return "fn(" + FrameResult::JitResolveFrame(curr_func,true).fn_name + ")@" + string_help::hexstr((ptrdiff_t)curr_func);
 }
+const std::vector<uint8_t>& FuncEnvironment::get_cross_code(){
+	return cross_code;
+}
+
 void FuncEnvironment::fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code) {
 	auto& tmp = enviropments[func_name];
 	if (tmp) {
@@ -3594,10 +3781,7 @@ void FuncEnvironment::fastHotPath(const std::string& func_name, const std::vecto
 			throw HotPathException("Path fail cause this symbol is cannon't be unloaded for path");
 		tmp->force_unload = true;
 	}
-	uint16_t max_vals = new_cross_code[1];
-	max_vals <<= 8;
-	max_vals |= new_cross_code[0];
-	tmp = typed_lgr(new FuncEnvironment{ { new_cross_code.begin() + 2, new_cross_code.end()}, max_vals, true, false });
+	tmp = new FuncEnvironment(new_cross_code);
 	
 }
 void FuncEnvironment::fastHotPath(const std::string& func_name, typed_lgr<FuncEnvironment>& new_enviro) {
@@ -3609,7 +3793,7 @@ void FuncEnvironment::fastHotPath(const std::string& func_name, typed_lgr<FuncEn
 	}
 	tmp = new_enviro;
 }
-typed_lgr<FuncEnvironment>  FuncEnvironment::enviropment(const std::string& func_name) {
+typed_lgr<FuncEnvironment> FuncEnvironment::enviropment(const std::string& func_name) {
 	return enviropments[func_name];
 }
 ValueItem* FuncEnvironment::callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
@@ -3641,7 +3825,7 @@ void FuncEnvironment::Load(typed_lgr<FuncEnvironment> fn, const std::string& sym
 		throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
 	enviropments[symbol_name] = fn;
 }
-void FuncEnvironment::Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
+void FuncEnvironment::Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name) {
 	if (enviropments.contains(symbol_name))
 		throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
 	if (func_templ.size() < 2)
@@ -3649,7 +3833,7 @@ void FuncEnvironment::Load(const std::vector<uint8_t>& func_templ, const std::st
 	uint16_t max_vals = func_templ[1];
 	max_vals <<= 8;
 	max_vals |= func_templ[0];
-	enviropments[symbol_name] = typed_lgr(new FuncEnvironment{ { func_templ.begin() + 2, func_templ.end()}, max_vals, can_be_unloaded, is_cheap });
+	enviropments[symbol_name] = new FuncEnvironment(func_templ);
 }
 void FuncEnvironment::Unload(const std::string& func_name) {
 	std::lock_guard guard(enviropments_lock);

@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include "library/exceptions.hpp"
 #include "cxxException.hpp"
+#include "attacha_abi_structs.hpp"
 using asmjit::CodeHolder;
 using asmjit::Error;
 using asmjit::Label;
@@ -183,6 +184,11 @@ constexpr creg128 vec15 = asmjit::x86::xmm15;
 	void function_(asmjit::Label op){\
 		a. actual_function_(op);\
 	}
+
+struct ValueIndexContext{
+	const std::vector<ValueItem*>& static_map;
+	list_array<ValueItem>& values_pool;
+};
 class CASM {
 	asmjit::x86::Assembler a;
 	asmjit::Section* text;
@@ -196,35 +202,6 @@ public:
 		if (err)
 			throw CompileTimeException("Failed to create data section due: " + std::string(asmjit::DebugUtils::errorAsString(err)));
 	}
-	void movEnviro(uint16_t off, creg64 res) {
-		a.mov(asmjit::x86::ptr_64(enviro_ptr, (int32_t(off) << 1) * 8), res);
-	}
-	void movEnviro(uint16_t off, asmjit::Imm res) {
-		a.mov(asmjit::x86::ptr_64(enviro_ptr, (int32_t(off) << 1) * 8), res);
-	}
-	void movEnviroMeta(uint16_t off, creg64 res) {
-		a.mov(asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) | 1) * 8), res);
-	}
-	void movEnviroMeta(uint16_t off, asmjit::Imm res) {
-		a.mov(asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) | 1) * 8), res);
-	}
-	void movEnviro(creg64 res, uint16_t off = 0) {
-		a.mov(res, asmjit::x86::ptr_64(enviro_ptr, (int32_t(off) << 1) * 8));
-	}
-	void movEnviroMeta(creg64 res, uint16_t off = 0) {
-		a.mov(res, asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) | 1) * 8));
-	}
-	void leaEnviro(creg64 res, uint16_t off = 0) {
-		a.lea(res, asmjit::x86::ptr(enviro_ptr, (int32_t(off) << 1) * 8));
-	}
-	void leaEnviroMeta(creg64 res, uint16_t off = 0) {
-		a.lea(res, asmjit::x86::ptr_64(enviro_ptr, ((int32_t(off) << 1) | 1) * 8));
-	}
-	void getEnviroMetaSize(creg32 res, uint16_t off = 0) {
-		int32_t val_off = (int32_t(off) << 1) * 8;
-		val_off += 12;
-		a.mov(res, asmjit::x86::ptr_32(enviro_ptr, val_off));
-	}
 
 	static uint32_t enviroValueOffset(uint16_t off) {
 		return (int32_t(off) << 1) * 8;
@@ -232,6 +209,222 @@ public:
 	static uint32_t enviroMetaOffset(uint16_t off) {
 		return ((int32_t(off) << 1) | 1) * 8;
 	}
+	static uint32_t enviroMetaSizeOffset(uint16_t off) {
+		int32_t val_off = (int32_t(off) << 1) * 8;
+		val_off += 12;
+		return val_off;
+	}
+
+
+
+	void lea_valindex(const ValueIndexContext& context, ValueIndexPos value_index, creg64 res){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			lea(res, enviro_ptr, enviroValueOffset(value_index.index));
+			break;
+		case ValuePos::in_arguments:
+			lea(res, arg_ptr, enviroValueOffset(value_index.index));
+			break;
+		case ValuePos::in_static:
+			mov(res, context.static_map[value_index.index]);
+			break;
+		case ValuePos::in_constants:
+			mov(res, &context.values_pool[value_index.index + context.static_map.size()]);
+		default:
+			break;
+		}
+	}
+	void lea_valindex_meta(const ValueIndexContext& context, ValueIndexPos value_index, creg64 res){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			lea(res, enviro_ptr, enviroMetaOffset(value_index.index));
+			break;
+		case ValuePos::in_arguments:
+			lea(res, arg_ptr, enviroMetaOffset(value_index.index));
+			break;
+		case ValuePos::in_static:
+			mov(res, ((void**)context.static_map[value_index.index])+1);
+			break;
+		case ValuePos::in_constants:
+			mov(res, ((void**)&context.values_pool[value_index.index + context.static_map.size()])+1);
+		default:
+			break;
+		}
+	}
+	void mov_valindex(const ValueIndexContext& context, creg64 res, ValueIndexPos value_index){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov_long(res, enviro_ptr, enviroValueOffset(value_index.index));
+			break;
+		case ValuePos::in_arguments:
+			mov_long(res, arg_ptr, enviroValueOffset(value_index.index));
+			break;
+		case ValuePos::in_static:
+			mov(res, context.static_map[value_index.index]->val);
+			break;
+		case ValuePos::in_constants:
+			mov(res, context.values_pool[value_index.index + context.static_map.size()].val);
+		default:
+			break;
+		}
+	}
+	void mov_valindex_meta(const ValueIndexContext& context, creg64 res, ValueIndexPos value_index){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov_long(res, enviro_ptr, enviroMetaOffset(value_index.index));
+			break;
+		case ValuePos::in_arguments:
+			mov_long(res, arg_ptr, enviroMetaOffset(value_index.index));
+			break;
+		case ValuePos::in_static:
+			mov(res, context.static_map[value_index.index]->meta.encoded);
+			break;
+		case ValuePos::in_constants:
+			mov(res, context.values_pool[value_index.index + context.static_map.size()].meta.encoded);
+		default:
+			break;
+		}
+	}
+	void mov_valindex(const ValueIndexContext& context, ValueIndexPos value_index, creg64 set, creg64 cache = resr){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov(enviro_ptr, enviroValueOffset(value_index.index), set);
+			break;
+		case ValuePos::in_arguments:
+			mov(arg_ptr, enviroValueOffset(value_index.index), set);
+			break;
+		case ValuePos::in_static:
+			mov(cache, context.static_map[value_index.index]);
+			mov(cache, 0, set);
+			break;
+		case ValuePos::in_constants:
+			mov(cache, &context.values_pool[value_index.index + context.static_map.size()]);
+			mov(cache, enviroValueOffset(value_index.index), set);
+		default:
+			break;
+		}
+	}
+	void mov_valindex_meta(const ValueIndexContext& context, ValueIndexPos value_index, creg64 set, creg64 cache = resr){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov(enviro_ptr, enviroMetaOffset(value_index.index), set);
+			break;
+		case ValuePos::in_arguments:
+			mov(arg_ptr, enviroMetaOffset(value_index.index), set);
+			break;
+		case ValuePos::in_static:
+			mov(cache, context.static_map[value_index.index]);
+			mov(cache, 8, set);
+			break;
+		case ValuePos::in_constants:
+			mov(cache, &context.values_pool[value_index.index + context.static_map.size()]);
+			mov(cache, 8, set);
+		default:
+			break;
+		}
+	}
+	void mov_valindex(const ValueIndexContext& context, ValueIndexPos value_index, const asmjit::Imm& set, creg64 cache = resr){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov(enviro_ptr, enviroValueOffset(value_index.index), 8, set);
+			break;
+		case ValuePos::in_arguments:
+			mov(arg_ptr, enviroValueOffset(value_index.index), 8, set);
+			break;
+		case ValuePos::in_static:
+			mov(cache, context.static_map[value_index.index]);
+			mov(cache, 0, 8, set);
+			break;
+		case ValuePos::in_constants:
+			mov(cache, &context.values_pool[value_index.index + context.static_map.size()]);
+			mov(cache, 0, 8, set);
+		default:
+			break;
+		}
+	}
+	void mov_valindex_meta(const ValueIndexContext& context, ValueIndexPos value_index, const asmjit::Imm& set, creg64 cache = resr){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov(enviro_ptr, enviroMetaOffset(value_index.index), 8, set);
+			break;
+		case ValuePos::in_arguments:
+			mov(arg_ptr, enviroMetaOffset(value_index.index), 8, set);
+			break;
+		case ValuePos::in_static:
+			mov(cache, context.static_map[value_index.index]);
+			mov(cache, 8, 8, set);
+			break;
+		case ValuePos::in_constants:
+			mov(cache, &context.values_pool[value_index.index + context.static_map.size()]);
+			mov(cache, 8, 8, set);
+		default:
+			break;
+		}
+	}
+	void mov_valindex_meta_size(const ValueIndexContext& context, ValueIndexPos value_index, const asmjit::Imm& set, creg64 cache = resr){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov(enviro_ptr, enviroMetaSizeOffset(value_index.index), 4, set);
+			break;
+		case ValuePos::in_arguments:
+			mov(arg_ptr, enviroMetaSizeOffset(value_index.index), 4, set);
+			break;
+		case ValuePos::in_static:
+			mov(cache, context.static_map[value_index.index]);
+			mov(cache, 12, 4, set);
+			break;
+		case ValuePos::in_constants:
+			mov(cache, &context.values_pool[value_index.index + context.static_map.size()]);
+			mov(cache, 12, 4, set);
+		default:
+			break;
+		}
+	}
+	void mov_valindex_meta_size(const ValueIndexContext& context, ValueIndexPos value_index, creg32 set, creg64 cache = resr){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov(enviro_ptr, enviroMetaSizeOffset(value_index.index), 4, set);
+			break;
+		case ValuePos::in_arguments:
+			mov(arg_ptr, enviroMetaSizeOffset(value_index.index), 4, set);
+			break;
+		case ValuePos::in_static:
+			mov(cache, context.static_map[value_index.index]);
+			mov(cache, 12, 4, set);
+			break;
+		case ValuePos::in_constants:
+			mov(cache, &context.values_pool[value_index.index + context.static_map.size()]);
+			mov(cache, 12, 4, set);
+		default:
+			break;
+		}
+	}
+	void mov_valindex_meta_size(const ValueIndexContext& context, creg32 res, ValueIndexPos value_index,  creg64 cache = resr){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov_int(res, enviro_ptr, enviroMetaSizeOffset(value_index.index));
+			break;
+		case ValuePos::in_arguments:
+			mov_int(res, arg_ptr, enviroMetaSizeOffset(value_index.index));
+			break;
+		case ValuePos::in_static:
+			mov(cache, context.static_map[value_index.index]);
+			mov_int(res, cache, 12);
+			break;
+		case ValuePos::in_constants:
+			mov(cache, &context.values_pool[value_index.index + context.static_map.size()]);
+			mov_int(res, cache, 12);
+		default:
+			break;
+		}
+	}
+
+
+
+
+
+
+
 	static size_t alignStackBytes(size_t bytes_count) {
 		return (bytes_count + 15) & -16;
 	}
@@ -592,12 +785,20 @@ public:
 	}
 
 	void push_flags() {
-		casm_stack_align_check_add(8);
+		casm_stack_align_check_add(2);
 		a.pushf();
 	}
 	void pop_flags() {
-		casm_stack_align_check_rem(8);
+		casm_stack_align_check_rem(2);
 		a.popf();
+	}
+	void push_dflags() {
+		casm_stack_align_check_add(4);
+		a.pushfd();
+	}
+	void pop_dflags() {
+		casm_stack_align_check_rem(4);
+		a.popfd();
 	}
 	void load_flag8h() {
 		a.lahf();
@@ -1196,14 +1397,6 @@ public:
 			pushed += 8;
 		}
 	}
-	void leaEnviro(uint16_t off, bool allow_use_resr = true) {
-		callStart();
-		lea(enviro_ptr,(size_t(off) << 1) * 8, allow_use_resr);
-	}
-	void leaEnviroMeta(uint16_t off, bool allow_use_resr = true) {
-		callStart();
-		lea(enviro_ptr,(size_t(off) << 1) * 8 + 8 , allow_use_resr);
-	}
 	void mov(creg64 reg, int32_t off, bool allow_use_resr = true) {
 		callStart();
 		switch (arg_c++) {
@@ -1246,13 +1439,81 @@ public:
 			pushed += 8;
 		}
 	}
-	void movEnviro(uint16_t off) {
-		callStart();
-		mov(enviro_ptr, (size_t(off) << 1) * 8);
+
+	
+	void lea_valindex(const ValueIndexContext& context, ValueIndexPos value_index){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			lea(enviro_ptr,CASM::enviroValueOffset(value_index.index));
+			break;
+		case ValuePos::in_arguments:
+			lea(arg_ptr, CASM::enviroValueOffset(value_index.index));
+			break;
+		case ValuePos::in_static:
+			addArg(context.static_map[value_index.index]);
+			break;
+		case ValuePos::in_constants:
+			addArg(&context.values_pool[value_index.index + context.static_map.size()]);
+			break;
+		default:
+			break;
+		}
 	}
-	void movEnviroMeta(uint16_t off) {
-		callStart();
-		mov(enviro_ptr, (size_t(off) << 1) * 8 + 8);
+	void lea_valindex_meta(const ValueIndexContext& context, ValueIndexPos value_index){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			lea(enviro_ptr,CASM::enviroMetaOffset(value_index.index));
+			break;
+		case ValuePos::in_arguments:
+			lea(arg_ptr, CASM::enviroMetaOffset(value_index.index));
+			break;
+		case ValuePos::in_static:
+			addArg(&context.static_map[value_index.index]->meta);
+			break;
+		case ValuePos::in_constants:
+			addArg(&context.values_pool[value_index.index + context.static_map.size()].meta);
+			break;
+		default:
+			break;
+		}
+	}
+	
+
+	void mov_valindex(const ValueIndexContext& context, ValueIndexPos value_index){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov(enviro_ptr, CASM::enviroValueOffset(value_index.index));
+			break;
+		case ValuePos::in_arguments:
+			mov(arg_ptr, CASM::enviroValueOffset(value_index.index));
+			break;
+		case ValuePos::in_static:
+			addArg(context.static_map[value_index.index]->val);
+			break;
+		case ValuePos::in_constants:
+			addArg(context.values_pool[value_index.index + context.static_map.size()].val);
+			break;
+		default:
+			break;
+		}
+	}
+	void mov_valindex_meta(const ValueIndexContext& context, ValueIndexPos value_index){
+		switch (value_index.pos) {
+		case ValuePos::in_enviro:
+			mov(enviro_ptr, CASM::enviroMetaOffset(value_index.index));
+			break;
+		case ValuePos::in_arguments:
+			mov(arg_ptr, CASM::enviroMetaOffset(value_index.index));
+			break;
+		case ValuePos::in_static:
+			addArg(context.static_map[value_index.index]->meta.encoded);
+			break;
+		case ValuePos::in_constants:
+			addArg(context.values_pool[value_index.index + context.static_map.size()].meta.encoded);
+			break;
+		default:
+			break;
+		}
 	}
 	void skip() {
 		callStart();

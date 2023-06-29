@@ -32,24 +32,23 @@ public:
 		force_unloaded
 	};
 private:
-	TaskMutex compile_lock;
 	std::unordered_map<list_array<ValueItem>, ValueItem> cache_map;
 	DynamicCall::FunctionTemplate nat_templ;
+	TaskMutex compile_lock;//52 bytes
+	FuncType _type : 4;
+	uint32_t need_compile : 1 = true;
+	uint32_t can_be_unloaded : 1 = true;
+	uint32_t force_unload : 1 = false;
+	uint32_t is_cheap : 1 = false;//function without context switchs and with fast code
 	std::vector<typed_lgr<FuncEnvironment>> used_envs;
 	std::vector<typed_lgr<FuncEnvironment>> local_funcs;
 	std::vector<uint8_t> cross_code;
 	list_array<ValueItem> values;
 	Enviropment curr_func = nullptr;
 	uint8_t* frame = nullptr;
-	uint32_t max_values : 16;
-	FuncType _type : 4;
-	uint32_t need_compile : 1 = true;
-	uint32_t in_debug : 1 = false;
-	uint32_t can_be_unloaded : 1 = true;
-	uint32_t force_unload : 1 = false;
-	uint32_t is_cheap : 1 = false;//function without context switchs and with fast code
 	void RuntimeCompile();
 	void funcComp() {
+		sizeof(TaskRecursiveMutex);
 		std::lock_guard<TaskMutex> lguard(compile_lock);
 		if (need_compile) {
 			RuntimeCompile();
@@ -61,18 +60,22 @@ public:
 		if (need_compile)
 			funcComp();
 	}
-	FuncEnvironment(const std::vector<uint8_t>& code, uint16_t values_count, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
+	FuncEnvironment(const std::vector<uint8_t>& code) {
 		cross_code = code;
-		max_values = values_count;
-		can_be_unloaded = _can_be_unloaded;
 		_type = FuncType::own;
 	}
-	FuncEnvironment(const std::vector<uint8_t>& code, const std::vector<typed_lgr<FuncEnvironment>>& local_fns, uint16_t values_count, bool _can_be_unloaded, bool is_cheap = false) : is_cheap(is_cheap) {
-		local_funcs = local_fns;
-		cross_code = code;
-		max_values = values_count;
-		can_be_unloaded = _can_be_unloaded;
+	FuncEnvironment(std::vector<uint8_t>&& code) {
+		cross_code = std::move(code);
 		_type = FuncType::own;
+	}
+	FuncEnvironment(list_array<ValueItem>&& dynamic_constants, std::vector<typed_lgr<FuncEnvironment>>&& dynamic_local_funcs, std::vector<uint8_t>&& code) {
+		values = std::move(dynamic_constants);
+		local_funcs = std::move(dynamic_local_funcs);
+		cross_code = std::move(code);
+		_type = FuncType::own;
+		RuntimeCompile();
+		need_compile = false;
+		cross_code.clear();
 	}
 	FuncEnvironment(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, bool _can_be_unloaded, bool is_cheap = false): is_cheap(is_cheap) {
 		nat_templ = templ;
@@ -103,10 +106,8 @@ public:
 		nat_templ = std::move(move.nat_templ);
 		curr_func = move.curr_func;
 		frame = move.frame;
-		max_values = move.max_values;
 		_type = move._type;
 		need_compile = move.need_compile;
-		in_debug = move.in_debug;
 		can_be_unloaded = move.can_be_unloaded;
 		//disable destructor
 		move.can_be_unloaded = false;
@@ -152,7 +153,7 @@ public:
 
 	static bool Exists(const std::string& symbol_name);
 	static void Load(typed_lgr<FuncEnvironment> fn, const std::string& symbol_name) ;
-	static void Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name, bool can_be_unloaded = true, bool is_cheap = false);
+	static void Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name);
 	static void Unload(const std::string& func_name);
 	static void ForceUnload(const std::string& func_name);
 	void ForceUnload() {
@@ -182,6 +183,7 @@ public:
 		return (void*)curr_func;
 	}
 	std::string to_string();
+	const std::vector<uint8_t>& get_cross_code();
 };
 void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, ValueMeta meta, void*& arg);
 ValueItem* NativeProxy_DynamicToStatic(DynamicCall::FunctionCall& call, DynamicCall::FunctionTemplate& nat_templ, ValueItem* arguments, uint32_t arguments_size);

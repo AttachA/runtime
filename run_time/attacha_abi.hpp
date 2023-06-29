@@ -171,6 +171,7 @@ void universalAlloc(void** value, ValueMeta meta);
 ValueItem* getAsyncValueItem(void* val);
 void getValueItem(void** value, ValueItem* f_res);
 ValueItem* buildRes(void** value);
+ValueItem* buildResTake(void** value);
 
 
 void getAsyncResult(void*& value, ValueMeta& meta);
