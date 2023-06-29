@@ -171,42 +171,42 @@ ValueItem* timeout_test(ValueItem*, uint32_t) {
 void proxyTest() {
 
 	FuncEviroBuilder build;
-	build.call("# chanel chanel", 0, false);
+	build.call("# chanel chanel", 0_env, false);
 
 
 
 
-	build.set_constant(0, "The test text, Current color: r%d,g%d,b%d\n");
-	build.set_stack_any_array(1, 4);
+	build.set_constant(0_env, "The test text, Current color: r%d,g%d,b%d\n");
+	build.set_stack_any_array(1_env, 4);
 
-	build.set_constant(2, 12ui8);
-	build.arr_set(1, 2, 0, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 12ui8);
+	build.arr_set(1_env, 2_env, 0, false, ArrCheckMode::no_check, VType::faarr);
 
-	build.set_constant(2, 128ui8);
-	build.arr_set(1, 2, 1, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 128ui8);
+	build.arr_set(1_env, 2_env, 1, false, ArrCheckMode::no_check, VType::faarr);
 
-	build.set_constant(2, 12ui8);
-	build.arr_set(1, 2, 2, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 12ui8);
+	build.arr_set(1_env, 2_env, 2, false, ArrCheckMode::no_check, VType::faarr);
 
 
-	build.arg_set(1);
+	build.arg_set(1_env);
 	build.call("console setTextColor");
 
-	build.arr_set(1, 0, 0, false, ArrCheckMode::no_check, VType::faarr);
-	build.set_constant(2, 12ui8);
-	build.arr_set(1, 2, 1, false, ArrCheckMode::no_check, VType::faarr);
+	build.arr_set(1_env, 0_env, 0, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 12ui8);
+	build.arr_set(1_env, 2_env, 1, false, ArrCheckMode::no_check, VType::faarr);
 
-	build.set_constant(2, 128ui8);
-	build.arr_set(1, 2, 2, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 128ui8);
+	build.arr_set(1_env, 2_env, 2, false, ArrCheckMode::no_check, VType::faarr);
 
-	build.set_constant(2, 12ui8);
-	build.arr_set(1, 2, 3, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 12ui8);
+	build.arr_set(1_env, 2_env, 3, false, ArrCheckMode::no_check, VType::faarr);
 
-	build.arg_set(1);
+	build.arg_set(1_env);
 	build.call_and_ret("console printf");
-	build.remove(1);
+	build.remove(1_env);
 	build.ret();
-	build.loadFunc("start");
+	build.O_load_func("start");
 }
 
 
@@ -224,7 +224,7 @@ void ex_handle_test() {
 	{
 		FuncEviroBuilder build;
 		build.call_and_ret("__ex_handle_test");
-		build.loadFunc("ex_handle_test");
+		build.O_load_func("ex_handle_test");
 		try {
 			callFunction("ex_handle_test", false);
 		}
@@ -238,16 +238,16 @@ void ex_handle_test() {
 #pragma optimize("",on)
 void interface_test() {
 	FuncEviroBuilder build;
-	build.set_constant(0, "D:\\helloWorld.bin");
-	build.arg_set(0);
-	build.call("# file file_handle", 1, false);
-	build.set_constant(0, { 123ui8, 45ui8, 67ui8 });
-	build.arg_set(0);
-	build.call_value_interface(ClassAccess::pub, 1, "write", 1, false, false);
-	build.explicit_await(1);
+	build.set_constant(0_env, "D:\\helloWorld.bin");
+	build.arg_set(0_env);
+	build.call("# file file_handle", 1_env, false);
+	build.set_constant(0_env, { 123ui8, 45ui8, 67ui8 });
+	build.arg_set(0_env);
+	build.call_value_interface(ClassAccess::pub, 1_env, "write", 1_env, false);
+	build.explicit_await(1_env);
 	build.ret();
 
-	build.prepareFunc()->syncWrapper(nullptr, 0);
+	build.O_prepare_func()->syncWrapper(nullptr, 0);
 }
 
 
@@ -265,10 +265,30 @@ void task_query_test(){
 	query.enable();
 	query.wait();
 }
+void static_test(){
+	FuncEviroBuilder build;
+	auto noting = build.create_constant(nullptr);
+	auto one = build.create_constant(1);
+	build.compare(noting, 0_sta);
+	build.jump(JumpCondition::is_not_equal, "not_inited");
+	build.set_constant(0_sta, 0ui32);
+	build.bind_pos("not_inited");
+	build.sum(0_sta, one);
+	build.ret(0_sta);
+	build.O_load_func("static_test");
 
+	ValueItem cache = AttachA::cxxCall("static_test");
+	console::printLine(&cache, 1);
+	cache = AttachA::cxxCall("static_test");
+	console::printLine(&cache, 1);
+	cache = AttachA::cxxCall("static_test");
+	console::printLine(&cache, 1);
+
+}
 
 
 ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
+	static_test();
 	light_stack::dump_current_out();
 
 	ex_handle_test();
@@ -293,38 +313,38 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 
 
 	FuncEviroBuilder build;
-	build.set_constant(0, "The test text, Current color: r%d,g%d,b%d\n");
-	build.set_stack_any_array(1, 4);
+	build.set_constant(0_env, "The test text, Current color: r%d,g%d,b%d\n");
+	build.set_stack_any_array(1_env, 4);
 	//build.set_constant(1, ValueItem(new ValueItem[4]{}, 4));
 
-	build.set_constant(2, 12ui8);
-	build.arr_set(1, 2, 0,false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 12ui8);
+	build.arr_set(1_env, 2_env, 0,false, ArrCheckMode::no_check, VType::faarr);
 
-	build.set_constant(2, 128ui8);
-	build.arr_set(1, 2, 1, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 128ui8);
+	build.arr_set(1_env, 2_env, 1, false, ArrCheckMode::no_check, VType::faarr);
 
-	build.set_constant(2, 12ui8);
-	build.arr_set(1, 2, 2, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 12ui8);
+	build.arr_set(1_env, 2_env, 2, false, ArrCheckMode::no_check, VType::faarr);
 
 
-	build.arg_set(1);
+	build.arg_set(1_env);
 	build.call("console set_text_color");
 
-	build.arr_set(1, 0, 0, false, ArrCheckMode::no_check, VType::faarr);
-	build.set_constant(2, 12ui8);
-	build.arr_set(1, 2, 1, false, ArrCheckMode::no_check, VType::faarr);
+	build.arr_set(1_env, 0_env, 0, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 12ui8);
+	build.arr_set(1_env, 2_env, 1, false, ArrCheckMode::no_check, VType::faarr);
 
-	build.set_constant(2, 128ui8);
-	build.arr_set(1, 2, 2, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 128ui8);
+	build.arr_set(1_env, 2_env, 2, false, ArrCheckMode::no_check, VType::faarr);
 
-	build.set_constant(2, 12ui8);
-	build.arr_set(1, 2, 3, false, ArrCheckMode::no_check, VType::faarr);
+	build.set_constant(2_env, 12ui8);
+	build.arr_set(1_env, 2_env, 3, false, ArrCheckMode::no_check, VType::faarr);
 
-	build.arg_set(1);
+	build.arg_set(1_env);
 	build.call("console printf");
-	build.remove(1);
+	build.remove(1_env);
 	build.ret();
-	build.loadFunc("start");
+	build.O_load_func("start");
 	callFunction("start", false);
 
 	task_query_test();
@@ -338,7 +358,7 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	{
 		FuncEviroBuilder build;
 		build.call_and_ret("Yay");
-		build.loadFunc("Yay");
+		build.O_load_func("Yay");
 	}
 	typed_lgr<FuncEnvironment> env = FuncEnvironment::enviropment("sleep_test");
 	////Task::start(new Task(FuncEnvironment::enviropment("4"), nullptr));
@@ -412,7 +432,7 @@ void test_stack(){
 	msq = light_stack::used_size();
 	console::printLine(&msq, 1);
 }
-int qmain(){
+int mmain(){
 	ValueItem msq;
 	test_stack();
 	light_stack::shrink_current();
@@ -596,7 +616,7 @@ const char _FATAL[] = "FATAL";
 const char _ERROR[] = "ERROR";
 const char _WARN[] = "WARN";
 const char _INFO[] = "INFO";
-int main(){
+int nmain(){
 	unhandled_exception.join(new FuncEnvironment(logger<_FATAL>, false, false));
 	errors.join(new FuncEnvironment(logger<_ERROR>, false, false));
 	warning.join(new FuncEnvironment(logger<_WARN>, false, false));
@@ -623,48 +643,79 @@ int main(){
 
 
 
-ValueItem* table_jump(int8_t default_c){
+void table_jump(){
 	FuncEviroBuilder builder;
-	builder.set_constant(0, ValueItem(default_c));
 	builder.table_jump(
-		{
-			0,1,2,3
-		},
-		0,
+		{ "0", "1", "2", "3" },
+		0_arg,
 		true,
 		TableJumpCheckFailAction::jump_specified,
-		4,
+		"too_big",
 		TableJumpCheckFailAction::jump_specified,
-		5
+		"too_small"
 	);
-	builder.bind_pos();//0
+	builder.bind_pos("0");
 	builder.ret();
-	builder.bind_pos();//1
-	builder.set_constant(0, ValueItem(7));
-	builder.ret(0);
-	builder.bind_pos();//2
-	builder.set_constant(0, ValueItem(6));
-	builder.ret(0);
-	builder.bind_pos();//3
-	builder.set_constant(0, ValueItem(5));
-	builder.ret(0);
-	builder.bind_pos();//4
-	builder.set_constant(0, ValueItem(10));
-	builder.ret(0);
-	builder.bind_pos();//5
-	builder.set_constant(0, ValueItem(30));
-	builder.ret(0);
-	return FuncEnvironment::sync_call(builder.prepareFunc(), nullptr, 0);
+	builder.bind_pos("1");
+	builder.set_constant(0_env, ValueItem(7));
+	builder.ret(0_env);
+	builder.bind_pos("2");
+	builder.set_constant(0_env, ValueItem(6));
+	builder.ret(0_env);
+	builder.bind_pos("3");
+	builder.set_constant(0_env, ValueItem(5));
+	builder.ret(0_env);
+	builder.bind_pos("too_big");
+	builder.set_constant(0_env, ValueItem(10));
+	builder.ret(0_env);
+	builder.bind_pos("too_small");
+	builder.set_constant(0_env, ValueItem(30));
+	builder.ret(0_env);
+	builder.O_load_func("table_jump_test");
 }
-int amain(){
-	ValueItem* res = table_jump(33);
-	console::printLine(res, 1);
-	if(res)
-		delete res;
-	res = table_jump(-33);
-	console::printLine(res, 1);
-	if (res)
-		delete res;
+void table_jump_2(){
+	FuncEviroBuilder builder;
+	builder.table_jump(
+		{ "0", "1", "2", "3" },
+		0_arg,
+		true,
+		TableJumpCheckFailAction::jump_specified,
+		"default",
+		TableJumpCheckFailAction::jump_specified,
+		"default"
+	);
+	builder.bind_pos("0");
+	builder.ret();
+	builder.bind_pos("1");
+	builder.set_constant(0_env, ValueItem(7));
+	builder.ret(0_env);
+	builder.bind_pos("2");
+	builder.set_constant(0_env, ValueItem(6));
+	builder.ret(0_env);
+	builder.bind_pos("3");
+	builder.set_constant(0_env, ValueItem(5));
+	builder.ret(0_env);
+	builder.bind_pos("default");
+	builder.set_constant(0_env, ValueItem(10));
+	builder.ret(0_env);
+	builder.O_load_func("table_jump_test");
+}
+int main(){
+	table_jump_2();
+	ValueItem res = AttachA::cxxCall("table_jump_test", 0);
+	console::printLine(&res, 1);
+	res = AttachA::cxxCall("table_jump_test", 1);
+	console::printLine(&res, 1);
+	res = AttachA::cxxCall("table_jump_test", 2);
+	console::printLine(&res, 1);
+	res = AttachA::cxxCall("table_jump_test", 3);
+	console::printLine(&res, 1);
+	res = AttachA::cxxCall("table_jump_test", 4);
+	console::printLine(&res, 1);
+	res = AttachA::cxxCall("table_jump_test", -1);
+	console::printLine(&res, 1);
+	res = AttachA::cxxCall("table_jump_test", -5);
+	console::printLine(&res, 1);
 	return 0;
 }
 
