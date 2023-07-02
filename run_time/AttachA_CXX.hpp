@@ -990,7 +990,7 @@ namespace AttachA {
 
 		template<class Class_>
 		void*& typeVTable(){
-			static void* hold;
+			static void* hold = nullptr;
 			return hold;
 		}
 		template<class Class_>
