@@ -25,4 +25,6 @@ namespace configuration {
 #define _configuration_tasks_max_planned_tasks_modifable true
 #define _configuration_tasks_light_stack_flush_used_stacks_modifable false
 #define _configuration_tasks_light_stack_max_buffer_size_modifable true
+
+#define _configuration_tasks_enable_debug_mode true
 #endif /* CONFIGURATION_TASKS */

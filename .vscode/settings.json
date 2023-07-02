@@ -98,9 +98,11 @@
         "cwctype": "cpp",
         "coroutine": "cpp",
         "ranges": "cpp",
-        "span": "cpp"
+        "span": "cpp",
+        "random": "cpp",
+        "numbers": "cpp",
+        "cassert": "cpp"
     },
-    
     "cmake.configureSettings": {
         "CMAKE_TOOLCHAIN_FILE": "D:/progs/vcpkg/scripts/buildsystems/vcpkg.cmake",
         "VCPKG_TARGET_TRIPLET": "x64-windows-static"
@@ -109,5 +111,9 @@
     "C/C++ Include Guard.Auto Update Include Guard": true,
     "C/C++ Include Guard.Macro Type": "Filepath",
     "C_Cpp.errorSquiggles": "enabled",
-    "todo-tree.tree.scanMode": "workspace only"
+    "todo-tree.tree.scanMode": "workspace only",
+    "workbench.editor.wrapTabs": true,
+
+  
+    "vscode_custom_css.imports": ["file:///D:/progs/visual_studio_code_css/tabs.css"]
 }

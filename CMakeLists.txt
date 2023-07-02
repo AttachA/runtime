@@ -19,12 +19,14 @@ endif(MSVC)
 set(ENABLE_BOOST_PREPROCESSOR ON)
 
 FILE(GLOB SRCFILES 
-        run_time/dynamic_call_asm.asm 
-        run_time/*.cpp
-        run_time/library/*.cpp
-        run_time/tasks_util/*.cpp
-        library/*.cpp
-        *.cpp 
+        src/run_time/asm/dynamic_call_asm.asm 
+        src/run_time/*.cpp
+        src/run_time/asm/*.cpp
+        src/run_time/cxx_library/*.cpp
+        src/run_time/library/*.cpp
+        src/run_time/tasks_util/*.cpp
+        src/library/*.cpp
+        src/*.cpp 
 )
 add_executable(AttachA ${SRCFILES})
 set_property(TARGET AttachA PROPERTY
