@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+	<Type Name="list_array&lt;*&gt;">
+		<DisplayString>{{ size={_size} }}</DisplayString>
+		<Expand>
+			<Item Name="[size]">_size</Item>
+			<Item Name="[capacity]">_size + reserved_begin + reserved_end</Item>
+			<Item Name="[push back capacity]">reserved_begin</Item>
+			<Item Name="[push front capacity]">reserved_end</Item>
+			<CustomListItems MaxItemsPerView="5000">
+				<Variable Name="block_iter" InitialValue="arr.arr" />
+				<Variable Name="max_pos" InitialValue="_size" />
+				<Variable Name="in_block_iter" InitialValue="0" />
+				<Variable Name="skip_count" InitialValue="reserved_begin" />
+
+				<Loop>
+					<Loop Condition="max_pos != 0">
+						<If	Condition="block_iter->_size == in_block_iter">
+							<Exec>in_block_iter = 0</Exec>
+							<Break/>
+						</If>
+
+						<If Condition="skip_count == 0">
+							<Item>*(block_iter->arr_contain + in_block_iter)</Item>
+							<Exec>--max_pos</Exec>
+						</If>
+
+						<Exec Condition="skip_count != 0">--skip_count</Exec>
+						<Exec>++in_block_iter</Exec>
+					</Loop>
+					<Break Condition="max_pos == 0"/>
+					<Exec>block_iter = block_iter->next_</Exec>
+				</Loop>
+			</CustomListItems>
+		</Expand>
+	</Type>
+</AutoVisualizer>

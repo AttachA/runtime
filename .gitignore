@@ -1,0 +1,5 @@
+build/*
+.vs
+.vscode/settings.json
+.cache
+.VSCodeCounter
