@@ -302,6 +302,14 @@ public:
 	std::string full_info() const override;
 };
 
+class MissingDependencyException : public AttachARuntimeException {
+public:
+	MissingDependencyException(const std::string& msq) : AttachARuntimeException(msq) {}
+	MissingDependencyException(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+	const char* name() const override {
+		return "MissingDependencyException";
+	}
+};
 #pragma endregion
 
 
