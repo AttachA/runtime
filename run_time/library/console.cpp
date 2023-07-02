@@ -20,7 +20,10 @@ namespace console {
 #ifdef _WIN64
 	bool configureConsole() {
 		HANDLE hout = GetStdHandle(-11);
-		if(!SetConsoleMode(hout, ENABLE_VIRTUAL_TERMINAL_INPUT)) return false;
+		bool result = true;
+		DWORD mode = 0;
+		GetConsoleMode(hout, &mode);
+		if (!SetConsoleMode(hout, mode | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING)) result = false;
 		if (setvbuf(_stderr, nullptr, _IOFBF, 1024))return false;
 		if (setvbuf(_stdout, nullptr, _IOFBF, 1024))return false;
 		if (!SetConsoleOutputCP(65001)) return false;
@@ -35,7 +38,7 @@ namespace console {
 			info.FontWeight = 400;
 			wcscpy_s(info.FaceName, L"Lucida Console");
 			if (SetCurrentConsoleFontEx(hout, false, &info))
-				return true;
+				return result;
 		}
 		return false;
 	}
