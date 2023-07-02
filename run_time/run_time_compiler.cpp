@@ -1235,6 +1235,10 @@ union xarray_slice_flags{
 		_type type : 4;
 		_use_index_pos use_index_pos : 4;
 	};
+	xarray_slice_flags(_type t, _use_index_pos p) {
+		type = t;
+		use_index_pos = p;
+	}
 	uint8_t encoded;
 };
 
