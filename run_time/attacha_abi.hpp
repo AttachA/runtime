@@ -248,6 +248,8 @@ namespace ABI_IMPL {
 			return ValueItem(Structure::copy(val), no_copy);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnvironment>>)
 			return ValueItem(new typed_lgr<class FuncEnvironment>(val), VType::function, no_copy);
+		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Enviropment>)
+			return ValueItem(new typed_lgr<class FuncEnvironment>(new FuncEnvironment(val,false)), VType::function, no_copy);
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueItem>)
 			return val;
 		else if constexpr (std::is_same_v<std::remove_cvref_t<T>, void*>)
@@ -264,6 +266,8 @@ namespace ABI_IMPL {
 					std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
 					std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>> ||
 					std::is_same_v<std::remove_cvref_t<T>, nullptr_t> ||
+					std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnvironment>> ||
+					std::is_same_v<std::remove_cvref_t<T>, Enviropment> ||
 					std::is_same_v<std::remove_cvref_t<T>, bool> ||
 					std::is_same_v<std::remove_cvref_t<T>, void*>
 					),
