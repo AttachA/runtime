@@ -130,37 +130,50 @@ namespace files {
         // can cause desync, ie thread unsafe
     };
 
-    //TO-DO implement
-    //class FolderBrowser{
-    //    class FolderBrowserImpl* impl;
-    //public:
-    //    //set as /, in windows it will be emulate folder with names like C:, D:, E: and so on
-    //    FolderBrowser();
-    //    FolderBrowser(const char* path, size_t length) noexcept(false);
-    //    ~FolderBrowser();
-    //    list_array<std::string> folders();
-    //    list_array<std::string> files();
-    //
-    //    bool is_folder();
-    //    bool is_file();
-    //
-    //    bool exists();
-    //    bool is_hidden();
-    //
-    //    bool create_path(const char* path, size_t length);
-    //    bool create_current_path();
-    //
-    //    bool create_file(const char* file_name, size_t length);
-    //    bool create_folder(const char* folder_name, size_t length);
-    //
-    //    bool remove_file(const char* file_name, size_t length);
-    //    bool remove_folder(const char* folder_name, size_t length);
-    //    bool remove_current_path();
-    //
-    //    typed_lgr<FolderBrowser> join_folder(const char* folder_name, size_t length);
-    //    std::string get_current_path();
-    //};
+    class FolderBrowser{
+        class FolderBrowserImpl* impl;
+        FolderBrowser(class FolderBrowserImpl* impl) noexcept;
+    public:
+        //set as /, in windows it will be emulate folder with names like C:, D:, E: and so on
+        FolderBrowser();
+        FolderBrowser(const char* path, size_t length) noexcept(false);
+        FolderBrowser(const FolderBrowser& copy);
+        FolderBrowser(FolderBrowser&& move);
+        ~FolderBrowser();
+        list_array<std::string> folders();
+        list_array<std::string> files();
+    
+        bool is_folder();
+        bool is_file();
+    
+        bool exists();
+        bool is_hidden();
+    
+        bool create_path(const char* path, size_t length);
+        bool create_current_path();
+    
+        bool create_file(const char* file_name, size_t length);
+        bool create_folder(const char* folder_name, size_t length);
+    
+        bool remove_file(const char* file_name, size_t length);
+        bool remove_folder(const char* folder_name, size_t length);
+        bool remove_current_path();
+
+        bool rename_file(const char* old_name, size_t old_length, const char* new_name, size_t new_length);
+        bool rename_folder(const char* old_name, size_t old_length, const char* new_name, size_t new_length);
+
+    
+        typed_lgr<FolderBrowser> join_folder(const char* folder_name, size_t length);
+        std::string get_current_path();
+
+        bool is_corrupted();
+    };
+
+    ValueItem createFolderChangesMonitor(const char* path, size_t length, bool deph);
+
 
     ValueItem remove(const char* path, size_t length);
+    ValueItem rename(const char* path, size_t length, const char* new_path, size_t new_length);
+    ValueItem copy(const char* path, size_t length, const char* new_path, size_t new_length);
 }
 #endif /* RUN_TIME_FILES */

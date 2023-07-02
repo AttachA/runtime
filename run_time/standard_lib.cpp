@@ -972,7 +972,11 @@ extern "C" void initStandardLib_file(){
 	FuncEnvironment::AddNative(file::constructor::createProxy_FileHandle, "# file file_handle", false);
 	FuncEnvironment::AddNative(file::constructor::createProxy_BlockingFileHandle, "# file blocking_file_handle", false);
 	FuncEnvironment::AddNative(file::constructor::createProxy_TextFile, "# file text_file", false);
+	FuncEnvironment::AddNative(file::constructor::createProxy_FolderBrowser, "# file folder_browser", false);
+	FuncEnvironment::AddNative(file::constructor::createProxy_FolderChangesMonitor, "# file folder_changes_monitor", false);
 	FuncEnvironment::AddNative(file::remove, "file remove", false);
+	FuncEnvironment::AddNative(file::rename, "file rename", false);
+	FuncEnvironment::AddNative(file::copy, "file copy", false);
 }
 extern "C" void initStandardLib_paralel(){
 	INIT_CHECK

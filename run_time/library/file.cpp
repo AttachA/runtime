@@ -16,6 +16,7 @@ using namespace bytes;
 AttachAVirtualTable* define_FileHandle;
 AttachAVirtualTable* define_BlockingFileHandle;
 AttachAVirtualTable* define_TextFile;
+AttachAVirtualTable* define_FolderBrowser;
 
 class TextFile{
 public:
@@ -588,6 +589,33 @@ namespace file {
             if(len >= 3)if(args[2].meta.vtype != VType::noting) encoding = (TextFile::Encoding)(uint8_t)args[2];
             return ValueItem(AttachA::Interface::constructStructure<typed_lgr<TextFile>>(define_TextFile, new TextFile(file_handle, encoding, endian)), no_copy);
         })
+
+        AttachAFun(createProxy_FolderChangesMonitor, 1, {
+            bool calc_deph = len >= 2 ? (bool)args[1] : false;
+            if(args[0].meta.vtype == VType::string){
+                std::string& path = *(std::string*)args[0].getSourcePtr();
+                return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_deph);
+            }
+            else{
+                std::string path = (std::string)args[0];
+                return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_deph);
+            }
+        })
+        AttachAFun(createProxy_FolderBrowser, 0, {
+            if(len == 0)
+                return ValueItem(AttachA::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser()), no_copy);
+            else{
+                if(args[0].meta.vtype == VType::string){
+                    std::string& path = *(std::string*)args[0].getSourcePtr();
+                    return ValueItem(AttachA::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser(path.c_str(), path.size())), no_copy);
+                }
+                else{
+                    std::string path = (std::string)args[0];
+                    return ValueItem(AttachA::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser(path.c_str(), path.size())), no_copy);
+                }
+            }
+            
+        })
 	}
 
 
@@ -738,6 +766,165 @@ namespace file {
     })
 #pragma endregion
     
+#pragma region FileBrowser
+    AttachAFun(funs_FolderBrowser_folders, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        return handle->folders().convert_take<ValueItem>([](std::string&& str){
+            return std::move(str);
+        });
+    })
+    AttachAFun(funs_FolderBrowser_files, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        return handle->files().convert_take<ValueItem>([](std::string&& str){
+            return std::move(str);
+        });
+    })
+    AttachAFun(funs_FolderBrowser_is_folder, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        return handle->is_folder();
+    })
+    AttachAFun(funs_FolderBrowser_is_file, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        return handle->is_file();
+    })
+    AttachAFun(funs_FolderBrowser_exists, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        return handle->exists();
+    })
+    AttachAFun(funs_FolderBrowser_is_hidden, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        return handle->is_hidden();
+    })
+    AttachAFun(funs_FolderBrowser_create_path, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        if(args[1].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[1].getSourcePtr();
+            return handle->create_path(path.c_str(), path.size());
+        }
+        else{
+            std::string path = (std::string)args[1];
+            return handle->create_path(path.c_str(), path.size());
+        }
+    })
+    AttachAFun(funs_FolderBrowser_create_current_path, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        return handle->create_current_path();
+    })
+    AttachAFun(funs_FolderBrowser_create_file, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        if(args[1].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[1].getSourcePtr();
+            return handle->create_file(path.c_str(), path.size());
+        }
+        else{
+            std::string path = (std::string)args[1];
+            return handle->create_file(path.c_str(), path.size());
+        }
+    })
+    AttachAFun(funs_FolderBrowser_create_folder, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        if(args[1].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[1].getSourcePtr();
+            return handle->create_folder(path.c_str(), path.size());
+        }
+        else{
+            std::string path = (std::string)args[1];
+            return handle->create_folder(path.c_str(), path.size());
+        }
+    })
+    AttachAFun(funs_FolderBrowser_remove_file, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        if(args[1].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[1].getSourcePtr();
+            return handle->remove_file(path.c_str(), path.size());
+        }
+        else{
+            std::string path = (std::string)args[1];
+            return handle->remove_file(path.c_str(), path.size());
+        }
+    })
+    AttachAFun(funs_FolderBrowser_remove_folder, 2, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+        if(args[1].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[1].getSourcePtr();
+            return handle->remove_folder(path.c_str(), path.size());
+        }
+        else{
+            std::string path = (std::string)args[1];
+            return handle->remove_folder(path.c_str(), path.size());
+        }
+    })
+    AttachAFun(funs_FolderBrowser_remove_current_path, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);        
+        return handle->remove_current_path();
+    })
+    AttachAFun(funs_FolderBrowser_rename_file, 3, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);        
+        if(args[1].meta.vtype == VType::string && args[2].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[1].getSourcePtr();
+            std::string& new_path = *(std::string*)args[2].getSourcePtr();
+            return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else if(args[1].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[1].getSourcePtr();
+            std::string new_path = (std::string)args[2];
+            return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else if(args[2].meta.vtype == VType::string){
+            std::string path = (std::string)args[1];
+            std::string& new_path = *(std::string*)args[2].getSourcePtr();
+            return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else{
+            std::string path = (std::string)args[1];
+            std::string new_path = (std::string)args[2];
+            return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+    })
+    AttachAFun(funs_FolderBrowser_rename_folder, 3, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);        
+        if(args[1].meta.vtype == VType::string && args[2].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[1].getSourcePtr();
+            std::string& new_path = *(std::string*)args[2].getSourcePtr();
+            return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else if(args[1].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[1].getSourcePtr();
+            std::string new_path = (std::string)args[2];
+            return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else if(args[2].meta.vtype == VType::string){
+            std::string path = (std::string)args[1];
+            std::string& new_path = *(std::string*)args[2].getSourcePtr();
+            return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else{
+            std::string path = (std::string)args[1];
+            std::string new_path = (std::string)args[2];
+            return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+    })
+    AttachAFun(funs_FolderBrowser_join_folder, 2,{
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);        
+        if(args[1].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[1].getSourcePtr();
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, handle->join_folder(path.c_str(), path.size())), no_copy);
+        }
+        else{
+            std::string path = (std::string)args[1];
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, handle->join_folder(path.c_str(), path.size())), no_copy);
+        }
+    })
+    AttachAFun(funs_FolderBrowser_get_current_path, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);        
+        return handle->get_current_path();
+    })
+    AttachAFun(funs_FolderBrowser_is_corrupted, 1, {
+        auto& handle = AttachA::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);        
+        return handle->is_corrupted();
+    })
+
+#pragma endregion
 
     AttachAFun(remove, 1, {
         if(args[0].meta.vtype == VType::string){
@@ -749,6 +936,52 @@ namespace file {
             return files::remove(path.c_str(), path.size());
         }
     })
+    
+    AttachAFun(rename, 2,{
+        if(args[0].meta.vtype == VType::string && args[1].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[0].getSourcePtr();
+            std::string& new_path = *(std::string*)args[1].getSourcePtr();
+            return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else if(args[0].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[0].getSourcePtr();
+            std::string new_path = (std::string)args[1];
+            return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else if(args[1].meta.vtype == VType::string){
+            std::string path = (std::string)args[0];
+            std::string& new_path = *(std::string*)args[1].getSourcePtr();
+            return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else{
+            std::string path = (std::string)args[0];
+            std::string new_path = (std::string)args[1];
+            return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+    })
+    AttachAFun(copy, 2,{
+        if(args[0].meta.vtype == VType::string && args[1].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[0].getSourcePtr();
+            std::string& new_path = *(std::string*)args[1].getSourcePtr();
+            return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else if(args[0].meta.vtype == VType::string){
+            std::string& path = *(std::string*)args[0].getSourcePtr();
+            std::string new_path = (std::string)args[1];
+            return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else if(args[1].meta.vtype == VType::string){
+            std::string path = (std::string)args[0];
+            std::string& new_path = *(std::string*)args[1].getSourcePtr();
+            return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+        else{
+            std::string path = (std::string)args[0];
+            std::string new_path = (std::string)args[1];
+            return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+        }
+    })
+    
     
 	void init(){
         define_FileHandle = AttachA::Interface::createTable<typed_lgr<files::FileHandle>>("file_handle",
@@ -783,8 +1016,29 @@ namespace file {
             AttachA::Interface::direct_method("read_bom", funs_TextFile_read_bom),
             AttachA::Interface::direct_method("init_bom", funs_TextFile_init_bom)
         );
+        define_FolderBrowser = AttachA::Interface::createTable<typed_lgr<files::FolderBrowser>>("folder_browser",
+            AttachA::Interface::direct_method("folders", funs_FolderBrowser_folders),
+            AttachA::Interface::direct_method("files", funs_FolderBrowser_files),
+            AttachA::Interface::direct_method("is_folder", funs_FolderBrowser_is_folder),
+            AttachA::Interface::direct_method("is_file", funs_FolderBrowser_is_file),
+            AttachA::Interface::direct_method("exists", funs_FolderBrowser_exists),
+            AttachA::Interface::direct_method("is_hidden", funs_FolderBrowser_is_hidden),
+            AttachA::Interface::direct_method("create_path", funs_FolderBrowser_create_path),
+            AttachA::Interface::direct_method("create_current_path", funs_FolderBrowser_create_current_path),
+            AttachA::Interface::direct_method("create_file", funs_FolderBrowser_create_file),
+            AttachA::Interface::direct_method("create_folder", funs_FolderBrowser_create_folder),
+            AttachA::Interface::direct_method("remove_file", funs_FolderBrowser_remove_file),
+            AttachA::Interface::direct_method("remove_folder", funs_FolderBrowser_remove_folder),
+            AttachA::Interface::direct_method("remove_current_path", funs_FolderBrowser_remove_current_path),
+            AttachA::Interface::direct_method("rename_file", funs_FolderBrowser_rename_file),
+            AttachA::Interface::direct_method("rename_folder", funs_FolderBrowser_rename_folder),
+            AttachA::Interface::direct_method("join_folder", funs_FolderBrowser_join_folder),
+            AttachA::Interface::direct_method("get_current_path", funs_FolderBrowser_get_current_path),
+            AttachA::Interface::direct_method("is_corrupted", funs_FolderBrowser_is_corrupted)
+        );
         AttachA::Interface::typeVTable<typed_lgr<files::FileHandle>>() = define_FileHandle;
         AttachA::Interface::typeVTable<typed_lgr<files::BlockingFileHandle>>() = define_BlockingFileHandle;
         AttachA::Interface::typeVTable<typed_lgr<TextFile>>() = define_TextFile;
+        AttachA::Interface::typeVTable<typed_lgr<files::FolderBrowser>>() = define_FolderBrowser;
     }
 }

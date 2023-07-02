@@ -2,12 +2,43 @@
 #include "library/exceptions.hpp"
 #include "tasks_util/native_workers_singleton.hpp"
 #include <Windows.h>
+#include <winternl.h>
 #include <io.h>
 #include "../configuration/compatibility.hpp"
 #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
 #include <fstream>
 #endif
 #include <utf8cpp/utf8.h>
+#include <filesystem>
+#include "AttachA_CXX.hpp"
+
+class IFolderChangesMonitor{
+    virtual void start() noexcept(false) = 0;//start async scan
+    virtual void lazy_start() noexcept(false) = 0;//start async scan
+    virtual void once_scan() noexcept(false) = 0;//manual scan, blocking, return immediately if already scanning
+    virtual void stop() noexcept(false) = 0;
+    virtual ValueItem get_event_folder_name_change() const = 0;
+    virtual ValueItem get_event_file_name_change() const = 0;
+    virtual ValueItem get_event_folder_size_change() const = 0;
+    virtual ValueItem get_event_file_size_change() const = 0;
+    virtual ValueItem get_event_folder_creation() const = 0;
+    virtual ValueItem get_event_file_creation() const = 0;
+    virtual ValueItem get_event_folder_removed() const = 0;
+    virtual ValueItem get_event_file_removed() const = 0;
+    virtual ValueItem get_event_watcher_shutdown() const = 0;
+};
+
+
+
+
+
+
+
+
+
+
+
+
 namespace files {
     void io_error_to_exception(io_errors error){
         switch(error){
@@ -629,12 +660,6 @@ namespace files {
         return handle->get_handle();
     }
 
-    ValueItem remove(const char* path, size_t length){
-        std::u16string wpath(u"\\\\?\\");
-        utf8::utf8to16(path, path + length, std::back_inserter(wpath));
-        return (bool)DeleteFileW((wchar_t*)wpath.c_str());
-    }
-
     BlockingFileHandle::BlockingFileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _sync_flags flags, share_mode share) noexcept(false) : open(open), flags(flags){
         std::u16string wpath;
         utf8::utf8to16(path, path + path_len, std::back_inserter(wpath));
@@ -877,4 +902,1220 @@ namespace files {
         throw AException("FileException", "Can't open file");
     }
 #endif
+
+    
+
+    class FolderBrowserImpl{
+        std::wstring _path;
+        static inline constexpr char separator = '/';
+        static inline constexpr char native_separator = '\\';
+        static char is_separator(char c){
+            return c == '\\' || c == '/';
+        }
+        static char as_native_separator(char c){
+            return is_separator(c) ? native_separator : c;
+        }
+        bool current_path_is_file(){
+            DWORD attr = GetFileAttributesW(_path.c_str());
+            if(attr == INVALID_FILE_ATTRIBUTES)
+                return false;
+            return !(attr & FILE_ATTRIBUTE_DIRECTORY || attr & FILE_ATTRIBUTE_DEVICE);
+        }
+        bool current_path_is_folder(){
+            DWORD attr = GetFileAttributesW(_path.c_str());
+            if(attr == INVALID_FILE_ATTRIBUTES)
+                return false;
+            return attr & FILE_ATTRIBUTE_DIRECTORY;
+        }
+        void reduce_to_folder(){
+            if(current_path_is_folder())
+                return;
+            size_t pos = _path.find_last_of(L"\\/");
+            if(pos == std::wstring::npos)
+                 _path.clear();
+            else _path.resize(pos);
+        }
+
+        bool current_path_like_file(){
+            size_t pos = _path.find_last_of(L"\\/.");
+            if(pos == std::wstring::npos)
+                 return false;
+            return _path[pos] == L'.';
+        }
+        bool current_path_like_folder(){
+            return !current_path_like_file();
+        }
+        template<class _FN>
+        void iterate_current_path(_FN iterator){
+            if(!current_path_is_folder())
+                return;
+            std::wstring search_path = _path + L"\\*";
+            if(search_path.length() > MAX_PATH){
+                for(auto& c : search_path)
+                    if(c == L'/')
+                        c = L'\\';
+            }
+            WIN32_FIND_DATAW fd;
+            HANDLE hFind = ::FindFirstFileW(search_path.c_str(), &fd);
+            if(hFind != INVALID_HANDLE_VALUE){
+                do{
+                    if(!iterator(fd))
+                        break;
+                }while(::FindNextFileW(hFind, &fd));
+                ::FindClose(hFind);
+            }
+        }
+        void normalize_path() {
+            std::wstring result;
+            result.reserve(_path.length());
+            uint8_t dot_count = 0;
+            bool in_folder = false;
+            for (auto& c : _path) {
+                if (c == L'.') {
+					++dot_count;
+					continue;
+				}
+                if (dot_count == 2) {
+                    if(in_folder) {
+						size_t pos = result.find_last_of(L"\\/.");
+						if (pos == std::wstring::npos)
+							result.resize(0);
+						else result.resize(pos);
+					}else
+                        throw AException("FolderBrowserException", "Invalid path");
+                }
+                dot_count = 0;
+                if (is_separator(c)) {
+                    in_folder = true;
+                    c = L'\\';
+                }
+                result.push_back(c);
+            }
+            _path = std::move(result);
+        }
+    public:
+        FolderBrowserImpl(const char* path, size_t length) noexcept(false){
+            if(length == 0) {
+                return;
+            }
+            if(length == 1 && is_separator(path[0])) {
+                return;
+            }
+            if(length == 2 && is_separator(path[0]) && is_separator(path[1])) {
+                return;
+            }
+            else {
+                _path = L"\\\\?\\";
+                utf8::utf8to16(path, path + length, std::back_inserter(_path));
+                normalize_path();
+            }
+        }
+        FolderBrowserImpl(const FolderBrowserImpl& copy){
+            _path = copy._path;
+        }
+        FolderBrowserImpl(){}
+        list_array<std::string> folders(){
+            reduce_to_folder();
+            list_array<std::string> result;
+            if(_path.empty()){
+                DWORD drives = GetLogicalDrives();
+                for(int i = 0; i < 26; i++){
+                    if (drives & (1 << i)) {
+                        std::string disk("A:");
+                        disk[0] += i;
+                        result.push_back(disk);
+                    }
+                }
+                return result;
+            }
+            iterate_current_path([&result](const WIN32_FIND_DATAW& fd){
+                if(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY){
+                    if(!wcscmp(fd.cFileName, L".") || !wcscmp(fd.cFileName, L".."))
+                        return false;
+                    std::string utf8;
+                    utf8::utf16to8(fd.cFileName, fd.cFileName + wcslen(fd.cFileName), std::back_inserter(utf8));
+                    for(auto& c : utf8)
+                        if(c == native_separator)
+                            c = separator;
+                    result.push_back(utf8);
+                }
+                return true;
+            });
+            return result;
+        }
+        list_array<std::string> files(){
+            reduce_to_folder();
+            list_array<std::string> result;
+            iterate_current_path([&result](const WIN32_FIND_DATAW& fd){
+                if(!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY || fd.dwFileAttributes & FILE_ATTRIBUTE_DEVICE)){
+                    std::string utf8;
+                    utf8::utf16to8(fd.cFileName, fd.cFileName + wcslen(fd.cFileName), std::back_inserter(utf8));
+                    for(auto& c : utf8)
+                        if(c == native_separator)
+                            c = separator;
+                    result.push_back(utf8);
+                }
+                return true;
+            });
+            return result;
+        }
+    
+        bool is_folder(){
+            return current_path_is_folder();
+        }
+        bool is_file(){
+            return current_path_is_file();
+        }
+    
+        bool exists(){
+            DWORD attr = GetFileAttributesW(_path.c_str());
+            return attr != INVALID_FILE_ATTRIBUTES;
+        }
+        bool is_hidden(){
+            DWORD attr = GetFileAttributesW(_path.c_str());
+            if(attr == INVALID_FILE_ATTRIBUTES)
+                return false;
+            return attr & FILE_ATTRIBUTE_HIDDEN;
+        }
+    
+        bool create_path(const char* path, size_t length){
+            if(length == 0)
+                return false;
+            if(length == 1 && is_separator(path[0]))
+                return false;
+            if(length == 2 && is_separator(path[0]) && is_separator(path[1]))
+                return false;
+            std::wstring wpath;
+            utf8::utf8to16(path, path + length, std::back_inserter(wpath));
+            if(wpath.length() > MAX_PATH){
+                wpath = L"\\\\?\\" + wpath;
+                for(auto& c : wpath)
+                    if(c == L'/')
+                        c = L'\\';
+            }
+            if(!current_path_is_folder()) {
+                size_t pos = wpath.find_last_of(L"\\/");
+                if(pos == std::wstring::npos)
+                    return false;
+                wpath = wpath.substr(0, pos);
+            }
+            return CreateDirectoryW(wpath.c_str(), NULL) != 0;
+        }
+        bool create_current_path(){
+            if(_path.empty())
+                return false;
+            if(_path == L"\\" || _path == L"/")
+                return false;
+            if(_path == L"\\\\" || _path == L"//" || _path == L"\\/" || _path == L"/\\")
+                return false;
+            if(_path.length() > MAX_PATH){
+                std::wstring wpath = L"\\\\?\\" + _path;
+                for(auto& c : wpath)
+                    if(c == L'/')
+                        c = L'\\';
+                return CreateDirectoryW(wpath.c_str(), NULL) != 0;
+            }
+            return CreateDirectoryW(_path.c_str(), NULL) != 0;
+        }
+    
+        bool create_file(const char* file_name, size_t length){
+            if(length == 0)
+                return false;
+            if(length == 1 && is_separator(file_name[0]))
+                return false;
+            if(length == 2 && is_separator(file_name[0]) && is_separator(file_name[1]))
+                return false;
+            std::wstring wpath = _path + L"\\";
+            utf8::utf8to16(file_name, file_name + length, std::back_inserter(wpath));
+            if(wpath.length() > MAX_PATH){
+                wpath = L"\\\\?\\" + wpath;
+                for(auto& c : wpath)
+                    if(c == L'/')
+                        c = L'\\';
+            }
+            HANDLE hFile = CreateFileW(wpath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+            if(hFile == INVALID_HANDLE_VALUE){
+                if(GetLastError() == ERROR_FILE_EXISTS)
+                    return false;
+                return true;
+            }
+            CloseHandle(hFile);
+            return true;
+        }
+        bool create_folder(const char* folder_name, size_t length){
+            if(length == 0)
+                return false;
+            if(length == 1 && is_separator(folder_name[0]))
+                return false;
+            if(length == 2 && is_separator(folder_name[0]) && is_separator(folder_name[1]))
+                return false;
+            std::wstring wpath = _path + L"\\";
+            utf8::utf8to16(folder_name, folder_name + length, std::back_inserter(wpath));
+            if(wpath.length() > MAX_PATH){
+                wpath = L"\\\\?\\" + wpath;
+                for(auto& c : wpath)
+                    if(c == L'/')
+                        c = L'\\';
+            }
+            return CreateDirectoryW(wpath.c_str(), NULL) != 0;
+        }
+    
+        bool remove_file(const char* file_name, size_t length){
+            if(length == 0)
+                return false;
+            if(length == 1 && is_separator(file_name[0]))
+                return false;
+            if(length == 2 && is_separator(file_name[0]) && is_separator(file_name[1]))
+                return false;
+            std::wstring wpath = _path + L"\\";
+            utf8::utf8to16(file_name, file_name + length, std::back_inserter(wpath));
+            if(wpath.length() > MAX_PATH){
+                wpath = L"\\\\?\\" + wpath;
+                for(auto& c : wpath)
+                    if(c == L'/')
+                        c = L'\\';
+            }
+            return DeleteFileW(wpath.c_str()) != 0;
+        }
+        bool remove_folder(const char* folder_name, size_t length){
+            if(length == 0)
+                return false;
+            if(length == 1 && is_separator(folder_name[0]))
+                return false;
+            if(length == 2 && is_separator(folder_name[0]) && is_separator(folder_name[1]))
+                return false;
+            std::wstring wpath = _path + L"\\";
+            utf8::utf8to16(folder_name, folder_name + length, std::back_inserter(wpath));
+            if(wpath.length() > MAX_PATH){
+                wpath = L"\\\\?\\" + wpath;
+                for(auto& c : wpath)
+                    if(c == L'/')
+                        c = L'\\';
+            }
+            return RemoveDirectoryW(wpath.c_str()) != 0;
+        }
+        bool remove_current_path(){
+            if(_path.empty())
+                return false;
+            if(_path == L"\\" || _path == L"/")
+                return false;
+            if(_path == L"\\\\" || _path == L"//" || _path == L"\\/" || _path == L"/\\")
+                return false;
+            if(_path.length() > MAX_PATH){
+                std::wstring wpath = L"\\\\?\\" + _path;
+                for(auto& c : wpath)
+                    if(c == L'/')
+                        c = L'\\';
+                return RemoveDirectoryW(wpath.c_str()) != 0;
+            }
+            return RemoveDirectoryW(_path.c_str()) != 0;
+        }
+
+        bool rename_file(const char* old_name, size_t old_length, const char* new_name, size_t new_length){
+            if(old_length == 0 || new_length == 0)
+                return false;
+            if(old_length == 1 && is_separator(old_name[0]))
+                return false;
+            if(old_length == 2 && is_separator(old_name[0]) && is_separator(old_name[1]))
+                return false;
+            if(new_length == 1 && is_separator(new_name[0]))
+                return false;
+            if(new_length == 2 && is_separator(new_name[0]) && is_separator(new_name[1]))
+                return false;
+            std::wstring wold = _path + L"\\";
+            std::wstring wnew = _path + L"\\";
+            utf8::utf8to16(old_name, old_name + old_length, std::back_inserter(wold));
+            utf8::utf8to16(new_name, new_name + new_length, std::back_inserter(wnew));
+            if(wold.length() > MAX_PATH){
+                wold = L"\\\\?\\" + wold;
+                for(auto& c : wold)
+                    if(c == L'/')
+                        c = L'\\';
+            }
+            if(wnew.length() > MAX_PATH){
+                wnew = L"\\\\?\\" + wnew;
+                for(auto& c : wnew)
+                    if(c == L'/')
+                        c = L'\\';
+            }
+            return MoveFileW(wold.c_str(), wnew.c_str()) != 0;
+        }
+        bool rename_folder(const char* old_name, size_t old_length, const char* new_name, size_t new_length){
+            return rename_file(old_name, old_length, new_name, new_length);//in windows, MoveFileW can rename folders
+        }
+
+        FolderBrowserImpl* join_folder(const char* folder_name, size_t length){
+            if(length == 0)
+                return new FolderBrowserImpl();
+            if(length == 1 && (is_separator(folder_name[0]) || folder_name[0] == '.')){
+                return new FolderBrowserImpl(*this);
+            }
+            if(length == 2 && folder_name[0] == '.' && folder_name[1] == '.'){
+                if(_path.empty())
+                    return new FolderBrowserImpl();
+                else{
+                    size_t pos = _path.find_last_of(L"\\/");
+                    if(pos == std::wstring::npos)
+                        return new FolderBrowserImpl();
+                    else{
+                        auto res = new FolderBrowserImpl(*this);
+                        res->_path.resize(pos);
+                        std::wstring wpath = res->_path;
+                        if(wpath.starts_with(L"\\\\?\\"))
+                            wpath.erase(0, 4);
+                        if(wpath.length() == 2)
+                            res->_path = L"";
+                        return res;
+                    }
+                }
+            }
+            if(_path.empty()){
+                if(length == 1 && isupper(folder_name[0])){
+                    DWORD drives = GetLogicalDrives();
+                    if(drives & (1 << (folder_name[0] - 'A'))){
+                        std::string path = folder_name + std::string(":\\");
+                        return new FolderBrowserImpl(path.c_str(), path.length());
+                    }
+                }
+            }
+            std::wstring wpath = _path + L"\\";
+            utf8::utf8to16(folder_name, folder_name + length, std::back_inserter(wpath));
+            if(wpath.length() > MAX_PATH){
+                if(!wpath.starts_with(L"\\\\?\\"))
+                    wpath = L"\\\\?\\" + wpath;
+                for(auto& c : wpath)
+                    if(c == L'/')
+                        c = L'\\';
+            }
+            auto res = new FolderBrowserImpl();
+            res->_path = wpath;
+            return res;
+        }
+        std::string get_current_path(){
+            std::string res;
+            utf8::utf16to8(_path.begin(), _path.end(), std::back_inserter(res));
+            std::string_view pre_result = res;
+            for (auto& c : res)
+                if (c == native_separator)
+                    c = separator;
+            if (pre_result.starts_with("\\\\?\\"))
+                pre_result.remove_prefix(4);
+            if (pre_result.starts_with("Volume{")) {
+                std::string_view check_if_drive = pre_result;
+                check_if_drive.remove_prefix(7);
+                if (check_if_drive.length() < 36)
+					goto NOT_UUID_DRIVE;
+                if (check_if_drive[8] != '-' || check_if_drive[13] != '-' || check_if_drive[18] != '-' || check_if_drive[23] != '-')
+                    goto NOT_UUID_DRIVE;
+                for (size_t i = 0; i < 36; ++i) {
+                    if (i == 8 || i == 13 || i == 18 || i == 23)
+						continue;
+					if (!isxdigit(check_if_drive[i]))
+                        goto NOT_UUID_DRIVE;
+                }
+                return res;
+            }
+        NOT_UUID_DRIVE:
+            return (std::string)pre_result;
+        }
+    };
+
+    struct FolderChangesMonitorHandle : public NativeWorkerHandle{
+        uint8_t buffer[1024*4];
+        FolderChangesMonitorHandle(NativeWorkerManager* manager) : NativeWorkerHandle(manager) {
+             SecureZeroMemory(&overlapped, sizeof(overlapped));
+             //array buffer will be filled with FILE_NOTIFY_EXTENDED_INFORMATION structures, no need to zero it
+        }
+    };
+    class FolderChangesMonitorImpl : public NativeWorkerManager, public IFolderChangesMonitor{
+        struct file_state{
+            FILE_NOTIFY_EXTENDED_INFORMATION* current = nullptr;
+            std::string full_path;//utf8
+        };
+        std::wstring _path;
+        HANDLE _directory;
+        bool deph_scan;
+        bool _is_running = false;
+        std::unordered_map<long long, file_state> states;
+
+
+        typed_lgr<EventSystem> _folder_name_change = new EventSystem;
+        typed_lgr<EventSystem> _folder_creation = new EventSystem;
+        typed_lgr<EventSystem> _folder_removed = new EventSystem;
+        typed_lgr<EventSystem> _folder_last_access = new EventSystem;
+        typed_lgr<EventSystem> _folder_last_write = new EventSystem;
+        typed_lgr<EventSystem> _folder_security_change = new EventSystem;
+        typed_lgr<EventSystem> _folder_size_change = new EventSystem;
+        typed_lgr<EventSystem> _folder_attibutes = new EventSystem;
+
+
+        typed_lgr<EventSystem> _file_name_change = new EventSystem;
+        typed_lgr<EventSystem> _file_creation = new EventSystem;
+        typed_lgr<EventSystem> _file_removed = new EventSystem;
+        typed_lgr<EventSystem> _file_last_write = new EventSystem;
+        typed_lgr<EventSystem> _file_last_access = new EventSystem;
+        typed_lgr<EventSystem> _file_security_change = new EventSystem;
+        typed_lgr<EventSystem> _file_size_change = new EventSystem;
+        typed_lgr<EventSystem> _file_attibutes = new EventSystem;
+
+        typed_lgr<EventSystem> watcher_shutdown = new EventSystem;
+        bool createHandle(FolderChangesMonitorHandle* handle){
+            return ReadDirectoryChangesExW(
+                _directory,
+                handle->buffer, 
+                sizeof(handle->buffer), 
+                deph_scan, 
+                 FILE_NOTIFY_CHANGE_FILE_NAME 
+                 | FILE_NOTIFY_CHANGE_DIR_NAME 
+                 | FILE_NOTIFY_CHANGE_ATTRIBUTES 
+                 | FILE_NOTIFY_CHANGE_SIZE 
+                 | FILE_NOTIFY_CHANGE_LAST_WRITE 
+                 | FILE_NOTIFY_CHANGE_LAST_ACCESS 
+                 | FILE_NOTIFY_CHANGE_CREATION 
+                 | FILE_NOTIFY_CHANGE_SECURITY
+                 ,
+                nullptr,
+                &handle->overlapped,
+                nullptr,
+                ReadDirectoryNotifyExtendedInformation
+            );
+        }
+        enum class action_type{
+            file_name_change,
+            file_creation,
+            file_removed,
+            file_last_write,
+            file_last_access,
+            file_security_change,
+            file_size_change,
+            file_attibutes,
+
+            folder_name_change,
+            folder_creation,
+            folder_removed,
+            folder_last_access,
+            folder_last_write,
+            folder_security_change,
+            folder_size_change,
+            folder_attibutes
+        };
+        
+        void manualy_iterate(const std::wstring& _path, list_array<int64_t>& ids){
+            WIN32_FIND_DATAW fd;
+            HANDLE hFind;
+            {
+                std::wstring path = _path + L"\\*";
+                hFind = ::FindFirstFileW(path.c_str(), &fd);
+            }
+            if(hFind != INVALID_HANDLE_VALUE){
+                do{
+                    if (fd.cFileName[0] == '.' && fd.cFileName[1] == '\0')
+                        continue;
+                    if (fd.cFileName[0] == '.' && fd.cFileName[1] == '.' && fd.cFileName[2] == '\0')
+                        continue;
+                    std::wstring file_name = _path + L"\\"+ fd.cFileName;
+                    BY_HANDLE_FILE_INFORMATION info;
+                    auto file = CreateFileW(file_name.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+                    if(file != INVALID_HANDLE_VALUE){
+                        if(GetFileInformationByHandle(file, &info)){
+                            LARGE_INTEGER id;
+                            LARGE_INTEGER file_size;
+                            LARGE_INTEGER last_write;
+                            LARGE_INTEGER last_access;
+                            LARGE_INTEGER creation_time;
+                            id.HighPart = info.nFileIndexHigh;
+                            id.LowPart = info.nFileIndexLow;
+                            file_size.HighPart = info.nFileSizeHigh;
+                            file_size.LowPart = info.nFileSizeLow;
+                            last_write.HighPart = info.ftLastWriteTime.dwHighDateTime;
+                            last_write.LowPart = info.ftLastWriteTime.dwLowDateTime;
+                            last_access.HighPart = info.ftLastAccessTime.dwHighDateTime;
+                            last_access.LowPart = info.ftLastAccessTime.dwLowDateTime;
+                            creation_time.HighPart = info.ftCreationTime.dwHighDateTime;
+                            creation_time.LowPart = info.ftCreationTime.dwLowDateTime;
+                            ids.push_back(id.QuadPart);
+                            std::string name;
+                            utf8::utf16to8(file_name.begin(), file_name.end(), std::back_inserter(name));
+                            auto it = states.find(id.QuadPart);
+                            DWORD action = 0;
+                            if(it == states.end()){
+                                states[id.QuadPart] = {};
+                                it = states.find(id.QuadPart);
+                                ValueItem args{name};
+                                if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                                    _folder_creation->async_notify(args);
+                                else
+                                    _file_creation->async_notify(args);
+                                action = FILE_ACTION_ADDED;
+                            }
+                            else if((it->second.current->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)){
+                                {
+                                    ValueItem args{name, (uint32_t)info.dwFileAttributes};
+                                    if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                                        _folder_removed->async_notify(args);
+                                    else
+                                        _file_removed->async_notify(args);
+                                }
+                                {
+                                    ValueItem args{name, (uint32_t)it->second.current->FileAttributes};
+                                    if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                                        _folder_creation->async_notify(args);
+                                    else
+                                        _file_creation->async_notify(args);
+                                }
+                                action = FILE_ACTION_RENAMED_NEW_NAME;
+                            }
+                            else {
+                                if(it->second.current->FileAttributes != info.dwFileAttributes){
+                                    ValueItem args{name, (uint32_t)info.dwFileAttributes};
+                                    if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                                        _folder_attibutes->async_notify(args);
+                                    else
+                                        _file_attibutes->async_notify(args);
+                                    action = FILE_ACTION_MODIFIED;
+                                }
+                                if(it->second.current->FileSize.QuadPart != file_size.QuadPart){
+                                    ValueItem args{name, (long long)file_size.QuadPart};
+                                    if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                                        _folder_size_change->async_notify(args);
+                                    else
+                                        _file_size_change->async_notify(args);
+                                    action = FILE_ACTION_MODIFIED;
+                                }
+                                if(it->second.current->LastAccessTime.QuadPart != last_access.QuadPart){
+                                    ValueItem args{name, (long long)last_access.QuadPart};
+                                    if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                                        _folder_last_access->async_notify(args);
+                                    else
+                                        _file_last_access->async_notify(args);
+                                    action = FILE_ACTION_MODIFIED;
+                                }
+                                if(it->second.current->LastChangeTime.QuadPart != last_write.QuadPart){
+                                    ValueItem args{name, (long long)last_write.QuadPart};
+                                    if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                                        _folder_creation->async_notify(args);
+                                    else
+                                        _file_creation->async_notify(args);
+                                    action = FILE_ACTION_MODIFIED;
+                                }
+                                bool name_change = false;
+                                size_t wname_len = wcslen(it->second.current->FileName);
+                                if(it->second.current->FileNameLength / sizeof(wchar_t) != wname_len){
+                                    name_change = true;
+                                }else{
+                                    for(size_t i = 0; i < wname_len; ++i){
+                                        if(it->second.current->FileName[i] != fd.cFileName[i]){
+                                            name_change = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                if(name_change){
+                                    ValueItem args{name, fd.cFileName};
+                                    if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                                        _folder_name_change->async_notify(args);
+                                    else
+                                        _file_name_change->async_notify(args);
+                                    action = FILE_ACTION_RENAMED_NEW_NAME;
+                                }
+                            }
+                            auto old = it->second.current;
+                            int file_len = wcslen(fd.cFileName);
+                            file_len -= 0;
+                            it->second.current = (FILE_NOTIFY_EXTENDED_INFORMATION*)malloc(sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + file_len * sizeof(wchar_t));
+
+                            if(!it->second.current){
+                                it->second.current = old;
+                                CloseHandle(file);
+                                continue;
+                            } 
+                            it->second.current->FileAttributes = info.dwFileAttributes;
+                            it->second.current->FileSize = file_size;
+                            it->second.current->LastAccessTime = last_access;
+                            it->second.current->LastModificationTime = last_write;
+                            it->second.current->LastChangeTime = last_write;
+                            it->second.current->FileNameLength = file_len * sizeof(wchar_t);
+                            for(int i = 0; i < file_len; i++)
+                                it->second.current->FileName[i] = fd.cFileName[i];
+                            it->second.current->NextEntryOffset = 0;
+                            it->second.current->Action = action;
+                            if(old)
+                                free(old);
+                            it->second.full_path = name;
+                        }
+                        CloseHandle(file);
+                        if(deph_scan)
+                            if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                                manualy_iterate(file_name, ids);
+                    }
+                }while(::FindNextFileW(hFind, &fd));
+                ::FindClose(hFind);
+            }
+        }
+        void manualy_iterate(){
+            list_array<int64_t> ids;
+            manualy_iterate(_path, ids);
+            std::unordered_set<int64_t> _ids;
+            _ids.reserve(ids.size());
+            for(auto& id : ids)
+                _ids.insert(id);
+            ids.clear();
+            for(auto & it : states){
+                if(!_ids.contains(it.first)){
+                    ValueItem args{ it.second.full_path, (uint32_t)it.second.current->FileAttributes};
+                    if(it.second.current->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                        _folder_removed->async_notify(args);
+                    else
+                        _file_removed->async_notify(args);
+                    if(it.second.current)
+                        free(it.second.current);
+                    ids.push_back(it.first);
+                }
+            }
+            for(auto& id : ids)
+                states.erase(id);
+        }
+
+        void initialize() {
+            _directory = CreateFileW(_path.c_str(), FILE_LIST_DIRECTORY, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, nullptr);
+            if (_directory == INVALID_HANDLE_VALUE)
+                throw AException("FolderChangesMonitorException", "Can't open directory");
+            if (_path.ends_with(L'\\'))
+                _path.pop_back();
+            else if (_path.ends_with(L'/'))
+                _path.pop_back();
+            NativeWorkersSingleton::register_handle(_directory, this);
+        }
+    public:
+        FolderChangesMonitorImpl(const std::wstring& path, bool deph_scan) noexcept(false) : deph_scan(deph_scan), _path(path){initialize();}
+        FolderChangesMonitorImpl(std::wstring&& path, bool deph_scan) noexcept(false) : deph_scan(false), _path(path) {initialize();}
+        ~FolderChangesMonitorImpl(){
+            stop();
+            if(_directory != INVALID_HANDLE_VALUE)
+                CloseHandle(_directory);
+        }
+        void handle(void* data, class NativeWorkerHandle* overlapped, unsigned long dwBytesTransferred, bool status) override {
+            auto handle = (FolderChangesMonitorHandle*)overlapped;
+            if(!status){
+                delete handle;
+                return;
+            }
+            FILE_NOTIFY_EXTENDED_INFORMATION* info = (FILE_NOTIFY_EXTENDED_INFORMATION*)handle->buffer;
+            do{
+                std::wstring file_name = _path + L"\\";
+                file_name.insert(file_name.end(), info->FileName, info->FileName + info->FileNameLength / sizeof(wchar_t));
+                std::string name;
+                utf8::utf16to8(file_name.begin(), file_name.end(), std::back_inserter(name));
+                bool is_folder = info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY;
+                switch(info->Action){
+                    case FILE_ACTION_ADDED:{
+                            ValueItem args{name};
+                            auto it = states.find(info->FileId.QuadPart);
+                            FILE_NOTIFY_EXTENDED_INFORMATION* allocated_info = (FILE_NOTIFY_EXTENDED_INFORMATION*)malloc(sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength* sizeof(wchar_t));
+                            if(!allocated_info)
+                                break;
+                            memcpy(allocated_info, info, sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength);
+                            if(it == states.end()){
+                                states[info->FileId.QuadPart].current = allocated_info;
+                                states[info->FileId.QuadPart].full_path = name;
+                                if(is_folder)
+                                    _folder_creation->async_notify(args);
+                                else
+                                    _file_creation->async_notify(args);
+                            }else{
+                                states[info->FileId.QuadPart].current = allocated_info;
+                                states[info->FileId.QuadPart].full_path = name;
+                                if(is_folder)
+                                    _folder_name_change->async_notify(args);
+                                else
+                                    _file_name_change->async_notify(args);
+                            }
+                            break;
+                        }
+                    case FILE_ACTION_REMOVED:{
+                            auto it = states.find(info->FileId.QuadPart);
+                            if(it != states.end()){
+                                ValueItem args{name};
+                                if(is_folder)
+                                    _folder_removed->async_notify(args);
+                                else
+                                    _file_removed->async_notify(args);
+                                free(it->second.current);
+                                states.erase(it);
+                            }
+                            break;
+                        }
+                    case FILE_ACTION_MODIFIED:{
+                            auto it = states.find(info->FileId.QuadPart);
+                            if(it != states.end()){
+                                auto& old_info = it->second;
+                                if(old_info.current->LastAccessTime.QuadPart != info->LastAccessTime.QuadPart){
+                                    ValueItem args{name, (long long)info->LastAccessTime.QuadPart};
+                                    if(is_folder)
+                                        _folder_last_access->async_notify(args);
+                                    else
+                                        _file_last_access->async_notify(args);
+                                }
+                                if(old_info.current->LastModificationTime.QuadPart != info->LastModificationTime.QuadPart){
+                                    ValueItem args{name, (long long)info->LastModificationTime.QuadPart};
+                                    if(is_folder)
+                                        _folder_last_write->async_notify(args);
+                                    else
+                                        _file_last_write->async_notify(args);
+                                }
+                                if(old_info.current->FileAttributes != info->FileAttributes){
+                                    ValueItem args{name, (uint32_t)info->FileAttributes};
+                                    if(is_folder)
+                                        _folder_attibutes->async_notify(args);
+                                    else
+                                        _folder_attibutes->async_notify(args);
+                                }
+                                if(old_info.current->FileSize.QuadPart != info->FileSize.QuadPart){
+                                    ValueItem args{name, (long long)info->FileSize.QuadPart};
+                                    if(is_folder)
+                                        _folder_size_change->async_notify(args);
+                                    else
+                                        _folder_size_change->async_notify(args);
+                                }
+
+                            }else{
+                                FILE_NOTIFY_EXTENDED_INFORMATION* allocated_info = (FILE_NOTIFY_EXTENDED_INFORMATION*)malloc(sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength);
+                                if(!allocated_info)
+                                    break;
+                                memcpy(allocated_info, info, sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength);
+                                states[info->FileId.QuadPart].current = allocated_info;
+                                states[info->FileId.QuadPart].full_path = name;
+                            }
+                            break;
+                        }
+                    case FILE_ACTION_RENAMED_OLD_NAME:{
+                        auto& old_info = states[info->FileId.QuadPart];
+                        FILE_NOTIFY_EXTENDED_INFORMATION* allocated_info = (FILE_NOTIFY_EXTENDED_INFORMATION*)malloc(sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength);
+                        if(!allocated_info){
+                            break;
+                        }
+                        if(old_info.current != nullptr)
+                            free(old_info.current);
+                        memcpy(allocated_info, info, sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength);
+                        old_info.current = allocated_info;
+                        old_info.full_path = name;
+                        break;
+                    }
+                    case FILE_ACTION_RENAMED_NEW_NAME:{
+                        auto& old_info = states[info->FileId.QuadPart];
+                        if(old_info.current != nullptr){
+                            ValueItem args{ old_info.full_path, name};
+                            if(info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                                _folder_name_change->async_notify(args);
+                            else
+                                _file_name_change->async_notify(args);
+                            FILE_NOTIFY_EXTENDED_INFORMATION* allocated_info = (FILE_NOTIFY_EXTENDED_INFORMATION*)malloc(sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength);
+                            if(!allocated_info){
+                                break;
+                            }
+                            if(old_info.current != nullptr)
+                                free(old_info.current);
+                            memcpy(allocated_info, info, sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength);
+                            old_info.current = allocated_info;
+                            old_info.full_path = name;
+                        }
+                        break;
+                    }
+                    default:{
+                        ValueItem args{"FolderChangesMonitor", "Unknown action"};
+                        warning.async_notify(args);
+                        break;
+                    }
+                }
+                info = (FILE_NOTIFY_EXTENDED_INFORMATION*)((uint8_t*)info + info->NextEntryOffset);
+            }while(info->NextEntryOffset != 0);
+            if(createHandle(handle) == false){
+                if(GetLastError() == ERROR_NOTIFY_ENUM_DIR){
+                    manualy_iterate();
+                    if(createHandle(handle) == true)
+                        return;
+                }
+                _is_running = false;
+                delete handle;
+                ValueItem noting;
+                watcher_shutdown->async_notify(noting);
+            }
+        }
+        void start() noexcept(false) {
+            if (_is_running)
+                return;
+            if (_directory == INVALID_HANDLE_VALUE)
+                throw AException("FolderChangesMonitorException", "Can't start monitor");
+            manualy_iterate();
+            auto handle = new FolderChangesMonitorHandle(this);
+            if (createHandle(handle) == false) {
+                delete handle;
+                throw AException("FolderChangesMonitorException", "Can't start monitor");
+            }
+            _is_running = true;
+        }
+        void lazy_start() noexcept(false) {
+            if (_is_running)
+                return;
+            if (_directory == INVALID_HANDLE_VALUE)
+                throw AException("FolderChangesMonitorException", "Can't start monitor");
+            auto handle = new FolderChangesMonitorHandle(this);
+            if (createHandle(handle) == false) {
+                delete handle;
+                throw AException("FolderChangesMonitorException", "Can't start monitor");
+            }
+            _is_running = true;
+        }
+        void once_scan() noexcept(false){
+            if(_is_running)
+                return;
+            manualy_iterate();
+        }
+        void stop() noexcept(false){
+            if(!_is_running)
+                return;
+            if(_directory != INVALID_HANDLE_VALUE)
+                CancelIoEx(_directory, nullptr);
+            _is_running = false;
+            ValueItem noting;
+            watcher_shutdown->async_notify(noting);
+        }
+
+        ValueItem get_event_folder_name_change() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_name_change), no_copy);
+        }
+        ValueItem get_event_file_name_change() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_name_change), no_copy);
+        }
+        ValueItem get_event_folder_size_change() const{
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_size_change), no_copy);
+        }
+        ValueItem get_event_file_size_change() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_size_change), no_copy);
+        }
+        ValueItem get_event_folder_creation() const{
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_creation), no_copy);
+        }
+        ValueItem get_event_file_creation() const{
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_creation), no_copy);
+        }
+        ValueItem get_event_folder_removed() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_removed), no_copy);
+        }
+        ValueItem get_event_file_removed() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_removed), no_copy);
+        }
+        ValueItem get_event_watcher_shutdown() const{
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), watcher_shutdown), no_copy);
+        }
+
+        ValueItem get_event_folder_last_access() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_last_access), no_copy);
+        }
+        ValueItem get_event_file_last_access() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_last_access), no_copy);
+        }
+        ValueItem get_event_folder_last_write() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_last_write), no_copy);
+        }
+        ValueItem get_event_file_last_write() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_last_write), no_copy);
+        }
+        ValueItem get_event_folder_security_change() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_security_change), no_copy);
+        }
+        ValueItem get_event_file_security_change() const {
+            return ValueItem(AttachA::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)AttachA::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_security_change), no_copy);
+        }
+    };
+
+
+    AttachAVirtualTable* define_FolderChangesMonitor;
+    AttachAFun(funs_FolderChangesMonitorImpl_start, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        self->start();
+        })
+    AttachAFun(funs_FolderChangesMonitorImpl_lazy_start, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        self->lazy_start();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_once_scan, 1,{
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        self->once_scan();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_stop, 1,{
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        self->stop();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_name_change, 1,{
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        return self->get_event_folder_name_change();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_name_change, 1,{
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        return self->get_event_file_name_change();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_size_change, 1,{
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        return self->get_event_folder_size_change();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_size_change, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        return self->get_event_file_size_change();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_creation, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        return self->get_event_folder_creation();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_creation, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        return self->get_event_file_creation();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_removed, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        return self->get_event_folder_removed();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_removed, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        return self->get_event_file_removed();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_watcher_shutdown, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+        return self->get_event_watcher_shutdown();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_last_access, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor); 
+        return self->get_event_folder_last_access();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_last_access, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor); 
+        return self->get_event_file_last_access();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_last_write, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor); 
+        return self->get_event_folder_last_write();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_last_write, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor); 
+        return self->get_event_file_last_write();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_security_change, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor); 
+        return self->get_event_folder_security_change();
+    })
+    AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_security_change, 1, {
+        auto self = AttachA::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor); 
+        return self->get_event_file_security_change();
+    })
+
+
+
+
+    void init(){
+        run_time::threading::mutex m;
+        std::lock_guard l(m);
+        if(AttachA::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
+            return;
+        define_FolderChangesMonitor = AttachA::Interface::createTable<typed_lgr<FolderChangesMonitorImpl>>("folder_changes_monitor",
+            AttachA::Interface::direct_method("start", funs_FolderChangesMonitorImpl_start),
+            AttachA::Interface::direct_method("lazy_start", funs_FolderChangesMonitorImpl_lazy_start),
+            AttachA::Interface::direct_method("once_scan", funs_FolderChangesMonitorImpl_once_scan),
+            AttachA::Interface::direct_method("stop", funs_FolderChangesMonitorImpl_stop),
+            AttachA::Interface::direct_method("get_event_folder_name_change", funs_FolderChangesMonitorImpl_get_event_folder_name_change),
+            AttachA::Interface::direct_method("get_event_file_name_change", funs_FolderChangesMonitorImpl_get_event_file_name_change),
+            AttachA::Interface::direct_method("get_event_folder_size_change", funs_FolderChangesMonitorImpl_get_event_folder_size_change),
+            AttachA::Interface::direct_method("get_event_file_size_change", funs_FolderChangesMonitorImpl_get_event_file_size_change),
+            AttachA::Interface::direct_method("get_event_folder_creation", funs_FolderChangesMonitorImpl_get_event_folder_creation),
+            AttachA::Interface::direct_method("get_event_file_creation", funs_FolderChangesMonitorImpl_get_event_file_creation),
+            AttachA::Interface::direct_method("get_event_folder_removed", funs_FolderChangesMonitorImpl_get_event_folder_removed),
+            AttachA::Interface::direct_method("get_event_file_removed", funs_FolderChangesMonitorImpl_get_event_file_removed),
+            AttachA::Interface::direct_method("get_event_watcher_shutdown", funs_FolderChangesMonitorImpl_get_event_watcher_shutdown),
+            AttachA::Interface::direct_method("get_event_folder_last_access", funs_FolderChangesMonitorImpl_get_event_folder_last_access),
+            AttachA::Interface::direct_method("get_event_file_last_access", funs_FolderChangesMonitorImpl_get_event_file_last_access),
+            AttachA::Interface::direct_method("get_event_folder_last_write", funs_FolderChangesMonitorImpl_get_event_folder_last_write),
+            AttachA::Interface::direct_method("get_event_file_last_write", funs_FolderChangesMonitorImpl_get_event_file_last_write),
+            AttachA::Interface::direct_method("get_event_folder_security_change", funs_FolderChangesMonitorImpl_get_event_folder_security_change),
+            AttachA::Interface::direct_method("get_event_file_security_change", funs_FolderChangesMonitorImpl_get_event_file_security_change)
+        );
+        AttachA::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() = define_FolderChangesMonitor;
+    }
+    ValueItem createFolderChangesMonitor(const char* path, size_t length, bool deph){
+        if(AttachA::Interface::typeVTable<typed_lgr<EventSystem>>() == nullptr)
+            throw MissingDependencyException("parralel library with event_system is not loaded, required for folder_changes_monitor");
+        if(AttachA::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() == nullptr)
+            init();
+        std::wstring wpath;
+        utf8::utf8to16(path, path + length, std::back_inserter(wpath));
+        return ValueItem(AttachA::Interface::constructStructure<typed_lgr<FolderChangesMonitorImpl>>(define_FolderChangesMonitor, new FolderChangesMonitorImpl(std::move(wpath), deph)), no_copy);
+    }
+    
+    ValueItem remove(const char* path, size_t length){
+        std::wstring wpath(L"\\\\?\\");
+        utf8::utf8to16(path, path + length, std::back_inserter(wpath));
+        return (bool)DeleteFileW(wpath.c_str());
+    }
+    ValueItem rename(const char* path, size_t length, const char* new_path, size_t new_length){
+        std::wstring wpath(L"\\\\?\\");
+        utf8::utf8to16(path, path + length, std::back_inserter(wpath));
+        std::wstring wnew_path(L"\\\\?\\");
+        utf8::utf8to16(new_path, new_path + new_length, std::back_inserter(wnew_path));
+        return (bool)MoveFileW(wpath.c_str(), wnew_path.c_str());
+    }
+    ValueItem copy(const char* path, size_t length, const char* new_path, size_t new_length){
+        std::wstring wpath(L"\\\\?\\");
+        utf8::utf8to16(path, path + length, std::back_inserter(wpath));
+        std::wstring wnew_path(L"\\\\?\\");
+        utf8::utf8to16(new_path, new_path + new_length, std::back_inserter(wnew_path));
+        return (bool)CopyFileW(wpath.c_str(), wnew_path.c_str(), false);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    FolderBrowser::FolderBrowser(FolderBrowserImpl* impl) noexcept {
+        this->impl = impl;
+    }
+    FolderBrowser::FolderBrowser() {
+        try {
+            impl = new FolderBrowserImpl();
+        }
+        catch (...) {
+            impl = nullptr;
+            throw;
+        }
+    }
+    FolderBrowser::FolderBrowser(const char* path, size_t length) noexcept(false) {
+        try {
+            impl = new FolderBrowserImpl(path, length);
+        }
+        catch (...) {
+            impl = nullptr;
+            throw;
+        }
+    }
+    FolderBrowser::FolderBrowser(const FolderBrowser& copy) {
+        try {
+            if (copy.impl != nullptr)
+                impl = new FolderBrowserImpl(*copy.impl);
+            else
+                impl = nullptr;
+        }
+        catch (...) {
+            impl = nullptr;
+            throw;
+        }
+    }
+    FolderBrowser::FolderBrowser(FolderBrowser&& move) {
+        impl = move.impl;
+        move.impl = nullptr;
+    }
+    FolderBrowser::~FolderBrowser() {
+        if (impl != nullptr)
+            delete impl;
+    }
+    list_array<std::string> FolderBrowser::folders() {
+        if (impl == nullptr)
+            return false;
+        return impl->folders();
+    }
+    list_array<std::string> FolderBrowser::files() {
+        if (impl == nullptr)
+            return false;
+        return impl->files();
+    }
+
+    bool FolderBrowser::is_folder() {
+        if (impl == nullptr)
+            return false;
+        return impl->is_folder();
+    }
+    bool FolderBrowser::is_file() {
+        if (impl == nullptr)
+            return false;
+        return impl->is_file();
+    }
+
+    bool FolderBrowser::exists() {
+        if (impl == nullptr)
+            return false;
+        return impl->exists();
+    }
+    bool FolderBrowser::is_hidden() {
+        if (impl == nullptr)
+            return false;
+        return impl->is_hidden();
+    }
+
+    bool FolderBrowser::create_path(const char* path, size_t length) {
+        if (impl == nullptr)
+            return false;
+        return impl->create_path(path, length);
+    }
+    bool FolderBrowser::create_current_path() {
+        if (impl == nullptr)
+            return false;
+        return impl->create_current_path();
+    }
+
+    bool FolderBrowser::create_file(const char* file_name, size_t length) {
+        if (impl == nullptr)
+            return false;
+        return impl->create_file(file_name, length);
+    }
+    bool FolderBrowser::create_folder(const char* folder_name, size_t length) {
+        if (impl == nullptr)
+            return false;
+        return impl->create_folder(folder_name, length);
+    }
+
+    bool FolderBrowser::remove_file(const char* file_name, size_t length) {
+        if (impl == nullptr)
+            return false;
+        return impl->remove_file(file_name, length);
+    }
+    bool FolderBrowser::remove_folder(const char* folder_name, size_t length) {
+        if (impl == nullptr)
+            return false;
+        return impl->remove_folder(folder_name, length);
+    }
+    bool FolderBrowser::remove_current_path() {
+        if (impl == nullptr)
+            return false;
+        return impl->remove_current_path();
+    }
+    bool FolderBrowser::rename_file(const char* old_name, size_t old_length, const char* new_name, size_t new_length) {
+        if (impl == nullptr)
+            return false;
+        return impl->rename_file(old_name, old_length, new_name, new_length);
+    }
+    bool FolderBrowser::rename_folder(const char* old_name, size_t old_length, const char* new_name, size_t new_length) {
+        if (impl == nullptr)
+            return false;
+        return impl->rename_folder(old_name, old_length, new_name, new_length);
+    }
+
+    typed_lgr<FolderBrowser> FolderBrowser::join_folder(const char* folder_name, size_t length) {
+        if (impl == nullptr)
+            throw AException("FolderBrowserException", "FolderBrowser is not initialized");
+        return new FolderBrowser(impl->join_folder(folder_name, length));
+    }
+    std::string FolderBrowser::get_current_path() {
+        if (impl == nullptr)
+            return "";
+        return impl->get_current_path();
+    }
+    bool FolderBrowser::is_corrupted() {
+        return !impl;
+    }
 }

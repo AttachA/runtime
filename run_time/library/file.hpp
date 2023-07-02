@@ -13,7 +13,12 @@ namespace file {
 		ValueItem* createProxy_BlockingFileHandle(ValueItem*, uint32_t);
 
 		ValueItem* createProxy_TextFile(ValueItem*, uint32_t);
+
+		ValueItem* createProxy_FolderBrowser(ValueItem*, uint32_t);
+		ValueItem* createProxy_FolderChangesMonitor(ValueItem*, uint32_t);
 	}
 	ValueItem* remove(ValueItem*, uint32_t);
+    ValueItem* rename(ValueItem*, uint32_t);
+    ValueItem* copy(ValueItem*, uint32_t);
 	void init();
 }
