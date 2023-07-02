@@ -22,7 +22,7 @@ jobs:
       uses: lukka/run-vcpkg@v11
       with:
         vcpkgGitCommitId: '64adda19c86e89526b5e27703a193c14477cce07'
-        vcpkgJsonGlob: ${{ github.workspace }}/vcpkg.json
+        vcpkgJsonGlob: '\vcpkg.json'
     - name: Run CMake with vcpkg.json manifest(no tests)
       uses: lukka/run-cmake@v10
       with:
