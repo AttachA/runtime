@@ -1,0 +1,89 @@
+{
+    "version": 2,
+    "buildPresets": [
+        {
+            "name": "Win-Debug",
+            "configurePreset": "Win-Debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "Win-Release",
+            "configurePreset": "Win-Release",
+            "configuration": "Release"
+        },
+        {
+            "name": "Win-RelWithDebInfo",
+            "configurePreset": "Win-RelWithDebInfo",
+            "configuration": "RelWithDebInfo"
+        },
+        {
+            "name": "Win-MinSizeRel",
+            "configurePreset": "Win-MinSizeRel",
+            "configuration": "MinSizeRel"
+        }
+    ],
+    "configurePresets": [
+        {
+            "name": "Win-Basic",
+            "hidden": true,
+            "generator": "Visual Studio 17 2022",
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "VCPKG_TARGET_TRIPLET": "x64-windows-static"
+            }
+        },
+        {
+            "name": "Debug",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "Release",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "RelWithDebInfo",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        },
+        {
+            "name": "MinSizeRel",
+            "hidden": true,
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "MinSizeRel"
+            }
+        },
+
+
+        
+        {
+            "name": "Win-Debug",
+            "displayName": "Win-Debug",
+            "inherits": [ "Win-Basic", "Debug" ]
+        },
+        {
+            "name": "Win-Release",
+            "displayName": "Win-Release",
+            "inherits": [ "Win-Basic", "Release" ]
+        },
+        {
+            "name": "Win-RelWithDebInfo",
+            "displayName": "Win-RelWithDebInfo",
+            "inherits": [ "Win-Basic", "RelWithDebInfo" ]
+        },
+        {
+            "name": "Win-MinSizeRel",
+            "displayName": "Win-MinSizeRel",
+            "inherits": [ "Win-Basic", "MinSizeRel" ]
+        }
+    ]
+}
