@@ -1186,24 +1186,28 @@ private:
 			iterator<T> interate = get_iterator(start_pos);
 			iterator<T> _end = get_iterator(end_pos);
 			size_t removed = 0;
+			size_t to_remove = end_pos - start_pos;
 			if (interate.block == _end.block) {
 				removed = _remove_items(interate.block, interate.pos, _end.pos);
 				_size -= removed;
 				return removed;
 			}
-
-			removed += _remove_items(interate.block, interate.pos, interate.block->_size);
-			for (;;) {
-				if (!interate._nextBlock())
-					break;
-				removed += _remove_items(interate.block, 0, interate.block->_size);
+			arr_block<T>* curr_block;
+			for(; removed < to_remove;){
+				curr_block = interate.block;
+				if(interate.pos != 0 || interate.block->_size > to_remove - removed){
+					removed += _remove_items(interate.block, interate.pos, interate.block->_size - interate.pos);
+				}
+				else {
+					interate._nextBlock();
+					removed += curr_block->_size;
+					if (arr == curr_block)
+						arr = curr_block->next_;
+					if (arr_end == curr_block)
+						arr_end = curr_block->_prev;
+					curr_block->good_bye_world();
+				}
 			}
-
-			if (_end.block)
-				removed += _remove_items(_end.block, 0, _end.pos);
-			else if (interate.block)
-				removed += _remove_items(interate.block, 0, interate.block->_size);
-
 			_size -= removed;
 			return removed;
 		}
@@ -1353,6 +1357,7 @@ public:
 	}
 
 	conexpr void reserve_push_front(size_t reserve_size) {
+		if(!reserve_size) return;
 		reserved_begin += reserve_size;
 		arr.resize_begin(reserved_begin + _size + reserved_end);
 	}
@@ -1378,6 +1383,7 @@ public:
 	}
 
 	conexpr void reserve_push_back(size_t reserve_size) {
+		if(!reserve_size) return;
 		reserved_end += reserve_size;
 		arr.resize_front(reserved_begin + _size + reserved_end);
 	}
@@ -2636,11 +2642,11 @@ public:
 	}
 	conexpr list_array<T> join_copy(const list_array<T>& insert_items, size_t start_pos, size_t end_pos) const {
 		list_array<T> res;
-		res.reserve_push_back(_size * 2);
 		if (start_pos > end_pos) {
 			std::swap(start_pos, end_pos);
 			if (end_pos > _size)
 				throw std::out_of_range("end_pos out of size limit");
+			res.reserve_push_back(_size * (insert_items.size()+1));
 			for (auto& i : reverse_range(start_pos, end_pos)) {
 				res.push_back(i);
 				res.push_back(insert_items);
@@ -2649,6 +2655,7 @@ public:
 		else {
 			if (end_pos > _size)
 				throw std::out_of_range("end_pos out of size limit");
+			res.reserve_push_back(_size * (insert_items.size()+1));
 			for (auto& i : range(start_pos, end_pos)) {
 				res.push_back(i);
 				res.push_back(insert_items);
@@ -2669,11 +2676,11 @@ public:
 	template<class _FN>
 	conexpr list_array<T> join_copy(T* insert_items, size_t items_count, size_t start_pos, size_t end_pos) const {
 		list_array<T> res;
-		res.reserve_push_back(_size * 2);
 		if (start_pos > end_pos) {
 			std::swap(start_pos, end_pos);
 			if (end_pos > _size)
 				throw std::out_of_range("end_pos out of size limit");
+			res.reserve_push_back(_size * (items_count+1));
 			for (auto& i : reverse_range(start_pos, end_pos)) {
 				res.push_back(i);
 				res.push_back(insert_items, items_count);
@@ -2682,6 +2689,7 @@ public:
 		else {
 			if (end_pos > _size)
 				throw std::out_of_range("end_pos out of size limit");
+			res.reserve_push_back(_size * (items_count+1));
 			for (auto& i : range(start_pos, end_pos)) {
 				res.push_back(i);
 				res.push_back(insert_items, items_count);
@@ -2698,11 +2706,11 @@ public:
 	template<class _Fn>
 	conexpr list_array<T> where(_Fn check_fn, size_t start_pos, size_t end_pos) const {
 		list_array<T> res;
-		res.reserve_push_back(_size);
 		if (start_pos > end_pos) {
 			std::swap(start_pos, end_pos);
 			if (end_pos > _size)
 				throw std::out_of_range("end_pos out of size limit");
+			res.reserve_push_back(start_pos - end_pos);
 			for (auto& i : reverse_range(start_pos, end_pos))
 				if (check_fn(i))
 					res.push_back(i);
@@ -2710,6 +2718,7 @@ public:
 		else {
 			if (end_pos > _size)
 				throw std::out_of_range("end_pos out of size limit");
+			res.reserve_push_back(start_pos - end_pos);
 			for (auto& i : range(start_pos, end_pos))
 				if (check_fn(i))
 					res.push_back(i);
@@ -2724,11 +2733,11 @@ public:
 	template<class _Fn>
 	conexpr list_array<T> whereI(_Fn check_fn, size_t start_pos, size_t end_pos) const {
 		list_array<T> res;
-		res.reserve_push_back(_size);
 		if (start_pos > end_pos) {
 			std::swap(start_pos, end_pos);
 			if (end_pos > _size)
 				throw std::out_of_range("end_pos out of size limit");
+			res.reserve_push_back(start_pos - end_pos);
 			size_t pos = end_pos;
 			for (auto& i : reverse_range(start_pos, end_pos))
 				if (check_fn(i, pos--))
@@ -2737,6 +2746,7 @@ public:
 		else {
 			if (end_pos > _size)
 				throw std::out_of_range("end_pos out of size limit");
+			res.reserve_push_back(start_pos - end_pos);
 			size_t pos = start_pos;
 			for (auto& i : range(start_pos, end_pos))
 				if (check_fn(i, pos--))
@@ -2753,20 +2763,34 @@ public:
 	template<class ConvertTo, class _Fn>
 	conexpr list_array<ConvertTo> convert(_Fn iterate_fn, size_t start_pos, size_t end_pos) {
 		list_array<ConvertTo> res;
-		res.reserve_push_back(_size);
 		if (start_pos > end_pos) {
 			std::swap(start_pos, end_pos);
 			if (end_pos > _size)
 				throw std::out_of_range("end_pos out of size limit");
+			res.reserve_push_back(start_pos - end_pos);
 			for (auto& i : reverse_range(start_pos, end_pos))
 				res.push_back(iterate_fn(i));
 		}
 		else {
 			if (end_pos > _size)
 				throw std::out_of_range("end_pos out of size limit");
+			res.reserve_push_back(start_pos - end_pos);
 			for (auto& i : range(start_pos, end_pos))
 				res.push_back(iterate_fn(i));
 		}
+		return res;
+	}
+	template<class ConvertTo, class _Fn>
+	conexpr list_array<ConvertTo> convert_take(_Fn iterate_fn) {
+		return convert_take<ConvertTo>(iterate_fn, 0, _size);
+	}
+	template<class ConvertTo, class _Fn>
+	conexpr list_array<ConvertTo> convert_take(_Fn iterate_fn, size_t start_pos, size_t end_pos) {
+		list_array<T> tmp = take(start_pos, end_pos);
+		list_array<ConvertTo> res;
+		res.reserve_push_back(tmp.size());
+		for(T& i : tmp)
+			res.push_back(iterate_fn(std::move(i)));
 		return res;
 	}
 
