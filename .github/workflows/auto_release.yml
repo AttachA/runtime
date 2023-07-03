@@ -1,0 +1,35 @@
+name: Auto Release
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  windows_build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+    env:
+        BUILD_CONFIGURATION: Release
+        
+    steps:
+    - uses: actions/checkout@v3
+    - uses: lukka/get-cmake@latest
+    
+    - name: Restore artifacts, or setup vcpkg (do not install any package)
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: '64adda19c86e89526b5e27703a193c14477cce07'
+        vcpkgJsonGlob: '\vcpkg.json'
+    - name: Run CMake with vcpkg.json manifest(no tests)
+      uses: lukka/run-cmake@v10
+      with:
+        configurePreset: Win-Release
+        buildPreset: Win-Release
+    - uses: actions/upload-artifact@v3
+      with:
+        name: AttachA-Win
+        path: |
+            ${{ github.workspace }}/out/**/AttachA.exe
