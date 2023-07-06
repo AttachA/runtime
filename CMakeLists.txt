@@ -28,22 +28,41 @@ FILE(GLOB SRCFILES
         src/library/*.cpp
         src/*.cpp 
 )
-add_executable(AttachA ${SRCFILES})
-set_property(TARGET AttachA PROPERTY
-  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 
 find_package(Boost REQUIRED COMPONENTS context)
 find_package(asmjit REQUIRED)
 find_package(utf8cpp CONFIG REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS} ${asmjit_INCLUDE_DIRS})
 
+
+add_executable(AttachA ${SRCFILES})
+set_property(TARGET AttachA PROPERTY
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_link_libraries(AttachA
   PRIVATE
     ${Boost_LIBRARIES}
     asmjit::asmjit
     utf8::cpp
   )
+  
+add_library(AttachA_lib STATIC ${SRCFILES})
+set_property(TARGET AttachA_lib PROPERTY
+  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_link_libraries(AttachA_lib
+  PRIVATE
+    ${Boost_LIBRARIES}
+    asmjit::asmjit
+    utf8::cpp
+  )
+  
+
 
 IF(MSVC)
   SET(CMAKE_CXX_FLAGS "/EHsc")
 ENDIF(MSVC)
+
+include(CTest)
+if(BUILD_TESTING)
+  add_subdirectory(tests)
+endif()

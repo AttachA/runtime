@@ -68,22 +68,52 @@
         {
             "name": "Win-Debug",
             "displayName": "Win-Debug",
-            "inherits": [ "Win-Basic", "Debug" ]
+            "inherits": [
+                "Win-Basic",
+                "Debug"
+            ]
         },
         {
             "name": "Win-Release",
             "displayName": "Win-Release",
-            "inherits": [ "Win-Basic", "Release" ]
+            "inherits": [
+                "Win-Basic",
+                "Release"
+            ]
         },
         {
             "name": "Win-RelWithDebInfo",
             "displayName": "Win-RelWithDebInfo",
-            "inherits": [ "Win-Basic", "RelWithDebInfo" ]
+            "inherits": [
+                "Win-Basic",
+                "RelWithDebInfo"
+            ]
         },
         {
             "name": "Win-MinSizeRel",
             "displayName": "Win-MinSizeRel",
-            "inherits": [ "Win-Basic", "MinSizeRel" ]
+            "inherits": [
+                "Win-Basic",
+                "MinSizeRel"
+            ]
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "GTest-Debug",
+            "description": "Runs GTest tests",
+            "displayName": "",
+            "configurePreset": "Win-Debug",
+            "output": {
+                "outputOnFailure": true
+            },
+            "execution": {
+                "noTestsAction": "error",
+                "stopOnFailure": true
+            },
+            "environment": {
+                "BUILD_TESTING": "ON"
+            }
         }
     ]
 }
