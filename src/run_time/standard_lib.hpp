@@ -4,8 +4,7 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#pragma once
-extern "C" {
+namespace art {
 	//functions starting with symbol '#' is constructors
 	//functions starting with symbol '\1' is special functions that used by compilers and should not called by user
 	//symbol '#' in names represent multiple constructors ex '# net ip#v6' is constructor for 

@@ -7,20 +7,22 @@
 #pragma once
 #include <unordered_map>
 #include "attacha_abi_structs.hpp"
-class ValueEnvironment {
-	std::unordered_map<std::string, ValueEnvironment*> enviropments;
-public:
-	ValueItem value;
-	ValueEnvironment*& joinEnviropment(const std::string& str) {
-		return enviropments[str];
-	}
-	bool hasEnviropment(const std::string& str) {
-		return enviropments.contains(str);
-	}
-	void removeEnviropment(const std::string& str) {
-		delete enviropments[str];
-		enviropments.erase(str);
-	}
-};
-extern ValueEnvironment enviropments;
-extern thread_local ValueEnvironment thread_local_enviropments;
+namespace art{
+	class ValueEnvironment {
+		std::unordered_map<std::string, ValueEnvironment*> enviropments;
+	public:
+		ValueItem value;
+		ValueEnvironment*& joinEnviropment(const std::string& str) {
+			return enviropments[str];
+		}
+		bool hasEnviropment(const std::string& str) {
+			return enviropments.contains(str);
+		}
+		void removeEnviropment(const std::string& str) {
+			delete enviropments[str];
+			enviropments.erase(str);
+		}
+	};
+	extern ValueEnvironment enviropments;
+	extern thread_local ValueEnvironment thread_local_enviropments;
+}

@@ -5,5 +5,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "ValueEnvironment.hpp"
-ValueEnvironment enviropments;
-thread_local ValueEnvironment thread_local_enviropments;
+namespace art{
+    ValueEnvironment enviropments;
+    thread_local ValueEnvironment thread_local_enviropments;
+}

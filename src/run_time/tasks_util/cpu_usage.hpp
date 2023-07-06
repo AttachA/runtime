@@ -6,16 +6,14 @@
 #ifndef RUN_TIME_TASKS_UTIL_CPU_USAGE
 #define RUN_TIME_TASKS_UTIL_CPU_USAGE
 #include <cstdint>
-namespace run_time{
-    namespace tasks{
-        namespace cpu{
-            struct usage_prev_stat{
-                uint64_t total_ticks = 0;
-                uint64_t idle_ticks = 0;
-            };
-            double get_usage(usage_prev_stat& prev_stat);
-            double get_usage_percents(usage_prev_stat& prev_stat);
-        }
+namespace art{
+    namespace cpu{
+        struct usage_prev_stat{
+            uint64_t total_ticks = 0;
+            uint64_t idle_ticks = 0;
+        };
+        double get_usage(usage_prev_stat& prev_stat);
+        double get_usage_percents(usage_prev_stat& prev_stat);
     }
 }
 

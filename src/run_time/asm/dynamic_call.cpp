@@ -5,14 +5,13 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "dynamic_call.hpp"
-
 #ifdef _WIN64
 //https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-160
 //fastcall x64
-extern "C" uint64_t __fastcall ArgumentsPrepareCallForFastcall(void* rcx, void* rdx, void* r8, void* r9, DynamicCall::PROC proc, size_t values_count, void* args);
-extern "C" uint64_t CallTypeCall(DynamicCall::PROC proc, list_array<DynamicCall::ArgumentsHolder::ArgumentItem>& arguments, size_t struct_size, bool used_this, void* this_pointer) {
+extern "C" uint64_t __fastcall ArgumentsPrepareCallForFastcall(void* rcx, void* rdx, void* r8, void* r9, art::DynamicCall::PROC proc, size_t values_count, void* args);
+extern "C" uint64_t CallTypeCall(art::DynamicCall::PROC proc, list_array<art::DynamicCall::ArgumentsHolder::ArgumentItem>& arguments, size_t struct_size, bool used_this, void* this_pointer) {
 	if (used_this)
-		arguments.push_front(DynamicCall::ArgumentsHolder::ArgumentItem(this_pointer));
+		arguments.push_front(art::DynamicCall::ArgumentsHolder::ArgumentItem(this_pointer));
 	
 	
 	void* register_rcx = nullptr; //fir arg
@@ -73,10 +72,10 @@ extern "C" uint64_t CallTypeCall(DynamicCall::PROC proc, list_array<DynamicCall:
 	}
 }
 #elif defined(LINUX) && defined(__x86_64__)
-extern "C" uint64_t __fastcall ArgumentsPrepareCallFor_V_AMD64(void* rsi, void* rdi, void* rcx, void* rcx, void* rdx, void* r8, void* r9, DynamicCall::PROC proc, size_t values_count, void* args);
-extern "C" uint64_t CallTypeCall(DynamicCall::PROC proc, list_array<DynamicCall::ArgumentsHolder::ArgumentItem>&arguments, size_t struct_size, bool used_this, void* this_pointer) {
+extern "C" uint64_t __fastcall ArgumentsPrepareCallFor_V_AMD64(void* rsi, void* rdi, void* rcx, void* rcx, void* rdx, void* r8, void* r9, art::DynamicCall::PROC proc, size_t values_count, void* args);
+extern "C" uint64_t CallTypeCall(art::DynamicCall::PROC proc, list_array<art::DynamicCall::ArgumentsHolder::ArgumentItem>&arguments, size_t struct_size, bool used_this, void* this_pointer) {
 	if (used_this)
-		arguments.push_front(DynamicCall::ArgumentsHolder::ArgumentItem(this_pointer));
+		arguments.push_front(art::DynamicCall::ArgumentsHolder::ArgumentItem(this_pointer));
 
 
 	void* register_rsi = nullptr; //fir arg
@@ -151,7 +150,7 @@ extern "C" uint64_t CallTypeCall(DynamicCall::PROC proc, list_array<DynamicCall:
 #else
 #ifdef _WIN32
 //cdecl
-uint64_t FunctionCall(DynamicCall::PROC proc, void** args, int max_i, void* struct_mem) {
+uint64_t FunctionCall(art::DynamicCall::PROC proc, void** args, int max_i, void* struct_mem) {
 	size_t i = 0;
 	void* arg;
 	__asm {
@@ -177,7 +176,7 @@ uint64_t FunctionCall(DynamicCall::PROC proc, void** args, int max_i, void* stru
 }
 #else
 //System V i386 ABI
-uint64_t FunctionCall(DynamicCall::PROC proc, void** args, int max_i, void* struct_mem) {
+uint64_t FunctionCall(art::DynamicCall::PROC proc, void** args, int max_i, void* struct_mem) {
 	size_t i = 0;
 	void* arg;
 	__asm__ volatile("mov %0, %%edx"::"r"(max_i) : "%edx");
@@ -203,7 +202,7 @@ just_call:
 }
 #endif
 
-uint64_t CallTypeCall(DynamicCall::PROC proc, list_array<DynamicCall::ArgumentsHolder::ArgumentItem>& arguments, size_t struct_size, bool used_this, void* this_pointer) {
+uint64_t CallTypeCall(art::DynamicCall::PROC proc, list_array<art::DynamicCall::ArgumentsHolder::ArgumentItem>& arguments, size_t struct_size, bool used_this, void* this_pointer) {
 
 	list_array<void*> arguments_res;
 	if (used_this)
@@ -246,16 +245,18 @@ uint64_t CallTypeCall(DynamicCall::PROC proc, list_array<DynamicCall::ArgumentsH
 #endif
 
 
-namespace DynamicCall {
-	namespace Calls {
-		uint64_t call(PROC proc, ArgumentsHolder& ah, bool used_this, void* this_pointer) {
-			return CallTypeCall(proc, ah.GetArguments(), 0, used_this, this_pointer);
-		}
-		void callNR(PROC proc, ArgumentsHolder& ah, bool used_this, void* this_pointer) {
-			CallTypeCall(proc, ah.GetArguments(), 0, used_this, this_pointer);
-		}
-		void* callPTR(PROC proc, ArgumentsHolder& ah, bool used_this, void* this_pointer) {
-			return (void*)CallTypeCall(proc, ah.GetArguments(), 0, used_this, this_pointer);
+namespace art{
+	namespace DynamicCall {
+		namespace Calls {
+			uint64_t call(PROC proc, ArgumentsHolder& ah, bool used_this, void* this_pointer) {
+				return CallTypeCall(proc, ah.GetArguments(), 0, used_this, this_pointer);
+			}
+			void callNR(PROC proc, ArgumentsHolder& ah, bool used_this, void* this_pointer) {
+				CallTypeCall(proc, ah.GetArguments(), 0, used_this, this_pointer);
+			}
+			void* callPTR(PROC proc, ArgumentsHolder& ah, bool used_this, void* this_pointer) {
+				return (void*)CallTypeCall(proc, ah.GetArguments(), 0, used_this, this_pointer);
+			}
 		}
 	}
 }

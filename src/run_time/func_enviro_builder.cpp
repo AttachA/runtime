@@ -5,11 +5,10 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <stdint.h>
-#include "tools.hpp"
+#include "util/tools.hpp"
 #include "func_enviro_builder.hpp"
 #include "attacha_abi.hpp"
-using namespace run_time;
-
+using namespace art;
 #pragma region FuncEviroBuilder
 
 ValueIndexPos FuncEviroBuilder::create_constant(const ValueItem& val){
@@ -20,7 +19,7 @@ ValueIndexPos FuncEviroBuilder::create_constant(const ValueItem& val){
 		dynamic_values.push_back(val);
 	}
 	else{
-		code.push_back(Command(Opcode::store_constant).toCmd());
+		builder::write(code, Command(Opcode::store_constant));
 		builder::writeAny(code, const_cast<ValueItem&>(val));
 	}
 	return ValueIndexPos(constants_values++, ValuePos::in_constants);
@@ -28,33 +27,33 @@ ValueIndexPos FuncEviroBuilder::create_constant(const ValueItem& val){
 #pragma region SetRem
 void FuncEviroBuilder::set_constant(ValueIndexPos val, const ValueItem& cv, bool is_dynamic) {
 	const_cast<ValueItem&>(cv).getAsync();
-	code.push_back(Command(Opcode::set, cv.meta.use_gc, !is_dynamic).toCmd());
+	builder::write(code, Command(Opcode::set, cv.meta.use_gc, !is_dynamic));
 	builder::writeIndexPos(code, val);
 	builder::writeAny(code, const_cast<ValueItem&>(cv));
 	++constants_values;
 	useVal(val);
 }
 void FuncEviroBuilder::set_stack_any_array(ValueIndexPos val, uint32_t len) {
-	code.push_back(Command(Opcode::set_saarr, false, false).toCmd());
+	builder::write(code, Command(Opcode::set_saarr, false, false));
 	builder::writeIndexPos(code, val);
 	builder::write(code, len);
 	useVal(val);
 }
 void FuncEviroBuilder::remove(ValueIndexPos val, ValueMeta m) {
-	code.push_back(Command(Opcode::remove,false,true).toCmd());
+	builder::write(code, Command(Opcode::remove,false,true));
 	builder::write(code, m);
 	builder::writeIndexPos(code, val);
 	useVal(val);
 }
 void FuncEviroBuilder::remove(ValueIndexPos val) {
-	code.push_back(Command(Opcode::remove).toCmd());
+	builder::write(code, Command(Opcode::remove));
 	builder::writeIndexPos(code, val);
 	useVal(val);
 }
 #pragma endregion
 #pragma region numeric
 void FuncEviroBuilder::sum(ValueIndexPos val0, ValueIndexPos val1) {
-	code.push_back(Command(Opcode::sum).toCmd());
+	builder::write(code, Command(Opcode::sum));
 	builder::writeIndexPos(code, val0);
 	builder::writeIndexPos(code, val1);
 	useVal(val0);
@@ -66,7 +65,7 @@ void FuncEviroBuilder::sum(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0,
 	useVal(val1);
 }
 void FuncEviroBuilder::minus(ValueIndexPos val0, ValueIndexPos val1) {
-	code.push_back(Command(Opcode::minus).toCmd());
+	builder::write(code, Command(Opcode::minus));
 	builder::writeIndexPos(code, val0);
 	builder::writeIndexPos(code, val1);
 	useVal(val0);
@@ -78,7 +77,7 @@ void FuncEviroBuilder::minus(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m
 	useVal(val1);
 }
 void FuncEviroBuilder::div(ValueIndexPos val0, ValueIndexPos val1) {
-	code.push_back(Command(Opcode::div).toCmd());
+	builder::write(code, Command(Opcode::div));
 	builder::writeIndexPos(code, val0);
 	builder::writeIndexPos(code, val1);
 	useVal(val0);
@@ -90,7 +89,7 @@ void FuncEviroBuilder::div(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0,
 	useVal(val1);
 }
 void FuncEviroBuilder::mul(ValueIndexPos val0, ValueIndexPos val1) {
-	code.push_back(Command(Opcode::mul).toCmd());
+	builder::write(code, Command(Opcode::mul));
 	builder::writeIndexPos(code, val0);
 	builder::writeIndexPos(code, val1);
 	useVal(val0);
@@ -102,7 +101,7 @@ void FuncEviroBuilder::mul(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0,
 	useVal(val1);
 }
 void FuncEviroBuilder::rest(ValueIndexPos val0, ValueIndexPos val1) {
-	code.push_back(Command(Opcode::rest).toCmd());
+	builder::write(code, Command(Opcode::rest));
 	builder::writeIndexPos(code, val0);
 	builder::writeIndexPos(code, val1);
 	useVal(val0);
@@ -116,7 +115,7 @@ void FuncEviroBuilder::rest(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0
 #pragma endregion
 #pragma region bit
 void FuncEviroBuilder::bit_xor(ValueIndexPos val0, ValueIndexPos val1) {
-	code.push_back(Command(Opcode::bit_xor).toCmd());
+	builder::write(code, Command(Opcode::bit_xor));
 	builder::writeIndexPos(code, val0);
 	builder::writeIndexPos(code, val1);
 	useVal(val0);
@@ -129,7 +128,7 @@ void FuncEviroBuilder::bit_xor(ValueIndexPos val0, ValueIndexPos val1, ValueMeta
 }
 
 void FuncEviroBuilder::bit_or(ValueIndexPos val0, ValueIndexPos val1) {
-	code.push_back(Command(Opcode::bit_or).toCmd());
+	builder::write(code, Command(Opcode::bit_or));
 	builder::writeIndexPos(code, val0);
 	builder::writeIndexPos(code, val1);
 	useVal(val0);
@@ -142,7 +141,7 @@ void FuncEviroBuilder::bit_or(ValueIndexPos val0, ValueIndexPos val1, ValueMeta 
 }
 
 void FuncEviroBuilder::bit_and(ValueIndexPos val0, ValueIndexPos val1) {
-	code.push_back(Command(Opcode::bit_and).toCmd());
+	builder::write(code, Command(Opcode::bit_and));
 	builder::writeIndexPos(code, val0);
 	builder::writeIndexPos(code, val1);
 	useVal(val0);
@@ -155,7 +154,7 @@ void FuncEviroBuilder::bit_and(ValueIndexPos val0, ValueIndexPos val1, ValueMeta
 }
 
 void FuncEviroBuilder::bit_not(ValueIndexPos val0) {
-	code.push_back(Command(Opcode::bit_not).toCmd());
+	builder::write(code, Command(Opcode::bit_not));
 	builder::writeIndexPos(code, val0);
 	useVal(val0);
 }
@@ -166,11 +165,11 @@ void FuncEviroBuilder::bit_not(ValueIndexPos val, ValueMeta m) {
 #pragma endregion
 
 void FuncEviroBuilder::log_not() {
-	code.push_back(Command(Opcode::log_not).toCmd());
+	builder::write(code, Command(Opcode::log_not));
 }
 
 void FuncEviroBuilder::compare(ValueIndexPos val0, ValueIndexPos val1) {
-	code.push_back(Command(Opcode::compare).toCmd());
+	builder::write(code, Command(Opcode::compare));
 	builder::writeIndexPos(code, val0);
 	builder::writeIndexPos(code, val1);
 	useVal(val0);
@@ -183,19 +182,19 @@ void FuncEviroBuilder::compare(ValueIndexPos val0, ValueIndexPos val1, ValueMeta
 }
 
 void FuncEviroBuilder::jump(JumpCondition cd, const std::string& label_name) {
-	code.push_back(Command(Opcode::jump).toCmd());
+	builder::write(code, Command(Opcode::jump));
 	builder::write(code, jumpMap(label_name));
 	builder::write(code, cd);
 }
 
 void FuncEviroBuilder::arg_set(ValueIndexPos val0) {
-	code.push_back(Command(Opcode::arg_set).toCmd());
+	builder::write(code, Command(Opcode::arg_set));
 	builder::writeIndexPos(code, val0);
 	useVal(val0);
 }
 
 void FuncEviroBuilder::call(const std::string& fn_name, bool is_async) {
-	code.push_back(Command(Opcode::call).toCmd());
+	builder::write(code, Command(Opcode::call));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -204,7 +203,7 @@ void FuncEviroBuilder::call(const std::string& fn_name, bool is_async) {
 	builder::writeString(code, fn_name);
 }
 void FuncEviroBuilder::call(const std::string& fn_name, ValueIndexPos res, bool is_async){
-	code.push_back(Command(Opcode::call).toCmd());
+	builder::write(code, Command(Opcode::call));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -216,7 +215,7 @@ void FuncEviroBuilder::call(const std::string& fn_name, ValueIndexPos res, bool 
 }
 
 void FuncEviroBuilder::call(ValueIndexPos fn_mem, bool is_async, bool fn_mem_only_str) {
-	code.push_back(Command(Opcode::call,false, fn_mem_only_str).toCmd());
+	builder::write(code, Command(Opcode::call,false, fn_mem_only_str));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -226,7 +225,7 @@ void FuncEviroBuilder::call(ValueIndexPos fn_mem, bool is_async, bool fn_mem_onl
 	useVal(fn_mem);
 }
 void FuncEviroBuilder::call(ValueIndexPos fn_mem, ValueIndexPos res, bool is_async, bool fn_mem_only_str) {
-	code.push_back(Command(Opcode::call, false, fn_mem_only_str).toCmd());
+	builder::write(code, Command(Opcode::call, false, fn_mem_only_str));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -240,14 +239,14 @@ void FuncEviroBuilder::call(ValueIndexPos fn_mem, ValueIndexPos res, bool is_asy
 
 
 void FuncEviroBuilder::call_self(bool is_async) {
-	code.push_back(Command(Opcode::call_self).toCmd());
+	builder::write(code, Command(Opcode::call_self));
 	CallFlags f;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
 }
 void FuncEviroBuilder::call_self(ValueIndexPos res, bool is_async) {
-	code.push_back(Command(Opcode::call_self).toCmd());
+	builder::write(code, Command(Opcode::call_self));
 	CallFlags f;
 	f.async_mode = is_async;
 	f.use_result = true;
@@ -271,7 +270,7 @@ uint32_t FuncEviroBuilder::add_local_fn(typed_lgr<FuncEnvironment> fn) {
 	return res;
 }
 void FuncEviroBuilder::call_local(typed_lgr<FuncEnvironment> fn, bool is_async) {
-	code.push_back(Command(Opcode::call_local).toCmd());
+	builder::write(code, Command(Opcode::call_local));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -280,7 +279,7 @@ void FuncEviroBuilder::call_local(typed_lgr<FuncEnvironment> fn, bool is_async) 
 	builder::write(code, add_local_fn(fn));
 }
 void FuncEviroBuilder::call_local(typed_lgr<FuncEnvironment> fn, ValueIndexPos res, bool is_async) {
-	code.push_back(Command(Opcode::call_local).toCmd());
+	builder::write(code, Command(Opcode::call_local));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -292,7 +291,7 @@ void FuncEviroBuilder::call_local(typed_lgr<FuncEnvironment> fn, ValueIndexPos r
 }
 
 void FuncEviroBuilder::call_local_in_mem(ValueIndexPos in_mem_fn, bool is_async) {
-	code.push_back(Command(Opcode::call_local).toCmd());
+	builder::write(code, Command(Opcode::call_local));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -302,7 +301,7 @@ void FuncEviroBuilder::call_local_in_mem(ValueIndexPos in_mem_fn, bool is_async)
 	useVal(in_mem_fn);
 }
 void FuncEviroBuilder::call_local_in_mem(ValueIndexPos in_mem_fn, ValueIndexPos res, bool is_async) {
-	code.push_back(Command(Opcode::call_local).toCmd());
+	builder::write(code, Command(Opcode::call_local));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -314,7 +313,7 @@ void FuncEviroBuilder::call_local_in_mem(ValueIndexPos in_mem_fn, ValueIndexPos 
 	useVal(res);
 }
 void FuncEviroBuilder::call_local_idx(uint32_t fn, bool is_async) {
-	code.push_back(Command(Opcode::call_local).toCmd());
+	builder::write(code, Command(Opcode::call_local));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -323,7 +322,7 @@ void FuncEviroBuilder::call_local_idx(uint32_t fn, bool is_async) {
 	builder::write(code, fn);
 }
 void FuncEviroBuilder::call_local_idx(uint32_t fn, ValueIndexPos res, bool is_async) {
-	code.push_back(Command(Opcode::call_local).toCmd());
+	builder::write(code, Command(Opcode::call_local));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -335,7 +334,7 @@ void FuncEviroBuilder::call_local_idx(uint32_t fn, ValueIndexPos res, bool is_as
 }
 
 void FuncEviroBuilder::call_and_ret(const std::string& fn_name, bool is_async) {
-	code.push_back(Command(Opcode::call_and_ret).toCmd());
+	builder::write(code, Command(Opcode::call_and_ret));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -344,7 +343,7 @@ void FuncEviroBuilder::call_and_ret(const std::string& fn_name, bool is_async) {
 	builder::writeString(code, fn_name);
 }
 void FuncEviroBuilder::call_and_ret(ValueIndexPos fn_mem, bool is_async, bool fn_mem_only_str) {
-	code.push_back(Command(Opcode::call_and_ret, false, fn_mem_only_str).toCmd());
+	builder::write(code, Command(Opcode::call_and_ret, false, fn_mem_only_str));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -355,7 +354,7 @@ void FuncEviroBuilder::call_and_ret(ValueIndexPos fn_mem, bool is_async, bool fn
 }
 
 void FuncEviroBuilder::call_self_and_ret(bool is_async) {
-	code.push_back(Command(Opcode::call_self_and_ret).toCmd());
+	builder::write(code, Command(Opcode::call_self_and_ret));
 	CallFlags f;
 	f.async_mode = is_async;
 	f.use_result = false;
@@ -365,7 +364,7 @@ void FuncEviroBuilder::call_self_and_ret(bool is_async) {
 
 
 void FuncEviroBuilder::call_local_and_ret(typed_lgr<FuncEnvironment> fn, bool is_async) {
-	code.push_back(Command(Opcode::call_local_and_ret).toCmd());
+	builder::write(code, Command(Opcode::call_local_and_ret));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -373,7 +372,7 @@ void FuncEviroBuilder::call_local_and_ret(typed_lgr<FuncEnvironment> fn, bool is
 	builder::write(code, add_local_fn(fn));
 }
 void FuncEviroBuilder::call_local_and_ret_in_mem(ValueIndexPos in_mem_fn, bool is_async) {
-	code.push_back(Command(Opcode::call_local_and_ret).toCmd());
+	builder::write(code, Command(Opcode::call_local_and_ret));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -382,7 +381,7 @@ void FuncEviroBuilder::call_local_and_ret_in_mem(ValueIndexPos in_mem_fn, bool i
 	useVal(in_mem_fn);
 }
 void FuncEviroBuilder::call_local_and_ret_idx(uint32_t fn, bool is_async) {
-	code.push_back(Command(Opcode::call_local_and_ret).toCmd());
+	builder::write(code, Command(Opcode::call_local_and_ret));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -391,27 +390,27 @@ void FuncEviroBuilder::call_local_and_ret_idx(uint32_t fn, bool is_async) {
 }
 
 void FuncEviroBuilder::ret(ValueIndexPos val) {
-	code.push_back(Command(Opcode::ret).toCmd());
+	builder::write(code, Command(Opcode::ret));
 	builder::writeIndexPos(code, val);
 	useVal(val);
 }
 void FuncEviroBuilder::ret_take(ValueIndexPos val) {
-	code.push_back(Command(Opcode::ret_take).toCmd());
+	builder::write(code, Command(Opcode::ret_take));
 	builder::writeIndexPos(code, val);
 	useVal(val);
 }
 void FuncEviroBuilder::ret() {
-	code.push_back(Command(Opcode::ret_noting).toCmd());
+	builder::write(code, Command(Opcode::ret_noting));
 }
 void FuncEviroBuilder::copy(ValueIndexPos to, ValueIndexPos from) {
-	code.push_back(Command(Opcode::copy).toCmd());
+	builder::write(code, Command(Opcode::copy));
 	builder::writeIndexPos(code, to);
 	builder::writeIndexPos(code, from);
 	useVal(to);
 	useVal(from);
 }
 void FuncEviroBuilder::move(ValueIndexPos to, ValueIndexPos from) {
-	code.push_back(Command(Opcode::move).toCmd());
+	builder::write(code, Command(Opcode::move));
 	builder::writeIndexPos(code, to);
 	builder::writeIndexPos(code, from);
 	useVal(to);
@@ -419,20 +418,20 @@ void FuncEviroBuilder::move(ValueIndexPos to, ValueIndexPos from) {
 }
 
 void FuncEviroBuilder::debug_break() {
-	code.push_back(Command(Opcode::debug_break).toCmd());
+	builder::write(code, Command(Opcode::debug_break));
 }
 void FuncEviroBuilder::force_debug_reak() {
-	code.push_back(Command(Opcode::debug_break).toCmd());
+	builder::write(code, Command(Opcode::debug_break));
 }
 
 void FuncEviroBuilder::throw_ex(const std::string& name, const std::string& desck) {
-	code.push_back(Command(Opcode::throw_ex).toCmd());
+	builder::write(code, Command(Opcode::throw_ex));
 	code.push_back(false);
 	builder::writeString(code, name);
 	builder::writeString(code, desck);
 }
 void FuncEviroBuilder::throw_ex(ValueIndexPos name, ValueIndexPos desck, bool values_is_only_string) {
-	code.push_back(Command(Opcode::throw_ex,false, values_is_only_string).toCmd());
+	builder::write(code, Command(Opcode::throw_ex,false, values_is_only_string));
 	code.push_back(true);
 	builder::writeIndexPos(code, name);
 	builder::writeIndexPos(code, desck);
@@ -442,25 +441,25 @@ void FuncEviroBuilder::throw_ex(ValueIndexPos name, ValueIndexPos desck, bool va
 
 
 void FuncEviroBuilder::as(ValueIndexPos val, VType meta) {
-	code.push_back(Command(Opcode::as).toCmd());
+	builder::write(code, Command(Opcode::as));
 	builder::writeIndexPos(code, val);
 	builder::write(code, meta);
 	useVal(val);
 }
 void FuncEviroBuilder::is(ValueIndexPos val, VType meta) {
-	code.push_back(Command(Opcode::is).toCmd());
+	builder::write(code, Command(Opcode::is));
 	builder::writeIndexPos(code, val);
 	builder::write(code, meta);
 	useVal(val);
 }
 void FuncEviroBuilder::is_gc(ValueIndexPos val){
-	code.push_back(Command(Opcode::is_gc).toCmd());
+	builder::write(code, Command(Opcode::is_gc));
 	code.push_back(false);
 	builder::writeIndexPos(code, val);
 	useVal(val);
 }
 void FuncEviroBuilder::is_gc(ValueIndexPos val, ValueIndexPos result){
-	code.push_back(Command(Opcode::is_gc).toCmd());
+	builder::write(code, Command(Opcode::is_gc));
 	code.push_back(true);
 	builder::writeIndexPos(code, val);
 	builder::writeIndexPos(code, result);
@@ -469,18 +468,18 @@ void FuncEviroBuilder::is_gc(ValueIndexPos val, ValueIndexPos result){
 }
 
 void FuncEviroBuilder::store_bool(ValueIndexPos val) {
-	code.push_back(Command(Opcode::store_bool).toCmd());
+	builder::write(code, Command(Opcode::store_bool));
 	builder::writeIndexPos(code, val);
 	useVal(val);
 }
 void FuncEviroBuilder::load_bool(ValueIndexPos val) {
-	code.push_back(Command(Opcode::load_bool).toCmd());
+	builder::write(code, Command(Opcode::load_bool));
 	builder::writeIndexPos(code, val);
 	useVal(val);
 }
 
 void FuncEviroBuilder::inline_native_opcode(uint8_t* opcode, uint32_t len){
-	code.push_back(Command(Opcode::inline_native).toCmd());
+	builder::write(code, Command(Opcode::inline_native));
 	builder::write(code, len);
 	code.insert(code.end(), opcode, opcode + len);
 }
@@ -511,7 +510,7 @@ void FuncEviroBuilder::arr_set(ValueIndexPos arr, ValueIndexPos from, uint64_t t
 			throw InvalidOperation("Unsupported operation to non array type and interface type");
 		}
 	}
-	code.push_back(Command(Opcode::arr_op, false, array_type != VType::noting).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, array_type != VType::noting));
 	builder::writeIndexPos(code ,arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -546,7 +545,7 @@ void FuncEviroBuilder::arr_setByVal(ValueIndexPos arr, ValueIndexPos from, Value
 			throw InvalidOperation("Unsupported operation to non array type and interface type");
 		}
 	}
-	code.push_back(Command(Opcode::arr_op, false, array_type != VType::noting).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, array_type != VType::noting));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -560,7 +559,7 @@ void FuncEviroBuilder::arr_setByVal(ValueIndexPos arr, ValueIndexPos from, Value
 	builder::writeIndexPos(code, to);
 }
 void FuncEviroBuilder::arr_insert(ValueIndexPos arr, ValueIndexPos from, uint64_t to, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -571,7 +570,7 @@ void FuncEviroBuilder::arr_insert(ValueIndexPos arr, ValueIndexPos from, uint64_
 	builder::write(code, to);
 }
 void FuncEviroBuilder::arr_insertByVal(ValueIndexPos arr, ValueIndexPos from, ValueIndexPos to, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -582,7 +581,7 @@ void FuncEviroBuilder::arr_insertByVal(ValueIndexPos arr, ValueIndexPos from, Va
 	builder::writeIndexPos(code, to);
 }
 void FuncEviroBuilder::arr_push_end(ValueIndexPos arr, ValueIndexPos from, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.move_mode = move;
@@ -591,7 +590,7 @@ void FuncEviroBuilder::arr_push_end(ValueIndexPos arr, ValueIndexPos from, bool 
 	builder::writeIndexPos(code, from);
 }
 void FuncEviroBuilder::arr_push_start(ValueIndexPos arr, ValueIndexPos from, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.move_mode = move;
@@ -600,7 +599,7 @@ void FuncEviroBuilder::arr_push_start(ValueIndexPos arr, ValueIndexPos from, boo
 	builder::writeIndexPos(code, from);
 }
 void FuncEviroBuilder::arr_insert_range(ValueIndexPos arr, ValueIndexPos arr2, uint64_t arr2_start, uint64_t arr2_end, uint64_t arr_pos, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -613,7 +612,7 @@ void FuncEviroBuilder::arr_insert_range(ValueIndexPos arr, ValueIndexPos arr2, u
 	builder::write(code, arr2_end);
 }
 void FuncEviroBuilder::arr_insert_rangeByVal(ValueIndexPos arr, ValueIndexPos arr2, ValueIndexPos arr2_start, ValueIndexPos arr2_end, ValueIndexPos arr_pos, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -647,7 +646,7 @@ void FuncEviroBuilder::arr_get(ValueIndexPos arr, ValueIndexPos to, uint64_t fro
 			throw InvalidOperation("Unsupported operation to non array type and interface type");
 		}
 	}
-	code.push_back(Command(Opcode::arr_op, false, array_type != VType::noting).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, array_type != VType::noting));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -682,7 +681,7 @@ void FuncEviroBuilder::arr_getByVal(ValueIndexPos arr, ValueIndexPos to, ValueIn
 			throw InvalidOperation("Unsupported operation to non array type and interface type");
 		}
 	}
-	code.push_back(Command(Opcode::arr_op, false, array_type != VType::noting).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, array_type != VType::noting));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -696,7 +695,7 @@ void FuncEviroBuilder::arr_getByVal(ValueIndexPos arr, ValueIndexPos to, ValueIn
 	builder::writeIndexPos(code, from);
 }
 void FuncEviroBuilder::arr_take(ValueIndexPos arr, ValueIndexPos to, uint64_t from, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -707,7 +706,7 @@ void FuncEviroBuilder::arr_take(ValueIndexPos arr, ValueIndexPos to, uint64_t fr
 	builder::write(code, from);
 }
 void FuncEviroBuilder::arr_takeByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos from, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -718,7 +717,7 @@ void FuncEviroBuilder::arr_takeByVal(ValueIndexPos arr, ValueIndexPos to, ValueI
 	builder::writeIndexPos(code, from);
 }
 void FuncEviroBuilder::arr_take_end(ValueIndexPos arr, ValueIndexPos to, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -728,7 +727,7 @@ void FuncEviroBuilder::arr_take_end(ValueIndexPos arr, ValueIndexPos to, bool mo
 	builder::writeIndexPos(code, to);
 }
 void FuncEviroBuilder::arr_take_start(ValueIndexPos arr, ValueIndexPos to, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -738,7 +737,7 @@ void FuncEviroBuilder::arr_take_start(ValueIndexPos arr, ValueIndexPos to, bool 
 	builder::writeIndexPos(code, to);
 }
 void FuncEviroBuilder::arr_get_range(ValueIndexPos arr, ValueIndexPos to, uint64_t start, uint64_t end, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -750,7 +749,7 @@ void FuncEviroBuilder::arr_get_range(ValueIndexPos arr, ValueIndexPos to, uint64
 	builder::write(code, end);
 }
 void FuncEviroBuilder::arr_get_rangeByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -762,7 +761,7 @@ void FuncEviroBuilder::arr_get_rangeByVal(ValueIndexPos arr, ValueIndexPos to, V
 	builder::writeIndexPos(code, end);
 }
 void FuncEviroBuilder::arr_take_range(ValueIndexPos arr, ValueIndexPos to, uint64_t start, uint64_t end, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -774,7 +773,7 @@ void FuncEviroBuilder::arr_take_range(ValueIndexPos arr, ValueIndexPos to, uint6
 	builder::write(code, end);
 }
 void FuncEviroBuilder::arr_take_rangeByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -786,19 +785,19 @@ void FuncEviroBuilder::arr_take_rangeByVal(ValueIndexPos arr, ValueIndexPos to, 
 	builder::writeIndexPos(code, end);
 }
 void FuncEviroBuilder::arr_pop_end(ValueIndexPos arr, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	code.push_back(0);
 	code.push_back((uint8_t)OpcodeArray::pop_end);
 }
 void FuncEviroBuilder::arr_pop_start(ValueIndexPos arr, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	code.push_back(0);
 	code.push_back((uint8_t)OpcodeArray::pop_start);
 }
 void FuncEviroBuilder::arr_remove_item(ValueIndexPos arr, uint64_t in, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -807,7 +806,7 @@ void FuncEviroBuilder::arr_remove_item(ValueIndexPos arr, uint64_t in, bool stat
 	builder::write(code, in);
 }
 void FuncEviroBuilder::arr_remove_itemByVal(ValueIndexPos arr, ValueIndexPos in, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -816,7 +815,7 @@ void FuncEviroBuilder::arr_remove_itemByVal(ValueIndexPos arr, ValueIndexPos in,
 	builder::writeIndexPos(code, in);
 }
 void FuncEviroBuilder::arr_remove_range(ValueIndexPos arr, uint64_t start, uint64_t end, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -826,7 +825,7 @@ void FuncEviroBuilder::arr_remove_range(ValueIndexPos arr, uint64_t start, uint6
 	builder::write(code, end);
 }
 void FuncEviroBuilder::arr_remove_rangeByVal(ValueIndexPos arr, ValueIndexPos start, ValueIndexPos end, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -836,7 +835,7 @@ void FuncEviroBuilder::arr_remove_rangeByVal(ValueIndexPos arr, ValueIndexPos st
 	builder::writeIndexPos(code, end);
 }
 void FuncEviroBuilder::arr_resize(ValueIndexPos arr, uint64_t new_size, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -845,7 +844,7 @@ void FuncEviroBuilder::arr_resize(ValueIndexPos arr, uint64_t new_size, bool sta
 	builder::write(code, new_size);
 }
 void FuncEviroBuilder::arr_resizeByVal(ValueIndexPos arr, ValueIndexPos new_size, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -854,7 +853,7 @@ void FuncEviroBuilder::arr_resizeByVal(ValueIndexPos arr, ValueIndexPos new_size
 	builder::writeIndexPos(code, new_size);
 }
 void FuncEviroBuilder::arr_resize_default(ValueIndexPos arr, uint64_t new_size, ValueIndexPos default_init_val, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -864,7 +863,7 @@ void FuncEviroBuilder::arr_resize_default(ValueIndexPos arr, uint64_t new_size, 
 	builder::writeIndexPos(code, default_init_val);
 }
 void FuncEviroBuilder::arr_resize_defaultByVal(ValueIndexPos arr, ValueIndexPos new_size, ValueIndexPos default_init_val, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -874,7 +873,7 @@ void FuncEviroBuilder::arr_resize_defaultByVal(ValueIndexPos arr, ValueIndexPos 
 	builder::writeIndexPos(code, default_init_val);
 }
 void FuncEviroBuilder::arr_reserve_push_end(ValueIndexPos arr, uint64_t new_size, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -883,7 +882,7 @@ void FuncEviroBuilder::arr_reserve_push_end(ValueIndexPos arr, uint64_t new_size
 	builder::write(code, new_size);
 }
 void FuncEviroBuilder::arr_reserve_push_endByVal(ValueIndexPos arr, ValueIndexPos new_size, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -892,7 +891,7 @@ void FuncEviroBuilder::arr_reserve_push_endByVal(ValueIndexPos arr, ValueIndexPo
 	builder::writeIndexPos(code, new_size);
 }
 void FuncEviroBuilder::arr_reserve_push_start(ValueIndexPos arr, uint64_t new_size, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -901,7 +900,7 @@ void FuncEviroBuilder::arr_reserve_push_start(ValueIndexPos arr, uint64_t new_si
 	builder::write(code, new_size);
 }
 void FuncEviroBuilder::arr_reserve_push_startByVal(ValueIndexPos arr, ValueIndexPos new_size, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -910,13 +909,13 @@ void FuncEviroBuilder::arr_reserve_push_startByVal(ValueIndexPos arr, ValueIndex
 	builder::writeIndexPos(code, new_size);
 }
 void FuncEviroBuilder::arr_commit(ValueIndexPos arr, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	code.push_back(0);
 	code.push_back((uint8_t)OpcodeArray::commit);
 }
 void FuncEviroBuilder::arr_decommit(ValueIndexPos arr, uint64_t blocks_count, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = false;
@@ -925,7 +924,7 @@ void FuncEviroBuilder::arr_decommit(ValueIndexPos arr, uint64_t blocks_count, bo
 	builder::write(code, blocks_count);
 }
 void FuncEviroBuilder::arr_decommitByVal(ValueIndexPos arr, ValueIndexPos blocks_count, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -934,13 +933,13 @@ void FuncEviroBuilder::arr_decommitByVal(ValueIndexPos arr, ValueIndexPos blocks
 	builder::writeIndexPos(code, blocks_count);
 }
 void FuncEviroBuilder::arr_remove_reserved(ValueIndexPos arr, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	code.push_back(0);
 	code.push_back((uint8_t)OpcodeArray::remove_reserved);
 }
 void FuncEviroBuilder::arr_size(ValueIndexPos arr, ValueIndexPos set_to, bool static_mode) {
-	code.push_back(Command(Opcode::arr_op, false, static_mode).toCmd());
+	builder::write(code, Command(Opcode::arr_op, false, static_mode));
 	builder::writeIndexPos(code, arr);
 	OpArrFlags flags;
 	flags.by_val_mode = true;
@@ -952,7 +951,7 @@ void FuncEviroBuilder::arr_size(ValueIndexPos arr, ValueIndexPos set_to, bool st
 	//casm,
 #pragma region interface
 void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async) {
-	code.push_back(Command(Opcode::call_value_function).toCmd());
+	builder::write(code, Command(Opcode::call_value_function));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -963,7 +962,7 @@ void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos cl
 	builder::write(code, access);
 }
 void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, ValueIndexPos res_val, bool is_async) {
-	code.push_back(Command(Opcode::call_value_function).toCmd());
+	builder::write(code, Command(Opcode::call_value_function));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -975,7 +974,7 @@ void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos cl
 	builder::writeIndexPos(code, res_val);
 }
 void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async) {
-	code.push_back(Command(Opcode::call_value_function).toCmd());
+	builder::write(code, Command(Opcode::call_value_function));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -986,7 +985,7 @@ void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos cl
 	builder::write(code, access);
 }
 void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, ValueIndexPos res_val, bool is_async) {
-	code.push_back(Command(Opcode::call_value_function).toCmd());
+	builder::write(code, Command(Opcode::call_value_function));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -998,7 +997,7 @@ void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos cl
 	builder::writeIndexPos(code, res_val);
 }
 void FuncEviroBuilder::call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async){
-	code.push_back(Command(Opcode::call_value_function).toCmd());
+	builder::write(code, Command(Opcode::call_value_function));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -1008,7 +1007,7 @@ void FuncEviroBuilder::call_value_interface_id(ValueIndexPos class_val, uint64_t
 	builder::writeIndexPos(code, class_val);
 }
 void FuncEviroBuilder::call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, ValueIndexPos res_val, bool is_async){
-	code.push_back(Command(Opcode::call_value_function).toCmd());
+	builder::write(code, Command(Opcode::call_value_function));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -1021,7 +1020,7 @@ void FuncEviroBuilder::call_value_interface_id(ValueIndexPos class_val, uint64_t
 
 
 void FuncEviroBuilder::call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async) {
-	code.push_back(Command(Opcode::call_value_function_and_ret).toCmd());
+	builder::write(code, Command(Opcode::call_value_function_and_ret));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -1032,7 +1031,7 @@ void FuncEviroBuilder::call_value_interface_and_ret(ClassAccess access, ValueInd
 	builder::write(code, access);
 }
 void FuncEviroBuilder::call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async) {
-	code.push_back(Command(Opcode::call_value_function_and_ret).toCmd());
+	builder::write(code, Command(Opcode::call_value_function_and_ret));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -1043,7 +1042,7 @@ void FuncEviroBuilder::call_value_interface_and_ret(ClassAccess access, ValueInd
 	builder::write(code, access);
 }
 void FuncEviroBuilder::call_value_interface_id_and_ret(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async){
-	code.push_back(Command(Opcode::call_value_function_id_and_ret).toCmd());
+	builder::write(code, Command(Opcode::call_value_function_id_and_ret));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -1055,7 +1054,7 @@ void FuncEviroBuilder::call_value_interface_id_and_ret(ValueIndexPos class_val, 
 
 
 void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async){
-	code.push_back(Command(Opcode::static_call_value_function).toCmd());
+	builder::write(code, Command(Opcode::static_call_value_function));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -1066,7 +1065,7 @@ void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueInde
 	builder::write(code, access);
 }
 void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, ValueIndexPos res_val, bool is_async){
-	code.push_back(Command(Opcode::static_call_value_function).toCmd());
+	builder::write(code, Command(Opcode::static_call_value_function));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -1078,7 +1077,7 @@ void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueInde
 	builder::writeIndexPos(code, res_val);
 }
 void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async){
-	code.push_back(Command(Opcode::static_call_value_function).toCmd());
+	builder::write(code, Command(Opcode::static_call_value_function));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -1089,7 +1088,7 @@ void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueInde
 	builder::write(code, access);
 }
 void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, ValueIndexPos res_val, bool is_async){
-	code.push_back(Command(Opcode::static_call_value_function).toCmd());
+	builder::write(code, Command(Opcode::static_call_value_function));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -1101,7 +1100,7 @@ void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueInde
 	builder::writeIndexPos(code, res_val);
 }
 void FuncEviroBuilder::static_call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async){
-	code.push_back(Command(Opcode::static_call_value_function_id).toCmd());
+	builder::write(code, Command(Opcode::static_call_value_function_id));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -1111,7 +1110,7 @@ void FuncEviroBuilder::static_call_value_interface_id(ValueIndexPos class_val, u
 	builder::writeIndexPos(code, class_val);
 }
 void FuncEviroBuilder::static_call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, ValueIndexPos res_val, bool is_async){
-	code.push_back(Command(Opcode::static_call_value_function_id).toCmd());
+	builder::write(code, Command(Opcode::static_call_value_function_id));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -1124,7 +1123,7 @@ void FuncEviroBuilder::static_call_value_interface_id(ValueIndexPos class_val, u
 
 
 void FuncEviroBuilder::static_call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async){
-	code.push_back(Command(Opcode::static_call_value_function_and_ret).toCmd());
+	builder::write(code, Command(Opcode::static_call_value_function_and_ret));
 	CallFlags f;
 	f.in_memory = true;
 	f.async_mode = is_async;
@@ -1135,7 +1134,7 @@ void FuncEviroBuilder::static_call_value_interface_and_ret(ClassAccess access, V
 	builder::write(code, access);
 }
 void FuncEviroBuilder::static_call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async){
-	code.push_back(Command(Opcode::static_call_value_function_and_ret).toCmd());
+	builder::write(code, Command(Opcode::static_call_value_function_and_ret));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -1146,7 +1145,7 @@ void FuncEviroBuilder::static_call_value_interface_and_ret(ClassAccess access, V
 	builder::write(code, access);
 }
 void FuncEviroBuilder::static_call_value_interface_id_and_ret(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async){
-	code.push_back(Command(Opcode::static_call_value_function_id_and_ret).toCmd());
+	builder::write(code, Command(Opcode::static_call_value_function_id_and_ret));
 	CallFlags f;
 	f.in_memory = false;
 	f.async_mode = is_async;
@@ -1168,7 +1167,7 @@ void FuncEviroBuilder::static_call_value_interface_id_and_ret(ValueIndexPos clas
 
 
 void FuncEviroBuilder::get_interface_value(ClassAccess access, ValueIndexPos class_val, ValueIndexPos val_name, ValueIndexPos res) {
-	code.push_back(Command(Opcode::get_structure_value).toCmd());
+	builder::write(code, Command(Opcode::get_structure_value));
 	code.push_back(0);
 	builder::writeIndexPos(code, val_name);
 	builder::write(code, access);
@@ -1176,7 +1175,7 @@ void FuncEviroBuilder::get_interface_value(ClassAccess access, ValueIndexPos cla
 	builder::writeIndexPos(code, res);
 }
 void FuncEviroBuilder::get_interface_value(ClassAccess access, ValueIndexPos class_val, const std::string& val_name, ValueIndexPos res) {
-	code.push_back(Command(Opcode::get_structure_value).toCmd());
+	builder::write(code, Command(Opcode::get_structure_value));
 	code.push_back(1);
 	builder::writeString(code, val_name);
 	builder::write(code, access);
@@ -1184,7 +1183,7 @@ void FuncEviroBuilder::get_interface_value(ClassAccess access, ValueIndexPos cla
 	builder::writeIndexPos(code, res);
 }
 void FuncEviroBuilder::set_interface_value(ClassAccess access, ValueIndexPos class_val, ValueIndexPos val_name, ValueIndexPos set_val) {
-	code.push_back(Command(Opcode::set_structure_value).toCmd());
+	builder::write(code, Command(Opcode::set_structure_value));
 	code.push_back(0);
 	builder::writeIndexPos(code, val_name);
 	builder::write(code, access);
@@ -1192,7 +1191,7 @@ void FuncEviroBuilder::set_interface_value(ClassAccess access, ValueIndexPos cla
 	builder::writeIndexPos(code, set_val);
 }
 void FuncEviroBuilder::set_interface_value(ClassAccess access, ValueIndexPos class_val, const std::string& val_name, ValueIndexPos set_val) {
-	code.push_back(Command(Opcode::set_structure_value).toCmd());
+	builder::write(code, Command(Opcode::set_structure_value));
 	code.push_back(1);
 	builder::writeString(code, val_name);
 	builder::write(code, access);
@@ -1202,20 +1201,20 @@ void FuncEviroBuilder::set_interface_value(ClassAccess access, ValueIndexPos cla
 #pragma endregion
 #pragma region misc
 void FuncEviroBuilder::explicit_await(ValueIndexPos await_value) {
-	code.push_back(Command(Opcode::explicit_await).toCmd());
+	builder::write(code, Command(Opcode::explicit_await));
 	builder::writeIndexPos(code, await_value);
 }
 
 void FuncEviroBuilder::to_gc(ValueIndexPos val){
-	code.push_back(Command(Opcode::to_gc).toCmd());
+	builder::write(code, Command(Opcode::to_gc));
 	builder::writeIndexPos(code, val);
 }
 void FuncEviroBuilder::localize_gc(ValueIndexPos val){
-	code.push_back(Command(Opcode::localize_gc).toCmd());
+	builder::write(code, Command(Opcode::localize_gc));
 	builder::writeIndexPos(code, val);
 }
 void FuncEviroBuilder::from_gc(ValueIndexPos val){
-	code.push_back(Command(Opcode::from_gc).toCmd());
+	builder::write(code, Command(Opcode::from_gc));
 	builder::writeIndexPos(code, val);
 }
 union xarray_slice_flags{
@@ -1243,41 +1242,41 @@ union xarray_slice_flags{
 };
 
 void FuncEviroBuilder::xarray_slice(ValueIndexPos result, ValueIndexPos val){
-	code.push_back(Command(Opcode::xarray_slice).toCmd());
+	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::all_inlined, xarray_slice_flags::_use_index_pos::none).encoded);
 }
 void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, uint32_t from){
-	code.push_back(Command(Opcode::xarray_slice).toCmd());
+	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::all_inlined, xarray_slice_flags::_use_index_pos::from).encoded);
 	builder::write(code, from);
 }
 void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, ValueIndexPos from){
-	code.push_back(Command(Opcode::xarray_slice).toCmd());
+	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::ref_0_inl_1, xarray_slice_flags::_use_index_pos::from).encoded);
 	builder::writeIndexPos(code, from);
 }
 void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, bool unused, uint32_t to){
-	code.push_back(Command(Opcode::xarray_slice).toCmd());
+	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::all_inlined, xarray_slice_flags::_use_index_pos::to).encoded);
 	builder::write(code, to);
 }
 void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, bool unused, ValueIndexPos to){
-	code.push_back(Command(Opcode::xarray_slice).toCmd());
+	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::inl_0_ref_1, xarray_slice_flags::_use_index_pos::to).encoded);
 	builder::writeIndexPos(code, to);
 }
 void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, uint32_t from, uint32_t to){
-	code.push_back(Command(Opcode::xarray_slice).toCmd());
+	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::all_inlined, xarray_slice_flags::_use_index_pos::from_to).encoded);
@@ -1285,7 +1284,7 @@ void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, uint
 	builder::write(code, to);
 }
 void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, uint32_t from, ValueIndexPos to){
-	code.push_back(Command(Opcode::xarray_slice).toCmd());
+	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::inl_0_ref_1, xarray_slice_flags::_use_index_pos::from_to).encoded);
@@ -1293,7 +1292,7 @@ void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, uint
 	builder::writeIndexPos(code, to);
 }
 void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, ValueIndexPos from, uint32_t to){
-	code.push_back(Command(Opcode::xarray_slice).toCmd());
+	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::ref_0_inl_1, xarray_slice_flags::_use_index_pos::from_to).encoded);
@@ -1301,7 +1300,7 @@ void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, Valu
 	builder::write(code, to);
 }
 void FuncEviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, ValueIndexPos from, ValueIndexPos to){
-	code.push_back(Command(Opcode::xarray_slice).toCmd());
+	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::all_ref, xarray_slice_flags::_use_index_pos::from_to).encoded);
@@ -1320,7 +1319,7 @@ void FuncEviroBuilder::table_jump(
 ){
 	if((uint32_t)table.size() != table.size())
 		throw CompileTimeException("table size is too big");
-	code.push_back(Command(Opcode::table_jump).toCmd());
+	builder::write(code, Command(Opcode::table_jump));
 	TableJumpFlags f;
 	f.is_signed = is_signed;
 	f.too_large = too_large;
@@ -1336,6 +1335,38 @@ void FuncEviroBuilder::table_jump(
 		builder::write(code, jumpMap(i));
 }
 
+void FuncEviroBuilder::get_refrence(ValueIndexPos res, ValueIndexPos val){
+	builder::write(code, Command(Opcode::get_refrence));
+	builder::writeIndexPos(code, res);
+	builder::writeIndexPos(code, val);
+}
+void FuncEviroBuilder::make_as_const(ValueIndexPos res){
+	builder::write(code, Command(Opcode::make_as_const));
+	builder::writeIndexPos(code, res);
+}
+void FuncEviroBuilder::remove_const_protect(ValueIndexPos res){
+	builder::write(code, Command(Opcode::remove_const_protect));
+	builder::writeIndexPos(code, res);
+}
+void FuncEviroBuilder::copy_un_constant(ValueIndexPos res, ValueIndexPos val){
+	builder::write(code, Command(Opcode::copy_un_constant));
+	builder::writeIndexPos(code, res);
+	builder::writeIndexPos(code, val);
+}
+void FuncEviroBuilder::copy_un_refrence(ValueIndexPos res, ValueIndexPos val){
+	builder::write(code, Command(Opcode::copy_un_refrence));
+	builder::writeIndexPos(code, res);
+	builder::writeIndexPos(code, val);
+}
+void FuncEviroBuilder::move_un_refrence(ValueIndexPos res, ValueIndexPos val){
+	builder::write(code, Command(Opcode::move_un_refrence));
+	builder::writeIndexPos(code, res);
+	builder::writeIndexPos(code, val);
+}
+void FuncEviroBuilder::remove_qualifiers(ValueIndexPos res){
+	builder::write(code, Command(Opcode::remove_qualifiers));
+	builder::writeIndexPos(code, res);
+}
 #pragma endregion
 #pragma endregion
 

@@ -6,19 +6,20 @@
 
 #pragma once
 #include "../attacha_abi_structs.hpp"
+namespace art{
+	namespace file {
+		namespace constructor {
+			ValueItem* createProxy_FileHandle(ValueItem*, uint32_t);
+			ValueItem* createProxy_BlockingFileHandle(ValueItem*, uint32_t);
 
-namespace file {
-	namespace constructor {
-		ValueItem* createProxy_FileHandle(ValueItem*, uint32_t);
-		ValueItem* createProxy_BlockingFileHandle(ValueItem*, uint32_t);
+			ValueItem* createProxy_TextFile(ValueItem*, uint32_t);
 
-		ValueItem* createProxy_TextFile(ValueItem*, uint32_t);
-
-		ValueItem* createProxy_FolderBrowser(ValueItem*, uint32_t);
-		ValueItem* createProxy_FolderChangesMonitor(ValueItem*, uint32_t);
+			ValueItem* createProxy_FolderBrowser(ValueItem*, uint32_t);
+			ValueItem* createProxy_FolderChangesMonitor(ValueItem*, uint32_t);
+		}
+		ValueItem* remove(ValueItem*, uint32_t);
+		ValueItem* rename(ValueItem*, uint32_t);
+		ValueItem* copy(ValueItem*, uint32_t);
+		void init();
 	}
-	ValueItem* remove(ValueItem*, uint32_t);
-    ValueItem* rename(ValueItem*, uint32_t);
-    ValueItem* copy(ValueItem*, uint32_t);
-	void init();
 }
