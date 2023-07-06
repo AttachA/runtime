@@ -1,3 +1,6 @@
 [submodule "vcpkg"]
 	path = vcpkg
 	url = https://github.com/microsoft/vcpkg.git
+[submodule "src/library/list_array"]
+	path = src/library/list_array
+	url = https://github.com/0x484c4145/list_array.git
