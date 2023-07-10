@@ -11,9 +11,13 @@ namespace art {
 	struct ValueItem;
 	namespace console {
 		extern const bool is_loaded;
-		ValueItem* printLine(ValueItem* args,uint32_t len);//print all arguments, convert all non string values to string
-		ValueItem* print(ValueItem* args, uint32_t len);//print all arguments, convert all non string values to string
-		
+		ValueItem* printLine(ValueItem* args,uint32_t len);
+		ValueItem* print(ValueItem* args, uint32_t len);
+
+		ValueItem* register_format_operator(ValueItem* args, uint32_t len);
+		ValueItem* format(ValueItem* args, uint32_t len);
+		ValueItem* printf(ValueItem* args, uint32_t len);
+
 		void resetModifiers();
 		void boldText();
 		void italicText();

@@ -884,12 +884,11 @@ namespace art{
 		INIT_CHECK
 		FuncEnvironment::AddNative(console::printLine, "console print_line", false);
 		FuncEnvironment::AddNative(console::print, "console print", false);
-		{
-			DynamicCall::FunctionTemplate templ;
-			templ.is_variadic = true;
-			templ.arguments.push_back(DynamicCall::FunctionTemplate::ValueT::getFromType<const char*>());
-			FuncEnvironment::AddNative((DynamicCall::PROC)printf, templ, "console printf", false);
-		}
+
+		FuncEnvironment::AddNative(console::register_format_operator, "console register_format_operator", false);
+		FuncEnvironment::AddNative(console::format, "console format", false);//return string, not print
+		FuncEnvironment::AddNative(console::printf, "console printf", false);//format and print
+
 		FuncEnvironment::AddNative(console::resetModifiers, "console reset_modifiers", false);
 		FuncEnvironment::AddNative(console::boldText, "console bold_text", false);
 		FuncEnvironment::AddNative(console::italicText, "console italic_text", false);
