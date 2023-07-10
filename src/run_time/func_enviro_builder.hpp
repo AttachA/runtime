@@ -58,7 +58,9 @@ namespace art{
 			return it->second;
 		}
 	public:
-		FuncEviroBuilder() = default;
+		FuncEviroBuilder(){
+			flags.can_be_unloaded = true;
+		}
 		//strict_mode - if true, then all local functions must has cross_code, by default true
 		//use_dynamic_values - if true, then constants can be any type, by default false, option ignored if strict_mode is true(then all constants will be stored at opcodes)
 		FuncEviroBuilder(bool strict_mode,bool use_dynamic_values = false) : strict_mode(strict_mode), use_dynamic_values(use_dynamic_values) {}
@@ -299,6 +301,7 @@ namespace art{
 		typed_lgr<FuncEnvironment> O_prepare_func();
 		std::vector<uint8_t> O_build_func();
 		void O_load_func(const std::string& symbol_name);
+		void O_patch_func(const std::string& symbol_name);
 	};
 }
 #endif /* RUN_TIME_RUN_TIME_COMPILER */

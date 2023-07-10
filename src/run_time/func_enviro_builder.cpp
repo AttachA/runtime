@@ -1372,7 +1372,7 @@ void FuncEviroBuilder::remove_qualifiers(ValueIndexPos res){
 
 typed_lgr<FuncEnvironment> FuncEviroBuilder::O_prepare_func() {
 	if(!flags.run_time_computable)
-		return new FuncEnvironment(O_build_func());
+		return new FuncEnvironment(O_build_func(), flags.can_be_unloaded, flags.is_cheap);
 	else{
 		std::vector<uint8_t> fn;
 		builder::write(fn, flags);
@@ -1390,7 +1390,7 @@ typed_lgr<FuncEnvironment> FuncEviroBuilder::O_prepare_func() {
 
 		fn.insert(fn.end(),code.begin(), code.end());
 		*(uint64_t*)(fn.data()) = fn.size();
-		return new FuncEnvironment(std::move(dynamic_values), std::move(local_funs), std::move(fn));
+		return new FuncEnvironment(std::move(fn), std::move(dynamic_values), std::move(local_funs), flags.can_be_unloaded, flags.is_cheap);
 	}
 }
 FuncEviroBuilder& FuncEviroBuilder::O_flag_can_be_unloaded(bool can_be_unloaded){
@@ -1478,4 +1478,7 @@ std::vector<uint8_t> FuncEviroBuilder::O_build_func() {
 }
 void FuncEviroBuilder::O_load_func(const std::string& str) {
 	FuncEnvironment::Load(O_prepare_func(), str);
+}
+void FuncEviroBuilder::O_patch_func(const std::string& symbol_name){
+	FuncEnvironment::fastHotPatch(symbol_name, new FuncHandle::inner_handle(O_build_func(),flags.is_cheap));
 }
