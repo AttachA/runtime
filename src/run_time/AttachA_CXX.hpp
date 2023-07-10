@@ -10,6 +10,7 @@
 #include <type_traits>//std::forward
 #include "../../configuration/agreement/symbols.hpp"
 #include "asm/dynamic_call_proxy.hpp"
+#include "util/templates.hpp"
 namespace art{
 	namespace CXX {
 		template<class ...Types>
@@ -240,160 +241,11 @@ namespace art{
 			};
 			namespace _createProxyTable_Impl_{
 				
-				template<typename T>
-				struct store_value{
-					static T value;
-					store_value(T v) : value(v){};
-				};
-				template<typename T>
-				T store_value<T>::value = nullptr;
 	
-				template<class T>
-				void init_value(T func){
-					store_value<decltype(func)>::value = func;
-				}
-	
-				
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct static_funtion_info {
-					using return_type = ReturmTyp;
-					inline static ValueMeta arguments[sizeof...(Argumetns)? sizeof...(Argumetns) : 1] = { Type_as_ValueMeta<Argumetns>()... };
-					using arguments_type = std::tuple<Argumetns...>;
-					constexpr static size_t arguments_count = sizeof...(Argumetns);
-					constexpr static bool is_static = true;
-					constexpr static bool always_perfect = 
-						sizeof...(Argumetns) == 2
-						&& std::is_same_v<ReturmTyp, ValueItem*>
-						&& std::is_same_v<std::tuple<Argumetns...>, std::tuple<ValueItem*, uint32_t>>;
-				};
-				
-	
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct method_funtion_info {
-					using return_type = ReturmTyp;
-					inline static ValueMeta arguments[sizeof...(Argumetns)? sizeof...(Argumetns) : 1] = { Type_as_ValueMeta<Argumetns>()... };
-					using arguments_type = std::tuple<Argumetns...>;
-					using class_type = Class_;
-					constexpr static size_t arguments_count = sizeof...(Argumetns);
-					constexpr static bool is_static = false;
-					constexpr static bool always_perfect = 
-						sizeof...(Argumetns) == 2
-						&& std::is_same_v<ReturmTyp, ValueItem*>
-						&& std::is_same_v<std::tuple<Argumetns...>, std::tuple<ValueItem*, uint32_t>>;
-				};
-				
-	
-				template<typename> struct funtion_info {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...)> : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) &>  : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) &&>  : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) const> : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) const &> : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) const &&> : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) volatile> : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) volatile &> : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) volatile &&> : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) const volatile> : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) const volatile &> : static_funtion_info<ReturmTyp, Argumetns...> {};
-				template<typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Argumetns...) const volatile &&> : static_funtion_info<ReturmTyp, Argumetns...> {};
-	
-	
-	
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...)> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) &> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) &&> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const &> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const &&> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) volatile> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) volatile &> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) volatile &&> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const volatile> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const volatile &> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-				template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-				struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const volatile &&> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-	
-	
-		
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp()> : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() &>  : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() &&>  : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() const> : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() const &> : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() const &&> : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() volatile> : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() volatile &> : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() volatile &&> : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() const volatile> : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() const volatile &> : static_funtion_info<ReturmTyp> {};
-				template<typename ReturmTyp>
-				struct funtion_info<ReturmTyp() const volatile &&> : static_funtion_info<ReturmTyp> {};
-	
-	
-	
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)()> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() &> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() &&> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() const> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() const &> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() const &&> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() volatile> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() volatile &> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() volatile &&> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() const volatile> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() const volatile &> : method_funtion_info<Class_, ReturmTyp> {};
-				template<typename Class_, typename ReturmTyp>
-				struct funtion_info<ReturmTyp(Class_::*)() const volatile &&> : method_funtion_info<Class_, ReturmTyp> {};
-	
-	
+
 				template<class Method, size_t i>
 				inline std::pair<size_t,size_t> _proceed__find_best_method(ValueItem* args, uint32_t len) {
-					using method_info = funtion_info<decltype(Method::value)>;
+					using method_info = templates::funtion_info<decltype(Method::value)>;
 					if (method_info::arguments_count == len) {
 						size_t score = 0;
 						for (size_t k = 0; k < len; k++) {
@@ -427,7 +279,7 @@ namespace art{
 	
 				template<class Class_,class Method>
 				ValueItem* callMethod(ValueItem* args, uint32_t len) {
-					using method_info = funtion_info<decltype(Method::value)>;
+					using method_info = templates::funtion_info<decltype(Method::value)>;
 					if constexpr(method_info::is_static){
 						if constexpr(method_info::always_perfect)
 							return Method::value(args + 1, len - 1);
@@ -509,7 +361,7 @@ namespace art{
 						>
 					> functtions_meta = {
 						([&]() {
-							using method_info = funtion_info<Methods>;
+							using method_info = templates::funtion_info<Methods>;
 							return std::pair<ValueMeta, list_array<ValueMeta>>{
 								Type_as_ValueMeta<method_info::return_type>(),
 								([&]() -> list_array<ValueMeta> {
@@ -530,7 +382,7 @@ namespace art{
 					init_tuple<sizeof...(Methods)>(method.methods);
 					return MethodInfo(
 						method.name,
-						proxyMethod<Class_,store_value<Methods>...>,
+						proxyMethod<Class_, templates::store_value<Methods>...>,
 						ClassAccess::pub,
 						return_values,
 						arguments,
@@ -678,13 +530,25 @@ namespace art{
 	
 		
 				template<class Class_>
-				static typed_lgr<FuncEnvironment> ref_destructor = _createProxyTable_Impl_::destructor<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::destructor<Class_>, false) : nullptr;
+				static typed_lgr<FuncEnvironment> ref_destructor(){
+					static typed_lgr<FuncEnvironment> ref = _createProxyTable_Impl_::destructor<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::destructor<Class_>, false) : nullptr;
+					return ref;
+				}
 				template<class Class_>
-				static typed_lgr<FuncEnvironment> ref_copy = _createProxyTable_Impl_::copy<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::copy<Class_>, false) : nullptr;
+				static typed_lgr<FuncEnvironment> ref_copy(){
+					static typed_lgr<FuncEnvironment> ref = _createProxyTable_Impl_::copy<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::copy<Class_>, false) : nullptr;
+					return ref;
+				}
 				template<class Class_>
-				static typed_lgr<FuncEnvironment> ref_move = _createProxyTable_Impl_::move<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::move<Class_>, false) : nullptr;
+				static typed_lgr<FuncEnvironment> ref_move(){
+					static typed_lgr<FuncEnvironment> ref = _createProxyTable_Impl_::move<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::move<Class_>, false) : nullptr;
+					return ref;
+				}
 				template<class Class_>
-				static typed_lgr<FuncEnvironment> ref_compare = _createProxyTable_Impl_::compare<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::compare<Class_>, false) : nullptr;
+				static typed_lgr<FuncEnvironment> ref_compare(){
+					static typed_lgr<FuncEnvironment> ref = _createProxyTable_Impl_::compare<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::compare<Class_>, false) : nullptr;
+					return ref;
+				}
 			}
 			template<class Class_,class ...Methods>
 			MethodInfo make_method(const std::string& name, Methods... methods) {
@@ -708,10 +572,10 @@ namespace art{
 	
 				auto res = new AttachADynamicVirtualTable(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->name = owner_name;
 				return res;
@@ -730,10 +594,10 @@ namespace art{
 				}(),...);
 				auto res = AttachAVirtualTable::create(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->setName(owner_name);
 				return res;
@@ -754,10 +618,10 @@ namespace art{
 	
 				auto res = new AttachADynamicVirtualTable(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->name = owner_name;
 				return res;
@@ -777,10 +641,10 @@ namespace art{
 				}(),...);
 				auto res = AttachAVirtualTable::create(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->setName(owner_name);
 				return res;
@@ -800,10 +664,10 @@ namespace art{
 				}(),...);
 				auto res = new AttachADynamicVirtualTable(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->name = owner_name;
 				return res;
@@ -820,10 +684,10 @@ namespace art{
 				}(),...);
 				auto res = AttachAVirtualTable::create(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->setName(owner_name);
 				return res;
@@ -843,10 +707,10 @@ namespace art{
 	
 				auto res = new AttachADynamicVirtualTable(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->name = owner_name;
 				return res;
@@ -866,10 +730,10 @@ namespace art{
 	
 				auto res = AttachAVirtualTable::create(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->setName(owner_name);
 				return res;
@@ -880,10 +744,10 @@ namespace art{
 				list_array<MethodInfo> proxed;
 				auto res = new AttachADynamicVirtualTable(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->name = owner_name;
 				return res;
@@ -893,10 +757,10 @@ namespace art{
 				list_array<MethodInfo> proxed;
 				auto res = AttachAVirtualTable::create(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->setName(owner_name);
 				return res;
@@ -906,10 +770,10 @@ namespace art{
 				list_array<MethodInfo> proxed;
 				auto res = new AttachADynamicVirtualTable(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->name = owner_name;
 				return res;
@@ -919,10 +783,10 @@ namespace art{
 				list_array<MethodInfo> proxed;
 				auto res = AttachAVirtualTable::create(
 					proxed,
-					_createProxyTable_Impl_::ref_destructor<Class_>,
-					_createProxyTable_Impl_::ref_copy<Class_>,
-					_createProxyTable_Impl_::ref_move<Class_>,
-					_createProxyTable_Impl_::ref_compare<Class_>
+					_createProxyTable_Impl_::ref_destructor<Class_>(),
+					_createProxyTable_Impl_::ref_copy<Class_>(),
+					_createProxyTable_Impl_::ref_move<Class_>(),
+					_createProxyTable_Impl_::ref_compare<Class_>()
 				);
 				res->setName(owner_name);
 				return res;
@@ -1028,6 +892,50 @@ namespace art{
 				return art::CXX::Interface::getExtractAs<Class_>(str, (AttachAVirtualTable*)typeVTable<Class_>());
 			}
 		}
+		template<class>
+		struct Proxy {};
+		template<class ReturmTyp, class ...Argumetns>
+		struct Proxy<ReturmTyp(*)(Argumetns...)> {
+			typedef  ReturmTyp(*Excepted)(Argumetns...);
+			static ValueItem* proxy(Excepted fn, ValueItem* args, uint32_t len) {
+				arguments_range(len, sizeof...(Argumetns));
+				size_t arg_i = 0;
+				if constexpr (std::is_same_v<ReturmTyp, void>) {
+					fn(((Argumetns)args[arg_i++])...);
+					return nullptr;
+				}
+				else
+					return new ValueItem((ReturmTyp)fn(((Argumetns)args[arg_i++])...));
+			}
+			static ValueItem* abstract_Proxy(void* fn, ValueItem* args, uint32_t len) {
+				Excepted cls_fn;
+				memcpy(&cls_fn, &fn, sizeof(Excepted));
+				return proxy(cls_fn, args, len);
+			}
+		};
+		template<class Class_, class ReturmTyp, class ...Argumetns>
+		struct Proxy<ReturmTyp(Class_::*)(Argumetns...)> {
+			typedef  ReturmTyp(Class_::*Excepted)(Argumetns...);
+			static ValueItem* proxy(Excepted fn, ValueItem* args, uint32_t len) {
+				arguments_range(len, sizeof...(Argumetns) + 1);
+				size_t arg_i = 1;
+				if constexpr (std::is_same_v<ReturmTyp, void>) {
+					Interface::getAs<Class_>(args[0]).*fn(((Argumetns)args[arg_i++])...);
+					return nullptr;
+				}
+				else
+					return new ValueItem((ReturmTyp)(Interface::getAs<Class_>(args[0]).*fn)(((Argumetns)args[arg_i++])...));
+			}
+			static ValueItem* abstract_Proxy(void* fn, ValueItem* args, uint32_t len) {
+				Excepted cls_fn;
+				memcpy(&cls_fn, &fn, sizeof(Excepted));
+				return proxy(cls_fn, args, len);
+			}
+		};
+	}
+	template<class _FN>
+	inline void FuncEnvironment::AddNative(_FN env,const std::string& func_name, bool can_be_unloaded, bool is_cheap){
+		FuncEnvironment::Load(new FuncEnvironment((void*)env,CXX::Proxy<_FN>::abstract_Proxy, can_be_unloaded, is_cheap), func_name);
 	}
 	
 #define AttachAFun(name, min_args, content)\

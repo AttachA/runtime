@@ -14,31 +14,27 @@
 #include "../attacha_abi.hpp"
 #include "../threading.hpp"
 #include "../../../configuration/agreement/symbols.hpp"
+#include "dynamic_call_proxy.hpp"
 #ifdef _WIN64
 #include <dbgeng.h>
 #endif
 namespace art{
 	using namespace reader;
-	asmjit::JitRuntime jrt;
+	std::shared_ptr<asmjit::JitRuntime> art = std::make_shared<asmjit::JitRuntime>();
 	std::unordered_map<std::string, typed_lgr<FuncEnvironment>> enviropments;
 	TaskMutex enviropments_lock;
 
 
-	const char* try_resolve_frame(FuncEnvironment* env){
-		for(auto& it : enviropments)
-			if(it.second.getPtr() == env)
-				return it.first.data();
+	const char* try_resolve_frame(FuncHandle::inner_handle* env){
+		for(auto& it : enviropments){
+			if(it.second){
+				if(it.second->get_func_ptr() == env->env)
+					return it.first.data();
+			}
+		}
 		return "unresolved_attach_a_symbol";
 	}
 
-	FuncEnvironment::~FuncEnvironment() {
-		art::lock_guard lguard(compile_lock);
-		if (can_be_unloaded) {
-			if (_type == FuncType::own)
-				if (curr_func)
-					FrameResult::deinit(frame, curr_func, jrt);
-		}
-	}
 
 
 
@@ -130,7 +126,7 @@ namespace art{
 
 #pragma region CompilerFabric helpers
 	template<bool use_result = true, bool do_cleanup = true>
-	void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values, std::vector<ValueItem*> static_map) {
+	void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values, std::vector<ValueItem*> static_map, list_array<typed_lgr<FuncEnvironment>>& used_enviros) {
 		CallFlags flags;
 		flags.encoded = readData<uint8_t>(data, data_len, i);
 		BuildCall b(a, 0);
@@ -149,7 +145,8 @@ namespace art{
 		else {
 			std::string fnn = readString(data, data_len, i);
 			typed_lgr<FuncEnvironment> fn = FuncEnvironment::enviropment(fnn);
-			if (fn->canBeUnloaded() || flags.async_mode) {
+			used_enviros.push_back(fn);
+			if (flags.async_mode) {
 				values.push_back(fnn);
 				b.addArg(((std::string*)values.back().val)->c_str());
 				b.addArg(arg_ptr);
@@ -158,37 +155,9 @@ namespace art{
 				b.finalize(&FuncEnvironment::callFunc);
 			}
 			else {
-				switch (fn->type()) {
-				case FuncEnvironment::FuncType::own: {
-					b.addArg(arg_ptr);
-					b.addArg(arg_len_32);
-					b.finalize(fn->get_func_ptr());
-					break;
-				}
-				case FuncEnvironment::FuncType::native: {
-					if (!fn->function_template().arguments.size() && fn->function_template().result.is_void()) {
-						b.finalize(fn->get_func_ptr());
-						if constexpr (use_result)
-							if (flags.use_result) {
-								a.mov_valindex({static_map, values}, readIndexPos(data, data_len, i), 0);
-								return;
-							}
-						break;
-					}
-					b.addArg(fn.getPtr());
-					b.addArg(arg_ptr);
-					b.addArg(arg_len_32);
-					b.finalize(&FuncEnvironment::NativeProxy_DynamicToStatic);
-					break;
-				}
-				default: {
-					b.addArg(fn.getPtr());
-					b.addArg(arg_ptr);
-					b.addArg(arg_len_32);
-					b.finalize(&FuncEnvironment::syncWrapper);
-					break;
-				}
-				}
+				b.addArg(arg_ptr);
+				b.addArg(arg_len_32);
+				b.finalize(fn->get_func_ptr());
 			}
 		}
 		if constexpr (use_result) {
@@ -207,17 +176,8 @@ namespace art{
 				inlineReleaseUnused(a, resr);
 	}
 
-	void _compilerFabric_call_local_any(CASM& a, FuncEnvironment* env,bool async_mode, uint32_t function_index) {
-		BuildCall b(a, 5);
-		b.addArg(env);
-		b.addArg(function_index);
-		b.addArg(arg_ptr);
-		b.addArg(arg_len_32);
-		b.addArg(async_mode);
-		b.finalize(&FuncEnvironment::localWrapper);
-	}
 	template<bool use_result = true, bool do_cleanup = true>
-	void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, FuncEnvironment* env, list_array<ValueItem>& values,  std::vector<ValueItem*> static_map) {
+	void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, FuncHandle::inner_handle* env, list_array<ValueItem>& values,  std::vector<ValueItem*> static_map) {
 		CallFlags flags;
 		flags.encoded = readData<uint8_t>(data, data_len, i);
 		BuildCall b(a, 0);
@@ -230,54 +190,27 @@ namespace art{
 			b.addArg(arg_ptr);
 			b.addArg(arg_len_32);
 			b.addArg(flags.async_mode);
-			b.finalize(&FuncEnvironment::localWrapper);
+			b.finalize(&FuncHandle::inner_handle::localWrapper);
 			b.setArguments(0);
 		}
 		else {
-			uint32_t fnn = readData<uint32_t>(data, data_len, i);
-			if (env->localFnSize() >= fnn) {
+			uint32_t fn_index = readData<uint32_t>(data, data_len, i);
+			if (env->localFnSize() >= fn_index) {
 				throw InvalidIL("Invalid function index");
 			}
+			auto fn = env->localFn(fn_index);
 			if (flags.async_mode) {
-				_compilerFabric_call_local_any(a, env, true, fnn);
+				BuildCall b(a, 2);
+				b.addArg(env->localFn(fn_index).getPtr());
+				b.addArg(arg_ptr);
+				b.addArg(arg_len_32);
+				b.finalize(&FuncEnvironment::asyncWrapper);
 			}
 			else {
-				typed_lgr<FuncEnvironment> fn = env->localFn(fnn);
-				switch (fn->type()) {
-				case FuncEnvironment::FuncType::own: {
-					if(!fn->get_func_ptr()){
-						_compilerFabric_call_local_any(a, env, true, fnn);
-						break;
-					}
+					BuildCall b(a, 2);
 					b.addArg(arg_ptr);
 					b.addArg(arg_len_32);
 					b.finalize(fn->get_func_ptr());
-					break;
-				}
-				case FuncEnvironment::FuncType::native: {
-					if (!fn->function_template().arguments.size() && fn->function_template().result.is_void()) {
-						b.finalize(fn->get_func_ptr());
-						if constexpr (use_result)
-							if (flags.use_result) {
-								a.mov_valindex({static_map, values}, readIndexPos(data, data_len, i), 0);
-								return;
-							}
-						break;
-					}
-					b.addArg(fn.getPtr());
-					b.addArg(arg_ptr);
-					b.addArg(arg_len_32);
-					b.finalize(&FuncEnvironment::NativeProxy_DynamicToStatic);
-					break;
-				}
-				default: {
-					b.addArg(fn.getPtr());
-					b.addArg(arg_ptr);
-					b.addArg(arg_len_32);
-					b.finalize(&FuncEnvironment::syncWrapper);
-					break;
-				}
-				}
 			}
 		}
 		if constexpr (use_result) {
@@ -1297,8 +1230,7 @@ namespace art{
 							execute = false;
 							continue;
 						}
-						switch (readFromArrayAsValue<uint32_t>(data))
-						{
+						switch (readFromArrayAsValue<uint32_t>(data)) {
 						case asmjit::x86::Gp::kIdAx:
 							destruct(*(void**)ContextRecord->Rax);
 							break;
@@ -1391,16 +1323,11 @@ namespace art{
 						return ExceptionContinueSearch;
 					}
 					case ScopeAction::Action::finally:{
-						auto finally = readFromArrayAsValue<void(*)(void* rsp)>(data);
-						if(!execute || !on_unwind){
-							skipArray<char>(data);
-							execute = false;
-							continue;
-						}
+						auto finally_ = readFromArrayAsValue<void(*)(void*,size_t, void* rsp)>(data);
 						size_t size = 0;
 						std::unique_ptr<char[]> stack;
 						stack.reset(readFromArrayAsArray<char>(data, size));
-						finally(stack.get());
+						finally_(stack.get(), size, (void*)ContextRecord->Rsp);
 						break;
 					}
 					case ScopeAction::Action::not_action:
@@ -1581,9 +1508,10 @@ namespace art{
 		std::unordered_map<uint64_t, Label> label_bind_map;
 		std::unordered_map<uint64_t, Label*> label_map;
 		list_array<ValueItem>& values;
+		list_array<typed_lgr<FuncEnvironment>>& used_enviros;
 		bool do_jump_to_ret = false;
 		bool in_debug;
-		FuncEnvironment* build_func;
+		FuncHandle::inner_handle* build_func;
 
 		std::vector<ValueItem*> static_map;
 
@@ -1599,9 +1527,10 @@ namespace art{
 			list_array<std::pair<uint64_t, Label>>& jump_list,
 			list_array<ValueItem>& values,
 			bool in_debug,
-			FuncEnvironment* build_func,
-			uint16_t static_values
-			) : a(a), scope(scope), scope_map(scope_map), prolog(prolog), self_function(self_function), data(data), data_len(data_len), i(start_from),skip_count(start_from), values(values), in_debug(in_debug), build_func(build_func) {
+			FuncHandle::inner_handle* build_func,
+			uint16_t static_values,
+			list_array<typed_lgr<FuncEnvironment>>& used_enviros
+			) : a(a), scope(scope), scope_map(scope_map), prolog(prolog), self_function(self_function), data(data), data_len(data_len), i(start_from),skip_count(start_from), values(values), in_debug(in_debug), build_func(build_func), used_enviros(used_enviros) {
 				label_bind_map.reserve(jump_list.size());
 				label_map.reserve(jump_list.size());
 				size_t i = 0;
@@ -3168,11 +3097,11 @@ namespace art{
 				case Opcode::compare: dynamic_compare(); break;
 				case Opcode::jump: dynamic_jump(); break;
 				case Opcode::arg_set: dunamic_arg_set(); break;
-				case Opcode::call: compilerFabric_call<true>(a, data, data_len, i, values, static_map); break;
+				case Opcode::call: compilerFabric_call<true>(a, data, data_len, i, values, static_map, used_enviros); break;
 				case Opcode::call_self: dynamic_call_self(); break;
 				case Opcode::call_local: compilerFabric_call_local<true>(a, data, data_len, i, build_func, values, static_map);
 				case Opcode::call_and_ret: {
-					compilerFabric_call<false, false>(a, data, data_len, i, values, static_map);
+					compilerFabric_call<false, false>(a, data, data_len, i, values, static_map, used_enviros);
 					do_jump_to_ret = true;
 					break;
 				}
@@ -3289,14 +3218,154 @@ namespace art{
 		}
 	};
 
-	void FuncEnvironment::RuntimeCompile() {
-		if (curr_func != nullptr)
-			FrameResult::deinit(frame, curr_func, jrt);
-		values.clear();
+	FuncHandle* FuncHandle::make_func_handle(inner_handle* handle) {
+		if(handle ? handle->parent : false)
+			throw InvalidArguments("Handle already in use");
+		RuntimeCompileException error_handler;
+		CodeHolder trampoline_code;
+		trampoline_code.setErrorHandler(&error_handler);
+		trampoline_code.init(art->environment());
+		CASM a(trampoline_code);
+		char fake_data[8]{ 0xFFi8 };
+		Label compile_call_label = a.add_data(fake_data, 8);
+		Label handle_label = a.add_data(fake_data, 8);
+
+		Label not_compiled_code_fallback = a.newLabel();
+		Label data_label;
+		if(handle ? handle->env : false)
+			data_label = a.add_data((char*)handle->env, sizeof(handle->env));
+		else
+			data_label = a.add_label_ptr(not_compiled_code_fallback);
+		a.jmp_in_label(data_label);										//jmp [env | not_compiled_code_fallback]
+		a.label_bind(not_compiled_code_fallback);						//not_compiled_code_fallback:
+		a.mov(argr2,argr1);												//mov argr2, argr1
+		a.mov(argr1, argr0);											//mov argr1, argr0
+		a.mov_long(argr0, handle_label, 0);								//mov argr0, [FuncHandle]
+		a.jmp_in_label(compile_call_label);								//jmp [FuncHandle::compile_call]
+		a.finalize();
+		size_t code_size = trampoline_code.textSection()->realSize();
+		code_size = code_size + asmjit::Support::alignUp(code_size, trampoline_code.textSection()->alignment());
+		FuncHandle* code;
+		CASM::alocate_and_prepare_code(sizeof(FuncHandle),(uint8_t*&)code, &trampoline_code, art->allocator(),0);
+		new(code) FuncHandle();
+		char* code_raw = (char*)code + sizeof(FuncHandle);
+		char* code_data = (char*)code + sizeof(FuncHandle) + code_size - 1;
+
+
+		char* trampoline_jump = (char*)code_data + trampoline_code.labelOffset(data_label) + 8;//24
+		char* trampoline_not_compiled_fallback = (char*)code_raw + trampoline_code.labelOffset(not_compiled_code_fallback);
+		char* handle_ptr = (char*)code_data + trampoline_code.labelOffset(handle_label) + 8;//16
+		char* function_ptr = (char*)code_data + trampoline_code.labelOffset(compile_call_label) + 8;//8
+
+
+
+		auto func_ptr = &compile_call;
+		if(handle ? handle->env : false)
+			*(void**)trampoline_jump = (char*)handle->env;
+		else
+			*(void**)trampoline_jump = trampoline_not_compiled_fallback;
+		*(void**)handle_ptr = code;
+		*(void**)function_ptr = reinterpret_cast<void*&>(func_ptr);
+
+		code->trampoline_not_compiled_fallback = (void*)trampoline_not_compiled_fallback;
+		code->trampoline_jump = (void**)trampoline_jump;
+		code->handle = handle;
+		if(handle){
+			handle->increase_usage();
+			handle->parent = code;
+		}
+		code->art_ref = new std::shared_ptr<asmjit::JitRuntime>(art);
+		return code;
+	}
+	void FuncHandle::release_func_handle(FuncHandle* handle){
+		std::shared_ptr<asmjit::JitRuntime> art = *(std::shared_ptr<asmjit::JitRuntime>*)handle->art_ref;
+		handle->~FuncHandle();
+		CASM::relase_code((uint8_t*)handle, art->allocator());
+	}
+	FuncHandle::~FuncHandle(){
+		lock_guard lock(compile_lock);
+		if (handle)
+			handle->reduce_usage();
+		delete (std::shared_ptr<asmjit::JitRuntime>*)art_ref;
+	}
+
+	FuncHandle::inner_handle::inner_handle(Enviropment env, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->env = env;
+	}
+	FuncHandle::inner_handle::inner_handle(void* func, const DynamicCall::FunctionTemplate& template_func, bool is_cheap) : is_cheap(is_cheap),template_func(template_func) {
+		_type = FuncType::native_c;
+		frame = (uint8_t*)func;
+	}
+	FuncHandle::inner_handle::inner_handle(void* func, FuncHandle::inner_handle::ProxyFunction proxy_func, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::static_native_c;
+		values.push_back(func);
+		frame = (uint8_t*)proxy_func;
+	}
+	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = code;
+	}
+	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = code;
+		this->values = values;
+	}
+	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<typed_lgr<FuncEnvironment>>& local_funcs, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = code;
+		this->values = values;
+		this->local_funcs = local_funcs;
+	}
+
+	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = std::move(code);
+	}
+	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = std::move(code);
+		this->values = std::move(values);
+	}
+	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<typed_lgr<FuncEnvironment>>&& local_funcs, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = std::move(code);
+		this->values = std::move(values);
+		this->local_funcs = std::move(local_funcs);
+	}
+	ValueItem* FuncHandle::inner_handle::localWrapper(size_t indx, ValueItem* arguments, uint32_t arguments_size, bool run_async){
+		if (indx < local_funcs.size()){
+			if(run_async)
+				return FuncEnvironment::async_call(local_funcs[indx], arguments, arguments_size);
+			else
+				return local_funcs[indx]->syncWrapper(arguments, arguments_size);
+		}
+		else
+			throw InvalidArguments("Invalid local function index, index is out of range");
+	}
+	FuncHandle::inner_handle::~inner_handle(){
+		if (frame != nullptr && _type == FuncType::own){
+			if(!FrameResult::deinit(frame, env, *art)){
+				ValueItem result{ "Failed unload function:", frame };
+				errors.async_notify(result);
+			}
+		}
+	}
+
+
+
+
+
+
+
+	void FuncHandle::inner_handle::compile() {
+		if (frame != nullptr)
+			throw InvalidOperation("Function already compiled");
+		used_enviros.clear();
 		RuntimeCompileException error_handler;
 		CodeHolder code;
 		code.setErrorHandler(&error_handler);
-		code.init(jrt.environment());
+		code.init(art->environment());
 		CASM a(code);
 		Label self_function = a.newLabel();
 		a.label_bind(self_function);
@@ -3306,9 +3375,13 @@ namespace art{
 		uint32_t to_alloc_statics = flags.used_static ? uint32_t(used_static_values) + 1 : 0;
 		if(flags.run_time_computable){
 			//local_funcs already contains all local functions
-			values.reserve_push_front(to_alloc_statics);
-			for(uint32_t i = 0; i < to_alloc_statics; i++)
-				values.push_front(nullptr);
+			if(values.size() > to_alloc_statics)
+				values.remove(to_alloc_statics, values.size());
+			else{
+				values.reserve_push_front(to_alloc_statics - values.size());
+				for(uint32_t i = values.size(); i < to_alloc_statics; i++)
+					values.push_front(nullptr);
+			}
 		}else{
 			local_funcs = std::move(function_locals);
 			values.resize(to_alloc_statics, nullptr);
@@ -3320,6 +3393,7 @@ namespace art{
 
 		//OS dependent prolog begin
 		BuildProlog bprolog(a);
+		a.atomic_increase(&ref_count);//increase usage count
 		bprolog.pushReg(frame_ptr);
 		if(max_values)
 			bprolog.pushReg(enviro_ptr);
@@ -3365,7 +3439,7 @@ namespace art{
 			}
 		}
 		Label prolog = a.newLabel();
-		CompilerFabric fabric(a,scope,scope_map,prolog, self_function, cross_code, cross_code.size(), to_be_skiped, jump_list, values, flags.in_debug, this, to_alloc_statics);
+		CompilerFabric fabric(a,scope,scope_map,prolog, self_function, cross_code, cross_code.size(), to_be_skiped, jump_list, values, flags.in_debug, this, to_alloc_statics, used_enviros);
 		fabric.build();
 
 		a.label_bind(prolog);
@@ -3384,18 +3458,43 @@ namespace art{
 		}
 		a.pop();
 		a.pop(resr);
-
-
-
-
-		
 		auto& tmp = bprolog.finalize_epilog();
+		a.mov(argr0, -1);
+		a.atomic_fetch_add(&ref_count, argr0);
+		a.cmp(argr0, 1);//if old ref_count == 1
+
+		Label last_usage = a.newLabel();
+		a.jmp_equal(last_usage);
+		a.ret();
+		a.label_bind(last_usage);
+		a.mov(argr0, this);
+		a.mov(argr1, resr);
+		auto func_ptr = &FuncHandle::inner_handle::last_usage_env;
+		Label last_usage_function = a.add_data((char*)reinterpret_cast<void*&>(func_ptr), 8);
+		a.jmp_in_label(last_usage_function);
+
+
 		tmp.use_handle = true;
 		tmp.exHandleOff = a.offset() <= UINT32_MAX ? (uint32_t)a.offset() : throw InvalidFunction("Too big function");
 		a.jmp((uint64_t)__attacha_handle);
 		a.finalize();
-		curr_func = (Enviropment)tmp.init(frame, a.code(), jrt, try_resolve_frame(this));
+		env = (Enviropment)tmp.init(frame, a.code(), *art, try_resolve_frame(this));
+		//remove self from used_enviros
+		auto my_trampoline = parent ? parent->get_trampoline_code() : nullptr;
+		used_enviros.remove_if([my_trampoline](typed_lgr<FuncEnvironment>& a){return a->get_func_ptr() == my_trampoline;});
 	}
+
+	
+	ValueItem* FuncHandle::inner_handle::dynamic_call_helper(ValueItem* arguments, uint32_t arguments_size){
+		DynamicCall::FunctionCall call((DynamicCall::PROC)frame, template_func, true);
+		return __attacha___::NativeProxy_DynamicToStatic(call, template_func, arguments, arguments_size);
+	}
+	ValueItem* FuncHandle::inner_handle::static_call_helper(ValueItem* arguments, uint32_t arguments_size){
+		FuncHandle::inner_handle::ProxyFunction proxy = (FuncHandle::inner_handle::ProxyFunction)frame;
+		void* func = (void*)values[0];
+		return proxy(func, arguments, arguments_size);
+	}
+
 #pragma endregion
 #pragma region FuncEnvironment
 	ValueItem* FuncEnvironment::async_call(typed_lgr<FuncEnvironment> f, ValueItem* args, uint32_t args_len) {
@@ -3407,479 +3506,37 @@ namespace art{
 	}
 
 	ValueItem* FuncEnvironment::syncWrapper(ValueItem* args, uint32_t arguments_size) {
-		if(_type == FuncEnvironment::FuncType::force_unloaded)
+		if(func_ == nullptr)
 			throw InvalidFunction("Function is force unloaded");
-		if (force_unload)
-			throw InvalidFunction("Function is force unloaded");
-		if (need_compile)
-			funcComp();
-		switch (_type) {
-		case FuncEnvironment::FuncType::native:
-			return NativeProxy_DynamicToStatic(args, arguments_size);
-		case FuncEnvironment::FuncType::own:{
-			ValueItem* res;
-			try {
-				res = ((Enviropment)curr_func)(args, arguments_size);
-			}
-			catch (...) {
-				if (!need_restore_stack_fault()) 
-					throw;
-				res = nullptr;
-			}
-			if (restore_stack_fault())
-				throw StackOverflowException();
-			return res;
-		}
-		case FuncEnvironment::FuncType::python:
-		case FuncEnvironment::FuncType::csharp:
-		case FuncEnvironment::FuncType::java:
-		default:
-			throw NotImplementedException();
-		}
+		return ((Enviropment)&func_->trampoline_code)(args, arguments_size);
 	}
-	namespace __attacha___{
-		void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, ValueMeta meta, void*& arg) {
-			if (!meta.allow_edit && meta.vtype == VType::string) {
-				switch (meta.vtype) {
-				case VType::noting:
-					call.AddValueArgument((void*)0);
-					break;
-				case VType::i8:
-					call.AddValueArgument(*(int8_t*)&arg);
-					break;
-				case VType::i16:
-					call.AddValueArgument(*(int16_t*)&arg);
-					break;
-				case VType::i32:
-					call.AddValueArgument(*(int32_t*)&arg);
-					break;
-				case VType::i64:
-					call.AddValueArgument(*(int64_t*)&arg);
-					break;
-				case VType::ui8:
-					call.AddValueArgument(*(uint8_t*)&arg);
-					break;
-				case VType::ui16:
-					call.AddValueArgument(*(int16_t*)&arg);
-					break;
-				case VType::ui32:
-					call.AddValueArgument(*(uint32_t*)&arg);
-					break;
-				case VType::ui64:
-					call.AddValueArgument(*(uint64_t*)&arg);
-					break;
-				case VType::flo:
-					call.AddValueArgument(*(float*)&arg);
-					break;
-				case VType::doub:
-					call.AddValueArgument(*(double*)&arg);
-					break;
-				case VType::raw_arr_i8:
-					call.AddArray((int8_t*)arg, meta.val_len);
-					break;
-				case VType::raw_arr_i16:
-					call.AddArray((int16_t*)arg, meta.val_len);
-					break;
-				case VType::raw_arr_i32:
-					call.AddArray((int32_t*)arg, meta.val_len);
-					break;
-				case VType::raw_arr_i64:
-					call.AddArray((int64_t*)arg, meta.val_len);
-					break;
-				case VType::raw_arr_ui8:
-					call.AddArray((uint8_t*)arg, meta.val_len);
-					break;
-				case VType::raw_arr_ui16:
-					call.AddArray((int16_t*)arg, meta.val_len);
-					break;
-				case VType::raw_arr_ui32:
-					call.AddArray((uint32_t*)arg, meta.val_len);
-					break;
-				case VType::raw_arr_ui64:
-					call.AddArray((uint64_t*)arg, meta.val_len);
-					break;
-				case VType::raw_arr_flo:
-					call.AddArray((float*)arg, meta.val_len);
-					break;
-				case VType::raw_arr_doub:
-					call.AddArray((double*)arg, meta.val_len);
-					break;
-				case VType::uarr:
-					call.AddPtrArgument((const list_array<ValueItem>*)arg);
-					break;
-				case VType::string:
-					call.AddArray(((std::string*)arg)->data(), ((std::string*)arg)->size());
-					break;
-				case VType::undefined_ptr:
-					call.AddPtrArgument(arg);
-					break;
-				default:
-					throw NotImplementedException();
-				}
-			}
-			else {
-				switch (meta.vtype) {
-				case VType::noting:
-					call.AddValueArgument((void*)0);
-					break;
-				case VType::i8:
-					call.AddValueArgument(*(int8_t*)&arg);
-					break;
-				case VType::i16:
-					call.AddValueArgument(*(int16_t*)&arg);
-					break;
-				case VType::i32:
-					call.AddValueArgument(*(int32_t*)&arg);
-					break;
-				case VType::i64:
-					call.AddValueArgument(*(int64_t*)&arg);
-					break;
-				case VType::ui8:
-					call.AddValueArgument(*(uint8_t*)&arg);
-					break;
-				case VType::ui16:
-					call.AddValueArgument(*(int16_t*)&arg);
-					break;
-				case VType::ui32:
-					call.AddValueArgument(*(uint32_t*)&arg);
-					break;
-				case VType::ui64:
-					call.AddValueArgument((uint64_t)arg);
-					break;
-				case VType::flo:
-					call.AddValueArgument(*(float*)&arg);
-					break;
-				case VType::doub:
-					call.AddValueArgument(*(double*)&arg);
-					break;
-				case VType::raw_arr_i8:
-					call.AddPtrArgument((int8_t*)arg);
-					break;
-				case VType::raw_arr_i16:
-					call.AddPtrArgument((int16_t*)arg);
-					break;
-				case VType::raw_arr_i32:
-					call.AddPtrArgument((int32_t*)arg);
-					break;
-				case VType::raw_arr_i64:
-					call.AddPtrArgument((int64_t*)arg);
-					break;
-				case VType::raw_arr_ui8:
-					call.AddPtrArgument((uint8_t*)arg);
-					break;
-				case VType::raw_arr_ui16:
-					call.AddPtrArgument((int16_t*)arg);
-					break;
-				case VType::raw_arr_ui32:
-					call.AddPtrArgument((uint32_t*)arg);
-					break;
-				case VType::raw_arr_ui64:
-					call.AddPtrArgument((uint64_t*)arg);
-					break;
-				case VType::raw_arr_flo:
-					call.AddPtrArgument((float*)arg);
-					break;
-				case VType::raw_arr_doub:
-					call.AddPtrArgument((double*)arg);
-					break;
-				case VType::uarr:
-					call.AddPtrArgument((list_array<ValueItem>*)arg);
-					break;
-				case VType::string:
-					call.AddPtrArgument(((std::string*)arg)->data());
-					break;
-				case VType::undefined_ptr:
-					call.AddPtrArgument(arg);
-					break;
-				default:
-					throw NotImplementedException();
-				}
-			}
-		}
-		ValueItem* NativeProxy_DynamicToStatic(DynamicCall::FunctionCall& call, DynamicCall::FunctionTemplate& nat_templ, ValueItem* arguments, uint32_t arguments_size) {
-			using namespace DynamicCall;
-			if (arguments) {
-				while (arguments_size--) {
-					ValueItem& it = *arguments++;
-					auto to_add = call.ToAddArgument();
-					if (to_add.is_void()) {
-						if (call.is_variadic()) {
-							void*& val = getValue(it.val, it.meta);
-							NativeProxy_DynamicToStatic_addValue(call, it.meta, val);
-							continue;
-						}
-						else
-							break;
-					}
-					void*& arg = getValue(it.val, it.meta);
-					ValueMeta meta = it.meta;
-					switch (to_add.vtype) {
-					case FunctionTemplate::ValueT::ValueType::integer:
-					case FunctionTemplate::ValueT::ValueType::signed_integer:
-					case FunctionTemplate::ValueT::ValueType::floating:
-						if (to_add.ptype == FunctionTemplate::ValueT::PlaceType::as_value) {
-							switch (meta.vtype) {
-							case VType::i8:
-								call.AddValueArgument(*(int8_t*)&arg);
-								break;
-							case VType::i16:
-								call.AddValueArgument(*(int16_t*)&arg);
-								break;
-							case VType::i32:
-								call.AddValueArgument(*(int32_t*)&arg);
-								break;
-							case VType::i64:
-								call.AddValueArgument(*(int64_t*)&arg);
-								break;
-							case VType::ui8:
-								call.AddValueArgument(*(uint8_t*)&arg);
-								break;
-							case VType::ui16:
-								call.AddValueArgument(*(int16_t*)&arg);
-								break;
-							case VType::ui32:
-								call.AddValueArgument(*(uint32_t*)&arg);
-								break;
-							case VType::ui64:
-								call.AddValueArgument((uint64_t)arg);
-								break;
-							case VType::flo:
-								call.AddValueArgument(*(float*)&arg);
-								break;
-							case VType::doub:
-								call.AddValueArgument(*(double*)&arg);
-								break;
-							default:
-								throw InvalidType("Required integer or floating family type but requived another");
-							}
-						}
-						else {
-							switch (meta.vtype) {
-							case VType::i8:
-								call.AddValueArgument((int8_t*)&arg);
-								break;
-							case VType::i16:
-								call.AddValueArgument((int16_t*)&arg);
-								break;
-							case VType::i32:
-								call.AddValueArgument((int32_t*)&arg);
-								break;
-							case VType::i64:
-								call.AddValueArgument((int64_t*)&arg);
-								break;
-							case VType::ui8:
-								call.AddValueArgument((uint8_t*)&arg);
-								break;
-							case VType::ui16:
-								call.AddValueArgument((uint16_t*)&arg);
-								break;
-							case VType::ui32:
-								call.AddValueArgument((uint32_t*)&arg);
-								break;
-							case VType::ui64:
-								call.AddValueArgument((uint64_t*)&arg);
-								break;
-							case VType::flo:
-								call.AddValueArgument((float*)&arg);
-								break;
-							case VType::doub:
-								call.AddValueArgument((double*)&arg);
-								break;
-							case VType::raw_arr_i8:
-								call.AddValueArgument((int8_t*)arg);
-								break;
-							case VType::raw_arr_i16:
-								call.AddValueArgument((int16_t*)arg);
-								break;
-							case VType::raw_arr_i32:
-								call.AddValueArgument((int32_t*)arg);
-								break;
-							case VType::raw_arr_i64:
-								call.AddValueArgument((int64_t*)arg);
-								break;
-							case VType::raw_arr_ui8:
-								call.AddValueArgument((uint8_t*)arg);
-								break;
-							case VType::raw_arr_ui16:
-								call.AddValueArgument((uint16_t*)arg);
-								break;
-							case VType::raw_arr_ui32:
-								call.AddValueArgument((uint32_t*)arg);
-								break;
-							case VType::raw_arr_ui64:
-								call.AddValueArgument((uint64_t*)arg);
-								break;
-							case VType::raw_arr_flo:
-								call.AddValueArgument((float*)arg);
-								break;
-							case VType::raw_arr_doub:
-								call.AddValueArgument((double*)arg);
-								break;
-							case VType::string:
-								call.AddValueArgument(((std::string*)arg)->data());
-								break;
-							default:
-								throw InvalidType("Required integer or floating family type but requived another");
-							}
-						}
-						break;
-					case FunctionTemplate::ValueT::ValueType::pointer:
-						switch (meta.vtype) {
-						case VType::raw_arr_i8:
-							call.AddValueArgument((int8_t*)arg);
-							break;
-						case VType::raw_arr_i16:
-							call.AddValueArgument((int16_t*)arg);
-							break;
-						case VType::raw_arr_i32:
-							call.AddValueArgument((int32_t*)arg);
-							break;
-						case VType::raw_arr_i64:
-							call.AddValueArgument((int64_t*)arg);
-							break;
-						case VType::raw_arr_ui8:
-							call.AddValueArgument((uint8_t*)arg);
-							break;
-						case VType::raw_arr_ui16:
-							call.AddValueArgument((uint16_t*)arg);
-							break;
-						case VType::raw_arr_ui32:
-							call.AddValueArgument((uint32_t*)arg);
-							break;
-						case VType::raw_arr_ui64:
-							call.AddValueArgument((uint64_t*)arg);
-							break;
-						case VType::raw_arr_flo:
-							call.AddValueArgument((float*)arg);
-							break;
-						case VType::raw_arr_doub:
-							call.AddValueArgument((double*)arg);
-							break;
-						case VType::string:
-							if (to_add.vsize == 1) {
-								if (to_add.is_modifable)
-									call.AddPtrArgument(((std::string*)arg)->data());
-								else
-									call.AddArray(((std::string*)arg)->c_str(), ((std::string*)arg)->size());
-							}
-							else if (to_add.vsize == 2) {
-
-
-							}
-							else if (to_add.vsize == sizeof(std::string))
-								call.AddPtrArgument((std::string*)arg);
-							break;
-						case VType::undefined_ptr:
-							call.AddPtrArgument(arg);
-							break;
-						default:
-							throw InvalidType("Required pointer family type but requived another");
-						}
-						break;
-					case FunctionTemplate::ValueT::ValueType::_class:
-					default:
-						break;
-					}
-				}
-			}
-			void* res = nullptr;
-			try {
-				res = call.Call();
-			}
-			catch (...) {
-				if(!need_restore_stack_fault())
-					throw;
-			}
-			if (restore_stack_fault())
-				throw StackOverflowException();
-
-			if (nat_templ.result.is_void())
-				return nullptr;
-			if (nat_templ.result.ptype == DynamicCall::FunctionTemplate::ValueT::PlaceType::as_ptr)
-				return new ValueItem(res, VType::undefined_ptr);
-			switch (nat_templ.result.vtype) {
-			case DynamicCall::FunctionTemplate::ValueT::ValueType::integer:
-				switch (nat_templ.result.vsize) {
-				case 1:
-					return new ValueItem(res, VType::ui8);
-				case 2:
-					return new ValueItem(res, VType::ui16);
-				case 4:
-					return new ValueItem(res, VType::ui32);
-				case 8:
-					return new ValueItem(res, VType::ui64);
-				default:
-					throw InvalidCast("Invalid type for convert");
-				}
-			case DynamicCall::FunctionTemplate::ValueT::ValueType::signed_integer:
-				switch (nat_templ.result.vsize) {
-				case 1:
-					return new ValueItem(res, VType::i8);
-				case 2:
-					return new ValueItem(res, VType::i16);
-				case 4:
-					return new ValueItem(res, VType::i32);
-				case 8:
-					return new ValueItem(res, VType::i64);
-				default:
-					throw InvalidCast("Invalid type for convert");
-				}
-			case DynamicCall::FunctionTemplate::ValueT::ValueType::floating:
-				switch (nat_templ.result.vsize) {
-				case 1:
-					return new ValueItem(res, VType::ui8);
-				case 2:
-					return new ValueItem(res, VType::ui16);
-				case 4:
-					return new ValueItem(res, VType::flo);
-				case 8:
-					return new ValueItem(res, VType::doub);
-				default:
-					throw InvalidCast("Invalid type for convert");
-				}
-			case DynamicCall::FunctionTemplate::ValueT::ValueType::pointer:
-				return new ValueItem(res, VType::undefined_ptr);
-			case DynamicCall::FunctionTemplate::ValueT::ValueType::_class:
-			default:
-				throw NotImplementedException();
-			}
-		}
+	ValueItem* FuncEnvironment::asyncWrapper(typed_lgr<FuncEnvironment>* self, ValueItem* arguments, uint32_t arguments_size) {
+		return FuncEnvironment::async_call(*self, arguments, arguments_size);
 	}
-	ValueItem* FuncEnvironment::NativeProxy_DynamicToStatic(ValueItem* arguments, uint32_t arguments_size) {
-		DynamicCall::FunctionCall call((DynamicCall::PROC)curr_func, nat_templ, true);
-		return __attacha___::NativeProxy_DynamicToStatic(call, nat_templ, arguments, arguments_size);
-	}
-
 	std::string FuncEnvironment::to_string(){
-		if(!curr_func)
+		if(!func_)
+			return "fn(unknown)@0";
+		if(!func_->handle)
 			return "fn(unknown)@0";
 		for(auto& it : enviropments)
 			if(it.second.getPtr() == this)
-				return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)curr_func);
-		return "fn(" + FrameResult::JitResolveFrame(curr_func,true).fn_name + ")@" + string_help::hexstr((ptrdiff_t)curr_func);
+				return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)func_->handle->env);
+		return "fn(" + FrameResult::JitResolveFrame(func_->handle->env,true).fn_name + ")@" + string_help::hexstr((ptrdiff_t)func_->handle->env);
 	}
 	const std::vector<uint8_t>& FuncEnvironment::get_cross_code(){
-		return cross_code;
+		static std::vector<uint8_t> empty;
+		return func_?func_->code():empty;
 	}
 
-	void FuncEnvironment::fastHotPath(const std::string& func_name, const std::vector<uint8_t>& new_cross_code) {
+	void FuncEnvironment::fastHotPatch(const std::string& func_name, FuncHandle::inner_handle* new_enviro) {
+		unique_lock guard(enviropments_lock);
 		auto& tmp = enviropments[func_name];
-		if (tmp) {
-			if (!tmp->can_be_unloaded)
-				throw HotPathException("Path fail cause this symbol is cannon't be unloaded for path");
-			tmp->force_unload = true;
-		}
-		tmp = new FuncEnvironment(new_cross_code);
-		
+		guard.unlock();
+		tmp->patch(new_enviro);
 	}
-	void FuncEnvironment::fastHotPath(const std::string& func_name, typed_lgr<FuncEnvironment>& new_enviro) {
-		auto& tmp = enviropments[func_name];
-		if (tmp) {
-			if (!tmp->can_be_unloaded)
-				throw HotPathException("Path fail cause this symbol is cannon't be unloaded for path");
-			tmp->force_unload = true;
-		}
-		tmp = new_enviro;
+	void FuncEnvironment::fastHotPatch(const patch_list& patches) {
+		for(auto& it : patches)
+			fastHotPatch(it.first, it.second);
 	}
 	typed_lgr<FuncEnvironment> FuncEnvironment::enviropment(const std::string& func_name) {
 		return enviropments[func_name];
@@ -3894,48 +3551,43 @@ namespace art{
 		throw NotImplementedException();
 	}
 	void FuncEnvironment::AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
+		art::lock_guard guard(enviropments_lock);
 		if (enviropments.contains(symbol_name))
 			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
-		enviropments[symbol_name] = typed_lgr(new FuncEnvironment(function, can_be_unloaded, is_cheap));
+		auto symbol = new FuncHandle::inner_handle(function, is_cheap);
+		enviropments[symbol_name] = new FuncEnvironment(symbol, can_be_unloaded);
 	}
-
-	void FuncEnvironment::AddNative(DynamicCall::PROC proc, const DynamicCall::FunctionTemplate& templ, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
-		if (enviropments.contains(symbol_name))
-			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
-		enviropments[symbol_name] = typed_lgr(new FuncEnvironment(proc, templ, can_be_unloaded, is_cheap));
-	}
-
 	bool FuncEnvironment::Exists(const std::string& symbol_name) {
+		art::lock_guard guard(enviropments_lock);
 		return enviropments.contains(symbol_name);
 	}
 	void FuncEnvironment::Load(typed_lgr<FuncEnvironment> fn, const std::string& symbol_name) {
+		art::lock_guard guard(enviropments_lock);
 		if (enviropments.contains(symbol_name))
 			throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
 		enviropments[symbol_name] = fn;
 	}
-	void FuncEnvironment::Load(const std::vector<uint8_t>& func_templ, const std::string& symbol_name) {
-		if (enviropments.contains(symbol_name))
-			throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
-		if (func_templ.size() < 2)
-			throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them emplty");
-		uint16_t max_vals = func_templ[1];
-		max_vals <<= 8;
-		max_vals |= func_templ[0];
-		enviropments[symbol_name] = new FuncEnvironment(func_templ);
-	}
 	void FuncEnvironment::Unload(const std::string& func_name) {
 		art::lock_guard guard(enviropments_lock);
-		if (enviropments.contains(func_name))
-			if (enviropments[func_name]->can_be_unloaded)
-				enviropments.erase(func_name);
-			else
-				throw SymbolException("Fail unload symbol: \"" + func_name + "\" cause them cannont be unloaded");
-	}
-	void FuncEnvironment::ForceUnload(const std::string& func_name) {
-		if (enviropments.contains(func_name)) {
-			enviropments[func_name]->force_unload = true;
+		if (enviropments.contains(func_name)){
+			if (!enviropments[func_name]->can_be_unloaded) 
+				throw SymbolException("Fail unload symbol: \"" + func_name + "\" cause them can't be unloaded");
 			enviropments.erase(func_name);
 		}
+	}
+	void FuncEnvironment::ForceUnload(const std::string& func_name) {
+		art::lock_guard guard(enviropments_lock);
+		if (enviropments.contains(func_name)) 
+			enviropments.erase(func_name);
+	}
+	void FuncEnvironment::forceUnload(){
+		FuncHandle* handle = func_;
+		func_ = nullptr;
+		if(handle)
+			FuncHandle::release_func_handle(handle);
+	}
+	void FuncEnvironment::clear_enviros(){
+		enviropments.clear();
 	}
 #pragma endregion
 }
