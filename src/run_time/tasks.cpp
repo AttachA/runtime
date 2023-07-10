@@ -1211,12 +1211,12 @@ namespace art{
 				MultiplyMutex mmut{unif, context.no_race};
 				MutexUnify mmut_unif(mmut);
 				art::unique_lock re_lock(mmut_unif, art::adopt_lock);
-				context_lock.unlock();
 				while(context.executors != 0)
 					context.on_closed_notifier.wait(re_lock);
 				re_lock.release();
 			}
 			std::swap(transfer_tasks, context.tasks);
+			context_lock.unlock();
 			glob.binded_workers.erase(id);
 		}
 		for(typed_lgr<Task>& task : transfer_tasks){
@@ -1264,6 +1264,7 @@ namespace art{
 	void Task::await_end_tasks(bool be_executor) {
 		if (be_executor && !loc.is_task_thread) {
 			art::unique_lock l(glob.task_thread_safety);
+		binded_workers:
 			while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.in_exec || glob.tasks_in_swap) {
 				l.unlock();
 				try {
@@ -1275,16 +1276,37 @@ namespace art{
 				}
 				l.lock();
 			}
+			std::lock_guard lock(glob.binded_workers_safety);
+			bool binded_tasks_empty = true;
+			for(auto& contexts : glob.binded_workers)
+				if(contexts.second.tasks.size())
+					binded_tasks_empty = false;
+			if(!binded_tasks_empty)
+				goto binded_workers;
 		}
 		else {
-			MutexUnify uni(glob.task_thread_safety);
-			art::unique_lock l(uni);
-			if(loc.is_task_thread)
-				while ((glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size()) && glob.in_exec != 1 && glob.tasks_in_swap != 1)
-					glob.no_tasks_execute_notifier.wait(l);
-			else
-				while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.in_exec  || glob.tasks_in_swap)
-					glob.no_tasks_execute_notifier.wait(l);
+		binded_workers_:
+			{
+				MutexUnify uni(glob.task_thread_safety);
+				art::unique_lock l(uni);
+			
+				if(loc.is_task_thread)
+					while ((glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size()) && glob.in_exec != 1 && glob.tasks_in_swap != 1)
+						glob.no_tasks_execute_notifier.wait(l);
+				else
+					while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.in_exec  || glob.tasks_in_swap)
+						glob.no_tasks_execute_notifier.wait(l);
+			}
+			{
+				std::lock_guard lock(glob.binded_workers_safety);
+				bool binded_tasks_empty = true;
+				for(auto& contexts : glob.binded_workers)
+					if(contexts.second.tasks.size())
+						binded_tasks_empty = false;
+				if(binded_tasks_empty)
+					return;
+			}
+			goto binded_workers_;
 		}
 	}
 	void Task::await_multiple(list_array<typed_lgr<Task>>& tasks, bool pre_started, bool release) {
@@ -3059,8 +3081,15 @@ namespace art{
 				lock.lock();
 
 				if(leave_after_finish)
-					if(!(glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.in_exec  || glob.tasks_in_swap))
-						break;
+					if(!(glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.in_exec  || glob.tasks_in_swap)){
+						std::lock_guard lock(glob.binded_workers_safety);
+						bool binded_tasks_empty = true;
+						for(auto& contexts : glob.binded_workers)
+							if(contexts.second.tasks.size())
+								binded_tasks_empty = false;
+						if(binded_tasks_empty)
+							break;
+					}
 			}
 		}
 		void start_executor_count_manager(){

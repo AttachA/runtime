@@ -321,6 +321,19 @@ namespace art{
 		bool notify(ValueItem& args);
 		bool sync_notify(ValueItem& args);
 		typed_lgr<Task> async_notify(ValueItem& args);
+		void clear(){
+			heigh_priorihty.clear();
+			upper_avg_priorihty.clear();
+			avg_priorihty.clear();
+			lower_avg_priorihty.clear();
+			low_priorihty.clear();
+
+			async_heigh_priorihty.clear();
+			async_upper_avg_priorihty.clear();
+			async_avg_priorihty.clear();
+			async_lower_avg_priorihty.clear();
+			async_low_priorihty.clear();
+		}
 	};
 	class TaskLimiter {
 		list_array<void*> lock_check;
