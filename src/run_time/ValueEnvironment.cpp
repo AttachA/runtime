@@ -7,5 +7,4 @@
 #include "ValueEnvironment.hpp"
 namespace art{
     ValueEnvironment enviropments;
-    thread_local ValueEnvironment thread_local_enviropments;
 }

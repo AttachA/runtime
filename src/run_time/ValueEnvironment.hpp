@@ -22,7 +22,12 @@ namespace art{
 			delete enviropments[str];
 			enviropments.erase(str);
 		}
+		void clear() {
+			for (auto& [key, value] : enviropments)
+				delete value;
+			enviropments.clear();
+			value = nullptr;
+		}
 	};
 	extern ValueEnvironment enviropments;
-	extern thread_local ValueEnvironment thread_local_enviropments;
 }
