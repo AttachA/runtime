@@ -151,6 +151,11 @@ namespace art{
                     auto& template_ = *CXX::Interface::getExtractAs<typed_lgr<DynamicCall::FunctionTemplate>>(args[2], define_NativeTemplate);
                     return ValueItem(class_->get_func_enviro(fun_name, template_));
                 })
+                AttachAFun(funs_NativeLib_get_own_function, 2, {
+                    auto& class_ = CXX::Interface::getExtractAs<typed_lgr<NativeLib>>(args[0], define_NativeLib);
+                    auto fun_name = (std::string)args[1];
+                    return ValueItem(class_->get_own_enviro(fun_name));
+                })
                 
                 AttachAFun(funs_NativeTemplate_add_argument, 3, {
                     auto& class_ = CXX::Interface::getExtractAs<typed_lgr<DynamicCall::FunctionTemplate>>(args[0], define_NativeTemplate);
@@ -197,7 +202,8 @@ namespace art{
                     if(is_init)
                         return;
                     define_NativeLib = CXX::Interface::createTable<typed_lgr<NativeLib>>("native_lib",
-                        CXX::Interface::direct_method("get_function", funs_NativeLib_get_function)
+                        CXX::Interface::direct_method("get_function", funs_NativeLib_get_function),
+                        CXX::Interface::direct_method("get_own_function", funs_NativeLib_get_own_function)
                     );
                     define_NativeTemplate = CXX::Interface::createTable<typed_lgr<DynamicCall::FunctionTemplate>>("native_template",
                         CXX::Interface::direct_method("add_argument", funs_NativeTemplate_add_argument),
@@ -848,6 +854,10 @@ namespace art{
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
                 builder->O_load_func((std::string)args[1]);
             })
+            AttachAFun(funs_FuncBuilder_O_patch_func, 2, {
+                auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
+                builder->O_patch_func((std::string)args[1]);
+            })
 
 
             AttachAFun(funs_FuncEviroBuilder_line_info_set_line, 2, {
@@ -1004,7 +1014,8 @@ namespace art{
                     CXX::Interface::direct_method("O_line_info_end",funs_FuncBuilder_O_line_info_end), 
                     CXX::Interface::direct_method("O_prepare_func",funs_FuncBuilder_O_prepare_func), 
                     CXX::Interface::direct_method("O_build_func",funs_FuncBuilder_O_build_func), 
-                    CXX::Interface::direct_method("O_load_func",funs_FuncBuilder_O_load_func)
+                    CXX::Interface::direct_method("O_load_func",funs_FuncBuilder_O_load_func), 
+                    CXX::Interface::direct_method("O_patch_func",funs_FuncBuilder_O_patch_func)
                 );
                 CXX::Interface::typeVTable<typed_lgr<FuncEviroBuilder>>() = define_FuncBuilder;
             }
