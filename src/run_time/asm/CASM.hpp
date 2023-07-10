@@ -763,6 +763,9 @@ namespace art{
 		void jmp(asmjit::Label label) {
 			a.jmp((const asmjit::Label&)label);
 		}
+		void jmp_in_label(asmjit::Label label) {
+			a.jmp(asmjit::x86::ptr(label));
+		}
 		void jmp_equal(asmjit::Label op) {
 			a.je(op);
 		}
@@ -970,6 +973,14 @@ namespace art{
 			a.section(text);
 			return label;
 		}
+		asmjit::Label add_label_ptr(asmjit::Label l) {
+			a.section(data);
+			asmjit::Label label = a.newLabel();
+			a.bind(label);
+			a.embedLabel(l);
+			a.section(text);
+			return label;
+		}
 		asmjit::Label add_table(const std::vector<asmjit::Label>& labels) {
 			a.section(data);
 			asmjit::Label label = a.newLabel();
@@ -979,6 +990,26 @@ namespace art{
 			a.section(text);
 			return label;
 		}
+		void bind_data(asmjit::Label label,char* bytes, size_t size) {
+			a.section(data);
+			a.bind(label);
+			a.embed(bytes, size);
+			a.section(text);
+		}
+		void bind_label_ptr(asmjit::Label label, asmjit::Label l) {
+			a.section(data);
+			a.bind(label);
+			a.embedLabel(l);
+			a.section(text);
+		}
+		void bind_table(asmjit::Label label, const std::vector<asmjit::Label>& labels) {
+			a.section(data);
+			a.bind(label);
+			for (auto& l : labels)
+				a.embedLabel(l);
+			a.section(text);
+		}
+
 
 		size_t offset() {
 			return a.offset();
@@ -1031,12 +1062,25 @@ namespace art{
 		void add(creg res, creg64 val, int32_t off, uint8_t vsize = 0) {
 			a.add(asmjit::x86::ptr(res, off, vsize), val);
 		}
+		void atomic_increase(void* value_ptr){
+			a.lock().inc(asmjit::x86::ptr(uint64_t(value_ptr),8));
+		}
+		void atomic_decrease(void* value_ptr){
+			a.lock().dec(asmjit::x86::ptr(uint64_t(value_ptr),8));
+		}
+		void atomic_fetch_add(void* value_ptr, creg64 old){
+			a.lock().xadd(asmjit::x86::ptr(uint64_t(value_ptr),8), old);
+		}
+
 		void insertNative(uint8_t* opcodes,uint32_t len){
 			a.embed(opcodes, len);
 		}
 		void finalize(){
 			a.section(data);
 		}
+		static size_t alocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size_end);
+		static void relase_code(uint8_t* res, asmjit::JitAllocator* alloc);
+		
 	};
 
 
@@ -1085,6 +1129,7 @@ namespace art{
 			bool(*filter)(CXXExInfo& info, void** handle_adress, void* filter_data, size_t len, void* rsp);
 			//current exception in args
 			void(*converter)(void*, size_t len, void* rsp);
+			void(*finally)(void*, size_t len, void* rsp);
 		};
 		union{
 			uint64_t stack_offset : 52;
@@ -1800,7 +1845,6 @@ namespace art{
 				}
 				throw CompileTimeException("fail build prolog");
 			}
-			csm.ret();
 			for(auto& i : res.scope_actions)
 				if (i.function_end_off == 0)
 					throw CompileTimeException("scope not finalized");

@@ -18,7 +18,7 @@ namespace art{
 	}
 #define CONV_ASMJIT(to_conv) { if(auto tmp = (to_conv)) throw CompileTimeException("Fail create func asmjit err code: " + std::to_string(tmp)); }
 	//return offset from allocated to additional size or code size
-	size_t alocate_and_prepare_code(uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size) {
+	size_t CASM::alocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size_end) {
 		res = 0;
 		CONV_ASMJIT(code->flatten());
 		if(code->hasUnresolvedLinks()){
@@ -31,10 +31,10 @@ namespace art{
 
 		uint8_t* rx;
 		uint8_t* rw;
-		CONV_ASMJIT(alloc->alloc((void**)&rx, (void**)&rw, estimatedCodeSize + additional_size));
-
+		CONV_ASMJIT(alloc->alloc((void**)&rx, (void**)&rw, additional_size_begin + estimatedCodeSize + additional_size_end));
+		rw += additional_size_begin;
 		// Relocate the code.
-		Error err = code->relocateToBase(uintptr_t((void*)rx));
+		Error err = code->relocateToBase(uintptr_t((void*)rx) + additional_size_begin);
 		if (ASMJIT_UNLIKELY(err)) {
 			alloc->release(rx);
 			return err;
@@ -60,7 +60,7 @@ namespace art{
 			}
 		}
 		if (codeSize < estimatedCodeSize)
-			alloc->shrink(rx, codeSize + additional_size);
+			alloc->shrink(rx, additional_size_begin + codeSize + additional_size_end);
 
 #if defined(_M_X64) || defined(__x86_64__)
 #else
@@ -78,7 +78,9 @@ namespace art{
 		res = rx;
 		return codeSize;
 	}
-
+	void CASM::relase_code(uint8_t* code, asmjit::JitAllocator* alloc) {
+		alloc->release(code);
+	}
 
 #ifdef _WIN64
 #pragma comment(lib,"Dbghelp.lib")
@@ -285,7 +287,7 @@ namespace art{
 		size_t unwindInfoSize = unwindInfo.size() * sizeof(uint16_t);
 
 		uint8_t* baseaddr;
-		size_t fun_size = alocate_and_prepare_code(baseaddr, code, runtime.allocator(), unwindInfoSize + sizeof(RUNTIME_FUNCTION));
+		size_t fun_size = CASM::alocate_and_prepare_code(0, baseaddr, code, runtime.allocator(), unwindInfoSize + sizeof(RUNTIME_FUNCTION));
 		if(!baseaddr){
 			const char* err = asmjit::DebugUtils::errorAsString(asmjit::Error(fun_size));
 			throw CompileTimeException(err);
@@ -317,7 +319,7 @@ namespace art{
 			BOOLEAN result = RtlDeleteFunctionTable((RUNTIME_FUNCTION*)frame);
 			auto tmp = runtime.allocator()->release(funct);
 			frame_symbols.erase(frame);
-			return !(result == 0 || tmp);
+			return !(result == FALSE || tmp);
 		}
 		return false;
 	};
