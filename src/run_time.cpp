@@ -360,6 +360,16 @@ namespace art{
 		}
 		return env;
 	}
+	typed_lgr<FuncEnvironment> NativeLib::get_own_enviro(const std::string& func_name){
+		auto& env = envs[func_name];
+		if (!env) {
+			Enviropment tmp = (Enviropment)(DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
+			if (!tmp)
+				throw LibrayFunctionNotFoundException();
+			return env = new FuncEnvironment(tmp, true, false);
+		}
+		return env;
+	}
 	size_t NativeLib::get_pure_func(const std::string& func_name) {
 		size_t tmp = (size_t)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 		if (!tmp)
@@ -368,7 +378,7 @@ namespace art{
 	}
 	NativeLib::~NativeLib() {
 		for (auto&[_, it] : envs)
-			it->ForceUnload();
+			if(it) it->forceUnload();
 		envs = {};
 		if (hGetProcIDDLL){
 			FreeLibrary((HMODULE)hGetProcIDDLL);

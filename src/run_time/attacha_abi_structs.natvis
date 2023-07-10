@@ -7,7 +7,7 @@
 	// (See accompanying file LICENSE or copy at
 	// http://www.boost.org/LICENSE_1_0.txt)
 	-->
-	<Type Name="ValueItem">
+	<Type Name="art::ValueItem">
 		<DisplayString Condition="meta.vtype == VType::boolean &amp;&amp; !meta.use_gc">{{ type=boolean, value={(bool)val} }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::i8 &amp;&amp; !meta.use_gc">{{ type=i8, value={(int8_t)val} }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::i16 &amp;&amp; !meta.use_gc">{{ type=i16, value={(int16_t)val} }}</DisplayString>

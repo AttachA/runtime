@@ -18,6 +18,15 @@
 #include "library/exceptions.hpp"
 #include "link_garbage_remover.hpp"
 #include "util/enum_helper.hpp"
+namespace art {
+	struct ValueItem;
+}
+namespace std {
+	template<>
+	struct hash<art::ValueItem> {
+		size_t operator()(const art::ValueItem& cit) const;
+	};
+}
 namespace art{
 	ENUM_t(Opcode,uint8_t,
 		(noting)
@@ -396,6 +405,7 @@ namespace art{
 		ValueItem(uint64_t val);
 		ValueItem(float val);
 		ValueItem(double val);
+		ValueItem(long val):ValueItem(uint32_t(val)){}
 		ValueItem(const std::string& val);
 		ValueItem(std::string&& val);
 		ValueItem(const char* str);
@@ -533,6 +543,7 @@ namespace art{
 		explicit operator uint64_t();
 		explicit operator float();
 		explicit operator double();
+		explicit operator long() { return (long)(uint32_t)*this;}
 		explicit operator void*();
 		explicit operator std::string();
 		explicit operator list_array<ValueItem>();
@@ -900,13 +911,13 @@ namespace art{
 		std::string get_name();
 	};
 }
+#ifndef FFDSSC
+#define FFDSSC
 
 namespace std {
-	template<>
-	struct hash<art::ValueItem> {
-		size_t operator()(const art::ValueItem& cit) const {
-			return cit.hash();
-		}
-	};
+	inline size_t hash<art::ValueItem>::operator()(const art::ValueItem& cit) const {
+		return cit.hash();
+	}
 }
+#endif // !1
 #endif /* SRC_RUN_TIME_ATTACHA_ABI_STRUCTS */

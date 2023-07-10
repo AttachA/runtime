@@ -7,7 +7,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 -->
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
-	<Type Name="typed_lgr&lt;*&gt;">
+	<Type Name="art::typed_lgr&lt;*&gt;">
 		<DisplayString Optional="true">{($T1 *)actual_lgr.ptr}</DisplayString>
 		<Expand>
 			<Item Name="[ptr]" Optional="true">($T1 *)actual_lgr.ptr</Item>

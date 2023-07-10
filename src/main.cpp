@@ -12,15 +12,6 @@
 #include "run_time/library/console.hpp"
 using namespace art;
 
-
-
-void cout_test() {
-	static size_t idsaDAS = 0;
-	Task::sleep(1);
-	ValueItem msq(++idsaDAS);
-	console::print(&msq, 1);
-	Task::sleep(1000);
-}
 void sleep_test() {
 	auto started = std::chrono::high_resolution_clock::now();
 	Task::sleep(1000);
@@ -135,7 +126,7 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	///	tasks.push_back(new Task(env, noting));
 	///Task::await_multiple(tasks);
 	///tasks.clear();
-	for (size_t i = 0; i < 10000; i++)
+	for (size_t i = 0; i < 50; i++)
 		tasks.push_back(new Task(env, noting));
 	Task::await_multiple(tasks);
 	tasks.clear();
@@ -165,6 +156,7 @@ const char _FATAL[] = "FATAL";
 const char _ERROR[] = "ERROR";
 const char _WARN[] = "WARN";
 const char _INFO[] = "INFO";
+#include "run_time/ValueEnvironment.hpp"
 int main(){
 	unhandled_exception.join(new FuncEnvironment(logger<_FATAL>, false, false));
 	errors.join(new FuncEnvironment(logger<_ERROR>, false, false));
@@ -172,8 +164,6 @@ int main(){
 	info.join(new FuncEnvironment(logger<_INFO>, false, false));
 
 	initStandardLib();
-
-	FuncEnvironment::AddNative(cout_test, "cout_test", false);
 	FuncEnvironment::AddNative(sleep_test, "sleep_test", false);
 	enable_thread_naming = true;
 	Task::max_running_tasks = 200000;
