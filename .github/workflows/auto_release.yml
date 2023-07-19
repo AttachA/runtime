@@ -1,9 +1,7 @@
 name: Auto Release
 
 on:
-  workflow_run:
-    workflows: ["Build"]
-    types: [requested]
+  workflow_dispatch
 
 jobs:
   windows_build:
