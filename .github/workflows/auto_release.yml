@@ -13,15 +13,15 @@ jobs:
         
     steps:
     - uses: actions/checkout@v3
+      with:
+        submodules: true
+        fetch-depth: 0
     - uses: lukka/get-cmake@latest
     
     - name: Restore artifacts, or setup vcpkg (do not install any package)
       uses: lukka/run-vcpkg@v10
       with:
-        vcpkgDirectory: '${{ env.VCPKG_PATH }}'
         vcpkgJsonGlob: '**/vcpkg.json'
-        runVcpkgInstall: true
-        doNotCache: false
     - name: Run CMake with vcpkg.json manifest(no tests)
       uses: lukka/run-cmake@v10
       with:
