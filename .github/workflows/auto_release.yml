@@ -9,7 +9,6 @@ jobs:
     strategy:
       fail-fast: false
     env:
-      VCPKG_COMMIT_ID: '64adda19c86e89526b5e27703a193c14477cce07'
       VCPKG_PATH: '${{ github.workspace }}/vcpkg'
         
     steps:
@@ -19,7 +18,6 @@ jobs:
     - name: Restore artifacts, or setup vcpkg (do not install any package)
       uses: lukka/run-vcpkg@v11
       with:
-        vcpkgGitCommitId: '${{env.VCPKG_COMMIT_ID}}'
         vcpkgDirectory: '${{ env.VCPKG_PATH }}'
         vcpkgJsonGlob: '**/vcpkg.json'
         runVcpkgInstall: true
