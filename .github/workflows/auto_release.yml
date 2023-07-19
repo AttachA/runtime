@@ -1,10 +1,9 @@
 name: Auto Release
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_run:
+    workflows: ["Build"]
+    types: [requested]
 
 jobs:
   windows_build:
@@ -12,7 +11,8 @@ jobs:
     strategy:
       fail-fast: false
     env:
-        BUILD_CONFIGURATION: Release
+      VCPKG_COMMIT_ID: '64adda19c86e89526b5e27703a193c14477cce07'
+      VCPKG_PATH: '${{ github.workspace }}/vcpkg'
         
     steps:
     - uses: actions/checkout@v3
@@ -21,8 +21,11 @@ jobs:
     - name: Restore artifacts, or setup vcpkg (do not install any package)
       uses: lukka/run-vcpkg@v11
       with:
-        vcpkgGitCommitId: '64adda19c86e89526b5e27703a193c14477cce07'
-        vcpkgJsonGlob: '\vcpkg.json'
+        vcpkgGitCommitId: '${{env.VCPKG_COMMIT_ID}}'
+        vcpkgDirectory: '${{ env.VCPKG_PATH }}'
+        vcpkgJsonGlob: '**/vcpkg.json'
+        runVcpkgInstall: true
+        doNotCache: false
     - name: Run CMake with vcpkg.json manifest(no tests)
       uses: lukka/run-cmake@v10
       with:
