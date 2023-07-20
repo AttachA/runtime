@@ -8,17 +8,15 @@ on:
         description: 'Release number'
       is_prerelease:
         description: 'As prerelease'
-        type: choice
-        
-        
-      breaking_changes:
-        description: 'Breaking changes'
-      new_features:
-        description: 'New features'
-      bug_fixes:
-        description: 'Bug fixes'
-      other_changes:
-        description: 'Other changes'
+        type: boolean
+
+permissions:
+  contents: write
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  VCPKG_FEATURE_FLAGS: dependencygraph
+
+
 jobs:
   windows_build:
     runs-on: windows-latest
