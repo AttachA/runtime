@@ -1,21 +1,7 @@
 name: Make release
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        required: true
-        description: 'Release number'
-      is_prerelease:
-        description: 'As prerelease'
-        type: boolean
-
-permissions:
-  contents: write
-env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  VCPKG_FEATURE_FLAGS: dependencygraph
-
+  workflow_dispatch
 
 jobs:
   windows_build:
