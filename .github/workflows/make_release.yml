@@ -1,8 +1,24 @@
-name: Auto Release
+name: Make release
 
 on:
-  workflow_dispatch
-
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+        description: 'Release number'
+      is_prerelease:
+        description: 'As prerelease'
+        type: choice
+        
+        
+      breaking_changes:
+        description: 'Breaking changes'
+      new_features:
+        description: 'New features'
+      bug_fixes:
+        description: 'Bug fixes'
+      other_changes:
+        description: 'Other changes'
 jobs:
   windows_build:
     runs-on: windows-latest
