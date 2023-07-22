@@ -44,19 +44,18 @@ namespace art {
 					handle->reduce_usage();
 				}
 			};
-			DynamicCall::FunctionTemplate template_func;
-			Enviropment env = nullptr;
-			FuncHandle* parent = nullptr;
-			
 			std::vector<typed_lgr<FuncEnvironment>> local_funcs;
 			list_array<typed_lgr<FuncEnvironment>> used_enviros;
 			list_array<ValueItem> values;
 			std::vector<uint8_t> cross_code;
+			Enviropment env = nullptr;
+			FuncHandle* parent = nullptr;
 			uint8_t* frame = nullptr;
 			std::atomic_size_t ref_count = 0;
 			
 			FuncType _type : 4;
 			bool is_cheap : 1;//function without context switchs and with fast code
+			bool is_patchable : 1 = true;//function without context switchs and with fast code
 			
 
 			inner_handle(Enviropment env, bool is_cheap);
@@ -73,7 +72,7 @@ namespace art {
 				return local_funcs.size();
 			}
 			ValueItem* localWrapper(size_t indx, ValueItem* arguments, uint32_t arguments_size, bool run_async);
-			typed_lgr<FuncEnvironment> localFn(size_t indx){
+			typed_lgr<FuncEnvironment>& localFn(size_t indx){
 				return local_funcs[indx];
 			}
 
@@ -95,75 +94,13 @@ namespace art {
 			}
 			~inner_handle();
 		};
-		void patch(inner_handle* handle) {
-			lock_guard lock(compile_lock);
-			if(handle){
-				if(handle->parent != nullptr)
-					throw InvalidArguments("Handle already in use");
-					
-				if(handle->env != nullptr){
-					if(trampoline_jump != nullptr)
-						*trampoline_jump = handle->env;
-				}else{
-					if(trampoline_jump != nullptr)
-						*trampoline_jump = trampoline_not_compiled_fallback;
-				}
-			}else{
-				if(trampoline_jump != nullptr)
-					*trampoline_jump = trampoline_not_compiled_fallback;
-			}
-			
-			if(this->handle != nullptr)
-				this->handle->reduce_usage();
-			handle->increase_usage();
-			this->handle = handle;
-			handle->parent = this;
-		}
+		void patch(inner_handle* handle);
 		static FuncHandle* make_func_handle(inner_handle* handle = nullptr);
 		static void release_func_handle(FuncHandle* handle);
-		bool is_cheap(){
-			lock_guard lock(compile_lock);
-			return handle? handle->is_cheap : false;
-		}
-		const std::vector<uint8_t>& code(){
-			lock_guard lock(compile_lock);
-			static std::vector<uint8_t> empty;
-			return handle ? handle->cross_code : empty;
-		}
-		ValueItem* compile_call(ValueItem* arguments, uint32_t arguments_size){
-			unique_lock lock(compile_lock);
-			if(handle){
-				inner_handle::usage_scope scope(handle);
-				inner_handle *compile_handle = handle;
-				if(handle->_type == inner_handle::FuncType::own){
-					if(trampoline_jump != nullptr && handle->env != nullptr){
-						if(*trampoline_jump != handle->env){
-							*trampoline_jump = handle->env;
-							goto not_need_compile;
-						}
-					}
-					compile_handle->compile();
-					if(trampoline_jump != nullptr)
-						*trampoline_jump = compile_handle->env;
-				}
-			not_need_compile:
-				lock.unlock();
-				switch (compile_handle->_type) {
-				case inner_handle::FuncType::own:
-					return compile_handle->env(arguments, arguments_size);
-				case inner_handle::FuncType::native_c:
-					return compile_handle->dynamic_call_helper(arguments, arguments_size);
-				case inner_handle::FuncType::static_native_c:
-					return compile_handle->static_call_helper(arguments, arguments_size);
-				default:
-					throw NotImplementedException();//function not implemented
-				}
-			}
-			throw NotImplementedException();//function not implemented
-		}
-		void* get_trampoline_code(){
-			return trampoline_code;
-		}
+		bool is_cheap();
+		const std::vector<uint8_t>& code();
+		ValueItem* compile_call(ValueItem* arguments, uint32_t arguments_size);
+		void* get_trampoline_code();
 	private:
 		FuncHandle() = default;
 		FuncHandle(const FuncHandle&) = delete;
@@ -269,14 +206,21 @@ namespace art {
 		bool isCheap() {
 			return func_ != nullptr ? func_->is_cheap() : false;
 		}
-		void* get_func_ptr() {
+		void* get_func_ptr() const {
 			return func_ != nullptr ? func_->get_trampoline_code() : nullptr;
+		}
+		void* inner_handle() const{
+			if(func_ == nullptr)
+				return nullptr;
+			return func_->handle;
 		}
 		void patch(FuncHandle::inner_handle* handle) {
 			if(func_ != nullptr)
 				func_->patch(handle);
+			else
+				func_ = FuncHandle::make_func_handle(handle);
 		}
-		std::string to_string();
+		std::string to_string() const;
 		const std::vector<uint8_t>& get_cross_code();
 		void forceUnload();
 		static void clear_enviros();

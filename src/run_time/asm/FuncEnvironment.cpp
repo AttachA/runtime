@@ -15,9 +15,7 @@
 #include "../threading.hpp"
 #include "../../../configuration/agreement/symbols.hpp"
 #include "dynamic_call_proxy.hpp"
-#ifdef _WIN64
-#include <dbgeng.h>
-#endif
+#include "exception.hpp"
 namespace art{
 	using namespace reader;
 	std::shared_ptr<asmjit::JitRuntime> art = std::make_shared<asmjit::JitRuntime>();
@@ -25,14 +23,31 @@ namespace art{
 	TaskMutex enviropments_lock;
 
 
-	const char* try_resolve_frame(FuncHandle::inner_handle* env){
+	std::string try_resolve_frame(FuncHandle::inner_handle* env){
 		for(auto& it : enviropments){
 			if(it.second){
-				if(it.second->get_func_ptr() == env->env)
+				if(it.second->inner_handle() == env)
 					return it.first.data();
 			}
 		}
-		return "unresolved_attach_a_symbol";
+		void* fn_ptr;
+		switch (env->_type) {
+		case FuncHandle::inner_handle::FuncType::own:
+			fn_ptr = env->env;
+			break;
+		case FuncHandle::inner_handle::FuncType::native_c:
+			fn_ptr = env->frame;
+			break;
+		case FuncHandle::inner_handle::FuncType::static_native_c:
+			fn_ptr = (void*)env->values[0];
+			break;
+		default:
+			fn_ptr = nullptr;
+		}
+		if(fn_ptr != nullptr)
+			return "fn(" + FrameResult::JitResolveFrame(fn_ptr,true).fn_name + ")@" + string_help::hexstr((ptrdiff_t)fn_ptr);
+		else
+			return "unresolved_attach_a_symbol";
 	}
 
 
@@ -125,43 +140,72 @@ namespace art{
 
 
 #pragma region CompilerFabric helpers
+	std::string* _compilerFabric_get_constant_string(ValueIndexPos& value_index, list_array<ValueItem>& values, std::vector<ValueItem*> static_map){
+		ValueItem& value = values[value_index.index + static_map.size()];
+		if(value.meta.vtype == VType::string)
+			 return (std::string*)value.getSourcePtr();
+		else{
+			values.push_back((std::string)value);
+			return (std::string*)values.back().getSourcePtr();
+		}
+	}
+	void _compilerFabric_call_fun_string(CASM& a, std::string& fnn, bool is_async, list_array<typed_lgr<FuncEnvironment>>& used_enviros){
+		typed_lgr<FuncEnvironment> fn = FuncEnvironment::enviropment(fnn);
+		used_enviros.push_back(fn);
+		if (is_async) {
+			BuildCall b(a, 4);
+			b.addArg(fnn.c_str());
+			b.addArg(arg_ptr);
+			b.addArg(arg_len_32);
+			b.addArg(true);
+			b.finalize(&FuncEnvironment::callFunc);
+		}
+		else {
+			BuildCall b(a, 2);
+			b.addArg(arg_ptr);
+			b.addArg(arg_len_32);
+			b.finalize(fn->get_func_ptr());
+		}
+	}
 	template<bool use_result = true, bool do_cleanup = true>
 	void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values, std::vector<ValueItem*> static_map, list_array<typed_lgr<FuncEnvironment>>& used_enviros) {
 		CallFlags flags;
 		flags.encoded = readData<uint8_t>(data, data_len, i);
 		BuildCall b(a, 0);
-		if (flags.in_memory) {
-			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
-			ValueIndexPos value_index = readIndexPos(data, data_len, i);
+		ValueIndexPos value_index = readIndexPos(data, data_len, i);
+		if(value_index.pos == ValuePos::in_constants){
+			if(flags.always_dynamic){
+				b.setArguments(5);
+				b.addArg(_compilerFabric_get_constant_string(value_index, values, static_map));
+				b.addArg(arg_ptr);
+				b.addArg(arg_len_32);
+				b.addArg(flags.async_mode);
+				b.finalize(&FuncEnvironment::callFunc);
+			}
+			else{
+				_compilerFabric_call_fun_string(
+					a,
+					*_compilerFabric_get_constant_string(value_index, values, static_map),
+					flags.async_mode,
+					used_enviros
+				);
+			}
+		}
+		else{
+			b.setArguments(2);
 			b.lea_valindex({static_map, values},value_index);
 			b.addArg(VType::string);
 			b.finalize(getSpecificValue);
+			b.setArguments(5);
 			b.addArg(resr);
 			b.addArg(arg_ptr);
 			b.addArg(arg_len_32);
 			b.addArg(flags.async_mode);
 			b.finalize(&FuncEnvironment::callFunc);
 		}
-		else {
-			std::string fnn = readString(data, data_len, i);
-			typed_lgr<FuncEnvironment> fn = FuncEnvironment::enviropment(fnn);
-			used_enviros.push_back(fn);
-			if (flags.async_mode) {
-				values.push_back(fnn);
-				b.addArg(((std::string*)values.back().val)->c_str());
-				b.addArg(arg_ptr);
-				b.addArg(arg_len_32);
-				b.addArg(flags.async_mode);
-				b.finalize(&FuncEnvironment::callFunc);
-			}
-			else {
-				b.addArg(arg_ptr);
-				b.addArg(arg_len_32);
-				b.finalize(fn->get_func_ptr());
-			}
-		}
 		if constexpr (use_result) {
 			if (flags.use_result) {
+				b.setArguments(2);
 				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.addArg(resr);
 				b.finalize(getValueItem);
@@ -176,13 +220,36 @@ namespace art{
 				inlineReleaseUnused(a, resr);
 	}
 
+
+	void _compilerFabric_call_local(CASM& a, FuncHandle::inner_handle* env, uint32_t fn_index, bool is_async){
+		if (env->localFnSize() >= fn_index) 
+			throw InvalidIL("Invalid function index");
+		auto& fn = env->localFn(fn_index);
+		if (is_async) {
+			BuildCall b(a, 3);
+			b.addArg(&fn);
+			b.addArg(arg_ptr);
+			b.addArg(arg_len_32);
+			b.finalize(&FuncEnvironment::asyncWrapper);
+		}
+		else {
+			BuildCall b(a, 2);
+			b.addArg(arg_ptr);
+			b.addArg(arg_len_32);
+			b.finalize(fn->get_func_ptr());
+		}
+	}
 	template<bool use_result = true, bool do_cleanup = true>
 	void compilerFabric_call_local(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, FuncHandle::inner_handle* env, list_array<ValueItem>& values,  std::vector<ValueItem*> static_map) {
 		CallFlags flags;
 		flags.encoded = readData<uint8_t>(data, data_len, i);
-		BuildCall b(a, 0);
-		if (flags.in_memory) {
-			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+		auto value_index = readIndexPos(data, data_len, i);
+		if(value_index.pos == ValuePos::in_constants){
+			uint32_t index = (uint32_t)values[value_index.index + static_map.size()];
+			_compilerFabric_call_local(a, env, index, flags.async_mode);
+		}else{
+			BuildCall b(a, 1);
+			b.lea_valindex({static_map, values}, value_index);
 			b.finalize(getSize);
 			b.setArguments(5);
 			b.addArg(env);
@@ -193,28 +260,9 @@ namespace art{
 			b.finalize(&FuncHandle::inner_handle::localWrapper);
 			b.setArguments(0);
 		}
-		else {
-			uint32_t fn_index = readData<uint32_t>(data, data_len, i);
-			if (env->localFnSize() >= fn_index) {
-				throw InvalidIL("Invalid function index");
-			}
-			auto fn = env->localFn(fn_index);
-			if (flags.async_mode) {
-				BuildCall b(a, 2);
-				b.addArg(env->localFn(fn_index).getPtr());
-				b.addArg(arg_ptr);
-				b.addArg(arg_len_32);
-				b.finalize(&FuncEnvironment::asyncWrapper);
-			}
-			else {
-					BuildCall b(a, 2);
-					b.addArg(arg_ptr);
-					b.addArg(arg_len_32);
-					b.finalize(fn->get_func_ptr());
-			}
-		}
 		if constexpr (use_result) {
 			if (flags.use_result) {
+				BuildCall b(a, 2);
 				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 				b.addArg(resr);
 				b.finalize(getValueItem);
@@ -286,18 +334,17 @@ namespace art{
 		CallFlags flags;
 		flags.encoded = readData<uint8_t>(data, data_len, i);
 		BuildCall b(a, 0);
-		if (flags.in_memory) {
-			b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));//value
+		auto value_index = readIndexPos(data, data_len, i);
+		if(value_index.pos == ValuePos::in_constants){
+			b.setArguments(5);
+			b.addArg(_compilerFabric_get_constant_string(value_index, values, static_map));
+		}
+		else {
+			b.lea_valindex({static_map, values},value_index);
 			b.addArg(VType::string);
 			b.finalize(getSpecificValue);
 			b.setArguments(5);
 			b.addArg(resr);
-		}
-		else {
-			std::string fnn = readString(data, data_len, i);
-			values.push_back(fnn);
-			b.setArguments(5);
-			b.addArg((std::string*)values.back().val);
 		}
 
 		b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));//class
@@ -373,18 +420,17 @@ namespace art{
 		CallFlags flags;
 		flags.encoded = readData<uint8_t>(data, data_len, i);
 		BuildCall b(a, 0);
-		if (flags.in_memory) {
+		auto value_index = readIndexPos(data, data_len, i);
+		if (value_index.pos == ValuePos::in_constants) {
+			b.setArguments(5);
+			b.addArg(_compilerFabric_get_constant_string(value_index, values, static_map));
+		}
+		else {
 			b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));//value
 			b.addArg(VType::string);
 			b.finalize(getSpecificValue);
 			b.setArguments(5);
 			b.addArg(resr);
-		}
-		else {
-			std::string fnn = readString(data, data_len, i);
-			values.push_back(fnn);
-			b.setArguments(5);
-			b.addArg((std::string*)values.back().val);
 		}
 
 		b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));
@@ -1097,15 +1143,20 @@ namespace art{
 
 
 
-
-	void throwDirEx(ValueItem* typ, ValueItem* desc) {
-		throw AException((std::string)*typ,(std::string)*desc);
-	}
-	void throwStatEx(ValueItem* typ, ValueItem* desc) {
-		throw AException(*(std::string*)typ->getSourcePtr(),*(std::string*)desc->getSourcePtr());
-	}
-	void throwEx(const std::string* typ, const std::string* desc) {
-		throw AException(*typ, *desc);
+	void throwEx(ValueItem* typ, ValueItem* desc) {
+		static ValueItem noting;
+		if(desc == nullptr)
+			desc = &noting;
+		if(typ == nullptr)
+			typ = &noting;
+		if(typ->meta.vtype == VType::string && desc->meta.vtype == VType::string)
+			throw AException(*(std::string*)typ->getSourcePtr(),*(std::string*)desc->getSourcePtr());
+		else if (typ->meta.vtype == VType::string)
+			throw AException(*(std::string*)typ->getSourcePtr(), (std::string)*desc);
+		else if (desc->meta.vtype == VType::string)
+			throw AException((std::string)*typ, *(std::string*)desc->getSourcePtr());
+		else
+			throw AException((std::string)*typ, (std::string)*desc);
 	}
 
 
@@ -1171,292 +1222,106 @@ namespace art{
 
 #pragma endregion
 #pragma region ScopeAction
-#ifdef _WIN64
-	template<typename T>
-	T readFromArrayAsValue(uint8_t*& arr) {
-		T& val = *(T*)arr;
-		arr += sizeof(T);
-		return val;
-	}
-	template<typename T>
-	T* readFromArrayAsArray(uint8_t*& arr, size_t& size) {
-		size = readFromArrayAsValue<size_t>(arr);
-		T* ret = new T[size];
-		for (size_t i = 0; i < size; i++)
-			ret[i] = readFromArrayAsValue<T>(arr);
-		return ret;
-	}
-	template<typename T>
-	void skipArray(uint8_t*& arr) {
-		size_t size = readFromArrayAsValue<size_t>(arr);
-		arr += sizeof(T) * size;
-	}
-	EXCEPTION_DISPOSITION __attacha_handle(
-		IN PEXCEPTION_RECORD ExceptionRecord,
-		IN ULONG64 EstablisherFrame,
-		IN OUT PCONTEXT ContextRecord,
-		IN OUT PDISPATCHER_CONTEXT DispatcherContext
-	) {
-		auto function_start = (uint8_t*)DispatcherContext->ImageBase;
-		void* addr = (void*)DispatcherContext->ControlPc;
-		uint8_t* data = (uint8_t*)DispatcherContext->HandlerData;
-		bool execute = false;
-		bool on_unwind = ExceptionRecord->ExceptionFlags & EXCEPTION_UNWINDING;
-		std::exception_ptr current_ex = std::current_exception();
-		try{
-			while(true){
-				ScopeAction::Action action = (ScopeAction::Action)*data++;
-				if (action == ScopeAction::Action::not_action)
-					return ExceptionContinueSearch;
-				size_t start_offset = readFromArrayAsValue<size_t>(data);
-				size_t end_offset = readFromArrayAsValue<size_t>(data);
-				if (addr >= (void*)(function_start + start_offset) && addr < (void*)(function_start + end_offset)) 
-					execute = true;
-				switch(action) {
-					case ScopeAction::Action::destruct_stack: {
-						char* stack = (char*)ContextRecord->Rbp;
-						auto destruct = readFromArrayAsValue<void(*)(void*&)>(data);
-						stack += readFromArrayAsValue<uint64_t>(data);
-						if(execute && on_unwind){
-							destruct(*(void**)stack);
-							ExceptionRecord->ExceptionFlags |= EXCEPTION_NONCONTINUABLE;
-						}
-						break;
-					}
-					case ScopeAction::Action::destruct_register: {
-						auto destruct = readFromArrayAsValue<void(*)(void*&)>(data);
-						if(!execute || !on_unwind){
-							readFromArrayAsValue<uint32_t>(data);
-							execute = false;
-							continue;
-						}
-						switch (readFromArrayAsValue<uint32_t>(data)) {
-						case asmjit::x86::Gp::kIdAx:
-							destruct(*(void**)ContextRecord->Rax);
-							break;
-						case asmjit::x86::Gp::kIdBx:
-							destruct(*(void**)ContextRecord->Rbx);
-							break;
-						case asmjit::x86::Gp::kIdCx:
-							destruct(*(void**)ContextRecord->Rcx);
-							break;
-						case asmjit::x86::Gp::kIdDx:
-							destruct(*(void**)ContextRecord->Rdx);
-							break;
-						case asmjit::x86::Gp::kIdDi:
-							destruct(*(void**)ContextRecord->Rdi);
-							break;
-						case asmjit::x86::Gp::kIdSi:
-							destruct(*(void**)ContextRecord->Rsi);
-							break;
-						case asmjit::x86::Gp::kIdR8:
-							destruct(*(void**)ContextRecord->R8);
-							break;
-						case asmjit::x86::Gp::kIdR9:
-							destruct(*(void**)ContextRecord->R9);
-							break;
-						case asmjit::x86::Gp::kIdR10:
-							destruct(*(void**)ContextRecord->R10);
-							break;
-						case asmjit::x86::Gp::kIdR11:
-							destruct(*(void**)ContextRecord->R11);
-							break;
-						case asmjit::x86::Gp::kIdR12:
-							destruct(*(void**)ContextRecord->R12);
-							break;
-						case asmjit::x86::Gp::kIdR13:
-							destruct(*(void**)ContextRecord->R13);
-							break;
-						case asmjit::x86::Gp::kIdR14:
-							destruct(*(void**)ContextRecord->R14);
-							break;
-						case asmjit::x86::Gp::kIdR15:
-							destruct(*(void**)ContextRecord->R15);
-							break;
-						default:
-							{
-								ValueItem it {"Invalid register id"};
-								errors.async_notify(it);
-							}
-							return ExceptionContinueSearch;
-						}
-					}
-					case ScopeAction::Action::filter: {
-						auto filter = readFromArrayAsValue<bool(*)(CXXExInfo&, void*&, void*, size_t, void*)>(data);
-						if(!execute){
-							skipArray<char>(data);
-							execute = false;
-							continue;
-						}
-						size_t size = 0;
-						std::unique_ptr<char[]> stack;
-						stack.reset(readFromArrayAsArray<char>(data, size));
-						CXXExInfo info;
-						getCxxExInfoFromNative1(info,ExceptionRecord);
-						void* continue_from = nullptr;
-						if(!on_unwind){
-							if (filter(info,continue_from, stack.get(), size, (void*)ContextRecord->Rsp)){
-								RtlUnwindEx(
-									(void*)EstablisherFrame,
-									continue_from,
-									ExceptionRecord,
-									UlongToPtr(ExceptionRecord->ExceptionCode),
-									DispatcherContext->ContextRecord,DispatcherContext->HistoryTable
-								);
-								__debugbreak();
-								ContextRecord->Rip = (uint64_t)continue_from;
-								return ExceptionCollidedUnwind;
-							}
-							else
-								return ExceptionContinueSearch;
-						}
-						break;
-					}
-					case ScopeAction::Action::converter: {
-						auto convert = readFromArrayAsValue<void(*)(void*,size_t, void* rsp)>(data);
-						size_t size = 0;
-						std::unique_ptr<char[]> stack;
-						stack.reset(readFromArrayAsArray<char>(data, size));
-						convert(stack.get(), size, (void*)ContextRecord->Rsp);
-						ValueItem args{"Exception converter will not return"};
-						errors.async_notify(args);
-						return ExceptionContinueSearch;
-					}
-					case ScopeAction::Action::finally:{
-						auto finally_ = readFromArrayAsValue<void(*)(void*,size_t, void* rsp)>(data);
-						size_t size = 0;
-						std::unique_ptr<char[]> stack;
-						stack.reset(readFromArrayAsArray<char>(data, size));
-						finally_(stack.get(), size, (void*)ContextRecord->Rsp);
-						break;
-					}
-					case ScopeAction::Action::not_action:
-						return ExceptionContinueSearch;
-					default:
-						throw BadOperationException();
-				}
-			}
-		}catch(...){
-			switch(exception_on_language_routine_action){
-				case ExceptionOnLanguageRoutineAction::invite_to_debugger:{
-					std::exception_ptr second_ex = std::current_exception();
-					invite_to_debugger("In this program caught exception on language routine handle");
-					break;
-				}
-				case ExceptionOnLanguageRoutineAction::nest_exception:
-					throw RoutineHandleExceptions(current_ex, std::current_exception());
-				case ExceptionOnLanguageRoutineAction::swap_exception:
-					throw;
-				case ExceptionOnLanguageRoutineAction::ignore:
-					break;
-			}
-		}
-		return ExceptionContinueSearch;
-	}
-	bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro) {
+
+	bool _attacha_filter(CXXExInfo& info, void*& continue_from, void* data, size_t size, void* enviro) {
 		uint8_t* data_info = (uint8_t*)data;
 		list_array<std::string> exceptions;
+		continue_from = internal::readFromArrayAsValue<void*>(data_info);
 		switch (*data_info++) {
 			case 0: {
-				uint64_t handle_count = readFromArrayAsValue<uint64_t>(data_info);
+				uint64_t handle_count = internal::readFromArrayAsValue<uint64_t>(data_info);
 				exceptions.reserve_push_back(handle_count);
 				for (size_t i = 0; i < handle_count; i++) {
 					std::string string;
 					size_t len = 0;
-					char* str = readFromArrayAsArray<char>(data_info, len);
+					char* str = internal::readFromArrayAsArray<char>(data_info, len);
 					string.assign(str, len);
 					delete[] str;
 					exceptions.push_back(string);
-				}	
+				}
 				break;
 			}
 			case 1: {
-				uint16_t value = readFromArrayAsValue<uint16_t>(data_info);
+				uint16_t value = internal::readFromArrayAsValue<uint16_t>(data_info);
 				ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
 				exceptions.push_back((std::string)*item);
 				break;
 			}
 			case 2: {
-				uint64_t handle_count = readFromArrayAsValue<uint64_t>(data_info);
+				uint64_t handle_count = internal::readFromArrayAsValue<uint64_t>(data_info);
 				exceptions.reserve_push_back(handle_count);
 				for (size_t i = 0; i < handle_count; i++) {
-					uint16_t value = readFromArrayAsValue<uint16_t>(data_info);
+					uint16_t value = internal::readFromArrayAsValue<uint16_t>(data_info);
 					ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
 					exceptions.push_back((std::string)*item);
 				}
 				break;
 			}
 			case 3: {
-				uint64_t handle_count = readFromArrayAsValue<uint64_t>(data_info);
+				uint64_t handle_count = internal::readFromArrayAsValue<uint64_t>(data_info);
 				exceptions.reserve_push_back(handle_count);
 				for (size_t i = 0; i < handle_count; i++) {
-					bool is_dynamic = readFromArrayAsValue<bool>(data_info);
+					bool is_dynamic = internal::readFromArrayAsValue<bool>(data_info);
 					if (!is_dynamic) {
 						std::string string;
 						size_t len = 0;
-						char* str = readFromArrayAsArray<char>(data_info, len);
+						char* str = internal::readFromArrayAsArray<char>(data_info, len);
 						string.assign(str, len);
 						delete[] str;
 						exceptions.push_back(string);
 					}
 					else {
-						uint16_t value = readFromArrayAsValue<uint16_t>(data_info);
+						uint16_t value = internal::readFromArrayAsValue<uint16_t>(data_info);
 						ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
 						exceptions.push_back((std::string)*item);
 					}
 				}
 				break;
 			}
+			case 4://catch all
+				//prevent catch CLR exception
+				return exception::try_catch_all(info);
+			case 5:{//attacha filter function
+				Enviropment env_filter = internal::readFromArrayAsValue<Enviropment>(data_info);
+				uint16_t filter_enviro_slice_begin = internal::readFromArrayAsValue<uint32_t>(data_info);
+				uint16_t filter_enviro_slice_end = internal::readFromArrayAsValue<uint32_t>(data_info);
+				if(filter_enviro_slice_begin >= filter_enviro_slice_end)
+					throw InvalidIL("Invalid enviroment slice");
+				uint16_t filter_enviro_size = filter_enviro_slice_end - filter_enviro_slice_begin;
+				auto env_res = env_filter((ValueItem*)enviro + filter_enviro_slice_begin, filter_enviro_size);
+				if(env_res == nullptr)
+					return false;
+				else{
+					bool res = (bool)*env_res;
+					delete env_res;
+					return res;
+				}
+			}
 			default:
 				throw BadOperationException();
 		}
-
-		if(info.ex_ptr == nullptr) {
-			switch (info.native_id) {
-			case EXCEPTION_ACCESS_VIOLATION:
-				return exceptions.contains("AccessViolation");
-			case EXCEPTION_STACK_OVERFLOW:
-				return exceptions.contains("StackOverflow");
-			case EXCEPTION_INT_DIVIDE_BY_ZERO:
-			case EXCEPTION_FLT_DIVIDE_BY_ZERO:
-				return exceptions.contains("DivideByZero");
-			case EXCEPTION_INT_OVERFLOW:
-			case EXCEPTION_FLT_OVERFLOW:
-			case EXCEPTION_FLT_STACK_CHECK:
-			case EXCEPTION_FLT_UNDERFLOW:
-				return exceptions.contains("NumericOverflow");
-			case EXCEPTION_BREAKPOINT: 
-				return exceptions.contains("Breakpoint");
-			case EXCEPTION_ILLEGAL_INSTRUCTION:
-				return exceptions.contains("IllegalInstruction");
-			case EXCEPTION_PRIV_INSTRUCTION:
-				return exceptions.contains("PrivilegedInstruction");
-			default:
-				return exceptions.contains("nUnknownNativeException");
-			}
-		} else {
-			return exceptions.contains_one([&info](const std::string& str) {
-				return info.ty_arr.contains_one([&str](const CXXExInfo::Tys& ty) {
-					if(ty.is_bad_alloc)
-						return str == "BadAlloc";
-					return str == ty.ty_info->name();
-				});
-			});
-		}
+		return exception::map_native_exception_names(info).contains_one([&exceptions](const std::string& str) {
+			return exceptions.contains(str);
+		});
 	}
-	bool _attacha_converter(void* data, size_t size, void* rsp){
+	void _attacha_finally(void* data, size_t size, void* enviro){
 		uint8_t* data_info = (uint8_t*)data;
-		return false;
+		Enviropment env_finalizer = internal::readFromArrayAsValue<Enviropment>(data_info);
+		uint16_t finalizer_enviro_slice_begin = internal::readFromArrayAsValue<uint32_t>(data_info);
+		uint16_t finalizer_enviro_slice_end = internal::readFromArrayAsValue<uint32_t>(data_info);
+		if(finalizer_enviro_slice_begin >= finalizer_enviro_slice_end)
+			throw InvalidIL("Invalid enviroment slice");
+		uint16_t finalizer_enviro_size = finalizer_enviro_slice_end - finalizer_enviro_slice_begin;
+		auto tmp = env_finalizer((ValueItem*)enviro + finalizer_enviro_slice_begin, finalizer_enviro_size);
+		if(tmp != nullptr)
+			delete tmp;
 	}
 
 
-#else
-	void __attacha_handle(void//not implemented
-	) {
-		return;
+	
+	void _inner_handle_finalizer(void* data, size_t size, void* rsp){
+		((FuncHandle::inner_handle*)data)->reduce_usage();
 	}
-
-#endif
 #pragma endregion
 
 #pragma region Compiler
@@ -1558,129 +1423,7 @@ namespace art{
 		
 #pragma region dynamic opcodes
 #pragma region set/remove/move/copy
-		void dynamic_set(){
-			ValueIndexPos value_index = readIndexPos(data, data_len, i);
-			ValueMeta meta = readData<ValueMeta>(data, data_len, i);
-			meta.as_ref = false;
-			if(!meta.use_gc)
-				meta.allow_edit = true;
-			uint32_t optional_len = 0;
-			{
-				BuildCall v(a, 3);
-				v.lea_valindex({static_map, values}, value_index);
-				v.addArg(meta.encoded);
-				v.addArg(cmd.is_gc_mode);
-				v.finalize(preSetValue);
-			}
-			switch (meta.vtype) {
-			case VType::i8:
-			case VType::ui8:
-			case VType::type_identifier:
-				if (!meta.use_gc)
-					a.mov(resr, 0, 1, readData<uint8_t>(data, data_len, i));
-				else
-					values.push_back(ValueItem(new lgr(new uint8_t(readData<uint8_t>(data, data_len, i))), meta, no_copy));
-				break;
-			case VType::i16:
-			case VType::ui16:
-				if (!meta.use_gc)
-					a.mov(resr, 0, 2, readData<uint16_t>(data, data_len, i));
-				else
-					values.push_back(ValueItem(new lgr(new uint16_t(readData<uint16_t>(data, data_len, i))), meta, no_copy));
-				break;
-			case VType::i32:
-			case VType::ui32:
-			case VType::flo:
-				if (!meta.use_gc)
-					a.mov(resr, 0, 4, readData<uint32_t>(data, data_len, i));
-				else
-					values.push_back(ValueItem(new lgr(new uint32_t(readData<uint32_t>(data, data_len, i))), meta, no_copy));
-				break;
-			case VType::i64:
-			case VType::ui64:
-			case VType::doub:
-			case VType::undefined_ptr:
-				if (!meta.use_gc)
-					a.mov(resr, 0, 8, readData<uint64_t>(data, data_len, i));
-				else
-					values.push_back(ValueItem(new lgr(new uint64_t(readData<uint64_t>(data, data_len, i))), meta, no_copy));
-				break;
-			case VType::raw_arr_i8:
-			case VType::raw_arr_ui8: {
-				optional_len = readLen(data, data_len, i);
-				if (!meta.use_gc)
-					values.push_back(ValueItem(readRawArray<int8_t>(data, data_len, i, optional_len), meta, no_copy));
-				else
-					values.push_back(ValueItem(new lgr(readRawArray<int8_t>(data, data_len, i, optional_len)), meta, no_copy));
-				break;
-			}
-			case VType::raw_arr_i16:
-			case VType::raw_arr_ui16: {
-				optional_len = readLen(data, data_len, i);
-				if (!meta.use_gc)
-					values.push_back(ValueItem(readRawArray<int16_t>(data, data_len, i, optional_len), meta, no_copy));
-				else
-					values.push_back(ValueItem(new lgr(readRawArray<int16_t>(data, data_len, i, optional_len)), meta, no_copy));
-				break;
-			}
-			case VType::raw_arr_i32:
-			case VType::raw_arr_ui32:
-			case VType::raw_arr_flo: {
-				optional_len = readLen(data, data_len, i);
-				if (!meta.use_gc)
-					values.push_back(ValueItem(readRawArray<int32_t>(data, data_len, i, optional_len), meta, no_copy));
-				else
-					values.push_back(ValueItem(new lgr(readRawArray<int32_t>(data, data_len, i, optional_len)), meta, no_copy));
-				break;
-			}
-			case VType::raw_arr_i64:
-			case VType::raw_arr_ui64:
-			case VType::raw_arr_doub: {
-				optional_len = readLen(data, data_len, i);
-				if (!meta.use_gc)
-					values.push_back(ValueItem(readRawArray<int64_t>(data, data_len, i, optional_len), meta, no_copy));
-				else
-					values.push_back(ValueItem(new lgr(readRawArray<int64_t>(data, data_len, i, optional_len)), meta, no_copy));
-				break;
-			}
-			case VType::uarr: {
-				if (!meta.use_gc)
-					values.push_back(ValueItem(readAnyUarr(data, data_len, i)));
-				else
-					values.push_back(ValueItem(new lgr(new list_array<ValueItem>(readAnyUarr(data, data_len, i))), meta, no_copy));
-				break;
-			}
-			case VType::string: {
-				if (!meta.use_gc)
-					values.push_back(readString(data, data_len, i));
-				else
-					values.push_back(ValueItem(new lgr(new std::string(readString(data, data_len, i))), meta, no_copy));
-				break;
-			}
-			case VType::faarr: {
-				optional_len = readLen(data, data_len, i);
-				if (!meta.use_gc) {
-					meta.val_len = optional_len;
-					values.push_back(ValueItem(readRawAny(data, data_len, i, optional_len), meta, no_copy));
-				}
-				else
-					values.push_back(ValueItem(new lgr(readRawAny(data, data_len, i, optional_len)), meta, no_copy));
-				break;
-			}
-			default:
-				break;
-			}
-			if (needAlloc(meta)) {
-				BuildCall b(a, 3);
-				b.addArg(resr);
-				b.addArg(values.back().val);
-				b.addArg(meta.encoded);
-				b.finalize(setValue);
-				if (is_raw_array(meta.vtype)) 
-					a.mov_valindex_meta_size({static_map, values}, value_index, optional_len);
-			}
-		}
-		void dynamic_set_saarr() {
+		void dynamic_create_saarr() {
 			ValueIndexPos value_index = readIndexPos(data, data_len, i);
 			uint32_t len = readData<uint32_t>(data, data_len, i);
 			BuildCall b(a, 0);
@@ -1933,23 +1676,10 @@ namespace art{
 		}
 
 		void dynamic_throw(){
-			bool in_memory = readData<bool>(data, data_len, i);
-			if (in_memory) {
-				BuildCall b(a, 2);
-				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
-				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
-				b.finalize(throwDirEx);
-			}
-			else {
-				values.push_back(readString(data, data_len, i));
-				auto& ex_typ = values.back();
-				values.push_back(readString(data, data_len, i));
-				auto& ex_desc = values.back();
-				BuildCall b(a, 2);
-				b.addArg(ex_typ.val);
-				b.addArg(ex_desc.val);
-				b.finalize(throwEx);
-			}
+			BuildCall b(a, 2);
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
+			b.finalize(throwEx);
 		}
 		void dynamic_insert_native() {
 			uint32_t len = readData<uint32_t>(data, data_len, i);
@@ -1958,40 +1688,38 @@ namespace art{
 		}
 		void dynamic_set_structure_value(){
 			BuildCall b(a, 0);
-			if (readData<bool>(data, data_len, i)) {
-				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//value name
+			auto value_index = readIndexPos(data, data_len, i);
+			if (value_index.pos == ValuePos::in_constants) {
+				b.addArg(readData<ClassAccess>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//interface
+				b.addArg(_compilerFabric_get_constant_string(value_index, values, static_map));
+			}
+			else {
+				b.lea_valindex({static_map, values}, value_index);//value name
 				b.addArg(VType::string);
 				b.finalize(getSpecificValue);
 				b.addArg(readData<ClassAccess>(data, data_len, i));
 				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//interface
 				b.addArg(resr);
 			}
-			else {
-				std::string fnn = readString(data, data_len, i);
-				values.push_back(fnn);
-				b.addArg((std::string*)values.back().val);
-				b.addArg(readData<ClassAccess>(data, data_len, i));
-				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//interface
-			}
 			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//value
-			b.finalize((void(*)(ClassAccess, ValueItem&, const std::string&, ValueItem&))art::CXX::Interface::setValue);
+			b.finalize((void(*)(ClassAccess, ValueItem&, const std::string&, const ValueItem&))art::CXX::Interface::setValue);
 		}
 		void dynamic_get_structure_value() {
 			BuildCall b(a, 0);
-			if (readData<bool>(data, data_len, i)) {
-				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//value name
+			auto value_index = readIndexPos(data, data_len, i);
+			if (value_index.pos == ValuePos::in_constants) {
+				b.addArg(readData<ClassAccess>(data, data_len, i));
+				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//interface
+				b.addArg(_compilerFabric_get_constant_string(value_index, values, static_map));
+			}
+			else {
+				b.lea_valindex({static_map, values}, value_index);//value name
 				b.addArg(VType::string);
 				b.finalize(getSpecificValue);
 				b.addArg(readData<ClassAccess>(data, data_len, i));
 				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//interface
 				b.addArg(resr);
-			}
-			else {
-				std::string fnn = readString(data, data_len, i);
-				values.push_back(fnn);
-				b.addArg((std::string*)values.back().val);
-				b.addArg(readData<ClassAccess>(data, data_len, i));
-				b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//interface
 			}
 			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));//save to
 			b.finalize(getInterfaceValue);
@@ -2376,7 +2104,6 @@ namespace art{
 			size_t handle = scope_map.try_mapHandle(readData<uint64_t>(data, data_len, i));
 			if (handle == -1)
 				throw InvalidIL("Undefined handle");
-			ScopeAction* scope_action = scope.setExceptionHandle(handle, _attacha_filter);
 			//switch (readData<char>(data, data_len, i)) {
 			//case 0:
 			//	{
@@ -2399,6 +2126,7 @@ namespace art{
 			//	delete[] (char*)data->filter_data;
 			//	data->filter_data = nullptr;
 			//};
+			//ScopeAction* scope_action = scope.setExceptionHandle(handle, _attacha_filter);
 		}
 
 		void dynamic_is_gc(){
@@ -2500,7 +2228,7 @@ namespace art{
 			if(flags.is_signed)
 				b.finalize(&ValueItem::operator int64_t);
 			else
-				b.finalize(&ValueItem::operator uint64_t);
+				b.finalize(&ValueItem::operator uint64_t );
 
 
 			_dynamic_table_jump_bound_check<true>(flags, flags.too_large, table_size, fail_too_large, "too_large");
@@ -2627,54 +2355,6 @@ namespace art{
 
 		void static_build(){
 			switch (cmd.code) {
-				case Opcode::set: {
-					ValueIndexPos value_index = readIndexPos(data, data_len, i);
-					ValueMeta meta = readData<ValueMeta>(data, data_len, i);
-					meta.as_ref = false;
-					{
-						if (needAlloc(meta)) {
-							BuildCall v(a, 3);
-							v.lea_valindex({static_map, values},value_index);
-							v.addArg(meta.encoded);
-							v.addArg(cmd.is_gc_mode);
-							v.finalize(preSetValue);
-						}
-						else
-							a.mov_valindex_meta({static_map, values},value_index, meta.encoded);
-					}
-					switch (meta.vtype) {
-					case VType::i8:
-					case VType::ui8:
-						a.mov(resr, 0, 1, readData<uint8_t>(data, data_len, i));
-						break;
-					case VType::i16:
-					case VType::ui16:
-						a.mov(resr, 0, 2, readData<uint16_t>(data, data_len, i));
-						break;
-					case VType::i32:
-					case VType::ui32:
-					case VType::flo:
-						a.mov(resr, 0, 4, readData<uint32_t>(data, data_len, i));
-						break;
-					case VType::i64:
-					case VType::ui64:
-					case VType::doub:
-						a.mov(resr, 0, 8, readData<uint64_t>(data, data_len, i));
-						break;
-					case VType::string: {
-						values.push_back(readString(data, data_len, i));
-						BuildCall b(a, 3);
-						b.addArg(resr);
-						b.addArg(values.back().val);
-						b.addArg(meta.encoded);
-						b.finalize(setValue);
-						break;
-					}
-					default:
-						break;
-					}
-					break;
-				}
 				case Opcode::remove:
 					if (needAlloc(readData<ValueMeta>(data, data_len, i))) {
 						BuildCall b(a, 1);
@@ -2691,23 +2371,10 @@ namespace art{
 					break;
 				}
 				case Opcode::throw_ex: {
-					bool in_memory = readData<bool>(data, data_len, i);
-					if (in_memory) {
-						BuildCall b(a, 2);
-						b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));
-						b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));
-						b.finalize(throwStatEx);
-					}
-					else {
-						values.push_back(readString(data, data_len, i));
-						auto& ex_typ = values.back();
-						values.push_back(readString(data, data_len, i));
-						auto& ex_desc = values.back();
-						BuildCall b(a, 2);
-						b.addArg(ex_typ.val);
-						b.addArg(ex_desc.val);
-						b.finalize(throwEx);
-					}
+					BuildCall b(a, 2);
+					b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));
+					b.lea_valindex({static_map, values},readIndexPos(data, data_len, i));
+					b.finalize(throwEx);
 					break;
 				}
 				case Opcode::arr_op: {
@@ -3079,8 +2746,7 @@ namespace art{
 		void dynamic_build(){
 			switch (cmd.code) {
 				case Opcode::noting: a.noting(); break;
-				case Opcode::set: dynamic_set(); break;
-				case Opcode::set_saarr: dynamic_set_saarr(); break;
+				case Opcode::create_saarr: dynamic_create_saarr(); break;
 				case Opcode::remove: dynamic_remove(); break;
 				case Opcode::sum: dynamic_sum(); break;
 				case Opcode::minus: dynamic_minus(); break;
@@ -3218,6 +2884,236 @@ namespace art{
 		}
 	};
 
+
+
+	FuncHandle::inner_handle::inner_handle(Enviropment env, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->env = env;
+	}
+	FuncHandle::inner_handle::inner_handle(void* func, const DynamicCall::FunctionTemplate& template_func, bool is_cheap) : is_cheap(is_cheap) {
+		_type = FuncType::native_c;
+		values.push_back(new DynamicCall::FunctionTemplate(template_func));
+		frame = (uint8_t*)func;
+	}
+	FuncHandle::inner_handle::inner_handle(void* func, FuncHandle::inner_handle::ProxyFunction proxy_func, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::static_native_c;
+		values.push_back(func);
+		frame = (uint8_t*)proxy_func;
+	}
+	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = code;
+	}
+	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = code;
+		this->values = values;
+	}
+	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<typed_lgr<FuncEnvironment>>& local_funcs, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = code;
+		this->values = values;
+		this->local_funcs = local_funcs;
+	}
+
+	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = std::move(code);
+	}
+	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = std::move(code);
+		this->values = std::move(values);
+	}
+	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<typed_lgr<FuncEnvironment>>&& local_funcs, bool is_cheap) : is_cheap(is_cheap){
+		_type = FuncType::own;
+		this->cross_code = std::move(code);
+		this->values = std::move(values);
+		this->local_funcs = std::move(local_funcs);
+	}
+	ValueItem* FuncHandle::inner_handle::localWrapper(size_t indx, ValueItem* arguments, uint32_t arguments_size, bool run_async){
+		if (indx < local_funcs.size()){
+			if(run_async)
+				return FuncEnvironment::async_call(local_funcs[indx], arguments, arguments_size);
+			else
+				return local_funcs[indx]->syncWrapper(arguments, arguments_size);
+		}
+		else
+			throw InvalidArguments("Invalid local function index, index is out of range");
+	}
+	FuncHandle::inner_handle::~inner_handle(){
+		if (frame != nullptr && _type == FuncType::own){
+			if(!FrameResult::deinit(frame, env, *art)){
+				ValueItem result{ "Failed unload function:", frame };
+				errors.async_notify(result);
+			}
+		}
+		if (_type == FuncType::native_c) {
+			delete (DynamicCall::FunctionTemplate*)(void*)values[0];
+		}
+	}
+
+
+
+
+
+
+
+	void FuncHandle::inner_handle::compile() {
+		if (frame != nullptr)
+			throw InvalidOperation("Function already compiled");
+		used_enviros.clear();
+		RuntimeCompileException error_handler;
+		CodeHolder code;
+		code.setErrorHandler(&error_handler);
+		code.init(art->environment());
+		CASM a(code);
+		BuildProlog bprolog(a);
+		ScopeManager scope(bprolog);
+		ScopeManagerMap scope_map(scope);
+
+
+
+		Label self_function = a.newLabel();
+		a.label_bind(self_function);
+
+		size_t to_be_skiped = 0;
+		auto&& [jump_list, function_locals, flags, used_static_values, used_enviro_vals, used_arguments, constants_values] = decodeFunctionHeader(a, cross_code, cross_code.size(), to_be_skiped);
+		uint32_t to_alloc_statics = flags.used_static ? uint32_t(used_static_values) + 1 : 0;
+		if(flags.run_time_computable){
+			//local_funcs already contains all local functions
+			if(values.size() > to_alloc_statics)
+				values.remove(to_alloc_statics, values.size());
+			else{
+				values.reserve_push_front(to_alloc_statics - values.size());
+				for(uint32_t i = values.size(); i < to_alloc_statics; i++)
+					values.push_front(nullptr);
+			}
+		}else{
+			local_funcs = std::move(function_locals);
+			values.resize(to_alloc_statics, nullptr);
+		}
+		constants_values += to_alloc_statics;
+		values.reserve_push_back(std::clamp<uint32_t>(constants_values, 0, UINT32_MAX));
+		uint32_t max_values = flags.used_enviro_vals ? uint32_t(used_enviro_vals) + 1 : 0;
+
+
+		//OS dependent prolog begin
+		size_t is_patchable_exception_finalizer = 0;
+		if(flags.is_patchable){
+			a.atomic_increase(&ref_count);//increase usage count
+			is_patchable_exception_finalizer = scope.createExceptionScope();
+			scope.setExceptionFinal(is_patchable_exception_finalizer, _inner_handle_finalizer, this, 0);
+		}
+		bprolog.pushReg(frame_ptr);
+		if(max_values)
+			bprolog.pushReg(enviro_ptr);
+		bprolog.pushReg(arg_ptr);
+		bprolog.pushReg(arg_len);
+		bprolog.alignPush();
+		bprolog.stackAlloc(0x20);//c++ abi
+		bprolog.setFrame();
+		bprolog.end_prolog();
+		//OS dependent prolog end 
+
+		//Init enviropment
+		a.mov(arg_ptr, argr0);
+		a.mov(arg_len_32, argr1_32);
+		a.mov(enviro_ptr, stack_ptr);
+		if(max_values)
+			a.stackIncrease(CASM::alignStackBytes(max_values<<1));
+		a.stackAlign();
+
+		if(flags.used_arguments){
+			Label correct = a.newLabel();
+			a.cmp(arg_len_32, uint32_t(used_arguments));
+			a.jmp_unsigned_more_or_eq(correct);
+			BuildCall b(a, 2);
+			b.addArg(arg_len_32);
+			b.addArg(uint32_t(used_arguments));
+			b.finalize((void(*)(uint32_t,uint32_t))art::CXX::arguments_range);
+			a.label_bind(correct);
+		}
+
+		//Clean enviropment
+		{
+			std::vector<ValueItem*> empty_static_map;
+			ValueIndexPos ipos;
+			ipos.pos = ValuePos::in_enviro;
+			for(size_t i=0;i<max_values;i++){
+				ipos.index = i;
+				a.mov_valindex({empty_static_map, values} ,ipos, 0);
+				a.mov_valindex_meta({empty_static_map, values} ,ipos, 0);
+				scope.createValueLifetimeScope(valueDestructDyn, i<<1);
+			}
+		}
+		Label prolog = a.newLabel();
+		CompilerFabric fabric(a,scope,scope_map,prolog, self_function, cross_code, cross_code.size(), to_be_skiped, jump_list, values, flags.in_debug, this, to_alloc_statics, used_enviros);
+		fabric.build();
+
+		a.label_bind(prolog);
+		a.push(resr);
+		a.push(0);
+		{
+			BuildCall b(a, 1);
+			ValueIndexPos ipos;
+			ipos.pos = ValuePos::in_enviro;
+			for(size_t i=0;i<max_values;i++){
+				ipos.index = i;
+				b.lea_valindex({fabric.static_map, values},ipos);
+				b.finalize(valueDestructDyn);
+				scope.endValueLifetime(i);
+			}
+		}
+		a.pop();
+		a.pop(resr);
+		auto& tmp = bprolog.finalize_epilog();
+		
+		if(flags.is_patchable){
+			scope.endExceptionScope(is_patchable_exception_finalizer);
+			a.mov(argr0, -1);
+			a.atomic_fetch_add(&ref_count, argr0);
+			a.cmp(argr0, 1);//if old ref_count == 1
+
+			Label last_usage = a.newLabel();
+			a.jmp_equal(last_usage);
+			a.ret();
+			a.label_bind(last_usage);
+			a.mov(argr0, this);
+			a.mov(argr1, resr);
+			auto func_ptr = &FuncHandle::inner_handle::last_usage_env;
+			Label last_usage_function = a.add_data((char*)reinterpret_cast<void*&>(func_ptr), 8);
+			a.jmp_in_label(last_usage_function);
+		}else{
+			a.ret();
+		}
+
+		tmp.use_handle = true;
+		tmp.exHandleOff = a.offset() <= UINT32_MAX ? (uint32_t)a.offset() : throw InvalidFunction("Too big function");
+		a.jmp((uint64_t)exception::__get_internal_handler());
+		a.finalize();
+		auto resolved_frame =try_resolve_frame(this);
+		env = (Enviropment)tmp.init(frame, a.code(), *art, resolved_frame.data());
+		//remove self from used_enviros
+		auto my_trampoline = parent ? parent->get_trampoline_code() : nullptr;
+		used_enviros.remove_if([my_trampoline](typed_lgr<FuncEnvironment>& a){return a->get_func_ptr() == my_trampoline;});
+	}
+
+	
+	ValueItem* FuncHandle::inner_handle::dynamic_call_helper(ValueItem* arguments, uint32_t arguments_size){
+		auto template_func = (DynamicCall::FunctionTemplate*)(void*)values[0];
+		DynamicCall::FunctionCall call((DynamicCall::PROC)frame, *template_func, true);
+		return __attacha___::NativeProxy_DynamicToStatic(call, *template_func, arguments, arguments_size);
+	}
+	ValueItem* FuncHandle::inner_handle::static_call_helper(ValueItem* arguments, uint32_t arguments_size){
+		FuncHandle::inner_handle::ProxyFunction proxy = (FuncHandle::inner_handle::ProxyFunction)frame;
+		void* func = (void*)values[0];
+		return proxy(func, arguments, arguments_size);
+	}
+
+#pragma endregion
+
+#pragma region FuncHandle
 	FuncHandle* FuncHandle::make_func_handle(inner_handle* handle) {
 		if(handle ? handle->parent : false)
 			throw InvalidArguments("Handle already in use");
@@ -3288,213 +3184,82 @@ namespace art{
 			handle->reduce_usage();
 		delete (std::shared_ptr<asmjit::JitRuntime>*)art_ref;
 	}
-
-	FuncHandle::inner_handle::inner_handle(Enviropment env, bool is_cheap) : is_cheap(is_cheap){
-		_type = FuncType::own;
-		this->env = env;
-	}
-	FuncHandle::inner_handle::inner_handle(void* func, const DynamicCall::FunctionTemplate& template_func, bool is_cheap) : is_cheap(is_cheap),template_func(template_func) {
-		_type = FuncType::native_c;
-		frame = (uint8_t*)func;
-	}
-	FuncHandle::inner_handle::inner_handle(void* func, FuncHandle::inner_handle::ProxyFunction proxy_func, bool is_cheap) : is_cheap(is_cheap){
-		_type = FuncType::static_native_c;
-		values.push_back(func);
-		frame = (uint8_t*)proxy_func;
-	}
-	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, bool is_cheap) : is_cheap(is_cheap){
-		_type = FuncType::own;
-		this->cross_code = code;
-	}
-	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool is_cheap) : is_cheap(is_cheap){
-		_type = FuncType::own;
-		this->cross_code = code;
-		this->values = values;
-	}
-	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<typed_lgr<FuncEnvironment>>& local_funcs, bool is_cheap) : is_cheap(is_cheap){
-		_type = FuncType::own;
-		this->cross_code = code;
-		this->values = values;
-		this->local_funcs = local_funcs;
-	}
-
-	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, bool is_cheap) : is_cheap(is_cheap){
-		_type = FuncType::own;
-		this->cross_code = std::move(code);
-	}
-	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, bool is_cheap) : is_cheap(is_cheap){
-		_type = FuncType::own;
-		this->cross_code = std::move(code);
-		this->values = std::move(values);
-	}
-	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<typed_lgr<FuncEnvironment>>&& local_funcs, bool is_cheap) : is_cheap(is_cheap){
-		_type = FuncType::own;
-		this->cross_code = std::move(code);
-		this->values = std::move(values);
-		this->local_funcs = std::move(local_funcs);
-	}
-	ValueItem* FuncHandle::inner_handle::localWrapper(size_t indx, ValueItem* arguments, uint32_t arguments_size, bool run_async){
-		if (indx < local_funcs.size()){
-			if(run_async)
-				return FuncEnvironment::async_call(local_funcs[indx], arguments, arguments_size);
-			else
-				return local_funcs[indx]->syncWrapper(arguments, arguments_size);
-		}
-		else
-			throw InvalidArguments("Invalid local function index, index is out of range");
-	}
-	FuncHandle::inner_handle::~inner_handle(){
-		if (frame != nullptr && _type == FuncType::own){
-			if(!FrameResult::deinit(frame, env, *art)){
-				ValueItem result{ "Failed unload function:", frame };
-				errors.async_notify(result);
-			}
-		}
-	}
-
-
-
-
-
-
-
-	void FuncHandle::inner_handle::compile() {
-		if (frame != nullptr)
-			throw InvalidOperation("Function already compiled");
-		used_enviros.clear();
-		RuntimeCompileException error_handler;
-		CodeHolder code;
-		code.setErrorHandler(&error_handler);
-		code.init(art->environment());
-		CASM a(code);
-		Label self_function = a.newLabel();
-		a.label_bind(self_function);
-
-		size_t to_be_skiped = 0;
-		auto&& [jump_list, function_locals, flags, used_static_values, used_enviro_vals, used_arguments, constants_values] = decodeFunctionHeader(a, cross_code, cross_code.size(), to_be_skiped);
-		uint32_t to_alloc_statics = flags.used_static ? uint32_t(used_static_values) + 1 : 0;
-		if(flags.run_time_computable){
-			//local_funcs already contains all local functions
-			if(values.size() > to_alloc_statics)
-				values.remove(to_alloc_statics, values.size());
-			else{
-				values.reserve_push_front(to_alloc_statics - values.size());
-				for(uint32_t i = values.size(); i < to_alloc_statics; i++)
-					values.push_front(nullptr);
+	void FuncHandle::patch(inner_handle* handle) {
+		lock_guard lock(compile_lock);
+		if(handle){
+			if(handle->parent != nullptr)
+				throw InvalidArguments("Handle already in use");
+				
+			if(handle->env != nullptr){
+				if(trampoline_jump != nullptr)
+					*trampoline_jump = handle->env;
+			}else{
+				if(trampoline_jump != nullptr)
+					*trampoline_jump = trampoline_not_compiled_fallback;
 			}
 		}else{
-			local_funcs = std::move(function_locals);
-			values.resize(to_alloc_statics, nullptr);
+			if(trampoline_jump != nullptr)
+				*trampoline_jump = trampoline_not_compiled_fallback;
 		}
-		constants_values += to_alloc_statics;
-		values.reserve_push_back(std::clamp<uint32_t>(constants_values, 0, UINT32_MAX));
-		uint32_t max_values = flags.used_enviro_vals ? uint32_t(used_enviro_vals) + 1 : 0;
-
-
-		//OS dependent prolog begin
-		BuildProlog bprolog(a);
-		a.atomic_increase(&ref_count);//increase usage count
-		bprolog.pushReg(frame_ptr);
-		if(max_values)
-			bprolog.pushReg(enviro_ptr);
-		bprolog.pushReg(arg_ptr);
-		bprolog.pushReg(arg_len);
-		bprolog.alignPush();
-		bprolog.stackAlloc(0x20);//c++ abi
-		bprolog.setFrame();
-		bprolog.end_prolog();
-		//OS dependent prolog end 
-
-		//Init enviropment
-		a.mov(arg_ptr, argr0);
-		a.mov(arg_len_32, argr1_32);
-		a.mov(enviro_ptr, stack_ptr);
-		if(max_values)
-			a.stackIncrease(CASM::alignStackBytes(max_values<<1));
-		a.stackAlign();
-
-		if(flags.used_arguments){
-			Label correct = a.newLabel();
-			a.cmp(arg_len_32, uint32_t(used_arguments));
-			a.jmp_unsigned_more_or_eq(correct);
-			BuildCall b(a, 2);
-			b.addArg(arg_len_32);
-			b.addArg(uint32_t(used_arguments));
-			b.finalize((void(*)(uint32_t,uint32_t))art::CXX::arguments_range);
-			a.label_bind(correct);
+		if(this->handle != nullptr){
+			if(!this->handle->is_patchable)
+				throw InvalidOperation("Tried patch unpatchable function");
+			this->handle->reduce_usage();
 		}
-
-		//Clean enviropment
-		ScopeManager scope(bprolog);
-		ScopeManagerMap scope_map(scope);
-		{
-			std::vector<ValueItem*> empty_static_map;
-			ValueIndexPos ipos;
-			ipos.pos = ValuePos::in_enviro;
-			for(size_t i=0;i<max_values;i++){
-				ipos.index = i;
-				a.mov_valindex({empty_static_map, values} ,ipos, 0);
-				a.mov_valindex_meta({empty_static_map, values} ,ipos, 0);
-				scope.createValueLifetimeScope(valueDestructDyn, i<<1);
+		handle->increase_usage();
+		this->handle = handle;
+		handle->parent = this;
+	}
+	bool FuncHandle::is_cheap(){
+		lock_guard lock(compile_lock);
+		return handle? handle->is_cheap : false;
+	}
+	const std::vector<uint8_t>& FuncHandle::code(){
+		lock_guard lock(compile_lock);
+		static std::vector<uint8_t> empty;
+		return handle ? handle->cross_code : empty;
+	}
+	ValueItem* FuncHandle::compile_call(ValueItem* arguments, uint32_t arguments_size){
+		unique_lock lock(compile_lock);
+		if(handle){
+			inner_handle::usage_scope scope(handle);
+			inner_handle *compile_handle = handle;
+			if(handle->_type == inner_handle::FuncType::own){
+				if(trampoline_jump != nullptr && handle->env != nullptr){
+					if(*trampoline_jump != handle->env){
+						*trampoline_jump = handle->env;
+						goto not_need_compile;
+					}
+				}
+				lock.unlock();
+				compile_handle->compile();
+				lock.lock();
+				if(trampoline_jump != nullptr)
+					*trampoline_jump = compile_handle->env;
+			}
+		not_need_compile:
+			lock.unlock();
+			switch (compile_handle->_type) {
+			case inner_handle::FuncType::own:
+				return compile_handle->env(arguments, arguments_size);
+			case inner_handle::FuncType::native_c:
+				return compile_handle->dynamic_call_helper(arguments, arguments_size);
+			case inner_handle::FuncType::static_native_c:
+				return compile_handle->static_call_helper(arguments, arguments_size);
+			default:
+				throw NotImplementedException();//function not implemented
 			}
 		}
-		Label prolog = a.newLabel();
-		CompilerFabric fabric(a,scope,scope_map,prolog, self_function, cross_code, cross_code.size(), to_be_skiped, jump_list, values, flags.in_debug, this, to_alloc_statics, used_enviros);
-		fabric.build();
-
-		a.label_bind(prolog);
-		a.push(resr);
-		a.push(0);
-		{
-			BuildCall b(a, 1);
-			ValueIndexPos ipos;
-			ipos.pos = ValuePos::in_enviro;
-			for(size_t i=0;i<max_values;i++){
-				ipos.index = i;
-				b.lea_valindex({fabric.static_map, values},ipos);
-				b.finalize(valueDestructDyn);
-				scope.endValueLifetime(i);
-			}
-		}
-		a.pop();
-		a.pop(resr);
-		auto& tmp = bprolog.finalize_epilog();
-		a.mov(argr0, -1);
-		a.atomic_fetch_add(&ref_count, argr0);
-		a.cmp(argr0, 1);//if old ref_count == 1
-
-		Label last_usage = a.newLabel();
-		a.jmp_equal(last_usage);
-		a.ret();
-		a.label_bind(last_usage);
-		a.mov(argr0, this);
-		a.mov(argr1, resr);
-		auto func_ptr = &FuncHandle::inner_handle::last_usage_env;
-		Label last_usage_function = a.add_data((char*)reinterpret_cast<void*&>(func_ptr), 8);
-		a.jmp_in_label(last_usage_function);
-
-
-		tmp.use_handle = true;
-		tmp.exHandleOff = a.offset() <= UINT32_MAX ? (uint32_t)a.offset() : throw InvalidFunction("Too big function");
-		a.jmp((uint64_t)__attacha_handle);
-		a.finalize();
-		env = (Enviropment)tmp.init(frame, a.code(), *art, try_resolve_frame(this));
-		//remove self from used_enviros
-		auto my_trampoline = parent ? parent->get_trampoline_code() : nullptr;
-		used_enviros.remove_if([my_trampoline](typed_lgr<FuncEnvironment>& a){return a->get_func_ptr() == my_trampoline;});
+		throw NotImplementedException();//function not implemented
 	}
-
-	
-	ValueItem* FuncHandle::inner_handle::dynamic_call_helper(ValueItem* arguments, uint32_t arguments_size){
-		DynamicCall::FunctionCall call((DynamicCall::PROC)frame, template_func, true);
-		return __attacha___::NativeProxy_DynamicToStatic(call, template_func, arguments, arguments_size);
+	void* FuncHandle::get_trampoline_code(){
+		unique_lock lock(compile_lock);
+		if(handle)
+			if(!handle->is_patchable)
+				if(handle->_type == inner_handle::FuncType::own)
+					return handle->env;
+		return trampoline_code;
 	}
-	ValueItem* FuncHandle::inner_handle::static_call_helper(ValueItem* arguments, uint32_t arguments_size){
-		FuncHandle::inner_handle::ProxyFunction proxy = (FuncHandle::inner_handle::ProxyFunction)frame;
-		void* func = (void*)values[0];
-		return proxy(func, arguments, arguments_size);
-	}
-
 #pragma endregion
 #pragma region FuncEnvironment
 	ValueItem* FuncEnvironment::async_call(typed_lgr<FuncEnvironment> f, ValueItem* args, uint32_t args_len) {
@@ -3513,15 +3278,35 @@ namespace art{
 	ValueItem* FuncEnvironment::asyncWrapper(typed_lgr<FuncEnvironment>* self, ValueItem* arguments, uint32_t arguments_size) {
 		return FuncEnvironment::async_call(*self, arguments, arguments_size);
 	}
-	std::string FuncEnvironment::to_string(){
+	std::string FuncEnvironment::to_string() const{
 		if(!func_)
+			return "fn(unloaded)@0";
+		
+		if(func_->handle == nullptr)
 			return "fn(unknown)@0";
-		if(!func_->handle)
-			return "fn(unknown)@0";
-		for(auto& it : enviropments)
-			if(it.second.getPtr() == this)
-				return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)func_->handle->env);
-		return "fn(" + FrameResult::JitResolveFrame(func_->handle->env,true).fn_name + ")@" + string_help::hexstr((ptrdiff_t)func_->handle->env);
+		void* fn_ptr;
+		switch (func_->handle->_type) {
+		case FuncHandle::inner_handle::FuncType::own:
+			fn_ptr = func_->handle->env;
+			break;
+		case FuncHandle::inner_handle::FuncType::native_c:
+			fn_ptr = func_->handle->frame;
+			break;
+		case FuncHandle::inner_handle::FuncType::static_native_c:
+			fn_ptr = (void*)func_->handle->values[0];
+			break;
+		default:
+			fn_ptr = nullptr;
+		}
+		{
+			unique_lock guard(enviropments_lock);
+			for(auto& it : enviropments)
+				if(it.second.getPtr() == this)
+					return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)fn_ptr);
+		}
+		if(fn_ptr == nullptr)
+			return "fn(unresolved)@unknown";
+		return "fn(" + FrameResult::JitResolveFrame(fn_ptr,true).fn_name + ")@" + string_help::hexstr((ptrdiff_t)fn_ptr);
 	}
 	const std::vector<uint8_t>& FuncEnvironment::get_cross_code(){
 		static std::vector<uint8_t> empty;
@@ -3536,17 +3321,21 @@ namespace art{
 	}
 	void FuncEnvironment::fastHotPatch(const patch_list& patches) {
 		for(auto& it : patches)
+			if(it.second->parent)
+				throw InvalidOperation("Can't patch function with bounded handle: " + it.first);
+		for(auto& it : patches)
 			fastHotPatch(it.first, it.second);
 	}
 	typed_lgr<FuncEnvironment> FuncEnvironment::enviropment(const std::string& func_name) {
 		return enviropments[func_name];
 	}
 	ValueItem* FuncEnvironment::callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
-		if (enviropments.contains(func_name)) {
+		auto found = enviropments.find(func_name);
+		if (found != enviropments.end()) {
 			if (run_async)
-				return async_call(enviropments[func_name], arguments, arguments_size);
+				return async_call(found->second, arguments, arguments_size);
 			else
-				return enviropments[func_name]->syncWrapper(arguments, arguments_size);
+				return found->second->syncWrapper(arguments, arguments_size);
 		}
 		throw NotImplementedException();
 	}
@@ -3563,22 +3352,30 @@ namespace art{
 	}
 	void FuncEnvironment::Load(typed_lgr<FuncEnvironment> fn, const std::string& symbol_name) {
 		art::lock_guard guard(enviropments_lock);
-		if (enviropments.contains(symbol_name))
-			throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
-		enviropments[symbol_name] = fn;
+		auto found = enviropments.find(symbol_name);
+		if (found != enviropments.end()) {
+			if (found->second->func_ != nullptr)
+				if(found->second->func_->handle != nullptr)
+					throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
+			found->second = fn;
+		}
+		else
+			enviropments[symbol_name] = fn;
 	}
 	void FuncEnvironment::Unload(const std::string& func_name) {
 		art::lock_guard guard(enviropments_lock);
-		if (enviropments.contains(func_name)){
-			if (!enviropments[func_name]->can_be_unloaded) 
+		auto found = enviropments.find(func_name);
+		if (found != enviropments.end()){
+			if (!found->second->can_be_unloaded) 
 				throw SymbolException("Fail unload symbol: \"" + func_name + "\" cause them can't be unloaded");
-			enviropments.erase(func_name);
+			enviropments.erase(found);
 		}
 	}
 	void FuncEnvironment::ForceUnload(const std::string& func_name) {
 		art::lock_guard guard(enviropments_lock);
-		if (enviropments.contains(func_name)) 
-			enviropments.erase(func_name);
+		auto found = enviropments.find(func_name);
+		if (found != enviropments.end())
+			enviropments.erase(found);
 	}
 	void FuncEnvironment::forceUnload(){
 		FuncHandle* handle = func_;
