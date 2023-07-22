@@ -296,5 +296,26 @@ namespace art {
 			write(data, ipos.pos);
 		}
 	}
+	namespace internal{
+		template<typename T>
+		T readFromArrayAsValue(uint8_t*& arr) {
+			T& val = *(T*)arr;
+			arr += sizeof(T);
+			return val;
+		}
+		template<typename T>
+		T* readFromArrayAsArray(uint8_t*& arr, size_t& size) {
+			size = readFromArrayAsValue<size_t>(arr);
+			T* ret = new T[size];
+			for (size_t i = 0; i < size; i++)
+				ret[i] = readFromArrayAsValue<T>(arr);
+			return ret;
+		}
+		template<typename T>
+		void skipArray(uint8_t*& arr) {
+			size_t size = readFromArrayAsValue<size_t>(arr);
+			arr += sizeof(T) * size;
+		}
+	}
 }
 #endif /* SRC_RUN_TIME_UTIL_TOOLS */
