@@ -11,7 +11,7 @@
 #include <vector>
 #include <cassert>
 #include <unordered_map>
-#include "../library/exceptions.hpp"
+#include "../exceptions.hpp"
 #include "../cxxException.hpp"
 #include "../attacha_abi_structs.hpp"
 namespace art{

@@ -8,7 +8,7 @@
 #ifdef _WIN64
 #include <Windows.h>
 #endif
-#include "exceptions.hpp"
+#include "../exceptions.hpp"
 #include <cstdio>
 #include <string>
 #include "../AttachA_CXX.hpp"

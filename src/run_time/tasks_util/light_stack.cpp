@@ -9,7 +9,7 @@
 #include "light_stack.hpp"
 #include "../../run_time.hpp"
 #include "../library/console.hpp"
-#include "../library/exceptions.hpp"
+#include "../exceptions.hpp"
 #include "../../../configuration/tasks.hpp"
 #include <cassert>
 #include <boost/lockfree/queue.hpp>

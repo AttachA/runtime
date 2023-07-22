@@ -15,7 +15,7 @@
 #include <chrono>
 #include <exception>
 #include "../library/list_array.hpp"
-#include "library/exceptions.hpp"
+#include "exceptions.hpp"
 #include "link_garbage_remover.hpp"
 #include "util/enum_helper.hpp"
 namespace art {

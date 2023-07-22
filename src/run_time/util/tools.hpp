@@ -9,7 +9,7 @@
 #define SRC_RUN_TIME_UTIL_TOOLS
 #include <vector>
 #include <string>
-#include "../library/exceptions.hpp"
+#include "../exceptions.hpp"
 #include "../attacha_abi_structs.hpp"
 namespace art {
 	namespace reader{

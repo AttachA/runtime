@@ -8,7 +8,7 @@
 #include <type_traits>
 #include <chrono>
 #include <tuple>
-#include "library/exceptions.hpp"
+#include "exceptions.hpp"
 //created to avoid back compatibility problems, ex: big size of std::mutex, slow critical section in windows, etc
 
 namespace art {

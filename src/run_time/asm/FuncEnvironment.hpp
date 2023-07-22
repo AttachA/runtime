@@ -9,7 +9,7 @@
 #include <string>
 #include "../attacha_abi_structs.hpp"
 #include "dynamic_call.hpp"
-#include "../library/exceptions.hpp"
+#include "../exceptions.hpp"
 #include "../tasks.hpp"
 namespace art {
 	//use make_func_handle and release_func_handle to create and destroy FuncHandle
