@@ -121,7 +121,7 @@ namespace art{
 			ValueItem makeCall(ClassAccess access, ValueItem& c, const std::string& fun_name, const Types&... types) {
 				if(c.meta.vtype == VType::struct_){
 					ValueItem args[] = { ValueItem(c, as_refrence), ABI_IMPL::BVcast(types)... };
-					ValueItem* res = ((Structure&)c).table_get_dynamic(fun_name, access)(args, sizeof...(Types) + 1);
+					ValueItem* res = ((const Structure&)c).table_get_dynamic(fun_name, access)(args, sizeof...(Types) + 1);
 					if (res == nullptr)
 						return {};
 					ValueItem m(std::move(*res));
@@ -143,11 +143,71 @@ namespace art{
 				}
 				else throw InvalidArguments("Invalid type for call");
 			}
+
+			inline ValueItem makeCall(ClassAccess access, const Structure& c, const std::string& fun_name) {
+				ValueItem arg(&c, as_refrence);
+				ValueItem* res = c.table_get_dynamic(fun_name, access)(&arg, 1);
+				if (res == nullptr)
+					return {};
+				ValueItem m(std::move(*res));
+				delete res;
+				return m;
+			}
+			inline ValueItem makeCall(ClassAccess access, const ValueItem& c, const std::string& fun_name) {
+				if(c.meta.vtype == VType::struct_){
+					ValueItem arg(c, as_refrence);
+					ValueItem* res = ((Structure&)c).table_get_dynamic(fun_name, access)(&arg, 1);
+					if (res == nullptr)
+						return {};
+					ValueItem m(std::move(*res));
+					delete res;
+					return m;
+				}
+				else throw InvalidArguments("Invalid type for call");
+			}
+			
+			
+			template<class ...Types>
+			ValueItem makeCall(ClassAccess access, const Structure& c, const std::string& fun_name, const Types&... types) {
+				ValueItem args[] = { ValueItem(&c, as_refrence), ABI_IMPL::BVcast(types)... };
+				ValueItem* res = c.table_get_dynamic(fun_name, access)(args, sizeof...(Types) + 1);
+				if (res == nullptr)
+					return {};
+				ValueItem m(std::move(*res));
+				delete res;
+				return m;
+			}
+			template<class ...Types>
+			ValueItem makeCall(ClassAccess access, const ValueItem& c, const std::string& fun_name, const Types&... types) {
+				if(c.meta.vtype == VType::struct_){
+					ValueItem args[] = { ValueItem(c, as_refrence), ABI_IMPL::BVcast(types)... };
+					ValueItem* res = ((const Structure&)c).table_get_dynamic(fun_name, access)(args, sizeof...(Types) + 1);
+					if (res == nullptr)
+						return {};
+					ValueItem m(std::move(*res));
+					delete res;
+					return m;
+				}
+				else throw InvalidArguments("Invalid type for call");
+			}
+			inline ValueItem makeCall(ClassAccess access, const ValueItem& c, const std::string& fun_name, ValueItem* args, uint32_t len) {
+				if(c.meta.vtype == VType::struct_){
+					list_array<ValueItem> args_tmp(args, args + len, len);
+					args_tmp.push_front(ValueItem(c, as_refrence));
+					ValueItem* res = ((Structure&)c).table_get_dynamic(fun_name, access)(args_tmp.data(), len + 1);
+					if (res == nullptr)
+						return {};
+					ValueItem m(std::move(*res));
+					delete res;
+					return m;
+				}
+				else throw InvalidArguments("Invalid type for call");
+			}
 	
-			inline ValueItem getValue(Structure& c, const std::string& val_name) {
+			inline ValueItem getValue(const Structure& c, const std::string& val_name) {
 				return c.dynamic_value_get(val_name);
 			}
-			inline ValueItem getValue(ValueItem& c, const std::string& val_name) {
+			inline ValueItem getValue(const ValueItem& c, const std::string& val_name) {
 				switch (c.meta.vtype) {
 				case VType::struct_:
 					return ((Structure&)c).dynamic_value_get(val_name);
@@ -156,23 +216,23 @@ namespace art{
 				}
 			}
 	
-			inline ValueItem getValue(ClassAccess access, Structure& c, const std::string& val_name) {
+			inline ValueItem getValue(ClassAccess access, const Structure& c, const std::string& val_name) {
 				return c.dynamic_value_get(val_name);
 			}
-			inline ValueItem getValue(ClassAccess access, ValueItem& c, const std::string& val_name) {
+			inline ValueItem getValue(ClassAccess access, const ValueItem& c, const std::string& val_name) {
 				switch (c.meta.vtype) {
 				case VType::struct_:
-					return ((Structure&)c).dynamic_value_get(val_name);
+					return ((const Structure&)c).dynamic_value_get(val_name);
 				default:
 					throw NotImplementedException();
 				}
 			}
 	
 	
-			inline void setValue(Structure& c, const std::string& val_name, ValueItem& set) {
+			inline void setValue(Structure& c, const std::string& val_name, const ValueItem& set) {
 				c.dynamic_value_set(val_name, set);
 			}
-			inline void setValue(ValueItem& c, const std::string& val_name, ValueItem& set) {
+			inline void setValue(ValueItem& c, const std::string& val_name, const ValueItem& set) {
 				switch (c.meta.vtype) {
 				case VType::struct_:
 					((Structure&)c).dynamic_value_set(val_name, set);
@@ -181,10 +241,10 @@ namespace art{
 					throw NotImplementedException();
 				}
 			}
-			inline void setValue(ClassAccess access, Structure& c, const std::string& val_name, ValueItem& set) {
+			inline void setValue(ClassAccess access, Structure& c, const std::string& val_name, const ValueItem& set) {
 				c.dynamic_value_set(val_name, set);
 			}
-			inline void setValue(ClassAccess access, ValueItem& c, const std::string& val_name, ValueItem& set) {
+			inline void setValue(ClassAccess access, ValueItem& c, const std::string& val_name, const ValueItem& set) {
 				switch (c.meta.vtype) {
 				case VType::struct_:
 					((Structure&)c).dynamic_value_set(val_name, set);
@@ -195,21 +255,21 @@ namespace art{
 			}
 	
 	
-			inline bool hasImplement(Structure& c, const std::string& fun_name, ClassAccess access) {
+			inline bool hasImplement(const Structure& c, const std::string& fun_name, ClassAccess access) {
 				return c.has_method(fun_name, access);
 			}
-			inline bool hasImplement(ValueItem& c, const std::string& fun_name, ClassAccess access = ClassAccess::pub) {
+			inline bool hasImplement(const ValueItem& c, const std::string& fun_name, ClassAccess access = ClassAccess::pub) {
 				switch (c.meta.vtype) {
 				case VType::struct_:
-					return ((Structure&)c).has_method(fun_name, access);
+					return ((const Structure&)c).has_method(fun_name, access);
 				default:
 					return false;
 				}
 			}
-			inline std::string name(Structure& c) {
+			inline std::string name(const Structure& c) {
 				return c.get_name();
 			}
-			inline std::string name(ValueItem& c) {
+			inline std::string name(const ValueItem& c) {
 				switch (c.meta.vtype) {
 				case VType::struct_:
 					return ((Structure&)c).get_name();
@@ -217,10 +277,10 @@ namespace art{
 					return "$ Not class $";
 				}
 			}
-			inline bool is_interface(Structure& c) {
+			inline bool is_interface(const Structure& c) {
 				return true;
 			}
-			inline bool is_interface(ValueItem& c) {
+			inline bool is_interface(const ValueItem& c) {
 				switch (c.meta.vtype) {
 				case VType::struct_:
 					return true;
