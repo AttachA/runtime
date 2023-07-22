@@ -8,10 +8,10 @@ TEST(FuncEviroBuilder, static_test){
         FuncEviroBuilder builder;
         auto noting = builder.create_constant(nullptr);
         auto one = builder.create_constant(1);
+        auto num = builder.create_constant(0ui32);
         builder.compare(noting, 0_sta);
         builder.jump(JumpCondition::is_not_equal, "not_inited");
-        builder.set_constant(0_sta, 0ui32);
-        builder.remove_const_protect(0_sta);
+        builder.copy_un_constant(0_sta, num);
         builder.bind_pos("not_inited");
         builder.sum(0_sta, one);
         builder.ret(0_sta);
@@ -34,23 +34,23 @@ TEST(FuncEviroBuilder, table_jump){
             TableJumpCheckFailAction::jump_specified,
             "too_small"
         );
+        auto num7 = builder.create_constant(7);
+        auto num6 = builder.create_constant(6);
+        auto num5 = builder.create_constant(5);
+        auto num10 = builder.create_constant(10);
+        auto num30 = builder.create_constant(30);
         builder.bind_pos("0");
         builder.ret();
         builder.bind_pos("1");
-        builder.set_constant(0_env, ValueItem(7));
-        builder.ret(0_env);
+        builder.ret(num7);
         builder.bind_pos("2");
-        builder.set_constant(0_env, ValueItem(6));
-        builder.ret(0_env);
+        builder.ret(num6);
         builder.bind_pos("3");
-        builder.set_constant(0_env, ValueItem(5));
-        builder.ret(0_env);
+        builder.ret(num5);
         builder.bind_pos("too_big");
-        builder.set_constant(0_env, ValueItem(10));
-        builder.ret(0_env);
+        builder.ret(num10);
         builder.bind_pos("too_small");
-        builder.set_constant(0_env, ValueItem(30));
-        builder.ret(0_env);
+        builder.ret(num30);
         builder.O_load_func("table_jump_test");
     }
     EXPECT_EQ(CXX::cxxCall("table_jump_test", 0), nullptr);
@@ -75,20 +75,20 @@ TEST(FuncEviroBuilder,table_jump_2){
             TableJumpCheckFailAction::jump_specified,
             "default"
         );
+        auto num7 = builder.create_constant(7);
+        auto num6 = builder.create_constant(6);
+        auto num5 = builder.create_constant(5);
+        auto num10 = builder.create_constant(10);
         builder.bind_pos("0");
         builder.ret();
         builder.bind_pos("1");
-        builder.set_constant(0_env, ValueItem(7));
-        builder.ret(0_env);
+        builder.ret(num7);
         builder.bind_pos("2");
-        builder.set_constant(0_env, ValueItem(6));
-        builder.ret(0_env);
+        builder.ret(num6);
         builder.bind_pos("3");
-        builder.set_constant(0_env, ValueItem(5));
-        builder.ret(0_env);
+        builder.ret(num5);
         builder.bind_pos("default");
-        builder.set_constant(0_env, ValueItem(10));
-        builder.ret(0_env);
+        builder.ret(num10);
         builder.O_load_func("table_jump_test");
     }
     EXPECT_EQ(CXX::cxxCall("table_jump_test", 0), nullptr);
