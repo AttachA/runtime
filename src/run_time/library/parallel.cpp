@@ -1596,69 +1596,57 @@ namespace art{
 				static AttachAFun(__to_i8_arr, 1,{
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 					lock_guard<TaskRecursiveMutex> lock(self.mutex);
-					//TO-DO implement
-					//int8_t* arr = ABI_IMPL::Vcast<int8_t*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					return (array_t<int8_t>)self.value;
 				})
 				static AttachAFun(__to_i16_arr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-					lock_guard<TaskRecursiveMutex> lock(self.mutex);				
-					//int16_t* arr = ABI_IMPL::Vcast<int16_t*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					lock_guard<TaskRecursiveMutex> lock(self.mutex);
+					return (array_t<int16_t>)self.value;
 				})
 				static AttachAFun(__to_i32_arr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-					lock_guard<TaskRecursiveMutex> lock(self.mutex);				
-					//int32_t* arr = ABI_IMPL::Vcast<int32_t*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					lock_guard<TaskRecursiveMutex> lock(self.mutex);
+					return (array_t<int32_t>)self.value;
 				})
 				static AttachAFun(__to_i64_arr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-					lock_guard<TaskRecursiveMutex> lock(self.mutex);				
-					//int64_t* arr = ABI_IMPL::Vcast<int64_t*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					lock_guard<TaskRecursiveMutex> lock(self.mutex);
+					return (array_t<int64_t>)self.value;
 				})
 				static AttachAFun(__to_ui8_arr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-					lock_guard<TaskRecursiveMutex> lock(self.mutex);				
-					//uint8_t* arr = ABI_IMPL::Vcast<uint8_t*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					lock_guard<TaskRecursiveMutex> lock(self.mutex);
+					return (array_t<uint8_t>)self.value;
 				})
 				static AttachAFun(__to_ui16_arr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-					lock_guard<TaskRecursiveMutex> lock(self.mutex);				
-					//uint16_t* arr = ABI_IMPL::Vcast<uint16_t*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					lock_guard<TaskRecursiveMutex> lock(self.mutex);
+					return (array_t<uint16_t>)self.value;
 				})
 				static AttachAFun(__to_ui32_arr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 					lock_guard<TaskRecursiveMutex> lock(self.mutex);
-					//uint32_t* arr = ABI_IMPL::Vcast<uint32_t*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					return (array_t<uint32_t>)self.value;
 				})
 				static AttachAFun(__to_ui64_arr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-					lock_guard<TaskRecursiveMutex> lock(self.mutex);				
-					//* arr = ABI_IMPL::Vcast<uint64_t*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					lock_guard<TaskRecursiveMutex> lock(self.mutex);
+					return (array_t<uint64_t>)self.value;
 				})
 				static AttachAFun(__to_float_arr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-					lock_guard<TaskRecursiveMutex> lock(self.mutex);				
-					//* arr = ABI_IMPL::Vcast<float*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					lock_guard<TaskRecursiveMutex> lock(self.mutex);
+					return (array_t<float>)self.value;
 				})
 				static AttachAFun(__to_double_arr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-					lock_guard<TaskRecursiveMutex> lock(self.mutex);				
-					//double* arr = ABI_IMPL::Vcast<double*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					lock_guard<TaskRecursiveMutex> lock(self.mutex);
+					return (array_t<double>)self.value;
 				})
 				static AttachAFun(__to_farr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-					lock_guard<TaskRecursiveMutex> lock(self.mutex);				
-					//ValueItem* arr = ABI_IMPL::Vcast<ValueItem*>(self.value.val, self.value.meta);
-					//return ValueItem(arr, self.value.meta.val_len, no_copy);
+					lock_guard<TaskRecursiveMutex> lock(self.mutex);
+					return (array_t<ValueItem>)self.value;
 				})
 				static AttachAFun(__to_undefined_pointer, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
