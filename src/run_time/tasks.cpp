@@ -19,6 +19,7 @@
 #include "library/parallel.hpp"
 #include "tasks_util/native_workers_singleton.hpp"
 #include "../../configuration/tasks.hpp"
+#include "asm/exception.hpp"
 namespace art{
 
 
@@ -499,7 +500,18 @@ namespace art{
 			loc.curr_task->relock_0.relock_start();
 			loc.curr_task->relock_1.relock_start();
 			loc.curr_task->relock_2.relock_start();
-			*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+			if(exception::has_exception()){
+				CXXExInfo cxx = exception::take_current_exception();
+				try{
+					*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+				}catch(const ctx::detail::forced_unwind&){
+					exception::load_current_exception(cxx);
+					throw;
+				}
+				exception::load_current_exception(cxx);
+			}else{
+				*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+			}
 			loc.context_in_swap = true;
 			loc.curr_task->relock_0.relock_end();
 			loc.curr_task->relock_1.relock_end();
