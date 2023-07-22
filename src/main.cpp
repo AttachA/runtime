@@ -34,35 +34,27 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 
 
 	FuncEviroBuilder build;
-	build.set_constant(0_env, "The test text, Current color: r%d,g%d,b%d\n");
-	build.set_stack_any_array(1_env, 4);
+	auto fn_console_set_text_color = build.create_constant("console set_text_color");
+	auto fn_console_printf = build.create_constant("console printf");
+	auto text = build.create_constant("The test text, Current color: r%d,g%d,b%d\n");
+	auto num12 = build.create_constant(12ui8);
+	auto num128 = build.create_constant(128ui8);
+	build.set_stack_any_array(0_env, 4);
+	build.arg_set(0_env);
 
-	build.set_constant(2_env, 12ui8);
-	build.arr_set(1_env, 2_env, 0,false, ArrCheckMode::no_check, VType::faarr);
+	build.arr_set(0_env, num12, 0,false, ArrCheckMode::no_check, VType::faarr);
+	build.arr_set(0_env, num128, 1, false, ArrCheckMode::no_check, VType::faarr);
+	build.arr_set(0_env, num12, 2, false, ArrCheckMode::no_check, VType::faarr);
+	build.call(fn_console_set_text_color);
 
-	build.set_constant(2_env, 128ui8);
-	build.arr_set(1_env, 2_env, 1, false, ArrCheckMode::no_check, VType::faarr);
+	build.arr_set(0_env, text, 0, false, ArrCheckMode::no_check, VType::faarr);
+	build.arr_set(0_env, num12, 1, false, ArrCheckMode::no_check, VType::faarr);
+	build.arr_set(0_env, num128, 2, false, ArrCheckMode::no_check, VType::faarr);
+	build.arr_set(0_env, num12, 3, false, ArrCheckMode::no_check, VType::faarr);
+	build.arg_set(0_env);
+	build.call(fn_console_printf);
 
-	build.set_constant(2_env, 12ui8);
-	build.arr_set(1_env, 2_env, 2, false, ArrCheckMode::no_check, VType::faarr);
-
-
-	build.arg_set(1_env);
-	build.call("console set_text_color");
-
-	build.arr_set(1_env, 0_env, 0, false, ArrCheckMode::no_check, VType::faarr);
-	build.set_constant(2_env, 12ui8);
-	build.arr_set(1_env, 2_env, 1, false, ArrCheckMode::no_check, VType::faarr);
-
-	build.set_constant(2_env, 128ui8);
-	build.arr_set(1_env, 2_env, 2, false, ArrCheckMode::no_check, VType::faarr);
-
-	build.set_constant(2_env, 12ui8);
-	build.arr_set(1_env, 2_env, 3, false, ArrCheckMode::no_check, VType::faarr);
-
-	build.arg_set(1_env);
-	build.call("console printf");
-	build.remove(1_env);
+	build.remove(0_env);
 	build.ret();
 	build.O_load_func("start");
 	CXX::cxxCall("start");
@@ -75,7 +67,8 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 
 	{
 		FuncEviroBuilder build;
-		build.call_and_ret("Yay");
+		auto fn_Yay = build.create_constant("Yay");
+		build.call_and_ret(fn_Yay);
 		build.O_load_func("Yay");
 	}
 	typed_lgr<FuncEnvironment> env = FuncEnvironment::enviropment("sleep_test");
