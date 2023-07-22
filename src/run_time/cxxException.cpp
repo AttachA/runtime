@@ -39,7 +39,12 @@ namespace art{
 		CXXExInfo exceptCXXDetails(LPEXCEPTION_RECORD e) {
 			CXXExInfo ex;
 			if(e->ExceptionCode!=0xe06d7363) {
+				//this is not a c++ exception
 				ex.native_id = e->ExceptionCode;
+				ex.ex_data_0 = e->ExceptionInformation[0];
+				ex.ex_data_1 = e->ExceptionInformation[1];
+				ex.ex_data_2 = e->ExceptionInformation[2];
+				ex.ex_data_3 = e->ExceptionInformation[3];
 				return ex;
 			}
 			const ExThrowInfo* throwInfo = (const ExThrowInfo*)e->ExceptionInformation[2];
@@ -89,7 +94,12 @@ namespace art{
 	}
 	bool hasClassInEx(CXXExInfo& cxx, const char* class_nam) {
 		std::string str = std::string("class ") + class_nam;
-		return cxx.ty_arr.contains_one([&str](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == str; });
+		return cxx.ty_arr.contains_one([&str, class_nam](const CXXExInfo::Tys& ty) { 
+			if(ty.is_bad_alloc)
+				if(strcmp(class_nam, "bad_alloc")==0)
+					return true;
+			return ty.ty_info->name() == str; 
+		});
 	}
 	bool isBadAlloc(CXXExInfo& cxx){
 		return cxx.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.is_bad_alloc; });
