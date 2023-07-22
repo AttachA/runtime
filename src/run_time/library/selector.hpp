@@ -246,7 +246,7 @@ namespace art {
 
 		template<class T>
 		list_array<T> toLArr(SelectorInfo<T>* selector) {
-			list_array<T> res(selector->selectedRefArr().convert([](T* it) { return *it; });
+			list_array<T> res(selector->selectedRefArr().convert([](T* it) { return *it; }));
 			delete selector;
 			return res;
 		}
