@@ -169,10 +169,25 @@ namespace art{
 				ptr = nullptr;
 		return ptr;
 	}
+	const void* const& lgr::operator*() const {
+		if (total)
+			if (!*total){
+				static const void* null = nullptr;
+				return null;
+			}
+		return ptr;
+	}
 	void** lgr::operator->() {
 		if (total)
 			if (!*total)
 				ptr = nullptr;
+		return &ptr;
+	}
+	
+	const void*const* lgr::operator->() const{
+		if (total)
+			if (!*total)
+				return nullptr;
 		return &ptr;
 	}
 	void* lgr::getPtr() {

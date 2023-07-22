@@ -44,7 +44,9 @@ namespace art{
 		lgr& operator=(const lgr& copy);
 		lgr& operator=(lgr&& mov) can_throw;
 		void*& operator*();
+		const void* const& operator*() const;
 		void** operator->();
+		const void*const* operator->() const;
 		void* getPtr();
 		const void* getPtr() const;
 		void(*getDestructor(void) const)(void*);
@@ -146,6 +148,12 @@ namespace art{
 			return *(T*)actual_lgr.getPtr();
 		}
 		T* operator->() {
+			return (T*)actual_lgr.getPtr();
+		}
+		const T& operator*() const {
+			return *(T*)actual_lgr.getPtr();
+		}
+		const T* operator->() const {
 			return (T*)actual_lgr.getPtr();
 		}
 		T* getPtr() {
