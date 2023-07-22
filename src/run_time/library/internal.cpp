@@ -252,10 +252,6 @@ namespace art{
             AttachAFun(funs_FuncBuilder_create_constant,2,{
                 return makeVIP(CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->create_constant(args[1]));
             })
-            AttachAFun(funs_FuncBuilder_set_constant,2,{
-                bool is_dynamic = len > 2 ? (bool)args[2] : true;
-                CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->set_constant(getVIP(args[1]), is_dynamic);
-            })
             AttachAFun(funs_FuncBuilder_set_stack_any_array,3,{
                 CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->set_stack_any_array(getVIP(args[1]), (uint32_t)args[2]);
             })
@@ -329,18 +325,12 @@ namespace art{
                     if(args[2].meta.vtype == VType::struct_){
                         if(len > 3)
                             is_async = (bool)args[3];
-                        if(args[1].meta.vtype == VType::string)
-                            CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call((std::string)args[1], getVIP(args[2]), is_async);
-                        else
-                            CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call(getVIP(args[1]), getVIP(args[2]), is_async);
+                        CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call(getVIP(args[1]), getVIP(args[2]), is_async);
                         return nullptr;
                     }
                     is_async = (bool)args[2];
                 }
-                if(args[1].meta.vtype == VType::string)
-                    CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call((std::string)args[1], is_async);
-                else
-                    CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call(getVIP(args[1]), is_async);
+                CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call(getVIP(args[1]), is_async);
             })
             AttachAFun(funs_FuncBuilder_call_self,1,{
                 bool is_async = false;
@@ -364,25 +354,12 @@ namespace art{
                     if(args[2].meta.vtype == VType::struct_){
                         if(len > 3)
                             is_async = (bool)args[3];
-                        CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_local((typed_lgr<FuncEnvironment>)args[1], getVIP(args[2]), is_async);
+                        CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_local(getVIP(args[1]), getVIP(args[2]), is_async);
                         return nullptr;
                     }
                     is_async = (bool)args[2];
                 }
-                CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_local((typed_lgr<FuncEnvironment>)args[1], is_async);
-            })
-            AttachAFun(funs_FuncBuilder_call_local_in_mem, 2,{
-                bool is_async = false;
-                if(len > 2){
-                    if(args[2].meta.vtype == VType::struct_){
-                        if(len > 3)
-                            is_async = (bool)args[3];
-                        CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_local_in_mem(getVIP(args[1]), getVIP(args[2]), is_async);
-                        return nullptr;
-                    }
-                    is_async = (bool)args[2];
-                }
-                CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_local_in_mem(getVIP(args[1]), is_async);
+                CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_local(getVIP(args[1]), is_async);
             })
             AttachAFun(funs_FuncBuilder_call_local_idx, 2,{
                 bool is_async = false;
@@ -399,11 +376,8 @@ namespace art{
             })
             AttachAFun(funs_FuncBuilder_call_and_ret, 2,{
                 bool is_async = len > 2 ? (bool)args[2] : false;
-                if(args[1].meta.vtype == VType::struct_){
-                    bool fn_mem_only_str = len > 3 ? (bool)args[3] : false;
-                    CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_and_ret(getVIP(args[1]), is_async, fn_mem_only_str);
-                }else
-                    CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_and_ret((std::string)args[1], is_async);
+                bool fn_mem_only_str = len > 3 ? (bool)args[3] : false;
+                CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_and_ret(getVIP(args[1]), is_async, fn_mem_only_str);
             })
             AttachAFun(funs_FuncBuilder_call_self_and_ret, 1,{
                 bool is_async = len > 1 ? (bool)args[1] : false;
@@ -411,11 +385,7 @@ namespace art{
             })
             AttachAFun(funs_FuncBuilder_call_local_and_ret, 2,{
                 bool is_async = len > 2 ? (bool)args[2] : false;
-                CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_local_and_ret((typed_lgr<FuncEnvironment>)args[1], is_async);
-            })
-            AttachAFun(funs_FuncBuilder_call_local_and_ret_in_mem, 2,{
-                bool is_async = len > 2 ? (bool)args[2] : false;
-                CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_local_and_ret_in_mem(getVIP(args[1]), is_async);
+                CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->call_local_and_ret(getVIP(args[1]), is_async);
             })
             AttachAFun(funs_FuncBuilder_call_local_and_ret_idx, 2,{
                 bool is_async = len > 2 ? (bool)args[2] : false;
@@ -443,10 +413,7 @@ namespace art{
                 CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->force_debug_reak();
             })
             AttachAFun(funs_FuncBuilder_throw_ex, 3,{
-                if(args[1].meta.vtype == VType::struct_)
-                    CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->throw_ex(getVIP(args[1]), getVIP(args[2]), len > 3 ? (bool)args[3] : false);
-                else
-                    CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->throw_ex((std::string)args[1], (std::string)args[2]);
+                CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->throw_ex(getVIP(args[1]), getVIP(args[2]));
             })
             AttachAFun(funs_FuncBuilder_as, 3,{
                 CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder)->as(getVIP(args[1]), ((ValueMeta)args[2]).vtype);
@@ -595,25 +562,14 @@ namespace art{
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
                 ClassAccess access = (ClassAccess)(uint8_t)args[1];
                 ValueIndexPos class_val = getVIP(args[2]);
-                if(args[3].meta.vtype == VType::string){
-                    std::string name = (std::string)args[3];
-                    if(len > 4){
-                        if(args[4].meta.vtype == VType::boolean)
-                            builder->call_value_interface(access, class_val, name, (bool)args[4]);
-                        else
-                            builder->call_value_interface(access, class_val, name, getVIP(args[4]), len > 5 ? (bool)args[5] : false);
-                    }else
-                        builder->call_value_interface(access, class_val, name);
-                }else{
-                    auto vpos = getVIP(args[3]);
-                    if(len > 4){
-                        if(args[4].meta.vtype == VType::boolean)
-                            builder->call_value_interface(access, class_val, vpos, (bool)args[4]);
-                        else
-                            builder->call_value_interface(access, class_val, vpos, getVIP(args[4]), len > 5 ? (bool)args[5] : false);
-                    }else
-                        builder->call_value_interface(access, class_val, vpos);
-                }
+                auto vpos = getVIP(args[3]);
+                if(len > 4){
+                    if(args[4].meta.vtype == VType::boolean)
+                        builder->call_value_interface(access, class_val, vpos, (bool)args[4]);
+                    else
+                        builder->call_value_interface(access, class_val, vpos, getVIP(args[4]), len > 5 ? (bool)args[5] : false);
+                }else
+                    builder->call_value_interface(access, class_val, vpos);
             })
             AttachAFun(funs_FuncBuilder_call_value_interface_id, 3, {
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
@@ -631,10 +587,7 @@ namespace art{
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
                 ClassAccess access = (ClassAccess)(uint8_t)args[1];
                 ValueIndexPos class_val = getVIP(args[2]);
-                if(args[3].meta.vtype == VType::string)
-                    builder->call_value_interface_and_ret(access, class_val, (std::string)args[3], len > 4 ? (bool)args[4] : false);
-                else
-                    builder->call_value_interface_and_ret(access, class_val, getVIP(args[3]), len > 4 ? (bool)args[4] : false);
+                builder->call_value_interface_and_ret(access, class_val, getVIP(args[3]), len > 4 ? (bool)args[4] : false);
             })
             AttachAFun(funs_FuncBuilder_call_value_interface_id_and_ret, 3, {
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
@@ -646,25 +599,14 @@ namespace art{
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
                 ClassAccess access = (ClassAccess)(uint8_t)args[1];
                 ValueIndexPos class_val = getVIP(args[2]);
-                if(args[3].meta.vtype == VType::string){
-                    std::string name = (std::string)args[3];
-                    if(len > 4){
-                        if(args[4].meta.vtype == VType::boolean)
-                            builder->static_call_value_interface(access, class_val, name, (bool)args[4]);
-                        else
-                            builder->static_call_value_interface(access, class_val, name, getVIP(args[4]), len > 5 ? (bool)args[5] : false);
-                    }else
-                        builder->static_call_value_interface(access, class_val, name);
-                }else{
-                    auto vpos = getVIP(args[3]);
-                    if(len > 4){
-                        if(args[4].meta.vtype == VType::boolean)
-                            builder->static_call_value_interface(access, class_val, vpos, (bool)args[4]);
-                        else
-                            builder->static_call_value_interface(access, class_val, vpos, getVIP(args[4]), len > 5 ? (bool)args[5] : false);
-                    }else
-                        builder->static_call_value_interface(access, class_val, vpos);
-                }
+                auto vpos = getVIP(args[3]);
+                if(len > 4){
+                    if(args[4].meta.vtype == VType::boolean)
+                        builder->static_call_value_interface(access, class_val, vpos, (bool)args[4]);
+                    else
+                        builder->static_call_value_interface(access, class_val, vpos, getVIP(args[4]), len > 5 ? (bool)args[5] : false);
+                }else
+                    builder->static_call_value_interface(access, class_val, vpos);
             })
             AttachAFun(funs_FuncBuilder_static_call_value_interface_id, 4,{
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
@@ -684,10 +626,7 @@ namespace art{
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
                 ClassAccess access = (ClassAccess)(uint8_t)args[1];
                 ValueIndexPos class_val = getVIP(args[2]);
-                if(args[3].meta.vtype == VType::string)
-                    builder->static_call_value_interface_and_ret(access, class_val, (std::string)args[3], len > 4 ? (bool)args[4] : false);
-                else
-                    builder->static_call_value_interface_and_ret(access, class_val, getVIP(args[3]), len > 4 ? (bool)args[4] : false);
+                builder->static_call_value_interface_and_ret(access, class_val, getVIP(args[3]), len > 4 ? (bool)args[4] : false);
             })
             AttachAFun(funs_FuncBuilder_static_call_value_interface_id_and_ret, 3,{
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
@@ -699,19 +638,13 @@ namespace art{
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
                 ClassAccess access = (ClassAccess)(uint8_t)args[1];
                 ValueIndexPos class_val = getVIP(args[2]);
-                if(args[3].meta.vtype == VType::string)
-                    builder->get_interface_value(access, class_val, (std::string)args[3], getVIP(args[4]));
-                else
-                    builder->get_interface_value(access, class_val, getVIP(args[3]), getVIP(args[4]));
+                builder->get_interface_value(access, class_val, getVIP(args[3]), getVIP(args[4]));
             })
             AttachAFun(funs_FuncBuilder_set_interface_value, 5, {
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
                 ClassAccess access = (ClassAccess)(uint8_t)args[1];
                 ValueIndexPos class_val = getVIP(args[2]);
-                if(args[3].meta.vtype == VType::string)
-                    builder->set_interface_value(access, class_val, (std::string)args[3], getVIP(args[4]));
-                else
-                    builder->set_interface_value(access, class_val, getVIP(args[3]), getVIP(args[4]));
+                builder->set_interface_value(access, class_val, getVIP(args[3]), getVIP(args[4]));
             })
             AttachAFun(funs_FuncBuilder_explicit_await, 2, {
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
@@ -825,6 +758,10 @@ namespace art{
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
                 builder->O_flag_used_vec128((uint8_t)args[1]);
             })
+            AttachAFun(funs_FuncBuilder_O_flag_is_patchable, 2, {
+                auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
+                builder->O_flag_is_patchable((bool)args[1]);
+            })
             AttachAFun(funs_FuncBuilder_O_line_info_begin, 1, {
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEviroBuilder>>(args[0], define_FuncBuilder);
                 return makeLineInfo(builder->O_line_info_begin());
@@ -912,7 +849,6 @@ namespace art{
                 CXX::Interface::typeVTable<FuncEviroBuilder_line_info>() = define_FuncEviroBuilder_line_info;
                 define_FuncBuilder = CXX::Interface::createTable<typed_lgr<FuncEviroBuilder>>("func_builder",
                     CXX::Interface::direct_method("create_constant",funs_FuncBuilder_create_constant), 
-                    CXX::Interface::direct_method("set_constant",funs_FuncBuilder_set_constant), 
                     CXX::Interface::direct_method("set_stack_any_array",funs_FuncBuilder_set_stack_any_array), 
                     CXX::Interface::direct_method("remove",funs_FuncBuilder_remove), 
                     CXX::Interface::direct_method("sum",funs_FuncBuilder_sum), 
@@ -931,13 +867,11 @@ namespace art{
                     CXX::Interface::direct_method("call",funs_FuncBuilder_call), 
                     CXX::Interface::direct_method("call_self",funs_FuncBuilder_call_self), 
                     CXX::Interface::direct_method("add_local_fn",funs_FuncBuilder_add_local_fn), 
-                    CXX::Interface::direct_method("call_local",funs_FuncBuilder_call_local), 
-                    CXX::Interface::direct_method("call_local_in_mem",funs_FuncBuilder_call_local_in_mem), 
+                    CXX::Interface::direct_method("call_local",funs_FuncBuilder_call_local),
                     CXX::Interface::direct_method("call_local_idx",funs_FuncBuilder_call_local_idx), 
                     CXX::Interface::direct_method("call_and_ret",funs_FuncBuilder_call_and_ret), 
                     CXX::Interface::direct_method("call_self_and_ret",funs_FuncBuilder_call_self_and_ret), 
                     CXX::Interface::direct_method("call_local_and_ret",funs_FuncBuilder_call_local_and_ret), 
-                    CXX::Interface::direct_method("call_local_and_ret_in_mem",funs_FuncBuilder_call_local_and_ret_in_mem), 
                     CXX::Interface::direct_method("call_local_and_ret_idx",funs_FuncBuilder_call_local_and_ret_idx), 
                     CXX::Interface::direct_method("ret",funs_FuncBuilder_ret), 
                     CXX::Interface::direct_method("ret_take",funs_FuncBuilder_ret_take), 
@@ -1010,6 +944,7 @@ namespace art{
                     CXX::Interface::direct_method("O_flag_is_translated",funs_FuncBuilder_O_flag_is_translated), 
                     CXX::Interface::direct_method("O_flag_is_cheap",funs_FuncBuilder_O_flag_is_cheap), 
                     CXX::Interface::direct_method("O_flag_used_vec128",funs_FuncBuilder_O_flag_used_vec128), 
+                    CXX::Interface::direct_method("O_flag_is_patchable",funs_FuncBuilder_O_flag_is_patchable),
                     CXX::Interface::direct_method("O_line_info_begin",funs_FuncBuilder_O_line_info_begin), 
                     CXX::Interface::direct_method("O_line_info_end",funs_FuncBuilder_O_line_info_end), 
                     CXX::Interface::direct_method("O_prepare_func",funs_FuncBuilder_O_prepare_func), 
