@@ -12,8 +12,17 @@ using namespace art;
 #pragma region FuncEviroBuilder
 
 ValueIndexPos FuncEviroBuilder::create_constant(const ValueItem& val){
+	if(unify_constants){
+		uint32_t i = 0;
+		for (auto& v : all_constants) {
+			if (v == val)
+				return ValueIndexPos(i, ValuePos::in_constants);
+			i++;
+		}
+	}
 	if(constants_values > UINT16_MAX)
 		throw CompileTimeException("unadressable constant value");
+	all_constants.push_front(val);
 	if(use_dynamic_values && !strict_mode){
 		flags.run_time_computable = true;
 		dynamic_values.push_back(val);
@@ -25,16 +34,8 @@ ValueIndexPos FuncEviroBuilder::create_constant(const ValueItem& val){
 	return ValueIndexPos(constants_values++, ValuePos::in_constants);
 }
 #pragma region SetRem
-void FuncEviroBuilder::set_constant(ValueIndexPos val, const ValueItem& cv, bool is_dynamic) {
-	const_cast<ValueItem&>(cv).getAsync();
-	builder::write(code, Command(Opcode::set, cv.meta.use_gc, !is_dynamic));
-	builder::writeIndexPos(code, val);
-	builder::writeAny(code, const_cast<ValueItem&>(cv));
-	++constants_values;
-	useVal(val);
-}
 void FuncEviroBuilder::set_stack_any_array(ValueIndexPos val, uint32_t len) {
-	builder::write(code, Command(Opcode::set_saarr, false, false));
+	builder::write(code, Command(Opcode::create_saarr, false, false));
 	builder::writeIndexPos(code, val);
 	builder::write(code, len);
 	useVal(val);
@@ -192,32 +193,9 @@ void FuncEviroBuilder::arg_set(ValueIndexPos val0) {
 	builder::writeIndexPos(code, val0);
 	useVal(val0);
 }
-
-void FuncEviroBuilder::call(const std::string& fn_name, bool is_async) {
-	builder::write(code, Command(Opcode::call));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = false;
-	code.push_back(f.encoded);
-	builder::writeString(code, fn_name);
-}
-void FuncEviroBuilder::call(const std::string& fn_name, ValueIndexPos res, bool is_async){
-	builder::write(code, Command(Opcode::call));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = true;
-	code.push_back(f.encoded);
-	builder::writeString(code, fn_name);
-	builder::writeIndexPos(code, res);
-	useVal(res);
-}
-
 void FuncEviroBuilder::call(ValueIndexPos fn_mem, bool is_async, bool fn_mem_only_str) {
 	builder::write(code, Command(Opcode::call,false, fn_mem_only_str));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
@@ -227,7 +205,6 @@ void FuncEviroBuilder::call(ValueIndexPos fn_mem, bool is_async, bool fn_mem_onl
 void FuncEviroBuilder::call(ValueIndexPos fn_mem, ValueIndexPos res, bool is_async, bool fn_mem_only_str) {
 	builder::write(code, Command(Opcode::call, false, fn_mem_only_str));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = true;
 	code.push_back(f.encoded);
@@ -269,41 +246,19 @@ uint32_t FuncEviroBuilder::add_local_fn(typed_lgr<FuncEnvironment> fn) {
 	local_funs.push_back(fn);
 	return res;
 }
-void FuncEviroBuilder::call_local(typed_lgr<FuncEnvironment> fn, bool is_async) {
-	builder::write(code, Command(Opcode::call_local));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = false;
-	code.push_back(f.encoded);
-	builder::write(code, add_local_fn(fn));
-}
-void FuncEviroBuilder::call_local(typed_lgr<FuncEnvironment> fn, ValueIndexPos res, bool is_async) {
-	builder::write(code, Command(Opcode::call_local));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = true;
-	code.push_back(f.encoded);
-	builder::write(code, add_local_fn(fn));
-	builder::writeIndexPos(code, res);
-	useVal(res);
-}
 
-void FuncEviroBuilder::call_local_in_mem(ValueIndexPos in_mem_fn, bool is_async) {
+void FuncEviroBuilder::call_local(ValueIndexPos in_mem_fn, bool is_async) {
 	builder::write(code, Command(Opcode::call_local));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
 	builder::writeIndexPos(code, in_mem_fn);
 	useVal(in_mem_fn);
 }
-void FuncEviroBuilder::call_local_in_mem(ValueIndexPos in_mem_fn, ValueIndexPos res, bool is_async) {
+void FuncEviroBuilder::call_local(ValueIndexPos in_mem_fn, ValueIndexPos res, bool is_async) {
 	builder::write(code, Command(Opcode::call_local));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = true;
 	code.push_back(f.encoded);
@@ -313,39 +268,15 @@ void FuncEviroBuilder::call_local_in_mem(ValueIndexPos in_mem_fn, ValueIndexPos 
 	useVal(res);
 }
 void FuncEviroBuilder::call_local_idx(uint32_t fn, bool is_async) {
-	builder::write(code, Command(Opcode::call_local));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = false;
-	code.push_back(f.encoded);
-	builder::write(code, fn);
+	call_local(create_constant(fn), is_async);
 }
 void FuncEviroBuilder::call_local_idx(uint32_t fn, ValueIndexPos res, bool is_async) {
-	builder::write(code, Command(Opcode::call_local));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = true;
-	code.push_back(f.encoded);
-	builder::write(code, fn);
-	builder::writeIndexPos(code, res);
-	useVal(res);
+	call_local(create_constant(fn), res, is_async);
 }
 
-void FuncEviroBuilder::call_and_ret(const std::string& fn_name, bool is_async) {
-	builder::write(code, Command(Opcode::call_and_ret));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = false;
-	code.push_back(f.encoded);
-	builder::writeString(code, fn_name);
-}
 void FuncEviroBuilder::call_and_ret(ValueIndexPos fn_mem, bool is_async, bool fn_mem_only_str) {
 	builder::write(code, Command(Opcode::call_and_ret, false, fn_mem_only_str));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
@@ -363,30 +294,16 @@ void FuncEviroBuilder::call_self_and_ret(bool is_async) {
 
 
 
-void FuncEviroBuilder::call_local_and_ret(typed_lgr<FuncEnvironment> fn, bool is_async) {
+void FuncEviroBuilder::call_local_and_ret(ValueIndexPos in_mem_fn, bool is_async) {
 	builder::write(code, Command(Opcode::call_local_and_ret));
 	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	code.push_back(f.encoded);
-	builder::write(code, add_local_fn(fn));
-}
-void FuncEviroBuilder::call_local_and_ret_in_mem(ValueIndexPos in_mem_fn, bool is_async) {
-	builder::write(code, Command(Opcode::call_local_and_ret));
-	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	code.push_back(f.encoded);
 	builder::writeIndexPos(code, in_mem_fn);
 	useVal(in_mem_fn);
 }
 void FuncEviroBuilder::call_local_and_ret_idx(uint32_t fn, bool is_async) {
-	builder::write(code, Command(Opcode::call_local_and_ret));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	code.push_back(f.encoded);
-	builder::write(code, fn);
+	call_local_and_ret(create_constant(fn), is_async);
 }
 
 void FuncEviroBuilder::ret(ValueIndexPos val) {
@@ -424,15 +341,8 @@ void FuncEviroBuilder::force_debug_reak() {
 	builder::write(code, Command(Opcode::debug_break));
 }
 
-void FuncEviroBuilder::throw_ex(const std::string& name, const std::string& desck) {
+void FuncEviroBuilder::throw_ex(ValueIndexPos name, ValueIndexPos desck) {
 	builder::write(code, Command(Opcode::throw_ex));
-	code.push_back(false);
-	builder::writeString(code, name);
-	builder::writeString(code, desck);
-}
-void FuncEviroBuilder::throw_ex(ValueIndexPos name, ValueIndexPos desck, bool values_is_only_string) {
-	builder::write(code, Command(Opcode::throw_ex,false, values_is_only_string));
-	code.push_back(true);
 	builder::writeIndexPos(code, name);
 	builder::writeIndexPos(code, desck);
 	useVal(name);
@@ -953,7 +863,6 @@ void FuncEviroBuilder::arr_size(ValueIndexPos arr, ValueIndexPos set_to, bool st
 void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async) {
 	builder::write(code, Command(Opcode::call_value_function));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
@@ -964,7 +873,6 @@ void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos cl
 void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, ValueIndexPos res_val, bool is_async) {
 	builder::write(code, Command(Opcode::call_value_function));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = true;
 	code.push_back(f.encoded);
@@ -973,33 +881,9 @@ void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos cl
 	builder::write(code, access);
 	builder::writeIndexPos(code, res_val);
 }
-void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async) {
-	builder::write(code, Command(Opcode::call_value_function));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = false;
-	code.push_back(f.encoded);
-	builder::writeString(code, fn_name);
-	builder::writeIndexPos(code, class_val);
-	builder::write(code, access);
-}
-void FuncEviroBuilder::call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, ValueIndexPos res_val, bool is_async) {
-	builder::write(code, Command(Opcode::call_value_function));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = true;
-	code.push_back(f.encoded);
-	builder::writeString(code, fn_name);
-	builder::writeIndexPos(code, class_val);
-	builder::write(code, access);
-	builder::writeIndexPos(code, res_val);
-}
 void FuncEviroBuilder::call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async){
 	builder::write(code, Command(Opcode::call_value_function));
 	CallFlags f;
-	f.in_memory = false;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
@@ -1009,7 +893,6 @@ void FuncEviroBuilder::call_value_interface_id(ValueIndexPos class_val, uint64_t
 void FuncEviroBuilder::call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, ValueIndexPos res_val, bool is_async){
 	builder::write(code, Command(Opcode::call_value_function));
 	CallFlags f;
-	f.in_memory = false;
 	f.async_mode = is_async;
 	f.use_result = true;
 	code.push_back(f.encoded);
@@ -1022,7 +905,6 @@ void FuncEviroBuilder::call_value_interface_id(ValueIndexPos class_val, uint64_t
 void FuncEviroBuilder::call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async) {
 	builder::write(code, Command(Opcode::call_value_function_and_ret));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
@@ -1030,21 +912,9 @@ void FuncEviroBuilder::call_value_interface_and_ret(ClassAccess access, ValueInd
 	builder::writeIndexPos(code, class_val);
 	builder::write(code, access);
 }
-void FuncEviroBuilder::call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async) {
-	builder::write(code, Command(Opcode::call_value_function_and_ret));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = false;
-	code.push_back(f.encoded);
-	builder::writeString(code, fn_name);
-	builder::writeIndexPos(code, class_val);
-	builder::write(code, access);
-}
 void FuncEviroBuilder::call_value_interface_id_and_ret(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async){
 	builder::write(code, Command(Opcode::call_value_function_id_and_ret));
 	CallFlags f;
-	f.in_memory = false;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
@@ -1056,7 +926,6 @@ void FuncEviroBuilder::call_value_interface_id_and_ret(ValueIndexPos class_val, 
 void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async){
 	builder::write(code, Command(Opcode::static_call_value_function));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
@@ -1067,7 +936,6 @@ void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueInde
 void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, ValueIndexPos res_val, bool is_async){
 	builder::write(code, Command(Opcode::static_call_value_function));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = true;
 	code.push_back(f.encoded);
@@ -1076,33 +944,9 @@ void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueInde
 	builder::write(code, access);
 	builder::writeIndexPos(code, res_val);
 }
-void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async){
-	builder::write(code, Command(Opcode::static_call_value_function));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = false;
-	code.push_back(f.encoded);
-	builder::writeString(code, fn_name);
-	builder::writeIndexPos(code, class_val);
-	builder::write(code, access);
-}
-void FuncEviroBuilder::static_call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, ValueIndexPos res_val, bool is_async){
-	builder::write(code, Command(Opcode::static_call_value_function));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = true;
-	code.push_back(f.encoded);
-	builder::writeString(code, fn_name);
-	builder::writeIndexPos(code, class_val);
-	builder::write(code, access);
-	builder::writeIndexPos(code, res_val);
-}
 void FuncEviroBuilder::static_call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async){
 	builder::write(code, Command(Opcode::static_call_value_function_id));
 	CallFlags f;
-	f.in_memory = false;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
@@ -1112,7 +956,6 @@ void FuncEviroBuilder::static_call_value_interface_id(ValueIndexPos class_val, u
 void FuncEviroBuilder::static_call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, ValueIndexPos res_val, bool is_async){
 	builder::write(code, Command(Opcode::static_call_value_function_id));
 	CallFlags f;
-	f.in_memory = false;
 	f.async_mode = is_async;
 	f.use_result = true;
 	code.push_back(f.encoded);
@@ -1125,7 +968,6 @@ void FuncEviroBuilder::static_call_value_interface_id(ValueIndexPos class_val, u
 void FuncEviroBuilder::static_call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async){
 	builder::write(code, Command(Opcode::static_call_value_function_and_ret));
 	CallFlags f;
-	f.in_memory = true;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
@@ -1133,21 +975,9 @@ void FuncEviroBuilder::static_call_value_interface_and_ret(ClassAccess access, V
 	builder::writeIndexPos(code, class_val);
 	builder::write(code, access);
 }
-void FuncEviroBuilder::static_call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async){
-	builder::write(code, Command(Opcode::static_call_value_function_and_ret));
-	CallFlags f;
-	f.in_memory = false;
-	f.async_mode = is_async;
-	f.use_result = false;
-	code.push_back(f.encoded);
-	builder::writeString(code, fn_name);
-	builder::writeIndexPos(code, class_val);
-	builder::write(code, access);
-}
 void FuncEviroBuilder::static_call_value_interface_id_and_ret(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async){
 	builder::write(code, Command(Opcode::static_call_value_function_id_and_ret));
 	CallFlags f;
-	f.in_memory = false;
 	f.async_mode = is_async;
 	f.use_result = false;
 	code.push_back(f.encoded);
@@ -1168,32 +998,14 @@ void FuncEviroBuilder::static_call_value_interface_id_and_ret(ValueIndexPos clas
 
 void FuncEviroBuilder::get_interface_value(ClassAccess access, ValueIndexPos class_val, ValueIndexPos val_name, ValueIndexPos res) {
 	builder::write(code, Command(Opcode::get_structure_value));
-	code.push_back(0);
 	builder::writeIndexPos(code, val_name);
-	builder::write(code, access);
-	builder::writeIndexPos(code, class_val);
-	builder::writeIndexPos(code, res);
-}
-void FuncEviroBuilder::get_interface_value(ClassAccess access, ValueIndexPos class_val, const std::string& val_name, ValueIndexPos res) {
-	builder::write(code, Command(Opcode::get_structure_value));
-	code.push_back(1);
-	builder::writeString(code, val_name);
 	builder::write(code, access);
 	builder::writeIndexPos(code, class_val);
 	builder::writeIndexPos(code, res);
 }
 void FuncEviroBuilder::set_interface_value(ClassAccess access, ValueIndexPos class_val, ValueIndexPos val_name, ValueIndexPos set_val) {
 	builder::write(code, Command(Opcode::set_structure_value));
-	code.push_back(0);
 	builder::writeIndexPos(code, val_name);
-	builder::write(code, access);
-	builder::writeIndexPos(code, class_val);
-	builder::writeIndexPos(code, set_val);
-}
-void FuncEviroBuilder::set_interface_value(ClassAccess access, ValueIndexPos class_val, const std::string& val_name, ValueIndexPos set_val) {
-	builder::write(code, Command(Opcode::set_structure_value));
-	code.push_back(1);
-	builder::writeString(code, val_name);
 	builder::write(code, access);
 	builder::writeIndexPos(code, class_val);
 	builder::writeIndexPos(code, set_val);
@@ -1390,6 +1202,7 @@ typed_lgr<FuncEnvironment> FuncEviroBuilder::O_prepare_func() {
 
 		fn.insert(fn.end(),code.begin(), code.end());
 		*(uint64_t*)(fn.data()) = fn.size();
+		all_constants.clear();
 		return new FuncEnvironment(std::move(fn), std::move(dynamic_values), std::move(local_funs), flags.can_be_unloaded, flags.is_cheap);
 	}
 }
@@ -1424,8 +1237,12 @@ FuncEviroBuilder& FuncEviroBuilder::O_flag_used_vec128(uint8_t index){
 	case 14: flags.used_vec.vec128_14 = true; break;
 	case 15: flags.used_vec.vec128_15 = true; break;
 	default:
-		break;
+		throw InvalidArguments("Used vector index must be in range 0-15");
 	}
+	return *this;
+}
+FuncEviroBuilder& FuncEviroBuilder::O_flag_is_patchable(bool is_patchabele){
+	flags.is_patchable = is_patchabele;
 	return *this;
 }
 

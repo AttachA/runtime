@@ -20,6 +20,7 @@ namespace art{
 		std::vector<uint64_t> jump_pos;
 		std::unordered_map<std::string, size_t> jump_pos_map;
 		list_array<ValueItem> dynamic_values;
+		std::forward_list<ValueItem> all_constants;
 		std::vector<typed_lgr<FuncEnvironment>> local_funs;
 		uint64_t cop = 0;
 		uint16_t values = 0;
@@ -29,6 +30,8 @@ namespace art{
 		FunctionMetaFlags flags{0};
 		bool use_dynamic_values = false;
 		bool strict_mode = true;
+		bool unify_constants = true;
+		
 		void useVal(ValueIndexPos val) {
 			switch (val.pos){
 				case ValuePos::in_enviro:
@@ -58,6 +61,12 @@ namespace art{
 			return it->second;
 		}
 	public:
+		bool get_unify_constants() const {
+			return unify_constants;
+		}
+		void set_unify_constants(bool unify_constants) {
+			this->unify_constants = unify_constants;
+		}
 		FuncEviroBuilder(){
 			flags.can_be_unloaded = true;
 		}
@@ -65,7 +74,6 @@ namespace art{
 		//use_dynamic_values - if true, then constants can be any type, by default false, option ignored if strict_mode is true(then all constants will be stored at opcodes)
 		FuncEviroBuilder(bool strict_mode,bool use_dynamic_values = false) : strict_mode(strict_mode), use_dynamic_values(use_dynamic_values) {}
 		ValueIndexPos create_constant(const ValueItem& val);
-		void set_constant(ValueIndexPos val, const ValueItem& cv, bool is_dynamic = true);
 		void set_stack_any_array(ValueIndexPos val, uint32_t len);
 		void remove(ValueIndexPos val,ValueMeta m);
 		void remove(ValueIndexPos val);
@@ -105,9 +113,6 @@ namespace art{
 
 		void arg_set(ValueIndexPos val0);
 
-		void call(const std::string& fn_name, bool is_async = false);
-		void call(const std::string& fn_name, ValueIndexPos res, bool is_async = false);
-
 		void call(ValueIndexPos fn_mem, bool is_async = false, bool fn_mem_only_str = false);
 		void call(ValueIndexPos fn_mem, ValueIndexPos res, bool is_async = false, bool fn_mem_only_str = false);
 
@@ -116,23 +121,19 @@ namespace art{
 		void call_self(ValueIndexPos res, bool is_async = false);
 
 		uint32_t add_local_fn(typed_lgr<FuncEnvironment> fn);
-		void call_local(typed_lgr<FuncEnvironment> fn, bool is_async = false);
-		void call_local(typed_lgr<FuncEnvironment> fn, ValueIndexPos res, bool is_async = false);
 
-		void call_local_in_mem(ValueIndexPos in_mem_fn, bool is_async = false);
-		void call_local_in_mem(ValueIndexPos in_mem_fn, ValueIndexPos res, bool is_async = false);
+		void call_local(ValueIndexPos in_mem_fn, bool is_async = false);
+		void call_local(ValueIndexPos in_mem_fn, ValueIndexPos res, bool is_async = false);
 		void call_local_idx(uint32_t fn, bool is_async = false);
 		void call_local_idx(uint32_t fn, ValueIndexPos res, bool is_async = false);
 		
-		void call_and_ret(const std::string& fn_name, bool is_async = false);
 		void call_and_ret(ValueIndexPos fn_mem, bool is_async = false, bool fn_mem_only_str = false);
 
 
 		void call_self_and_ret(bool is_async = false);
 
 
-		void call_local_and_ret(typed_lgr<FuncEnvironment> fn, bool is_async = false);
-		void call_local_and_ret_in_mem(ValueIndexPos in_mem_fn, bool is_async = false);
+		void call_local_and_ret(ValueIndexPos in_mem_fn, bool is_async = false);
 		void call_local_and_ret_idx(uint32_t fn, bool is_async = false);
 		void ret(ValueIndexPos val);
 		void ret_take(ValueIndexPos val);
@@ -143,8 +144,7 @@ namespace art{
 		void debug_break();
 		void force_debug_reak();
 
-		void throw_ex(const std::string& name, const std::string& desck);
-		void throw_ex(ValueIndexPos name, ValueIndexPos desck,bool values_is_only_string = false);
+		void throw_ex(ValueIndexPos name, ValueIndexPos desck);
 
 		void as(ValueIndexPos val, VType meta);
 		void is(ValueIndexPos val, VType meta);
@@ -225,34 +225,25 @@ namespace art{
 		//casm,
 		void call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async = false);
 		void call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, ValueIndexPos res_val, bool is_async = false);
-		void call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async = false);
-		void call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, ValueIndexPos res_val, bool is_async = false);
 		void call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async = false);
 		void call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, ValueIndexPos res_val, bool is_async = false);
 
 
 		void call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async = false);
-		void call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async = false);
 		void call_value_interface_id_and_ret(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async = false);
 
 
 		void static_call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async = false);
 		void static_call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, ValueIndexPos res_val, bool is_async = false);
-		void static_call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async = false);
-		void static_call_value_interface(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, ValueIndexPos res_val, bool is_async = false);
 		void static_call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async = false);
 		void static_call_value_interface_id(ValueIndexPos class_val, uint64_t class_fun_id, ValueIndexPos res_val, bool is_async = false);
 
 
 		void static_call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async = false);
-		void static_call_value_interface_and_ret(ClassAccess access, ValueIndexPos class_val, const std::string& fn_name, bool is_async = false);
 		void static_call_value_interface_id_and_ret(ValueIndexPos class_val, uint64_t class_fun_id, bool is_async = false);
 		
 		void get_interface_value(ClassAccess access, ValueIndexPos class_val, ValueIndexPos val_name, ValueIndexPos res);
-		void get_interface_value(ClassAccess access, ValueIndexPos class_val, const std::string& val_name, ValueIndexPos res);
-
 		void set_interface_value(ClassAccess access, ValueIndexPos class_val, ValueIndexPos val_name, ValueIndexPos set_val);
-		void set_interface_value(ClassAccess access, ValueIndexPos class_val, const std::string& val_name, ValueIndexPos set_val);
 
 		void explicit_await(ValueIndexPos await_value);
 
@@ -294,6 +285,7 @@ namespace art{
 		FuncEviroBuilder& O_flag_is_translated(bool is_translated);
 		FuncEviroBuilder& O_flag_is_cheap(bool is_cheap);
 		FuncEviroBuilder& O_flag_used_vec128(uint8_t index);
+		FuncEviroBuilder& O_flag_is_patchable(bool is_patchabele);
 		
 		FuncEviroBuilder_line_info O_line_info_begin();
 		void O_line_info_end(FuncEviroBuilder_line_info line_info);
