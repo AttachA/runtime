@@ -8,9 +8,11 @@
 -->
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 	<Type Name="art::typed_lgr&lt;*&gt;">
-		<DisplayString Optional="true">{($T1 *)actual_lgr.ptr}</DisplayString>
+		<DisplayString Optional="true">[GC]: {(::$T1 *)actual_lgr.ptr}</DisplayString>
+		<DisplayString Optional="true">[GC]: {nullptr}</DisplayString>
 		<Expand>
-			<Item Name="[ptr]" Optional="true">($T1 *)actual_lgr.ptr</Item>
+			<ExpandedItem Condition="actual_lgr.ptr!=0" Optional="true">(::$T1 *)actual_lgr.ptr</ExpandedItem>
+			<ExpandedItem Optional="true">0</ExpandedItem>
 		</Expand>
 	</Type>
 </AutoVisualizer>
