@@ -418,7 +418,6 @@ namespace art{
 	#endif
 
 	std::unordered_map<std::string, std::string> run_time_configuration;
-	#include "../configuration/tasks.hpp"
 	void modify_run_time_config(const std::string& name, const std::string& value){
 		if(name == "default_fault_action"){
 	#if _configuration_run_time_fault_action_modifable
