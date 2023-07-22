@@ -97,6 +97,7 @@ namespace art{
 
 
 	struct NativeSymbolResolver {
+		std::unordered_map<void*, StackTraceItem> memoized;
 		NativeSymbolResolver() {
 			SymInitialize(GetCurrentProcess(), nullptr, true);
 		}
@@ -105,6 +106,11 @@ namespace art{
 		}
 
 		StackTraceItem GetName(void* frame) {
+			{
+				auto it = memoized.find(frame);
+				if (it != memoized.end())
+					return it->second;
+			}
 			unsigned char buffer[sizeof(SYMBOL_INFO) + 128];
 			PSYMBOL_INFO symbol64 = reinterpret_cast<SYMBOL_INFO*>(buffer);
 			memset(symbol64, 0, sizeof(SYMBOL_INFO) + 128);
@@ -119,10 +125,12 @@ namespace art{
 				memset(&line64, 0, sizeof(IMAGEHLP_LINE64));
 				line64.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
 				result = SymGetLineFromAddr64(GetCurrentProcess(), (DWORD64)frame, &displacement, &line64);
+				if(memoized.size() > 1000)
+					memoized.erase(memoized.begin());
 				if (result)
-					return { symbol64->Name, line64.FileName, line64.LineNumber };
+					return memoized[frame] = { symbol64->Name, line64.FileName, line64.LineNumber };
 				else
-					return { symbol64->Name, line64.FileName ? line64.FileName: "UNDEFINED" , SIZE_MAX};
+					return memoized[frame] = { symbol64->Name, line64.FileName ? line64.FileName: "UNDEFINED" , SIZE_MAX};
 			}
 			return { "UNDEFINED","UNDEFINED", SIZE_MAX };
 		}
@@ -249,10 +257,10 @@ namespace art{
 					pushInVectorAsValue(handler_info, action.filter_data_len);
 					pushInVectorAsArray(handler_info, (char*)action.filter_data, action.filter_data_len);
 					break;
-				case ScopeAction::Action::converter:
-					pushInVectorAsValue(handler_info, action.converter);
-					pushInVectorAsValue(handler_info, action.converter_data_len);
-					pushInVectorAsArray(handler_info, (char*)action.converter_data, action.converter_data_len);
+				case ScopeAction::Action::finally:
+					pushInVectorAsValue(handler_info, action.finally);
+					pushInVectorAsValue(handler_info, action.finally_data_len);
+					pushInVectorAsArray(handler_info, (char*)action.finally_data, action.finally_data_len);
 					break;
 				default:
 					break;
@@ -260,7 +268,7 @@ namespace art{
 			}
 			pushInVectorAsValue(handler_info, ScopeAction::Action::not_action);
 			if(handler_info.size() & 1){
-				handler_info.push_back(0xFF);
+				handler_info.push_back(0xFFui8);
 				pushInVectorAsArray(info, handler_info.data(), handler_info.size());
 			}else{
 				pushInVectorAsArray(info, handler_info.data(), handler_info.size());
@@ -269,19 +277,6 @@ namespace art{
 		}
 		return info;
 	}
-
-
-	EXCEPTION_DISPOSITION handle_s(
-		IN PEXCEPTION_RECORD ExceptionRecord,
-		IN ULONG64 EstablisherFrame,
-		IN OUT PCONTEXT ContextRecord,
-		IN OUT PDISPATCHER_CONTEXT DispatcherContext
-	) {
-		printf("hello!");
-		return ExceptionContinueSearch;
-	}
-
-	void* __casm_test_handle = (void*)handle_s;
 	void* FrameResult::init(uint8_t*& frame,CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name, const char* file_path) {
 		std::vector<uint16_t> unwindInfo = convert(*this);
 		size_t unwindInfoSize = unwindInfo.size() * sizeof(uint16_t);
@@ -318,7 +313,7 @@ namespace art{
 		if (frame) {
 			BOOLEAN result = RtlDeleteFunctionTable((RUNTIME_FUNCTION*)frame);
 			auto tmp = runtime.allocator()->release(funct);
-			frame_symbols.erase(frame);
+			frame_symbols.erase((uint8_t*)funct);
 			return !(result == FALSE || tmp);
 		}
 		return false;

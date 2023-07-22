@@ -1117,18 +1117,13 @@ namespace art{
 			destruct_stack,
 			destruct_register,
 			filter,
-			converter,
 			finally,
-
 			not_action = (uint8_t)-1
 		} action : 8;
 		union{
 			void(*destruct)(void**);
 			void(*destruct_register)(void*);
-			//exception names
 			bool(*filter)(CXXExInfo& info, void** handle_adress, void* filter_data, size_t len, void* rsp);
-			//current exception in args
-			void(*converter)(void*, size_t len, void* rsp);
 			void(*finally)(void*, size_t len, void* rsp);
 		};
 		union{
@@ -1137,11 +1132,11 @@ namespace art{
 		};
 		union{
 			void* filter_data = 0;
-			void* converter_data;
+			void* finally_data;
 		};
 		union{
 			size_t filter_data_len = 0;
-			size_t converter_data_len;
+			size_t finally_data_len;
 		};
 		void (*cleanup_filter_data)(ScopeAction*) = nullptr;
 
@@ -1789,10 +1784,10 @@ namespace art{
 			res.scope_actions.push_back(action);
 			return &res.scope_actions.back();
 		}
-		ScopeAction* create_converter(void(*func)(void*, size_t, void* rsp)) {
+		ScopeAction* create_finally(void(*func)(void*, size_t, void* rsp)) {
 			ScopeAction action;
-			action.action = ScopeAction::Action::converter;
-			action.converter = func;
+			action.action = ScopeAction::Action::finally;
+			action.finally = func;
 			res.scope_actions.push_back(action);
 			return &res.scope_actions.back();
 		}
@@ -1880,21 +1875,25 @@ namespace art{
 			scope_actions[id] = ExceptionScopes({}, csm.offset());
 			return id;
 		}
-		ScopeAction* setExceptionHandle(size_t id, bool(*filter_fun)(CXXExInfo&, void**, void*, size_t, void* rsp)){
+		ScopeAction* setExceptionHandle(size_t id, bool(*filter_fun)(CXXExInfo&, void**, void*, size_t, void* rsp), void* data, size_t data_size){
 			auto it = scope_actions.find(id);
 			if (it == scope_actions.end())
 				throw CompileTimeException("invalid exception scope");
 			ScopeAction* action = csm.create_filter(filter_fun);
+			action->filter_data = data;
+			action->filter_data_len = data_size;
 			action->function_begin_off = it->second.begin_off;
 			it->second.actions.push_back(action);
 			return action;
 		}
-		ScopeAction* setExceptionConverter(size_t id, void(*converter_fun)(void*, size_t len, void* rsp)) {
+		ScopeAction* setExceptionFinal(size_t id, void(*final_fun)(void* data, size_t data_size, void*), void* data, size_t data_size) {
 			auto it = scope_actions.find(id);
 			if (it == scope_actions.end())
 				throw CompileTimeException("invalid exception scope");
-			ScopeAction* action = csm.create_converter(converter_fun);
+			ScopeAction* action = csm.create_finally(final_fun);
 			action->function_begin_off = it->second.begin_off;
+			action->finally_data = data;
+			action->finally_data_len = data_size;
 			it->second.actions.push_back(action);
 			return action;
 		}
