@@ -11,10 +11,14 @@
 #include "library/internal.hpp"
 #include "library/net.hpp"
 #include "library/file.hpp"
+#include "library/exceptions.hpp"
 #include "AttachA_CXX.hpp"
+#include "attacha_abi_structs.hpp"
+#include "exceptions.hpp"
 #include <cmath>
 #include <math.h>
 namespace art{
+#pragma region math
 #pragma region math_abs
 	ValueItem math_abs_impl(ValueItem& val) {
 		if (val.meta.vtype == VType::async_res)
@@ -870,8 +874,21 @@ namespace art{
 	}
 
 #pragma endregion
-
+#pragma endregion
 #define INIT_CHECK static bool is_init = false; if (is_init) return; is_init = true;
+	
+	void initStandardLib_exception(){
+		INIT_CHECK
+		FuncEnvironment::AddNative(exceptions::get_current_exception_name, "exception current_get_name", false);
+		FuncEnvironment::AddNative(exceptions::get_current_exception_desctription, "exception current_get_desctription", false);
+		FuncEnvironment::AddNative(exceptions::get_current_exception_full_description, "exception current_get_full_description", false);
+		FuncEnvironment::AddNative(exceptions::has_current_exception_inner_exception, "exception current_has_inner", false);
+		FuncEnvironment::AddNative(exceptions::unpack_current_exception, "exception current_unpack", false);
+		FuncEnvironment::AddNative(exceptions::in_exception, "exception now_in_exception", false);
+		FuncEnvironment::AddNative(exceptions::current_exception_catched, "exception set_as_catched", false);
+		//print full stacktrace if used in filter function
+		FuncEnvironment::AddNative(internal::stack::trace, "exception filter stacktrace", false);
+	}
 	void initStandardLib_bytes(){
 		INIT_CHECK
 		FuncEnvironment::AddNative(bytes::to_bytes, "bytes to_bytes", false);
@@ -1164,6 +1181,7 @@ namespace art{
 	}
 
 	void initStandardLib() {
+		initStandardLib_exception();
 		initStandardLib_bytes();
 		initStandardLib_console();
 		initStandardLib_math();
@@ -1181,6 +1199,7 @@ namespace art{
 	}
 
 	void initStandardLib_safe(){
+		initStandardLib_exception();
 		initStandardLib_bytes();
 		initStandardLib_console();
 		initStandardLib_math();

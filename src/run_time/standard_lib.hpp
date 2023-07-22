@@ -14,6 +14,7 @@ namespace art {
 	void initStandardLib_safe();//init all,except CMath, internal, debug and start_debug
 
 	void initCMathLib();
+	void initStandardLib_exception();
 	void initStandardLib_bytes();
 	void initStandardLib_console();
 	void initStandardLib_math();
