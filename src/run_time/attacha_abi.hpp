@@ -5,8 +5,8 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
-#ifndef RUN_TIME_ATTACHA_ABI
-#define RUN_TIME_ATTACHA_ABI
+#ifndef SRC_RUN_TIME_ATTACHA_ABI
+#define SRC_RUN_TIME_ATTACHA_ABI
 #include "../run_time.hpp"
 #include "../library/string_help.hpp"
 #include "link_garbage_remover.hpp"
@@ -180,6 +180,7 @@ namespace art{
 
 	void** preSetValue(void** value, ValueMeta set_meta, bool match_gc_dif);
 	void*& getValue(void*& value, ValueMeta& meta);
+	const void*const & getValue(const void*const & value, const ValueMeta& meta);
 	void*& getValue(void** value);
 	void* getSpecificValue(void** value, VType typ);
 	void** getSpecificValueLink(void** value, VType typ);
@@ -199,7 +200,7 @@ namespace art{
 
 
 	namespace ABI_IMPL {
-		ValueItem* _Vcast_callFN(void* ptr);
+		ValueItem* _Vcast_callFN(const void* ptr);
 		template<class T, class A, std::is_convertible<A, T>::value>
 		T* AsPointer(void* val) {
 			return new T[] {(T)(A)val };
@@ -211,6 +212,7 @@ namespace art{
 
 
 		std::string Scast(void*& val, ValueMeta& meta);
+		std::string Scast(const void*const & val, const ValueMeta& meta);
 		ValueItem SBcast(const std::string& str);
 		template<class T>
 		ValueItem BVcast(const T& val) {
@@ -282,9 +284,8 @@ namespace art{
 		}
 		
 		template <class T>
-		T Vcast(void*& ref_val, ValueMeta& meta) {
-			getAsyncResult(ref_val, meta);
-			void* val = getValue(ref_val, meta);
+		T Vcast(const void* const& ref_val, const ValueMeta& meta){
+			const void* val = getValue(ref_val, meta);
 			if constexpr (std::is_same_v<T, std::string>) {
 				return Scast(val, meta);
 			}
@@ -295,7 +296,7 @@ namespace art{
 				case VType::boolean:
 				case VType::i8: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
@@ -308,7 +309,7 @@ namespace art{
 				}
 				case VType::i16: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
@@ -321,7 +322,7 @@ namespace art{
 				}
 				case VType::i32: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
@@ -334,7 +335,7 @@ namespace art{
 				}
 				case VType::i64: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
@@ -347,7 +348,7 @@ namespace art{
 				}
 				case VType::ui8: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
@@ -360,7 +361,7 @@ namespace art{
 				}
 				case VType::ui16: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
@@ -373,7 +374,7 @@ namespace art{
 				}
 				case VType::ui32: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
@@ -386,7 +387,7 @@ namespace art{
 				}
 				case VType::ui64: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
@@ -399,7 +400,7 @@ namespace art{
 				}
 				case VType::flo: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
@@ -412,7 +413,7 @@ namespace art{
 				}
 				case VType::doub: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
@@ -425,24 +426,24 @@ namespace art{
 				}
 				case VType::raw_arr_i8: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
-						return (T) * reinterpret_cast<int8_t*>(val);
+						return (T) * reinterpret_cast<const int8_t*>(val);
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<int8_t*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const int8_t*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<int8_t*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<const int8_t*>(val) };
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 						if (meta.val_len) {
 							list_array<ValueItem> res;
 							res.resize(meta.val_len);
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								res[i] = ValueItem((void*)reinterpret_cast<int8_t*>(val)[i], VType::i8);
+								res[i] = ValueItem((void*)reinterpret_cast<const int8_t*>(val)[i], VType::i8);
 							return res;
 						}
 						else return { ValueItem(val,meta) };
@@ -452,24 +453,24 @@ namespace art{
 				}
 				case VType::raw_arr_i16: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
-						return (T) * reinterpret_cast<int16_t*>(val);
+						return (T) * reinterpret_cast<const int16_t*>(val);
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<int16_t*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const int16_t*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<int16_t*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<const int16_t*>(val) };
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 						if (meta.val_len) {
 							list_array<ValueItem> res;
 							res.resize(meta.val_len);
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								res[i] = ValueItem((void*)reinterpret_cast<int16_t*>(val)[i], VType::i16);
+								res[i] = ValueItem((void*)reinterpret_cast<const int16_t*>(val)[i], VType::i16);
 							return res;
 						}
 						else return { ValueItem(val,meta) };
@@ -479,24 +480,24 @@ namespace art{
 				}
 				case VType::raw_arr_i32: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
-						return (T) * reinterpret_cast<int32_t*>(val);
+						return (T) * reinterpret_cast<const int32_t*>(val);
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<int32_t*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const int32_t*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<int32_t*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<const int32_t*>(val) };
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 						if (meta.val_len) {
 							list_array<ValueItem> res;
 							res.resize(meta.val_len);
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								res[i] = ValueItem((void*)(ptrdiff_t)reinterpret_cast<int32_t*>(val)[i], VType::i32);
+								res[i] = ValueItem((void*)(ptrdiff_t)reinterpret_cast<const int32_t*>(val)[i], VType::i32);
 							return res;
 						}
 						else return { ValueItem(val,meta) };
@@ -506,24 +507,24 @@ namespace art{
 				}
 				case VType::raw_arr_i64: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
 						return (T) * (int64_t*)val;
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<int64_t*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const int64_t*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<int64_t*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<const int64_t*>(val) };
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 						if (meta.val_len) {
 							list_array<ValueItem> res;
 							res.resize(meta.val_len);
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								res[i] = ValueItem((void*)reinterpret_cast<int64_t*>(val)[i], VType::i64);
+								res[i] = ValueItem((void*)reinterpret_cast<const int64_t*>(val)[i], VType::i64);
 							return res;
 						}
 						else return { ValueItem(val,meta) };
@@ -533,24 +534,24 @@ namespace art{
 				}
 				case VType::raw_arr_ui8: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
-						return (T) * reinterpret_cast<uint8_t*>(val);
+						return (T) * reinterpret_cast<const uint8_t*>(val);
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<uint8_t*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const uint8_t*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<uint8_t*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<const uint8_t*>(val) };
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 						if (meta.val_len) {
 							list_array<ValueItem> res;
 							res.resize(meta.val_len);
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								res[i] = ValueItem((void*)reinterpret_cast<uint8_t*>(val)[i], VType::ui8);
+								res[i] = ValueItem((void*)reinterpret_cast<const uint8_t*>(val)[i], VType::ui8);
 							return res;
 						}
 						else return { ValueItem(val,meta) };
@@ -560,24 +561,24 @@ namespace art{
 				}
 				case VType::raw_arr_ui16: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
-						return (T) * reinterpret_cast<uint16_t*>(val);
+						return (T) * reinterpret_cast<const uint16_t*>(val);
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<uint16_t*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const uint16_t*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<uint16_t*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<const uint16_t*>(val) };
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 						if (meta.val_len) {
 							list_array<ValueItem> res;
 							res.resize(meta.val_len);
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								res[i] = ValueItem((void*)reinterpret_cast<uint16_t*>(val)[i], VType::ui16);
+								res[i] = ValueItem((void*)reinterpret_cast<const uint16_t*>(val)[i], VType::ui16);
 							return res;
 						}
 						else return { ValueItem(val,meta) };
@@ -587,24 +588,24 @@ namespace art{
 				}
 				case VType::raw_arr_ui32: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
-						return (T) * reinterpret_cast<uint32_t*>(val);
+						return (T) * reinterpret_cast<const uint32_t*>(val);
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<uint32_t*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const uint32_t*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<uint32_t*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<const uint32_t*>(val) };
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 						if (meta.val_len) {
 							list_array<ValueItem> res;
 							res.resize(meta.val_len);
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								res[i] = ValueItem((void*)(size_t)reinterpret_cast<uint32_t*>(val)[i], VType::ui32);
+								res[i] = ValueItem((void*)(size_t)reinterpret_cast<const uint32_t*>(val)[i], VType::ui32);
 							return res;
 						}
 						else return { ValueItem(val,meta) };
@@ -614,24 +615,24 @@ namespace art{
 				}
 				case VType::raw_arr_ui64: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
-						return (T) * reinterpret_cast<uint64_t*>(val);
+						return (T) * reinterpret_cast<const uint64_t*>(val);
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<uint64_t*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const uint64_t*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<uint64_t*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<const uint64_t*>(val) };
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 						if (meta.val_len) {
 							list_array<ValueItem> res;
 							res.resize(meta.val_len);
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								res[i] = ValueItem((void*)reinterpret_cast<uint64_t*>(val)[i], VType::ui64);
+								res[i] = ValueItem((void*)reinterpret_cast<const uint64_t*>(val)[i], VType::ui64);
 							return res;
 						}
 						else return { ValueItem(val,meta) };
@@ -641,24 +642,24 @@ namespace art{
 				}
 				case VType::raw_arr_flo: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
-						return (T) * reinterpret_cast<float*>(val);
+						return (T) * reinterpret_cast<const float*>(val);
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<float*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const float*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<float*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<const float*>(val) };
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 						if (meta.val_len) {
 							list_array<ValueItem> res;
 							res.resize(meta.val_len);
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								res[i] = ValueItem(*(void**)&reinterpret_cast<float*>(val)[i], VType::flo);
+								res[i] = ValueItem(*(void**)&reinterpret_cast<const float*>(val)[i], VType::flo);
 							return res;
 						}
 						else return { ValueItem(val,meta) };
@@ -668,24 +669,24 @@ namespace art{
 				}
 				case VType::raw_arr_doub: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
-						return (T) * reinterpret_cast<double*>(val);
+						return (T) * reinterpret_cast<const double*>(val);
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<double*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const double*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<double*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)* reinterpret_cast<const double*>(val) };
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
 						if (meta.val_len) {
 							list_array<ValueItem> res;
 							res.resize(meta.val_len);
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								res[i] = ValueItem(*(void**)&(reinterpret_cast<double*>(val)[i]), VType::doub);
+								res[i] = ValueItem(*(void**)&(reinterpret_cast<const double*>(val)[i]), VType::doub);
 							return res;
 						}
 						else return { ValueItem(val,meta) };
@@ -695,20 +696,20 @@ namespace art{
 				}
 				case VType::uarr: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
-						return reinterpret_cast<list_array<ValueItem>&>(val);
+						return reinterpret_cast<const list_array<ValueItem>&>(val);
 					else if constexpr (std::is_arithmetic_v<T>) {
 						if (((list_array<ValueItem>*)val)->size() != 1)
 							throw InvalidCast("Fail cast uarr");
 						else {
-							auto& tmp = (*(list_array<ValueItem>*)val)[0];
+							auto& tmp = (*(const list_array<ValueItem>*)val)[0];
 							return (T)tmp;
 						}
 					}
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
-							list_array<ValueItem>& ref = reinterpret_cast<list_array<ValueItem>&>(val);
+							const list_array<ValueItem>& ref = reinterpret_cast<const list_array<ValueItem>&>(val);
 							std::remove_pointer_t<T>* res = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++) {
 								ValueItem& tmp = ref[i];
@@ -719,14 +720,14 @@ namespace art{
 						else throw InvalidCast("Fail cast uarr");
 					}
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
-						return reinterpret_cast<list_array<ValueItem>&>(val);
+						return reinterpret_cast<const list_array<ValueItem>&>(val);
 					}
 					else throw InvalidCast("Fail cast uarr");
 					break;
 				}
 				case VType::string: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, std::string>) 
 						return reinterpret_cast<const std::string&>(val);
 					else if constexpr (!std::is_pointer_v<T>) {
@@ -737,13 +738,13 @@ namespace art{
 				}
 				case VType::undefined_ptr:{
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return { ValueItem(val,meta) };
 					else if constexpr (std::is_arithmetic_v<T>)
-						return *reinterpret_cast<T*>(&val);
+						return *reinterpret_cast<const T*>(&val);
 					else if constexpr (std::is_floating_point_v<std::remove_pointer_t<T>>)
-						return new std::remove_pointer_t<T>[]{*reinterpret_cast<std::remove_pointer_t<T>*>(&val)};
+						return new std::remove_pointer_t<T>[]{*reinterpret_cast<std::remove_pointer_t<const T>*>(&val)};
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
 						return new std::remove_pointer_t<T>[]{(std::remove_pointer_t<T>)val};
 					else if constexpr (std::is_pointer_v<T>)
@@ -768,17 +769,17 @@ namespace art{
 					if constexpr (std::is_same_v<T, list_array<ValueItem>>)
 						return list_array<ValueItem>((ValueItem*)val, ((ValueItem*)val) + meta.val_len);
 					else if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (std::is_arithmetic_v<T>)
 						return (T)meta.val_len;
 					else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>) {
 						if (meta.val_len) {
 							std::remove_pointer_t<T>* tmp = new std::remove_pointer_t<T>[meta.val_len];
 							for (uint32_t i = 0; i < meta.val_len; i++)
-								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<ValueItem*>(val)[i];
+								tmp[i] = (std::remove_pointer_t<T>)reinterpret_cast<const ValueItem*>(val)[i];
 							return tmp;
 						}
-						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)*reinterpret_cast<ValueItem*>(val) };
+						else return new std::remove_pointer_t<T>[] { (std::remove_pointer_t<T>)*reinterpret_cast<const ValueItem*>(val) };
 					}
 					else
 						throw InvalidCast("Fail cast faarr");
@@ -788,11 +789,13 @@ namespace art{
 					if constexpr (std::is_same_v<T, Structure>)
 						return (Structure&)val;
 					else if constexpr (std::is_same_v<T, void*>) {
-						return val;
+						return const_cast<void*>(val);
 					}
 					else {
-						ValueItem tmp(ref_val, meta, as_refrence);
-						ValueItem* res = ((Structure&)val).table_get_dynamic("()", ClassAccess::pub)(&tmp,1);
+						ValueItem& tmp = const_cast<ValueItem&>(reinterpret_cast<const ValueItem&>(ref_val));
+						ValueItem* res = ((const Structure&)val).table_get_dynamic("()", ClassAccess::pub)(&tmp,1);
+						if (!res)
+							return T();
 						ValueItem m(std::move(*res));
 						delete res;
 						return Vcast<T>(m.val, m.meta);
@@ -801,7 +804,7 @@ namespace art{
 				}
 				case VType::function: {
 					if constexpr (std::is_same_v<T, void*>)
-						return val;
+						return const_cast<void*>(val);
 					else if constexpr (!std::is_pointer_v<T>){
 						auto tmp = _Vcast_callFN(val);
 						if(!tmp)
@@ -856,4 +859,4 @@ namespace art{
 	bool isTrueValue(void** value);
 	void setBoolValue(bool,void** value);
 }
-#endif /* RUN_TIME_ATTACHA_ABI */
+#endif /* SRC_RUN_TIME_ATTACHA_ABI */

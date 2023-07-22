@@ -254,6 +254,13 @@ namespace art{
 				destructor = arrayDestructor<ValueItem>;
 				break;
 			case VType::saarr:
+				throw InvalidOperation("Fail alocate local stack value");
+				break;
+			case VType::async_res:
+				destructor = defaultDestructor<typed_lgr<Task>>;
+				break;
+			case VType::function:
+				destructor = defaultDestructor<typed_lgr<FuncEnvironment>>;
 				break;
 			default:
 				break;
@@ -410,6 +417,12 @@ namespace art{
 			}
 		return meta.use_gc ? (**(lgr*)value) : value;
 	}
+	const void*const& getValue(const void* const& value, const ValueMeta& meta) {
+		if (meta.use_gc)
+			if (((lgr*)value)->is_deleted())
+				universalRemove((void**)&value);
+		return meta.use_gc ? (**(const lgr*)value) : value;
+	}
 	void*& getValue(void** value) {
 		ValueMeta& meta = *(ValueMeta*)(value + 1);
 		if (meta.vtype == VType::async_res)
@@ -473,6 +486,16 @@ namespace art{
 		case VType::ui16:
 		case VType::ui32:
 		case VType::ui64:
+			return true;
+		default:
+			return false;
+		}
+	}
+	bool integer_floating(VType typ) {
+		switch (typ)
+		{
+		case VType::flo:
+		case VType::doub:
 			return true;
 		default:
 			return false;
@@ -1058,8 +1081,8 @@ namespace art{
 
 	namespace ABI_IMPL {
 
-		ValueItem* _Vcast_callFN(void* ptr) {
-			return FuncEnvironment::sync_call(*(class typed_lgr<class FuncEnvironment>*)ptr, nullptr, 0);
+		ValueItem* _Vcast_callFN(const void* ptr) {
+			return FuncEnvironment::sync_call(*(const class typed_lgr<class FuncEnvironment>*)ptr, nullptr, 0);
 		}
 		
 
@@ -1068,6 +1091,16 @@ namespace art{
 			std::string res = "*[";
 			for (size_t i = 0; i < size; i++) {
 				res += std::to_string(reinterpret_cast<T*>(arr)[i]);
+				if (i != size - 1) res += ", ";
+			}
+			res += "]";
+			return res;
+		}
+		template<class T>
+		std::string raw_arr_to_string(const void* arr, size_t size) {
+			std::string res = "*[";
+			for (size_t i = 0; i < size; i++) {
+				res += std::to_string(reinterpret_cast<const T*>(arr)[i]);
 				if (i != size - 1) res += ", ";
 			}
 			res += "]";
@@ -1124,8 +1157,8 @@ namespace art{
 				return res;
 			}
 			case VType::undefined_ptr: return "0x" + string_help::hexstr(val);
-			case VType::type_identifier: return enum_to_string(*(VType*)&val);
-			case VType::function: return reinterpret_cast<FuncEnvironment*>(val)->to_string();
+			case VType::type_identifier: return (*(ValueMeta*)&val).to_string();
+			case VType::function: return (*reinterpret_cast<typed_lgr<FuncEnvironment>*>(val))->to_string();
 			case VType::map:{
 				std::string res("{");
 				bool before = false;
@@ -1156,6 +1189,92 @@ namespace art{
 			case VType::time_point: return "t(" + std::to_string(reinterpret_cast<std::chrono::steady_clock::time_point*>(val)->time_since_epoch().count()) + ')';
 			case VType::struct_:
 				return (std::string)art::CXX::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<Structure*>(val), symbols::structures::convert::to_string);
+			default:
+				throw InvalidCast("Fail cast undefined type");
+			}
+		}
+		std::string Scast(const void*const & ref_val, const ValueMeta& meta) {
+			const void* val = getValue(ref_val, meta);
+			switch (meta.vtype) {
+			case VType::noting: return "noting";
+			case VType::boolean: return *(bool*)val ? "true" : "false";
+			case VType::i8: return std::to_string(*reinterpret_cast<int8_t*>(&val));
+			case VType::i16: return std::to_string(*reinterpret_cast<int16_t*>(&val));
+			case VType::i32: return std::to_string(*reinterpret_cast<int32_t*>(&val));
+			case VType::i64: return std::to_string(*reinterpret_cast<int64_t*>(&val));
+			case VType::ui8: return std::to_string(*reinterpret_cast<uint8_t*>(&val));
+			case VType::ui16: return std::to_string(*reinterpret_cast<uint16_t*>(&val));
+			case VType::ui32: return std::to_string(*reinterpret_cast<uint32_t*>(&val));
+			case VType::ui64: return std::to_string(*reinterpret_cast<uint64_t*>(&val));
+			case VType::flo: return std::to_string(*reinterpret_cast<float*>(&val));
+			case VType::doub: return std::to_string(*reinterpret_cast<double*>(&val));
+			case VType::raw_arr_i8: return raw_arr_to_string<int8_t>(val, meta.val_len);
+			case VType::raw_arr_i16: return raw_arr_to_string<int16_t>(val, meta.val_len);
+			case VType::raw_arr_i32: return raw_arr_to_string<int32_t>(val, meta.val_len);
+			case VType::raw_arr_i64: return raw_arr_to_string<int64_t>(val, meta.val_len);
+			case VType::raw_arr_ui8: return raw_arr_to_string<uint8_t>(val, meta.val_len);
+			case VType::raw_arr_ui16: return raw_arr_to_string<uint16_t>(val, meta.val_len);
+			case VType::raw_arr_ui32: return raw_arr_to_string<uint32_t>(val, meta.val_len);
+			case VType::raw_arr_ui64: return raw_arr_to_string<uint64_t>(val, meta.val_len);
+			case VType::raw_arr_flo: return raw_arr_to_string<float>(val, meta.val_len);
+			case VType::raw_arr_doub: return raw_arr_to_string<double>(val, meta.val_len);
+			case VType::faarr:
+			case VType::saarr:{
+				std::string res = "*[";
+				for (uint32_t i = 0; i < meta.val_len; i++){
+					const ValueItem& it = reinterpret_cast<const ValueItem*>(val)[i];
+					res += Scast(it.val, it.meta) + (i + 1 < meta.val_len ? ',' : ']');
+				}
+				if (!meta.val_len)
+					res += ']';
+				return res;
+			}
+			case VType::string: return *reinterpret_cast<const std::string*>(val);
+			case VType::uarr: {
+				std::string res("[");
+				bool before = false;
+				for (auto& it : *reinterpret_cast<const list_array<ValueItem>*>(val)) {
+					if (before)
+						res += ',';
+					res += Scast(it.val, it.meta);
+					before = true;
+				}
+				res += ']';
+				return res;
+			}
+			case VType::undefined_ptr: return "0x" + string_help::hexstr(val);
+			case VType::type_identifier: return enum_to_string(*(VType*)&val);
+			case VType::function: return (*reinterpret_cast<const typed_lgr<FuncEnvironment>*>(val))->to_string();
+			case VType::map:{
+				std::string res("{");
+				bool before = false;
+				for (auto& it : *reinterpret_cast<const std::unordered_map<ValueItem, ValueItem>*>(val)) {
+					if (before)
+						res += ',';
+					const ValueItem& key = it.first;
+					const ValueItem& item = it.second;
+					res += Scast(key.val, key.meta) + ':' + Scast(item.val, item.meta);
+					before = true;
+				}
+				res += '}';
+				return res;
+			}
+			case VType::set:{
+				std::string res("(");
+				bool before = false;
+				for (auto& it : *reinterpret_cast<const std::unordered_set<ValueItem>*>(val)) {
+					if (before)
+						res += ',';
+					ValueItem& item = const_cast<ValueItem&>(it);
+					res += Scast(item.val, item.meta);
+					before = true;
+				}
+				res += ')';
+				return res;
+			}
+			case VType::time_point: return "t(" + std::to_string(reinterpret_cast<const std::chrono::steady_clock::time_point*>(val)->time_since_epoch().count()) + ')';
+			case VType::struct_:
+				return (std::string)art::CXX::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<const Structure*>(val), symbols::structures::convert::to_string);
 			default:
 				throw InvalidCast("Fail cast undefined type");
 			}
@@ -2388,6 +2507,9 @@ namespace art{
 	ValueItem::ValueItem(ValueItem* vals, uint32_t len, no_copy_t){
 		*this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len), no_copy);
 	}
+	ValueItem::ValueItem(ValueItem* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len), as_refrence);
+	}
 
 	ValueItem::ValueItem(void* undefined_ptr) {
 		val = undefined_ptr;
@@ -2424,6 +2546,7 @@ namespace art{
 		*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len));
 	}
 
+	ValueItem::ValueItem(Structure* str, no_copy_t) : ValueItem(str, VType::struct_, no_copy){}
 	ValueItem::ValueItem(int8_t* vals, uint32_t len, no_copy_t){
 		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len), no_copy);
 	}
@@ -2454,9 +2577,35 @@ namespace art{
 	ValueItem::ValueItem(double* vals, uint32_t len, no_copy_t){
 		*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), no_copy);
 	}
-	ValueItem::ValueItem(class Structure* struct_, no_copy_t){
-		val = struct_;
-		meta = VType::struct_;
+	ValueItem::ValueItem(int8_t* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len), as_refrence);
+	}
+	ValueItem::ValueItem(uint8_t* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len), as_refrence);
+	}
+	ValueItem::ValueItem(int16_t* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len), as_refrence);
+	}
+	ValueItem::ValueItem(uint16_t* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len), as_refrence);
+	}
+	ValueItem::ValueItem(int32_t* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len), as_refrence);
+	}
+	ValueItem::ValueItem(uint32_t* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len), as_refrence);
+	}
+	ValueItem::ValueItem(int64_t* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len), as_refrence);
+	}
+	ValueItem::ValueItem(uint64_t* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len), as_refrence);
+	}
+	ValueItem::ValueItem(float* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len), as_refrence);
+	}
+	ValueItem::ValueItem(double* vals, uint32_t len, as_refrence_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), as_refrence);
 	}
 
 	ValueItem::ValueItem(typed_lgr<struct Task> task) {
@@ -2581,6 +2730,7 @@ namespace art{
 		meta = VType::struct_;
 		meta.as_ref = true;
 	}
+	
 	ValueItem::ValueItem(ValueItem& ref, as_refrence_t){
 		val = ref.val;
 		meta = ref.meta;
@@ -2688,6 +2838,181 @@ namespace art{
 	}
 
 
+
+
+
+	ValueItem::ValueItem(const ValueItem& ref, as_refrence_t){
+		val = ref.val;
+		meta = ref.meta;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const bool& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::boolean;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const int8_t& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::i8;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const uint8_t& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::ui8;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const int16_t& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::i16;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const uint16_t& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::ui16;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const int32_t& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::i32;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const uint32_t& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::ui32;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const int64_t& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::i64;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const uint64_t& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::ui64;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const float& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::flo;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const double& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::doub;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const Structure* str, as_refrence_t){
+		val = const_cast<Structure*>(str);
+		meta = VType::struct_;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const std::string& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::string;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const list_array<ValueItem>& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::uarr;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const std::exception_ptr&val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::except_value;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const std::chrono::steady_clock::time_point&val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::time_point;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const std::unordered_map<ValueItem, ValueItem>&val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::map;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const std::unordered_set<ValueItem>&val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::set;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const typed_lgr<struct Task>& val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::async_res;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const ValueMeta&val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::type_identifier;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+	ValueItem::ValueItem(const typed_lgr<class FuncEnvironment>&val, as_refrence_t){
+		this->val = (void*)&val;
+		meta = VType::function;
+		meta.as_ref = true;
+		meta.allow_edit = false;
+	}
+
+
+	ValueItem::ValueItem(array_t<bool>&& val) : ValueItem((uint8_t*)val.data, val.length, no_copy){val.release();}
+	ValueItem::ValueItem(array_t<int8_t>&& val) : ValueItem(val.data, val.length, no_copy){val.release();}
+	ValueItem::ValueItem(array_t<uint8_t>&& val) : ValueItem(val.data, val.length, no_copy) { val.release(); }
+	ValueItem::ValueItem(array_t<int16_t>&& val) : ValueItem(val.data, val.length, no_copy) { val.release(); }
+	ValueItem::ValueItem(array_t<uint16_t>&& val) : ValueItem(val.data, val.length, no_copy) { val.release(); }
+	ValueItem::ValueItem(array_t<int32_t>&& val) : ValueItem(val.data, val.length, no_copy) { val.release(); }
+	ValueItem::ValueItem(array_t<uint32_t>&& val) : ValueItem(val.data, val.length, no_copy) { val.release(); }
+	ValueItem::ValueItem(array_t<int64_t>&& val) : ValueItem(val.data, val.length, no_copy) { val.release(); }
+	ValueItem::ValueItem(array_t<uint64_t>&& val) : ValueItem(val.data, val.length, no_copy) { val.release(); }
+	ValueItem::ValueItem(array_t<float>&& val) : ValueItem(val.data, val.length, no_copy) { val.release(); }
+	ValueItem::ValueItem(array_t<double>&& val) : ValueItem(val.data, val.length, no_copy) { val.release(); }
+	ValueItem::ValueItem(array_t<ValueItem>&& val) : ValueItem(val.data, val.length, no_copy) { val.release(); }
+	
+	ValueItem::ValueItem(const array_t<bool>& val) : ValueItem((uint8_t*)val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<int8_t>& val) : ValueItem(val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<uint8_t>& val) : ValueItem(val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<int16_t>& val) : ValueItem(val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<uint16_t>& val) : ValueItem(val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<int32_t>& val) : ValueItem(val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<uint32_t>& val) : ValueItem(val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<int64_t>& val) : ValueItem(val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<uint64_t>& val) : ValueItem(val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<float>& val) : ValueItem(val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<double>& val) : ValueItem(val.data, val.length) {}
+	ValueItem::ValueItem(const array_t<ValueItem>& val) : ValueItem(val.data, val.length) {}
+	
+	ValueItem::ValueItem(const array_ref_t<bool>& val) : ValueItem((uint8_t*)val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<int8_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<uint8_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<int16_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<uint16_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<int32_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<uint32_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<int64_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<uint64_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<float>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<double>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<ValueItem>& val) : ValueItem(val.data, val.length, as_refrence) {}
 #pragma endregion
 
 	ValueItem::~ValueItem() {
@@ -2719,37 +3044,848 @@ namespace art{
 	}
 #pragma region ValueItem operators
 	bool ValueItem::operator<(const ValueItem& cmp) const {
-		void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
-		void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
-		return compareValue(meta.vtype, cmp.meta.vtype, val1, val2).second;
+		int8_t res = compare(cmp);
+		return res == -1;
 	}
 	bool ValueItem::operator>(const ValueItem& cmp) const {
-		void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
-		void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
-		return !compareValue(meta.vtype, cmp.meta.vtype, val1, val2).second;
+		int8_t res = compare(cmp);
+		return res == 1;
 	}
 	bool ValueItem::operator==(const ValueItem& cmp) const {
-		void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
-		void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
-		return compareValue(meta.vtype, cmp.meta.vtype, val1, val2).first;
+		int8_t res = compare(cmp);
+		return res == 0;
 	}
 	bool ValueItem::operator!=(const ValueItem& cmp) const {
-		void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
-		void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
-		return !compareValue(meta.vtype, cmp.meta.vtype, val1, val2).first;
+		int8_t res = compare(cmp);
+		return res != 0;
 	}
 	bool ValueItem::operator>=(const ValueItem& cmp) const {
-		void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
-		void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
-		auto tmp = compareValue(meta.vtype, cmp.meta.vtype, val1, val2);
-		return tmp.first || !tmp.second;
+		int8_t res = compare(cmp);
+		return res != -1;
 	}
 	bool ValueItem::operator<=(const ValueItem& cmp) const {
-		void* val1 = getValue(const_cast<void*&>(val), const_cast<ValueMeta&>(meta));
-		void* val2 = getValue(const_cast<void*&>(cmp.val), const_cast<ValueMeta&>(cmp.meta));
-		auto tmp = compareValue(meta.vtype, cmp.meta.vtype, val1, val2);
-		return tmp.first || tmp.second;
-	}		
+		int8_t res = compare(cmp);
+		return res != 1;
+	}
+
+	inline int64_t get_sinteger(void* ref, bool in_memory) {
+		return in_memory ? *(int64_t*)ref : *(int64_t*)(&ref);
+	}
+	inline uint64_t get_uinteger(void* ref, bool in_memory) {
+		return in_memory ? *(uint64_t*)ref : *(uint64_t*)(&ref);
+	}
+	int8_t ValueItem::compare(const ValueItem& cmp) const {
+		void* self =  needAlloc(meta) ? val : meta.as_ref ? *(void**)val : (void*)&val;
+		bool self_in_mem = meta.as_ref || meta.use_gc;
+		if(meta.use_gc)
+			self = ((lgr*)self)->getPtr();
+		void* other = needAlloc(cmp.meta) ? cmp.val : cmp.meta.as_ref ?  *(void**)cmp.val : (void*)&cmp.val;
+		bool other_in_mem = meta.as_ref || meta.use_gc;
+		if(cmp.meta.use_gc)
+			other = ((lgr*)other)->getPtr();
+		if((is_integer(meta.vtype) || meta.vtype == VType::undefined_ptr) && (is_integer(cmp.meta.vtype) || cmp.meta.vtype == VType::undefined_ptr)){
+			if(integer_unsigned(meta.vtype) && integer_unsigned(cmp.meta.vtype)){
+				if(get_uinteger(self, self_in_mem) < get_uinteger(other, other_in_mem))
+					return -1;
+				else if(get_uinteger(self, self_in_mem) > get_uinteger(other, other_in_mem))
+					return 1;
+				else
+					return 0;
+			}
+			else{
+				switch (meta.vtype)
+				{
+				case VType::i8:
+					switch (cmp.meta.vtype)
+					{
+					case VType::i8:
+						if (*(int8_t*)self < *(int8_t*)other)
+							return -1;
+						else if (*(int8_t*)self > *(int8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i16:
+						if (*(int8_t*)self < *(int16_t*)other)
+							return -1;
+						else if (*(int8_t*)self > *(int16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i32:
+						if (*(int8_t*)self < *(int32_t*)other)
+							return -1;
+						else if (*(int8_t*)self > *(int32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i64:
+						if (*(int8_t*)self < *(int64_t*)other)
+							return -1;
+						else if (*(int8_t*)self > *(int64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui8:
+						if (*(int8_t*)self < *(uint8_t*)other)
+							return -1;
+						else if (*(int8_t*)self > *(uint8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui16:
+						if (*(int8_t*)self < *(uint16_t*)other)
+							return -1;
+						else if (*(int8_t*)self > *(uint16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui32:
+						if (*(int8_t*)self < *(uint32_t*)other)
+							return -1;
+						else if (*(int8_t*)self > *(uint32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui64:
+						if (*(int8_t*)self < *(uint64_t*)other)
+							return -1;
+						else if (*(int8_t*)self > *(uint64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::flo:
+						if (*(int8_t*)self < *(float*)other)
+							return -1;
+						else if (*(int8_t*)self > *(float*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::doub:
+						if (*(int8_t*)self < *(double*)other)
+							return -1;
+						else if (*(int8_t*)self > *(double*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					default:
+						break;
+					}
+					break;
+				case VType::i16:
+					switch (cmp.meta.vtype)
+					{
+					case VType::i8:
+						if (*(int16_t*)self < *(int8_t*)other)
+							return -1;
+						else if (*(int16_t*)self > *(int8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i16:
+						if (*(int16_t*)self < *(int16_t*)other)
+							return -1;
+						else if (*(int16_t*)self > *(int16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i32:
+						if (*(int16_t*)self < *(int32_t*)other)
+							return -1;
+						else if (*(int16_t*)self > *(int32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i64:
+						if (*(int16_t*)self < *(int64_t*)other)
+							return -1;
+						else if (*(int16_t*)self > *(int64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui8:
+						if (*(int16_t*)self < *(uint8_t*)other)
+							return -1;
+						else if (*(int16_t*)self > *(uint8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui16:
+						if (*(int16_t*)self < *(uint16_t*)other)
+							return -1;
+						else if (*(int16_t*)self > *(uint16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui32:
+						if (*(int16_t*)self < *(uint32_t*)other)
+							return -1;
+						else if (*(int16_t*)self > *(uint32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui64:
+						if (*(int16_t*)self < *(uint64_t*)other)
+							return -1;
+						else if (*(int16_t*)self > *(uint64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::flo:
+						if (*(int16_t*)self < *(float*)other)
+							return -1;
+						else if (*(int16_t*)self > *(float*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::doub:
+						if (*(int16_t*)self < *(double*)other)
+							return -1;
+						else if (*(int16_t*)self > *(double*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					default:
+						break;
+					}
+					break;
+				case VType::i32:
+					switch (cmp.meta.vtype)
+					{
+					case VType::i8:
+						if (*(int32_t*)self < *(int8_t*)other)
+							return -1;
+						else if (*(int32_t*)self > *(int8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i16:
+						if (*(int32_t*)self < *(int16_t*)other)
+							return -1;
+						else if (*(int32_t*)self > *(int16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i32:
+						if (*(int32_t*)self < *(int32_t*)other)
+							return -1;
+						else if (*(int32_t*)self > *(int32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i64:
+						if (*(int32_t*)self < *(int64_t*)other)
+							return -1;
+						else if (*(int32_t*)self > *(int64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui8:
+						if (*(int32_t*)self < *(uint8_t*)other)
+							return -1;
+						else if (*(int32_t*)self > *(uint8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui16:
+						if (*(int32_t*)self < *(uint16_t*)other)
+							return -1;
+						else if (*(int32_t*)self > *(uint16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui32:
+						if (*(int32_t*)self < *(uint32_t*)other)
+							return -1;
+						else if (*(int32_t*)self > *(uint32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui64:
+						if (*(int32_t*)self < *(uint64_t*)other)
+							return -1;
+						else if (*(int32_t*)self > *(uint64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::flo:
+						if (*(int32_t*)self < *(float*)other)
+							return -1;
+						else if (*(int32_t*)self > *(float*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::doub:
+						if (*(int32_t*)self < *(double*)other)
+							return -1;
+						else if (*(int32_t*)self > *(double*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					default:
+						break;
+					}
+					break;
+				case VType::i64:
+					switch (cmp.meta.vtype)
+					{
+					case VType::i8:
+						if (*(int64_t*)self < *(int8_t*)other)
+							return -1;
+						else if (*(int64_t*)self > *(int8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i16:
+						if (*(int64_t*)self < *(int16_t*)other)
+							return -1;
+						else if (*(int64_t*)self > *(int16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i32:
+						if (*(int64_t*)self < *(int32_t*)other)
+							return -1;
+						else if (*(int64_t*)self > *(int32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i64:
+						if (*(int64_t*)self < *(int64_t*)other)
+							return -1;
+						else if (*(int64_t*)self > *(int64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui8:
+						if (*(int64_t*)self < *(uint8_t*)other)
+							return -1;
+						else if (*(int64_t*)self > *(uint8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui16:
+						if (*(int64_t*)self < *(uint16_t*)other)
+							return -1;
+						else if (*(int64_t*)self > *(uint16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui32:
+						if (*(int64_t*)self < *(uint32_t*)other)
+							return -1;
+						else if (*(int64_t*)self > *(uint32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui64:
+						if (*(int64_t*)self < *(uint64_t*)other)
+							return -1;
+						else if (*(int64_t*)self > *(uint64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::flo:
+						if (*(int64_t*)self < *(float*)other)
+							return -1;
+						else if (*(int64_t*)self > *(float*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::doub:
+						if (*(int64_t*)self < *(double*)other)
+							return -1;
+						else if (*(int64_t*)self > *(double*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					default:
+						break;
+					}
+					break;
+				case VType::ui8:
+					switch (cmp.meta.vtype)
+					{
+					case VType::i8:
+						if (*(uint8_t*)self < *(int8_t*)other)
+							return -1;
+						else if (*(uint8_t*)self > *(int8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i16:
+						if (*(uint8_t*)self < *(int16_t*)other)
+							return -1;
+						else if (*(uint8_t*)self > *(int16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i32:
+						if (*(uint8_t*)self < *(int32_t*)other)
+							return -1;
+						else if (*(uint8_t*)self > *(int32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i64:
+						if (*(uint8_t*)self < *(int64_t*)other)
+							return -1;
+						else if (*(uint8_t*)self > *(int64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::flo:
+						if (*(uint8_t*)self < *(float*)other)
+							return -1;
+						else if (*(uint8_t*)self > *(float*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::doub:
+						if (*(uint8_t*)self < *(double*)other)
+							return -1;
+						else if (*(uint8_t*)self > *(double*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					default:
+						break;
+					}
+					break;
+				case VType::ui16:
+					switch (cmp.meta.vtype)
+					{
+					case VType::i8:
+						if (*(uint16_t*)self < *(int8_t*)other)
+							return -1;
+						else if (*(uint16_t*)self > *(int8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i16:
+						if (*(uint16_t*)self < *(int16_t*)other)
+							return -1;
+						else if (*(uint16_t*)self > *(int16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i32:
+						if (*(uint16_t*)self < *(int32_t*)other)
+							return -1;
+						else if (*(uint16_t*)self > *(int32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i64:
+						if (*(uint16_t*)self < *(int64_t*)other)
+							return -1;
+						else if (*(uint16_t*)self > *(int64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::flo:
+						if (*(uint16_t*)self < *(float*)other)
+							return -1;
+						else if (*(uint16_t*)self > *(float*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::doub:
+						if (*(uint16_t*)self < *(double*)other)
+							return -1;
+						else if (*(uint16_t*)self > *(double*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					default:
+						break;
+					}
+					break;
+				case VType::ui32:
+					switch (cmp.meta.vtype)
+					{
+					case VType::i8:
+						if (*(uint32_t*)self < *(int8_t*)other)
+							return -1;
+						else if (*(uint32_t*)self > *(int8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i16:
+						if (*(uint32_t*)self < *(int16_t*)other)
+							return -1;
+						else if (*(uint32_t*)self > *(int16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i32:
+						if (*(uint32_t*)self < *(int32_t*)other)
+							return -1;
+						else if (*(uint32_t*)self > *(int32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i64:
+						if (*(uint32_t*)self < *(int64_t*)other)
+							return -1;
+						else if (*(uint32_t*)self > *(int64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::flo:
+						if (*(uint32_t*)self < *(float*)other)
+							return -1;
+						else if (*(uint32_t*)self > *(float*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::doub:
+						if (*(uint32_t*)self < *(double*)other)
+							return -1;
+						else if (*(uint32_t*)self > *(double*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					default:
+						break;
+					}
+					break;
+				case VType::ui64:
+					switch (cmp.meta.vtype)
+					{
+					case VType::i8:
+						if (*(uint64_t*)self < *(int8_t*)other)
+							return -1;
+						else if (*(uint64_t*)self > *(int8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i16:
+						if (*(uint64_t*)self < *(int16_t*)other)
+							return -1;
+						else if (*(uint64_t*)self > *(int16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i32:
+						if (*(uint64_t*)self < *(int32_t*)other)
+							return -1;
+						else if (*(uint64_t*)self > *(int32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i64:
+						if (*(uint64_t*)self < *(int64_t*)other)
+							return -1;
+						else if (*(uint64_t*)self > *(int64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::flo:
+						if (*(uint64_t*)self < *(float*)other)
+							return -1;
+						else if (*(uint64_t*)self > *(float*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::doub:
+						if (*(uint64_t*)self < *(double*)other)
+							return -1;
+						else if (*(uint64_t*)self > *(double*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					default:
+						break;
+					}
+					break;
+				case VType::flo:
+					switch (cmp.meta.vtype)
+					{
+					case VType::i8:
+						if (*(float*)self < *(int8_t*)other)
+							return -1;
+						else if (*(float*)self > *(int8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i16:
+						if (*(float*)self < *(int16_t*)other)
+							return -1;
+						else if (*(float*)self > *(int16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i32:
+						if (*(float*)self < *(int32_t*)other)
+							return -1;
+						else if (*(float*)self > *(int32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i64:
+						if (*(float*)self < *(int64_t*)other)
+							return -1;
+						else if (*(float*)self > *(int64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui8:
+						if (*(float*)self < *(uint8_t*)other)
+							return -1;
+						else if (*(float*)self > *(uint8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui16:
+						if (*(float*)self < *(uint16_t*)other)
+							return -1;
+						else if (*(float*)self > *(uint16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui32:
+						if (*(float*)self < *(uint32_t*)other)
+							return -1;
+						else if (*(float*)self > *(uint32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui64:
+						if (*(float*)self < *(uint64_t*)other)
+							return -1;
+						else if (*(float*)self > *(uint64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::flo:
+						if (*(float*)self < *(float*)other)
+							return -1;
+						else if (*(float*)self > *(float*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::doub:
+						if (*(float*)self < *(double*)other)
+							return -1;
+						else if (*(float*)self > *(double*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					default:
+						break;
+					}
+					break;
+				case VType::doub:
+					switch (cmp.meta.vtype)
+					{
+					case VType::i8:
+						if (*(double*)self < *(int8_t*)other)
+							return -1;
+						else if (*(double*)self > *(int8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i16:
+						if (*(double*)self < *(int16_t*)other)
+							return -1;
+						else if (*(double*)self > *(int16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i32:
+						if (*(double*)self < *(int32_t*)other)
+							return -1;
+						else if (*(double*)self > *(int32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::i64:
+						if (*(double*)self < *(int64_t*)other)
+							return -1;
+						else if (*(double*)self > *(int64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui8:
+						if (*(double*)self < *(uint8_t*)other)
+							return -1;
+						else if (*(double*)self > *(uint8_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui16:
+						if (*(double*)self < *(uint16_t*)other)
+							return -1;
+						else if (*(double*)self > *(uint16_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui32:
+						if (*(double*)self < *(uint32_t*)other)
+							return -1;
+						else if (*(double*)self > *(uint32_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::ui64:
+						if (*(double*)self < *(uint64_t*)other)
+							return -1;
+						else if (*(double*)self > *(uint64_t*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::flo:
+						if (*(double*)self < *(float*)other)
+							return -1;
+						else if (*(double*)self > *(float*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					case VType::doub:
+						if (*(double*)self < *(double*)other)
+							return -1;
+						else if (*(double*)self > *(double*)other)
+							return 1;
+						else
+							return 0;
+						break;
+					default:
+						break;
+					}
+					break;
+				default:
+					break;
+				}
+				throw NotImplementedException();
+			}
+		}
+		else if(is_integer(meta.vtype) || meta.vtype == VType::undefined_ptr){
+			if(integer_unsigned(meta.vtype)){
+				uint64_t cmp_i = (uint64_t)cmp;
+				if(get_uinteger(self, self_in_mem) < cmp_i)
+					return -1;
+				else if(get_uinteger(self, self_in_mem) > cmp_i)
+					return 1;
+				else
+					return 0;
+			}else{
+				return compare((int64_t)cmp);
+			}
+		}
+		else if (meta.vtype == VType::string && cmp.meta.vtype == VType::string) {
+			auto cmp = *(std::string*)self <=> *(std::string*)other;
+			return cmp < 0 ? -1 : cmp > 0 ? 1 : 0;
+		}
+		else if (meta.vtype == VType::string)		  return compare((std::string)cmp);
+		else if (cmp.meta.vtype == VType::string) return cmp.compare((std::string)*this);
+		else if (has_interface(meta.vtype) && has_interface(cmp.meta.vtype))return Structure::compare((Structure*)self, (Structure*)other);
+		else if (meta.vtype == VType::uarr || is_raw_array(meta.vtype) || has_interface(meta.vtype)){
+			if(cmp.meta.vtype == VType::uarr || is_raw_array(cmp.meta.vtype) || has_interface(cmp.meta.vtype)){
+				size_t dif_len = size() - cmp.size();
+				if(dif_len == 0){
+					auto begin = cbegin();
+					auto end = cend();
+					auto cmp_begin = cmp.cbegin();
+					while(begin != end){
+						auto cmp = begin.get().compare(cmp_begin.get());
+						if(cmp != 0)
+							return cmp;
+						begin++;
+					}
+					return 0;
+				}else{
+					return dif_len < 0 ? -1 : 1;
+				}
+			}else
+				return -1;
+		}
+		else
+			return meta.vtype == cmp.meta.vtype ? 0 : -1;
+	}
 	ValueItem& ValueItem::operator +=(const ValueItem& op) {
 		DynSum(&val, (void**)&op.val);
 		return *this;
@@ -2828,99 +3964,19 @@ namespace art{
 #pragma endregion
 
 #pragma region ValueItem cast operators
-	ValueItem::operator bool() {
-		return ABI_IMPL::Vcast<bool>(val, meta);
-	}
-	ValueItem::operator int8_t() {
-		return ABI_IMPL::Vcast<int8_t>(val, meta);
-	}
-	ValueItem::operator uint8_t() {
-		return ABI_IMPL::Vcast<uint8_t>(val, meta);
-	}
-	ValueItem::operator int16_t() {
-		return ABI_IMPL::Vcast<int16_t>(val, meta);
-	}
-	ValueItem::operator uint16_t() {
-		return ABI_IMPL::Vcast<uint16_t>(val, meta);
-	}
-	ValueItem::operator int32_t() {
-		return ABI_IMPL::Vcast<int32_t>(val, meta);
-	}
-	ValueItem::operator uint32_t() {
-		return ABI_IMPL::Vcast<uint32_t>(val, meta);
-	}
-	ValueItem::operator int64_t() {
-		return ABI_IMPL::Vcast<int64_t>(val, meta);
-	}
-	ValueItem::operator uint64_t() {
-		return ABI_IMPL::Vcast<uint64_t>(val, meta);
-	}
-	ValueItem::operator float() {
-		return ABI_IMPL::Vcast<float>(val, meta);
-	}
-	ValueItem::operator double() {
-		return ABI_IMPL::Vcast<double>(val, meta);
-	}
-	ValueItem::operator std::string() {
-		if(meta.vtype == VType::string)
-			return *(std::string*)getSourcePtr();
-		else
-			return ABI_IMPL::Scast(val, meta);
-	}
-	ValueItem::operator void*() {
-		return ABI_IMPL::Vcast<void*>(val, meta);
-	}
-	ValueItem::operator list_array<ValueItem>() {
-		return ABI_IMPL::Vcast<list_array<ValueItem>>(val, meta);
-	}
-	ValueItem::operator Structure&() {
-		if(meta.vtype == VType::async_res)
-			getAsync();
+	ValueItem::operator Structure& (){
 		if (meta.vtype == VType::struct_)
 			return *(Structure*)getSourcePtr();
 		else
-			throw InvalidCast("This type is not struct");
-	}
-	ValueItem::operator ValueMeta(){
-		if(meta.vtype == VType::async_res)
-			getAsync();
-		if(meta.vtype == VType::type_identifier)
-			return *(ValueMeta*)getSourcePtr();
-		else
-			return meta.vtype;
-	}
-	ValueItem::operator std::exception_ptr() {
-		if(meta.vtype == VType::async_res)
-			getAsync();
-		if (meta.vtype == VType::except_value)
-			return *(std::exception_ptr*)getSourcePtr();
-		else {
-			try {
-				throw InvalidCast("This type is not proxy");
-			}catch(...){
-				return std::current_exception();
-			}
-		}
-	}
-	ValueItem::operator std::chrono::steady_clock::time_point(){
-		if(meta.vtype == VType::async_res)
-			getAsync();
-		if (meta.vtype == VType::time_point)
-			return *(std::chrono::steady_clock::time_point*)getSourcePtr();
-		else
-			throw InvalidCast("This type is not time_point");
+			throw InvalidCast("This type is not structure");
 	}
 	ValueItem::operator std::unordered_map<ValueItem, ValueItem>&(){
-		if(meta.vtype == VType::async_res)
-			getAsync();
 		if (meta.vtype == VType::map)
 			return *(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr();
 		else
 			throw InvalidCast("This type is not map");
 	}
 	ValueItem::operator std::unordered_set<ValueItem>&(){
-		if(meta.vtype == VType::async_res)
-			getAsync();
 		if (meta.vtype == VType::set)
 			return *(std::unordered_set<ValueItem>*)getSourcePtr();
 		else
@@ -2934,6 +3990,948 @@ namespace art{
 	ValueItem::operator typed_lgr<class FuncEnvironment>&(){
 		return *funPtr();
 	}
+	
+	ValueItem::operator bool() const{
+		return ABI_IMPL::Vcast<bool>(val, meta);
+	}
+	ValueItem::operator int8_t() const{
+		return ABI_IMPL::Vcast<int8_t>(val, meta);
+	}
+	ValueItem::operator uint8_t() const{
+		return ABI_IMPL::Vcast<uint8_t>(val, meta);
+	}
+	ValueItem::operator int16_t() const{
+		return ABI_IMPL::Vcast<int16_t>(val, meta);
+	}
+	ValueItem::operator uint16_t() const{
+		return ABI_IMPL::Vcast<uint16_t>(val, meta);
+	}
+	ValueItem::operator int32_t() const{
+		return ABI_IMPL::Vcast<int32_t>(val, meta);
+	}
+	ValueItem::operator uint32_t() const{
+		return ABI_IMPL::Vcast<uint32_t>(val, meta);
+	}
+	ValueItem::operator int64_t() const{
+		return ABI_IMPL::Vcast<int64_t>(val, meta);
+	}
+	ValueItem::operator uint64_t() const{
+		return ABI_IMPL::Vcast<uint64_t>(val, meta);
+	}
+	ValueItem::operator float() const{
+		return ABI_IMPL::Vcast<float>(val, meta);
+	}
+	ValueItem::operator double() const{
+		return ABI_IMPL::Vcast<double>(val, meta);
+	}
+	ValueItem::operator void*() const{
+		return ABI_IMPL::Vcast<void*>(val, meta);
+	}
+	ValueItem::operator std::string() const{
+		if(meta.vtype == VType::string)
+			return *(std::string*)getSourcePtr();
+		else
+			return ABI_IMPL::Scast(val, meta);
+	}
+	ValueItem::operator list_array<ValueItem>() const{
+		return ABI_IMPL::Vcast<list_array<ValueItem>>(val, meta);
+	}
+	ValueItem::operator ValueMeta() const{
+		if(meta.vtype == VType::type_identifier)
+			return *(ValueMeta*)getSourcePtr();
+		else
+			return meta.vtype;
+	}
+	ValueItem::operator std::exception_ptr() const{
+		if (meta.vtype == VType::except_value)
+			return *(std::exception_ptr*)getSourcePtr();
+		else {
+			try {
+				throw InvalidCast("This type is not proxy");
+			}catch(...){
+				return std::current_exception();
+			}
+		}
+	}
+	ValueItem::operator std::chrono::steady_clock::time_point() const{
+		if (meta.vtype == VType::time_point)
+			return *(std::chrono::steady_clock::time_point*)getSourcePtr();
+		else
+			throw InvalidCast("This type is not time_point");
+	}
+	ValueItem::operator const Structure& () const{
+		if (meta.vtype == VType::struct_)
+			return *(const Structure*)getSourcePtr();
+		else
+			throw InvalidCast("This type is not structure");
+	}
+	ValueItem::operator const std::unordered_map<ValueItem, ValueItem>&() const{
+		if (meta.vtype == VType::map)
+			return *(const std::unordered_map<ValueItem, ValueItem>*)getSourcePtr();
+		else
+			throw InvalidCast("This type is not map");
+	}
+	ValueItem::operator const std::unordered_set<ValueItem>&() const{
+		if (meta.vtype == VType::set)
+			return *(const std::unordered_set<ValueItem>*)getSourcePtr();
+		else
+			throw InvalidCast("This type is not set");
+	}
+	ValueItem::operator const typed_lgr<struct Task>&() const{
+		if (meta.vtype == VType::async_res)
+			return *(const typed_lgr<Task>*)getSourcePtr();
+		throw InvalidCast("This type is not async_res");
+	}
+	ValueItem::operator const typed_lgr<class FuncEnvironment>&() const{
+		return *funPtr();
+	}
+
+
+	ValueItem::operator const array_t<bool>() const{
+		if(!meta.val_len)
+			return array_t<bool>();
+		bool* copy_arr = new bool[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+		case VType::raw_arr_i8:
+		case VType::raw_arr_ui8:
+			memcpy(copy_arr, src, meta.val_len);
+			break;
+		case VType::raw_arr_i16:
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (bool)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (bool)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (bool)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (bool)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (bool)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (bool)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<bool>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<int8_t>() const{
+		if(!meta.val_len)
+			return array_t<int8_t>();
+		int8_t* copy_arr = new int8_t[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+		case VType::raw_arr_i8:
+			memcpy(copy_arr, src, meta.val_len);
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int8_t)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int8_t)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int8_t)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int8_t)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int8_t)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int8_t)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int8_t)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int8_t)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int8_t)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int8_t)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<int8_t>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<uint8_t>() const{
+		if(!meta.val_len)
+			return array_t<uint8_t>();
+		uint8_t* copy_arr = new uint8_t[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+		case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint8_t)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			memcpy(copy_arr, src, meta.val_len);
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint8_t)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint8_t)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint8_t)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint8_t)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint8_t)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint8_t)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint8_t)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint8_t)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint8_t)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<uint8_t>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<int16_t>() const{
+		if(!meta.val_len)
+			return array_t<int16_t>();
+		int16_t* copy_arr = new int16_t[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+		case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int16_t)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<int16_t>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<uint16_t>() const{
+		if(!meta.val_len)
+			return array_t<uint16_t>();
+		uint16_t* copy_arr = new uint16_t[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+						case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint16_t)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<uint16_t>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<int32_t>() const{
+		if(!meta.val_len)
+			return array_t<int32_t>();
+		int32_t* copy_arr = new int32_t[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+						case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int32_t)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<int32_t>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<uint32_t>() const{
+		if(!meta.val_len)
+			return array_t<uint32_t>();
+		uint32_t* copy_arr = new uint32_t[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+						case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint32_t)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<uint32_t>(meta.val_len, copy_arr);
+		
+	}
+	ValueItem::operator const array_t<int64_t>() const{
+		if(!meta.val_len)
+			return array_t<int64_t>();
+		int64_t* copy_arr = new int64_t[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+						case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (int64_t)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<int64_t>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<uint64_t>() const{
+		if(!meta.val_len)
+			return array_t<uint64_t>();
+		uint64_t* copy_arr = new uint64_t[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+						case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (uint64_t)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<uint64_t>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<float>() const{
+		if(!meta.val_len)
+			return array_t<float>();
+		float* copy_arr = new float[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+						case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (float)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<float>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<double>() const{
+		if(!meta.val_len)
+			return array_t<double>();
+		double* copy_arr = new double[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+						case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (double)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<double>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<long>() const{
+		if(!meta.val_len)
+			return array_t<long>();
+		long* copy_arr = new long[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+						case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (long)((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<long>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_t<ValueItem>() const{
+		if(!meta.val_len)
+			return array_t<ValueItem>();
+		ValueItem* copy_arr = new ValueItem[meta.val_len];
+		const void* src = getSourcePtr();
+		switch (meta.vtype) {
+			case VType::raw_arr_i8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (ValueItem)((const int8_t*)src)[i];
+			break;
+		case VType::raw_arr_ui8:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (ValueItem)((const uint8_t*)src)[i];
+			break;
+		case VType::raw_arr_i16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (ValueItem)((const int16_t*)src)[i];
+			break;
+		case VType::raw_arr_ui16:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (ValueItem)((const uint16_t*)src)[i];
+			break;
+		case VType::raw_arr_i32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (ValueItem)((const int32_t*)src)[i];
+			break;
+		case VType::raw_arr_ui32:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (ValueItem)((const uint32_t*)src)[i];
+			break;
+		case VType::raw_arr_i64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (ValueItem)((const int64_t*)src)[i];
+			break;
+		case VType::raw_arr_ui64:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (ValueItem)((const uint64_t*)src)[i];
+			break;
+		case VType::raw_arr_flo:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (ValueItem)((const float*)src)[i];
+			break;
+		case VType::raw_arr_doub:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = (ValueItem)((const double*)src)[i];
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			for(int i = 0; i < meta.val_len; i++)
+				copy_arr[i] = ((const ValueItem*)src)[i];
+			break;
+		default:
+			throw InvalidCast("This type is not array");
+		}
+		return array_t<ValueItem>(meta.val_len, copy_arr);
+	}
+	ValueItem::operator const array_ref_t<bool>() const{
+		if(meta.vtype != VType::raw_arr_ui8 || meta.vtype != VType::raw_arr_i8)
+			throw InvalidCast("This type is not similar to bool array");
+		return array_ref_t<bool>((bool*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<int8_t>() const{
+		if(meta.vtype != VType::raw_arr_i8)
+			throw InvalidCast("This type is not similar to int8_t array");
+		return array_ref_t<int8_t>((int8_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<uint8_t>() const{
+		if(meta.vtype != VType::raw_arr_ui8)
+			throw InvalidCast("This type is not similar to uint8_t array");
+		return array_ref_t<uint8_t>((uint8_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<int16_t>() const{
+		if(meta.vtype != VType::raw_arr_i16)
+			throw InvalidCast("This type is not similar to int16_t array");
+		return array_ref_t<int16_t>((int16_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<uint16_t>() const{
+		if(meta.vtype != VType::raw_arr_ui16)
+			throw InvalidCast("This type is not similar to uint16_t array");
+		return array_ref_t<uint16_t>((uint16_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<int32_t>() const{
+		if(meta.vtype != VType::raw_arr_i32)
+			throw InvalidCast("This type is not similar to int32_t array");
+		return array_ref_t<int32_t>((int32_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<uint32_t>() const{
+		if(meta.vtype != VType::raw_arr_ui32)
+			throw InvalidCast("This type is not similar to uint32_t array");
+		return array_ref_t<uint32_t>((uint32_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<int64_t>() const{
+		if(meta.vtype != VType::raw_arr_i64)
+			throw InvalidCast("This type is not similar to int64_t array");
+		return array_ref_t<int64_t>((int64_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<uint64_t>() const{
+		if(meta.vtype != VType::raw_arr_ui64)
+			throw InvalidCast("This type is not similar to uint64_t array");
+		return array_ref_t<uint64_t>((uint64_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<float>() const{
+		if(meta.vtype != VType::raw_arr_flo)
+			throw InvalidCast("This type is not similar to float array");
+		return array_ref_t<float>((float*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<double>() const{
+		if(meta.vtype != VType::raw_arr_doub)
+			throw InvalidCast("This type is not similar to double array");
+		return array_ref_t<double>((double*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<long>() const{
+		if(meta.vtype != VType::raw_arr_i64)
+			throw InvalidCast("This type is not similar to long array");
+		return array_ref_t<long>((long*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator const array_ref_t<ValueItem>() const{
+		if(meta.vtype != VType::faarr && meta.vtype != VType::saarr)
+			throw InvalidCast("This type is not similar to ValueItem array");
+		return array_ref_t<ValueItem>((ValueItem*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<bool>(){
+		if(meta.vtype != VType::raw_arr_ui8 || meta.vtype != VType::raw_arr_i8)
+			throw InvalidCast("This type is not similar to bool array");
+		return array_ref_t<bool>((bool*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<int8_t>(){
+		if(meta.vtype != VType::raw_arr_i8)
+			throw InvalidCast("This type is not similar to int8_t array");
+		return array_ref_t<int8_t>((int8_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<uint8_t>(){
+		if(meta.vtype != VType::raw_arr_ui8)
+			throw InvalidCast("This type is not similar to uint8_t array");
+		return array_ref_t<uint8_t>((uint8_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<int16_t>(){
+		if(meta.vtype != VType::raw_arr_i16)
+			throw InvalidCast("This type is not similar to int16_t array");
+		return array_ref_t<int16_t>((int16_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<uint16_t>(){
+		if(meta.vtype != VType::raw_arr_ui16)
+			throw InvalidCast("This type is not similar to uint16_t array");
+		return array_ref_t<uint16_t>((uint16_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<int32_t>(){
+		if(meta.vtype != VType::raw_arr_i32)
+			throw InvalidCast("This type is not similar to int32_t array");
+		return array_ref_t<int32_t>((int32_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<uint32_t>(){
+		if(meta.vtype != VType::raw_arr_ui32)
+			throw InvalidCast("This type is not similar to uint32_t array");
+		return array_ref_t<uint32_t>((uint32_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<int64_t>(){
+		if(meta.vtype != VType::raw_arr_i64)
+			throw InvalidCast("This type is not similar to int64_t array");
+		return array_ref_t<int64_t>((int64_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<uint64_t>(){
+		if(meta.vtype != VType::raw_arr_ui64)
+			throw InvalidCast("This type is not similar to uint64_t array");
+		return array_ref_t<uint64_t>((uint64_t*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<float>(){
+		if(meta.vtype != VType::raw_arr_flo)
+			throw InvalidCast("This type is not similar to float array");
+		return array_ref_t<float>((float*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<double>(){
+		if(meta.vtype != VType::raw_arr_doub)
+			throw InvalidCast("This type is not similar to double array");
+		return array_ref_t<double>((double*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<long>(){
+		if(meta.vtype != VType::raw_arr_i64)
+			throw InvalidCast("This type is not similar to long array");
+		return array_ref_t<long>((long*)getSourcePtr(), meta.val_len);
+	}
+	ValueItem::operator array_ref_t<ValueItem>(){
+		if(meta.vtype != VType::faarr && meta.vtype != VType::saarr)
+			throw InvalidCast("This type is not similar to ValueItem array");
+		return array_ref_t<ValueItem>((ValueItem*)getSourcePtr(), meta.val_len);
+	}
+
 #pragma endregion
 
 	ValueItem* ValueItem::operator()(ValueItem* args,uint32_t len) {
@@ -2986,6 +4984,11 @@ namespace art{
 			return (typed_lgr<FuncEnvironment>*)getValue(val, meta);
 		return nullptr;
 	}
+	const typed_lgr<FuncEnvironment>* ValueItem::funPtr() const {
+		if (meta.vtype == VType::function)
+			return (const typed_lgr<FuncEnvironment>*)getSourcePtr();
+		return nullptr;
+	}
 	template<typename T>
 	size_t array_hash(T* arr, size_t len) {
 		size_t hash = 0;
@@ -3033,6 +5036,12 @@ namespace art{
 				break;
 			case VType::struct_:
 				destructor = (void(*)(void*))Structure::destruct;
+				break;
+			case VType::async_res:
+				destructor = defaultDestructor<typed_lgr<Task>>;
+				break;
+			case VType::function:
+				destructor = defaultDestructor<typed_lgr<FuncEnvironment>>;
 				break;
 			default:
 				break;
@@ -3099,6 +5108,7 @@ namespace art{
 			}
 			val = new lgr(new_val, nullptr, destructor);
 		}
+		meta.use_gc = true;
 	}
 	void ValueItem::localize_gc(){
 		if(meta.use_gc && val != nullptr) {
@@ -3162,10 +5172,6 @@ namespace art{
 		}
 	}
 	size_t ValueItem::hash() const{
-		return const_cast<ValueItem&>(*this).hash();
-	}
-	size_t ValueItem::hash() {
-		getAsync();
 		switch (meta.vtype) {
 		case VType::noting:return 0;
 		case VType::type_identifier:
@@ -3177,7 +5183,7 @@ namespace art{
 		case VType::ui8:return std::hash<uint8_t>()((uint8_t)*this);
 		case VType::ui16:return std::hash<uint16_t>()((uint16_t)*this);
 		case VType::ui32:return std::hash<uint32_t>()((uint32_t)*this);
-		case VType::undefined_ptr: return std::hash<uint32_t>()((size_t)*this);
+		case VType::undefined_ptr: return std::hash<size_t>()((size_t)*this);
 		case VType::ui64: return std::hash<uint64_t>()((uint64_t)*this);
 		case VType::flo: return std::hash<float>()((float)*this);
 		case VType::doub: return std::hash<double>()((double)*this);
@@ -3201,24 +5207,24 @@ namespace art{
 			if(art::CXX::Interface::hasImplement(*this, "hash"))
 				return (size_t)art::CXX::Interface::makeCall(ClassAccess::pub, *this, "hash");
 			else
-				return std::hash<void*>()(getSourcePtr());
+				return std::hash<const void*>()(getSourcePtr());
 		}
 		case VType::set: {
 			size_t hash = 0;
-			for (auto& i : operator std::unordered_set<ValueItem>&())
+			for (auto& i : operator const std::unordered_set<ValueItem>&())
 				hash ^= const_cast<ValueItem&>(i).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2);
 			return hash;
 		}
 		case VType::map:{
 			size_t hash = 0;
-			for (auto& i : operator std::unordered_map<ValueItem, ValueItem>&())
+			for (auto& i : operator const std::unordered_map<ValueItem, ValueItem>&())
 				hash ^= const_cast<ValueItem&>(i.first).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2) + const_cast<ValueItem&>(i.second).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2);
 			return hash;
 		}
 		case VType::function: {
 			auto fn = funPtr();
 			if (fn)
-				return std::hash<void*>()(fn->getPtr());
+				return std::hash<const void*>()((*fn)->get_func_ptr());
 			else
 				return 0;
 		}
@@ -3229,7 +5235,459 @@ namespace art{
 			break;
 		}
 	}
+	
+	ValueItem& ValueItem::operator[](const ValueItem& index){
+		if(meta.vtype == VType::uarr)
+			return (*(list_array<ValueItem>*)getSourcePtr())[(size_t)index];
+		else if (meta.vtype == VType::faarr || meta.vtype == VType::saarr){
+			size_t i = (size_t)index;
+			if (i >= meta.val_len)
+				throw OutOfRange();
+			return ((ValueItem*)getSourcePtr())[i];
+		}else if(meta.vtype == VType::map){
+			return (*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr())[index];
+		}else
+			throw InvalidOperation("operator[]& not available for that type: " + enum_to_string(meta.vtype));
+	}
+	const ValueItem& ValueItem::operator[](const ValueItem& index) const{
+		if (meta.vtype == VType::uarr)
+			return (*(list_array<ValueItem>*)getSourcePtr())[(size_t)index];
+		else if (meta.vtype == VType::faarr || meta.vtype == VType::saarr){
+			size_t i = (size_t)index;
+			if (i >= meta.val_len)
+				throw OutOfRange();
+			return ((ValueItem*)getSourcePtr())[i];
+		}else if (meta.vtype == VType::map){
+			return (*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr())[index];
+		}else
+			throw InvalidOperation("operator[]& not available for that type: " + enum_to_string(meta.vtype));
+	}
+	ValueItem ValueItem::get(const ValueItem& index) const{
+		if(is_raw_array(meta.vtype)){
+			size_t i = (size_t)index;
+			if (i >= meta.val_len)
+				throw OutOfRange();
+		}
+		switch (meta.vtype)
+		{
+		case VType::uarr:
+			return (*(list_array<ValueItem>*)getSourcePtr())[(size_t)index];
+		case VType::faarr:
+		case VType::saarr:
+			return ((ValueItem*)getSourcePtr())[(size_t)index];
+		case VType::map:
+			return (*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr())[index];
+		case VType::struct_:{
+			Structure& st = (Structure&)*this;
+			if(st.has_method(symbols::structures::index_operator, ClassAccess::pub))
+				return CXX::Interface::makeCall(ClassAccess::pub, *this, symbols::structures::index_operator, index);
+			else
+				throw InvalidOperation("operator[] not available for that type: " + enum_to_string(meta.vtype));
+		}
+		case VType::set:
+			return (*(std::unordered_set<ValueItem>*)getSourcePtr()).find(index) != (*(std::unordered_set<ValueItem>*)getSourcePtr()).end();
+		case VType::raw_arr_i8:
+			return ((int8_t*)getSourcePtr())[(size_t)index];
+		case VType::raw_arr_i16:
+			return ((int16_t*)getSourcePtr())[(size_t)index];
+		case VType::raw_arr_i32:
+			return ((int32_t*)getSourcePtr())[(size_t)index];
+		case VType::raw_arr_i64:
+			return ((int64_t*)getSourcePtr())[(size_t)index];
+		case VType::raw_arr_ui8:
+			return ((uint8_t*)getSourcePtr())[(size_t)index];
+		case VType::raw_arr_ui16:
+			return ((uint16_t*)getSourcePtr())[(size_t)index];
+		case VType::raw_arr_ui32:
+			return ((uint32_t*)getSourcePtr())[(size_t)index];
+		case VType::raw_arr_ui64:
+			return ((uint64_t*)getSourcePtr())[(size_t)index];
+		case VType::raw_arr_flo:
+			return ((float*)getSourcePtr())[(size_t)index];
+		case VType::raw_arr_doub:
+			return ((double*)getSourcePtr())[(size_t)index];
+		default:
+			throw InvalidOperation("operator[] not available for that type: " + enum_to_string(meta.vtype));
+		}
+	}
+	void ValueItem::set(const ValueItem& index, const ValueItem& value){
+		if (is_raw_array(meta.vtype)){
+			size_t i = (size_t)index;
+			if (i >= meta.val_len)
+				throw OutOfRange();
+		}
+		switch (meta.vtype) {
+		case VType::uarr:
+			(*(list_array<ValueItem>*)getSourcePtr())[(size_t)index] = value;
+			break;
+		case VType::faarr:
+		case VType::saarr:
+			((ValueItem*)getSourcePtr())[(size_t)index] = value;
+			break;
+		case VType::map:
+			(*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr())[index] = value;
+			break;
+		case VType::struct_:{
+			Structure& st = (Structure&)*this;
+			if(st.has_method(symbols::structures::index_operator, ClassAccess::pub))
+				CXX::Interface::makeCall(ClassAccess::pub, *this, symbols::structures::index_operator, index, value);
+			else
+				throw InvalidOperation("operator[]set not available for that type: " + enum_to_string(meta.vtype));
+			break;
+		}
+		case VType::set:
+			if(value != nullptr)
+				(*(std::unordered_set<ValueItem>*)getSourcePtr()).insert(index);
+			else
+				(*(std::unordered_set<ValueItem>*)getSourcePtr()).erase(index);
+			break;
+		case VType::raw_arr_i8:
+			((int8_t*)getSourcePtr())[(size_t)index] = (int8_t)value;
+			break;
+		case VType::raw_arr_i16:
+			((int16_t*)getSourcePtr())[(size_t)index] = (int16_t)value;
+			break;
+		case VType::raw_arr_i32:
+			((int32_t*)getSourcePtr())[(size_t)index] = (int32_t)value;
+			break;
+		case VType::raw_arr_i64:
+			((int64_t*)getSourcePtr())[(size_t)index] = (int64_t)value;
+			break;
+		case VType::raw_arr_ui8:
+			((uint8_t*)getSourcePtr())[(size_t)index] = (uint8_t)value;
+			break;
+		case VType::raw_arr_ui16:
+			((uint16_t*)getSourcePtr())[(size_t)index] = (uint16_t)value;
+			break;
+		case VType::raw_arr_ui32:
+			((uint32_t*)getSourcePtr())[(size_t)index] = (uint32_t)value;
+			break;
+		case VType::raw_arr_ui64:
+			((uint64_t*)getSourcePtr())[(size_t)index] = (uint64_t)value;
+			break;
+		case VType::raw_arr_flo:
+			((float*)getSourcePtr())[(size_t)index] = (float)value;
+			break;
+		case VType::raw_arr_doub:
+			((double*)getSourcePtr())[(size_t)index] = (double)value;
+			break;
+		default:
+			throw InvalidOperation("operator[]set not available for that type: " + enum_to_string(meta.vtype));
+		}
+	}
+	bool ValueItem::has(const ValueItem& index) const{
+		if(is_raw_array(meta.vtype)){
+			size_t i = (size_t)index;
+			return i < meta.val_len;
+		}
+		switch(meta.vtype){
+		case VType::uarr:
+			return (*(list_array<ValueItem>*)getSourcePtr()).size() > (size_t)index;
+		case VType::map:
+			return (*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr()).find(index) != (*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr()).end();
+		case VType::struct_:{
+			Structure& st = (Structure&)*this;
+			if(st.has_method(symbols::structures::size, ClassAccess::pub))
+				return (size_t)CXX::Interface::makeCall(ClassAccess::pub, st, symbols::structures::size) > (size_t)index;
+			else
+				throw InvalidOperation("symbols::structures::size not available for that type: " + enum_to_string(meta.vtype));
+		}
+		case VType::set:
+			return (*(std::unordered_set<ValueItem>*)getSourcePtr()).find(index) != (*(std::unordered_set<ValueItem>*)getSourcePtr()).end();
+		default:
+			throw InvalidOperation("Cannot measure, this type has value: " + enum_to_string(meta.vtype));
+		}
+	}
+	ValueItemIterator ValueItem::begin(){
+		return ValueItemIterator(*this);
+	}
+	ValueItemIterator ValueItem::end(){
+		return ValueItemIterator(*this, true);
+	}
+	ValueItemConstIterator ValueItem::begin() const {
+		return ValueItemConstIterator(*this);
+	}
+	ValueItemConstIterator ValueItem::end() const {
+		return ValueItemConstIterator(*this, true);
+	}
+	size_t ValueItem::size() const{
+		if(is_raw_array(meta.vtype))
+			return meta.val_len;
+		else if(meta.vtype == VType::uarr)
+			return ((list_array<ValueItem>*)getSourcePtr())->size();
+		else if(meta.vtype == VType::map)
+			return ((std::unordered_map<ValueItem, ValueItem>*)getSourcePtr())->size();
+		else if(meta.vtype == VType::set)
+			return ((std::unordered_set<ValueItem>*)getSourcePtr())->size();
+		else if(meta.vtype == VType::struct_){
+			Structure& st = (Structure&)*this;
+			if(st.has_method(symbols::structures::size, ClassAccess::pub))
+				return (size_t)CXX::Interface::makeCall(ClassAccess::pub, st, symbols::structures::size);
+		}
+		return 0;
+	}
+#pragma region  ValueItemIterator
 
+		ValueItemIterator::ValueItemIterator(ValueItem& item, bool end): item(item){
+			if(is_raw_array(item.meta.vtype))
+				this->iterator_data = (void*)size_t(end ? item.meta.val_len : 0);
+			
+			else if(item.meta.vtype == VType::uarr)
+				this->iterator_data = new list_array<ValueItem>::iterator<ValueItem>(end ? ((list_array<ValueItem>*)item.getSourcePtr())->end() : ((list_array<ValueItem>*)item.getSourcePtr())->begin());
+			else if(item.meta.vtype == VType::map){
+				std::unordered_map<ValueItem, ValueItem>& map = (std::unordered_map<ValueItem, ValueItem>&)item;
+				if(end)
+					this->iterator_data = new std::unordered_map<ValueItem, ValueItem>::iterator(map.end());
+				else
+					this->iterator_data = new std::unordered_map<ValueItem, ValueItem>::iterator(map.begin());
+			}
+			else if(item.meta.vtype == VType::set){
+				std::unordered_set<ValueItem>& set = (std::unordered_set<ValueItem>&)item;
+				if(end)
+					this->iterator_data = new std::unordered_set<ValueItem>::iterator(set.end());
+				else
+					this->iterator_data = new std::unordered_set<ValueItem>::iterator(set.begin());
+			}
+			else if(item.meta.vtype == VType::struct_){
+				Structure& st = (Structure&)item;
+				if(end)
+					this->iterator_data = nullptr;
+				else{
+					if(st.has_method(symbols::structures::iterable::begin, ClassAccess::pub))
+						this->iterator_data = new ValueItem(CXX::Interface::makeCall(ClassAccess::pub, st, symbols::structures::iterable::begin));
+					else
+						throw InvalidOperation("Structure not iterable");
+				}
+			}
+			else
+				throw InvalidOperation("ValueItem not iterable");
+		}
+		
+		ValueItemIterator::ValueItemIterator(const ValueItemIterator& copy) : item(copy.item){
+			if(is_raw_array(item.meta.vtype))
+				this->iterator_data = (void*)size_t(copy.iterator_data);
+			else if(item.meta.vtype == VType::uarr)
+				this->iterator_data = new list_array<ValueItem>::iterator<ValueItem>(*(list_array<ValueItem>::iterator<ValueItem>*)copy.iterator_data);
+			else if(item.meta.vtype == VType::map)
+				this->iterator_data = new std::unordered_map<ValueItem, ValueItem>::iterator(*(std::unordered_map<ValueItem, ValueItem>::iterator*)copy.iterator_data);
+			else if(item.meta.vtype == VType::set)
+				this->iterator_data = new std::unordered_set<ValueItem>::iterator(*(std::unordered_set<ValueItem>::iterator*)copy.iterator_data);
+			else if(item.meta.vtype == VType::struct_)
+				this->iterator_data = new ValueItem(*(ValueItem*)copy.iterator_data);
+		}
+		
+		ValueItemIterator::~ValueItemIterator(){
+			if(item.meta.vtype == VType::map)
+				delete (std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+			else if(item.meta.vtype == VType::set)
+				delete (std::unordered_set<ValueItem>::iterator*)iterator_data;
+			else if(item.meta.vtype == VType::struct_)
+				delete (ValueItem*)iterator_data;
+			else if(item.meta.vtype == VType::uarr)
+				delete (list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+		}
+		ValueItemIterator& ValueItemIterator::operator++(){
+			if(is_raw_array(item.meta.vtype)){
+				size_t i = (size_t)iterator_data;
+				i++;
+			}
+			else if(item.meta.vtype == VType::uarr){
+				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				i++;
+			}
+			else if(item.meta.vtype == VType::map){
+				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				i++;
+			}
+			else if(item.meta.vtype == VType::set){
+				std::unordered_set<ValueItem>::iterator& i = *(std::unordered_set<ValueItem>::iterator*)iterator_data;
+				i++;
+			}
+			else if(item.meta.vtype == VType::struct_){
+				Structure& st = (Structure&)(ValueItem&)iterator_data;
+				if(st.has_method(symbols::structures::iterable::next, ClassAccess::pub))
+					iterator_data = (void*)CXX::Interface::makeCall(ClassAccess::pub, st, symbols::structures::iterable::next);
+				else
+					throw InvalidOperation("Structure not iterable");
+			}
+			else
+				throw InvalidOperation("ValueItem not iterable");
+			return *this;
+		}
+		ValueItemIterator ValueItemIterator::operator++(int){
+			if(is_raw_array(item.meta.vtype)){
+				ValueItemIterator copy(item, iterator_data);
+				size_t i = (size_t)iterator_data;
+				i++;
+				if(i > item.meta.val_len)
+					throw OutOfRange();
+				return copy;
+			}
+			else if(item.meta.vtype == VType::uarr){
+				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				ValueItemIterator copy(item, new list_array<ValueItem>::iterator<ValueItem>(i));
+				i++;
+				return copy;
+			}
+			else if(item.meta.vtype == VType::map){
+				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				ValueItemIterator copy(item, new std::unordered_map<ValueItem, ValueItem>::iterator(i));
+				i++;
+				return copy;
+			}
+			else if(item.meta.vtype == VType::set){
+				std::unordered_set<ValueItem>::iterator& i = *(std::unordered_set<ValueItem>::iterator*)iterator_data;
+				ValueItemIterator copy(item, new std::unordered_set<ValueItem>::iterator(i));
+				i++;
+				return copy;
+			}
+			else if(item.meta.vtype == VType::struct_){
+				Structure& st = (Structure&)(ValueItem&)iterator_data;
+				if(st.has_method(symbols::structures::iterable::next, ClassAccess::pub)){
+					ValueItemIterator copy(item, iterator_data);
+					iterator_data = (void*)CXX::Interface::makeCall(ClassAccess::pub, st, symbols::structures::iterable::next);
+					return copy;
+				}
+				else
+					throw InvalidOperation("Structure not iterable");
+			}
+			else
+				throw InvalidOperation("ValueItem not iterable");
+		}
+		ValueItem& ValueItemIterator::operator*(){
+			if(is_raw_array(item.meta.vtype))
+				return ((ValueItem*)item.getSourcePtr())[(size_t)iterator_data];
+			else if(item.meta.vtype == VType::uarr){
+				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				return *i;
+			}
+			else if(item.meta.vtype == VType::map){
+				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				return i->second;
+			}
+			else if(item.meta.vtype == VType::set)
+				throw InvalidOperation("Set iterator not support gettting item refrence by iterator");
+			else if(item.meta.vtype == VType::struct_)
+				throw InvalidOperation("Structure not support gettting item refrence by iterator");
+			else
+				throw InvalidOperation("ValueItem not iterable");
+		}
+		ValueItem* ValueItemIterator::operator->(){
+			if(is_raw_array(item.meta.vtype))
+				return &((ValueItem*)item.getSourcePtr())[(size_t)iterator_data];
+			else if(item.meta.vtype == VType::uarr){
+				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				return &*i;
+			}
+			else if(item.meta.vtype == VType::map){
+				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				return &i->second;
+			}
+			else if(item.meta.vtype == VType::set)
+				throw InvalidOperation("Set iterator not support gettting item refrence by iterator");
+			else if(item.meta.vtype == VType::struct_)
+				throw InvalidOperation("Structure not support gettting item refrence by iterator");
+			else
+				throw InvalidOperation("ValueItem not iterable");
+		}
+
+		
+		ValueItemIterator::operator ValueItem() const{
+			if(is_raw_array(item.meta.vtype))
+				return ((ValueItem*)item.getSourcePtr())[(size_t)iterator_data];
+			else if(item.meta.vtype == VType::uarr){
+				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				return *i;
+			}
+			else if(item.meta.vtype == VType::map){
+				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				return i->second;
+			}
+			else if(item.meta.vtype == VType::set){
+				std::unordered_set<ValueItem>::iterator& i = *(std::unordered_set<ValueItem>::iterator*)iterator_data;
+				return *i;
+			}
+			else if(item.meta.vtype == VType::struct_){
+				Structure& st = (Structure&)(ValueItem&)iterator_data;
+				if(st.has_method(symbols::structures::iterable::get, ClassAccess::pub)){
+					return CXX::Interface::makeCall(ClassAccess::pub, st, symbols::structures::iterable::get);
+				}
+				else
+					throw InvalidOperation("Structure not iterable");
+			}
+			else
+				throw InvalidOperation("ValueItem not iterable");
+		}
+		ValueItem ValueItemIterator::get() const{
+			return (ValueItem)*this;
+		}
+		ValueItemIterator& ValueItemIterator::operator=(const ValueItem& item){
+			if(is_raw_array(item.meta.vtype))
+				((ValueItem*)item.getSourcePtr())[(size_t)iterator_data] = item;
+			
+			else if(item.meta.vtype == VType::uarr){
+				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				*i = item;
+			}
+			else if(item.meta.vtype == VType::map){
+				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				i->second = item;
+			}
+			else if(item.meta.vtype == VType::set)
+				throw InvalidOperation("Set iterator not support gettting item refrence by iterator");
+			else if(item.meta.vtype == VType::struct_){
+				Structure& st = (Structure&)(ValueItem&)iterator_data;
+				if(st.has_method(symbols::structures::iterable::set, ClassAccess::pub))
+					CXX::Interface::makeCall(ClassAccess::pub, st, symbols::structures::iterable::set, item);
+				else
+					throw InvalidOperation("Structure not setable");
+			}
+			else
+				throw InvalidOperation("ValueItem not iterable");
+			return *this;
+		}
+		bool ValueItemIterator::operator==(const ValueItemIterator& compare) const {
+			if(&item != &compare.item)
+				return false;
+			if(is_raw_array(item.meta.vtype)){
+				size_t& i = (size_t&)iterator_data;
+				size_t& j = (size_t&)compare.iterator_data;
+				return i == j;
+			}
+			else if(item.meta.vtype == VType::uarr){
+				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				list_array<ValueItem>::iterator<ValueItem>& j = *(list_array<ValueItem>::iterator<ValueItem>*)compare.iterator_data;
+				return i == j;
+			}
+			else if(item.meta.vtype == VType::map){
+				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				std::unordered_map<ValueItem, ValueItem>::iterator& j = *(std::unordered_map<ValueItem, ValueItem>::iterator*)compare.iterator_data;
+				return i == j;
+			}
+			else if(item.meta.vtype == VType::set){
+				std::unordered_set<ValueItem>::iterator& i = *(std::unordered_set<ValueItem>::iterator*)iterator_data;
+				std::unordered_set<ValueItem>::iterator& j = *(std::unordered_set<ValueItem>::iterator*)compare.iterator_data;
+				return i == j;
+			}
+			else if(item.meta.vtype == VType::struct_){
+				Structure& st = (Structure&)item;
+				if(st.has_method(symbols::structures::iterable::next, ClassAccess::pub))
+					return (bool)CXX::Interface::makeCall(ClassAccess::pub, st, symbols::structures::iterable::next);
+				else
+					throw InvalidOperation("Structure not iterable");
+			}
+			else
+				throw InvalidOperation("ValueItem not iterable");
+		}
+		bool ValueItemIterator::operator!=(const ValueItemIterator& compare) const {
+			if(&item != &compare.item)
+				return false;
+			return !(*this == compare);
+		}
+		
+		ValueItemConstIterator::operator ValueItem() const{ return iterator.operator art::ValueItem(); }
+		ValueItem ValueItemConstIterator::get() const { return iterator.get(); }
+#pragma endregion
 #pragma region MethodInfo
 	MethodInfo::MethodInfo(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
 		this->name = name;
@@ -3372,7 +5830,11 @@ namespace art{
 		size = table_size;
 		return (MethodInfo*)(data + sizeof(Enviropment) * table_size);
 	}
-	MethodInfo& AttachAVirtualTable::getMethodInfo(uint64_t index){
+	const MethodInfo* AttachAVirtualTable::getMethodsInfo(uint64_t& size) const {
+		size = table_size;
+		return (MethodInfo*)(data + sizeof(Enviropment) * table_size);
+	}
+	MethodInfo& AttachAVirtualTable::getMethodInfo(uint64_t index) {
 		if(index >= table_size) throw InvalidOperation("Index out of range");
 		return getMethodsInfo(table_size)[index];
 	}
@@ -3384,40 +5846,59 @@ namespace art{
 		}
 		throw InvalidOperation("Method not found");
 	}
+	const MethodInfo& AttachAVirtualTable::getMethodInfo(uint64_t index) const{
+		if(index >= table_size) throw InvalidOperation("Index out of range");
+		uint64_t size;
+		return getMethodsInfo(size)[index];
+	}
+	const MethodInfo& AttachAVirtualTable::getMethodInfo(const std::string& name, ClassAccess access) const{
+		uint64_t size;
+		const MethodInfo* table_additional_info = getMethodsInfo(size);
+		for (uint64_t i = 0; i < size; i++) {
+			if(table_additional_info[i].name == name && Structure::checkAccess(table_additional_info[i].access,access))
+				return table_additional_info[i];
+		}
+		throw InvalidOperation("Method not found");
+	}
 	Enviropment* AttachAVirtualTable::getMethods(uint64_t& size){
 		size = table_size;
 		return (Enviropment*)data;
 	}
-	Enviropment AttachAVirtualTable::getMethod(uint64_t index){
+	Enviropment AttachAVirtualTable::getMethod(uint64_t index) const {
 		if(index >= table_size) throw InvalidOperation("Index out of range");
 		Enviropment* table = (Enviropment*)data;
 		return table[index];
 	}
-	Enviropment AttachAVirtualTable::getMethod(const std::string& name, ClassAccess access){
+	Enviropment AttachAVirtualTable::getMethod(const std::string& name, ClassAccess access) const {
 		return (Enviropment)getMethodInfo(name,access).ref->get_func_ptr();
 	}
 
-	uint64_t AttachAVirtualTable::getMethodIndex(const std::string& name, ClassAccess access){
-		MethodInfo* table_additional_info = getMethodsInfo(table_size);
-		for (uint64_t i = 0; i < table_size; i++) 
+	uint64_t AttachAVirtualTable::getMethodIndex(const std::string& name, ClassAccess access) const {
+		uint64_t size;
+		const MethodInfo* table_additional_info = getMethodsInfo(size);
+		for (uint64_t i = 0; i < size; i++) 
 			if(table_additional_info[i].name == name && Structure::checkAccess(table_additional_info[i].access,access))
 				return i;
 		throw InvalidOperation("Method not found");
 	}
-	bool AttachAVirtualTable::hasMethod(const std::string& name, ClassAccess access){
-		MethodInfo* table_additional_info = getMethodsInfo(table_size);
-		for (uint64_t i = 0; i < table_size; i++) 
+	bool AttachAVirtualTable::hasMethod(const std::string& name, ClassAccess access) const{
+		uint64_t size;
+		const MethodInfo* table_additional_info = getMethodsInfo(size);
+		for (uint64_t i = 0; i < size; i++) 
 			if(table_additional_info[i].name == name && Structure::checkAccess(table_additional_info[i].access,access))
 				return true;
 		return false;
 	}
-	std::string AttachAVirtualTable::getName(){
+	std::string AttachAVirtualTable::getName() const{
 		return getAfterMethods()->name;
 	}
 	void AttachAVirtualTable::setName(const std::string& name){
 		getAfterMethods()->name = name;
 	}
 	AttachAVirtualTable::AfterMethods* AttachAVirtualTable::getAfterMethods(){
+		return (AfterMethods*)(data + sizeof(Enviropment) * table_size + sizeof(MethodInfo) * table_size);
+	}
+	const AttachAVirtualTable::AfterMethods* AttachAVirtualTable::getAfterMethods() const {
 		return (AfterMethods*)(data + sizeof(Enviropment) * table_size + sizeof(MethodInfo) * table_size);
 	}
 #pragma endregion
@@ -3487,12 +5968,23 @@ namespace art{
 		}
 		throw InvalidOperation("Method not found");
 	}
+	const MethodInfo& AttachADynamicVirtualTable::getMethodInfo(uint64_t index) const {
+		if(index >= methods.size()) throw InvalidOperation("Index out of range");
+		return methods[index];
+	}
+	const MethodInfo& AttachADynamicVirtualTable::getMethodInfo(const std::string& name, ClassAccess access) const {
+		for (uint64_t i = 0; i < methods.size(); i++) {
+			if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
+				return methods[i];
+		}
+		throw InvalidOperation("Method not found");
+	}
 
-	Enviropment AttachADynamicVirtualTable::getMethod(uint64_t index){
+	Enviropment AttachADynamicVirtualTable::getMethod(uint64_t index) const {
 		if(index >= methods.size()) throw InvalidOperation("Index out of range");
 		return (Enviropment)methods[index].ref->get_func_ptr();
 	}
-	Enviropment AttachADynamicVirtualTable::getMethod(const std::string& name, ClassAccess access){
+	Enviropment AttachADynamicVirtualTable::getMethod(const std::string& name, ClassAccess access) const {
 		return (Enviropment)getMethodInfo(name, access).ref->get_func_ptr();
 	}
 
@@ -3535,13 +6027,13 @@ namespace art{
 			}
 	}
 
-	uint64_t AttachADynamicVirtualTable::getMethodIndex(const std::string& name, ClassAccess access){
+	uint64_t AttachADynamicVirtualTable::getMethodIndex(const std::string& name, ClassAccess access) const {
 		for (uint64_t i = 0; i < methods.size(); i++) 
 			if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
 				return i;
 		throw InvalidOperation("Method not found");
 	}
-	bool AttachADynamicVirtualTable::hasMethod(const std::string& name, ClassAccess access){
+	bool AttachADynamicVirtualTable::hasMethod(const std::string& name, ClassAccess access) const {
 		for (uint64_t i = 0; i < methods.size(); i++) 
 			if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
 				return true;
@@ -3648,7 +6140,16 @@ namespace art{
 	Structure::Item* Structure::getPtr(size_t index) {
 		return index < count ? &reinterpret_cast<Item*>(raw_data)[index] : nullptr;
 	}
-	ValueItem Structure::_static_value_get(Item* item) {
+	const Structure::Item* Structure::getPtr(const std::string& name) const {
+		for (size_t i = 0; i < count; i++)
+			if (reinterpret_cast<const Item*>(raw_data)[i].name == name) 
+				return &reinterpret_cast<const Item*>(raw_data)[i];
+		return nullptr;
+	}
+	const Structure::Item* Structure::getPtr(size_t index) const {
+		return index < count ? &reinterpret_cast<const Item*>(raw_data)[index] : nullptr;
+	}
+	ValueItem Structure::_static_value_get(const Item* item) const {
 		if (!item)
 			throw InvalidArguments("value not found");
 		switch (item->type.vtype) {
@@ -3716,7 +6217,7 @@ namespace art{
 			throw InvalidArguments("type not supported");
 		}
 	}
-	ValueItem Structure::_static_value_get_ref(Structure::Item* item){
+	ValueItem Structure::_static_value_get_ref(const Structure::Item* item){
 		if (!item)
 			throw InvalidArguments("value not found");
 		switch (item->type.vtype) {
@@ -3962,7 +6463,7 @@ namespace art{
 		}
 	}
 
-	ValueItem Structure::static_value_get(size_t value_data_index){
+	ValueItem Structure::static_value_get(size_t value_data_index) const {
 		return _static_value_get(getPtr(value_data_index));
 	}
 	ValueItem Structure::static_value_get_ref(size_t value_data_index){
@@ -3972,10 +6473,10 @@ namespace art{
 		_static_value_set(getPtr(value_data_index), value);
 	}
 
-	ValueItem Structure::dynamic_value_get(const std::string& name){
+	ValueItem Structure::dynamic_value_get(const std::string& name) const {
 		return _static_value_get(getPtr(name));
 	}
-	ValueItem Structure::dynamic_value_get_ref(const std::string& name){
+	ValueItem Structure::dynamic_value_get_ref(const std::string& name) {
 		return _static_value_get_ref(getPtr(name));
 	}
 	void Structure::dynamic_value_set(const std::string& name, ValueItem value){
@@ -3983,21 +6484,21 @@ namespace art{
 	}
 
 
-	uint64_t Structure::table_get_id(const std::string& name, ClassAccess access){
-		char* data = raw_data + count * sizeof(Item);
+	uint64_t Structure::table_get_id(const std::string& name, ClassAccess access) const {
+		const char* data = raw_data + count * sizeof(Item);
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			return 0;
 		case VTableMode::AttachAVirtualTable:
-			return (*(AttachAVirtualTable**)data)->getMethodIndex(name, access);
+			return (*(const AttachAVirtualTable*const*)data)->getMethodIndex(name, access);
 		case VTableMode::AttachADynamicVirtualTable:
-			return (*(AttachADynamicVirtualTable**)data)->getMethodIndex(name, access);
+			return (*(const AttachADynamicVirtualTable*const*)data)->getMethodIndex(name, access);
 		default:
 		case VTableMode::CXX:
 			throw NotImplementedException();
 		}
 	}
-	Enviropment Structure::table_get(uint64_t fn_id){
+	Enviropment Structure::table_get(uint64_t fn_id) const {
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			throw InvalidArguments("vtable disabled");
@@ -4010,7 +6511,7 @@ namespace art{
 			throw NotImplementedException();
 		}
 	}
-	Enviropment Structure::table_get_dynamic(const std::string& name, ClassAccess access){
+	Enviropment Structure::table_get_dynamic(const std::string& name, ClassAccess access) const {
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			throw InvalidArguments("vtable disabled");
@@ -4033,7 +6534,7 @@ namespace art{
 			throw InvalidOperation("vtable must be dynamic to add new method");
 		((AttachADynamicVirtualTable*)get_vtable())->addMethod(name, method, access, return_values, arguments, tags, owner_name);
 	}
-	bool Structure::has_method(const std::string& name, ClassAccess access){
+	bool Structure::has_method(const std::string& name, ClassAccess access) const {
 		if(vtable_mode == VTableMode::AttachAVirtualTable)
 			return ((AttachAVirtualTable*)get_vtable())->hasMethod(name, access);
 		else if(vtable_mode == VTableMode::AttachADynamicVirtualTable)
@@ -4046,7 +6547,7 @@ namespace art{
 			throw InvalidOperation("vtable must be dynamic to remove method");
 		((AttachADynamicVirtualTable*)get_vtable())->removeMethod(name, access);
 	}
-	typed_lgr<FuncEnvironment> Structure::get_method(uint64_t fn_id){
+	typed_lgr<FuncEnvironment> Structure::get_method(uint64_t fn_id) const {
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			throw InvalidArguments("vtable disabled");
@@ -4059,7 +6560,7 @@ namespace art{
 			throw NotImplementedException();
 		}
 	}
-	typed_lgr<FuncEnvironment>  Structure::get_method_dynamic(const std::string& name, ClassAccess access){
+	typed_lgr<FuncEnvironment>  Structure::get_method_dynamic(const std::string& name, ClassAccess access) const {
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			throw InvalidArguments("vtable disabled");
@@ -4106,7 +6607,7 @@ namespace art{
 		}
 	}
 
-	Structure::VTableMode Structure::get_vtable_mode(){
+	Structure::VTableMode Structure::get_vtable_mode() const {
 		return vtable_mode;
 	}
 	void* Structure::get_vtable(){
@@ -4115,6 +6616,16 @@ namespace art{
 		case VTableMode::AttachADynamicVirtualTable:
 		case VTableMode::CXX:
 			return *reinterpret_cast<void**>(raw_data + count * sizeof(Item));
+		default:
+			return nullptr;
+		}
+	}
+	const void* Structure::get_vtable() const {
+		switch (vtable_mode){
+		case VTableMode::AttachAVirtualTable:
+		case VTableMode::AttachADynamicVirtualTable:
+		case VTableMode::CXX:
+			return *reinterpret_cast<void const*const*>(raw_data + count * sizeof(Item));
 		default:
 			return nullptr;
 		}
@@ -4396,14 +6907,14 @@ namespace art{
 	void* Structure::get_raw_data(){
 		return raw_data;
 	}
-	std::string Structure::get_name(){
+	std::string Structure::get_name() const{
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			return "";
 		case VTableMode::AttachAVirtualTable:
-			return reinterpret_cast<AttachAVirtualTable*>(get_vtable())->getName();
+			return reinterpret_cast<const AttachAVirtualTable*>(get_vtable())->getName();
 		case VTableMode::AttachADynamicVirtualTable:
-			return reinterpret_cast<AttachADynamicVirtualTable*>(get_vtable())->name;
+			return reinterpret_cast<const AttachADynamicVirtualTable*>(get_vtable())->name;
 		case VTableMode::CXX:
 		default:
 			throw NotImplementedException();
