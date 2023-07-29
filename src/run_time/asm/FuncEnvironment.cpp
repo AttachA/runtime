@@ -1223,10 +1223,10 @@ namespace art{
 #pragma endregion
 #pragma region ScopeAction
 
-	bool _attacha_filter(CXXExInfo& info, void*& continue_from, void* data, size_t size, void* enviro) {
+	bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro) {
 		uint8_t* data_info = (uint8_t*)data;
 		list_array<std::string> exceptions;
-		continue_from = internal::readFromArrayAsValue<void*>(data_info);
+		*continue_from = internal::readFromArrayAsValue<void*>(data_info);
 		switch (*data_info++) {
 			case 0: {
 				uint64_t handle_count = internal::readFromArrayAsValue<uint64_t>(data_info);
@@ -1320,7 +1320,7 @@ namespace art{
 
 	
 	void _inner_handle_finalizer(void* data, size_t size, void* rsp){
-		((FuncHandle::inner_handle*)data)->reduce_usage();
+		(*(FuncHandle::inner_handle**)data)->reduce_usage();
 	}
 #pragma endregion
 
@@ -1340,7 +1340,7 @@ namespace art{
 		size_t mapValueHold(uint64_t id, void(*destruct)(void**), uint16_t off){
 			auto it = value_hold_id_map.find(id);
 			if (it == value_hold_id_map.end())
-				return value_hold_id_map[id] = manager.createValueLifetimeScope(destruct, (size_t)off<<1);
+				return value_hold_id_map[id] = manager.createValueLifetimeScope(destruct, size_t(off)<<1);
 			else
 				return it->second;
 		}
@@ -1351,12 +1351,30 @@ namespace art{
 			else
 				return it->second;
 		}
-		size_t try_mapValueHold(uint64_t id, void(*destruct)(void**), uint16_t off){
+		size_t try_mapValueHold(uint64_t id){
 			auto it = value_hold_id_map.find(id);
 			if (it == value_hold_id_map.end())
 				return -1;
 			else
 				return it->second;
+		}
+		bool unmapHandle(uint64_t id){
+			auto it = handle_id_map.find(id);
+			if (it != handle_id_map.end()){
+				manager.endValueLifetime(it->second);
+				handle_id_map.erase(it);
+				return true;
+			}
+			return false;
+		}
+		bool unmapValueHold(uint64_t id){
+			auto it = value_hold_id_map.find(id);
+			if (it != value_hold_id_map.end()){
+				manager.endValueLifetime(it->second);
+				value_hold_id_map.erase(it);
+				return true;
+			}
+			return false;
 		}
 	};
 	struct CompilerFabric{
@@ -2104,30 +2122,113 @@ namespace art{
 			size_t handle = scope_map.try_mapHandle(readData<uint64_t>(data, data_len, i));
 			if (handle == -1)
 				throw InvalidIL("Undefined handle");
-			//switch (readData<char>(data, data_len, i)) {
-			//case 0:
-			//	{
-			//		struct _filter_data {
-			//			typed_lgr<FuncEnvironment> catch
-			//			std::string message;
-			//		};
-			//	}
-			//	break;
-			//
-			//}
-			
-			//char* data = new char[10];
-
-
-			//data[0] =0;
-			//scope_action->filter_data = data;
-			//scope_action->filter_data_len = 10;
-			//scope_action->cleanup_filter_data = [](ScopeAction* data) {
-			//	delete[] (char*)data->filter_data;
-			//	data->filter_data = nullptr;
-			//};
-			//ScopeAction* scope_action = scope.setExceptionHandle(handle, _attacha_filter);
+			std::vector<uint8_t> handler_data;
+			handler_data.reserve(40);
+			char command = readData<char>(data, data_len, i);
+			handler_data.push_back(command);
+			switch (command) {
+			case 0:{
+				uint64_t len = readPackedLen(data, data_len, i);
+				builder::write(handler_data,len);
+				for(uint64_t i = 0; i < len; i++){
+					std::string name = readString(data, data_len, i);
+					builder::write(handler_data, name.size());//size_t
+					handler_data.insert(handler_data.end(), name.begin(), name.end());
+				}
+				break;
+			}
+			case 1:
+				builder::write(handler_data,readData<uint16_t>(data, data_len, i));
+				break;
+			case 2:{
+				uint64_t len = readPackedLen(data, data_len, i);
+				builder::write(handler_data,len);
+				for(uint64_t i = 0; i < len; i++)
+					builder::write(handler_data,readData<uint16_t>(data, data_len, i));
+				break;
+			}
+			case 3:{
+				uint64_t len = readPackedLen(data, data_len, i);
+				builder::write(handler_data,len);
+				for(uint64_t i = 0; i < len; i++){
+					bool is_dynamic = readData<bool>(data, data_len, i);
+					builder::write(handler_data,is_dynamic);
+					if(is_dynamic){
+						builder::write(handler_data,readData<uint16_t>(data, data_len, i));
+					}else{
+						std::string name = readString(data, data_len, i);
+						builder::write(handler_data, name.size());//size_t
+						handler_data.insert(handler_data.end(), name.begin(), name.end());
+					}
+				}
+				break;
+			}
+			case 4: break;//catch all
+			case 5:{
+				if(readData<bool>(data, data_len, i))//as local
+					builder::write(handler_data, 
+						build_func->localFn(
+							readData<uint32_t>(data, data_len, i)
+						)->get_func_ptr()
+					);
+				else
+					builder::write(handler_data, 
+						FuncEnvironment::enviropment(
+							readString(data, data_len, i)
+						)->get_func_ptr()
+					);
+				uint16_t enviro_slice_begin = readData<uint16_t>(data, data_len, i);
+				uint16_t enviro_slice_end = readData<uint16_t>(data, data_len, i);
+				builder::write(handler_data, enviro_slice_begin);
+				builder::write(handler_data, enviro_slice_end);
+				break;
+			}
+			default:
+				throw InvalidIL("Invalid catch command");
+			}
+			scope.setExceptionHandle(handle, _attacha_filter, handler_data.data(), handler_data.size());
 		}
+		void dynamic_handle_finally(){
+			size_t handle = scope_map.try_mapHandle(readData<uint64_t>(data, data_len, i));
+			if (handle == -1)
+				throw InvalidIL("Undefined handle");
+			std::vector<uint8_t> handler_data;
+			handler_data.reserve(sizeof(Enviropment) + sizeof(uint16_t) * 2);
+			if(readData<bool>(data, data_len, i))//as local
+				builder::write(handler_data, 
+					build_func->localFn(
+						readData<uint32_t>(data, data_len, i)
+					)->get_func_ptr()
+				);
+			else
+				builder::write(handler_data, 
+					FuncEnvironment::enviropment(
+						readString(data, data_len, i)
+					)->get_func_ptr()
+				);
+			uint16_t enviro_slice_begin = readData<uint16_t>(data, data_len, i);
+			uint16_t enviro_slice_end = readData<uint16_t>(data, data_len, i);
+			builder::write(handler_data, enviro_slice_begin);
+			builder::write(handler_data, enviro_slice_end);
+		}
+		void dynamic_handle_end(){
+			bool removed = scope_map.unmapHandle(readData<uint64_t>(data, data_len, i));
+			if (!removed)
+				throw InvalidIL("Undefined handle");
+		}
+
+		void dynamic_value_hold(){
+			uint64_t hold_id = readData<uint64_t>(data, data_len, i);
+			uint16_t value_index = readData<uint16_t>(data, data_len, i);
+			scope_map.mapValueHold(hold_id, universalRemove, value_index);
+		}
+		void dynamic_value_unhold(){
+			uint64_t hold_id = readData<uint64_t>(data, data_len, i);
+			if (!scope_map.unmapValueHold(hold_id))
+				throw InvalidIL("Undefined hold");
+		}
+
+
 
 		void dynamic_is_gc(){
 			BuildCall b(a, 0);
@@ -2832,16 +2933,11 @@ namespace art{
 				case Opcode::handle_begin:
 					scope_map.mapHandle(readData<uint64_t>(data, data_len, i));
 					break;
-				case Opcode::handle_catch:dynamic_handle_catch(); break;
-				
-				case Opcode::handle_finally:
-				case Opcode::handle_convert:
-				case Opcode::value_hold:
-				case Opcode::value_unhold:
-					throw NotImplementedException();
-
-				
-				
+				case Opcode::handle_catch: dynamic_handle_catch(); break;
+				case Opcode::handle_finally: dynamic_handle_finally(); break;
+				case Opcode::handle_end: dynamic_handle_end(); break;
+				case Opcode::value_hold: dynamic_value_hold(); break;
+				case Opcode::value_unhold: dynamic_value_unhold(); break;
 				case Opcode::is_gc: dynamic_is_gc(); break;
 				case Opcode::to_gc: dynamic_to_gc(); break;
 				case Opcode::localize_gc: dynamic_localize_gc(); break;
@@ -3003,7 +3099,8 @@ namespace art{
 		if(flags.is_patchable){
 			a.atomic_increase(&ref_count);//increase usage count
 			is_patchable_exception_finalizer = scope.createExceptionScope();
-			scope.setExceptionFinal(is_patchable_exception_finalizer, _inner_handle_finalizer, this, 0);
+			auto self = this;
+			scope.setExceptionFinal(is_patchable_exception_finalizer, _inner_handle_finalizer, &self, sizeof(self));
 		}
 		bprolog.pushReg(frame_ptr);
 		if(max_values)
@@ -3090,7 +3187,7 @@ namespace art{
 
 		tmp.use_handle = true;
 		tmp.exHandleOff = a.offset() <= UINT32_MAX ? (uint32_t)a.offset() : throw InvalidFunction("Too big function");
-		a.jmp((uint64_t)exception::__get_internal_handler());
+		a.jmp((size_t)exception::__get_internal_handler());
 		a.finalize();
 		auto resolved_frame =try_resolve_frame(this);
 		env = (Enviropment)tmp.init(frame, a.code(), *art, resolved_frame.data());

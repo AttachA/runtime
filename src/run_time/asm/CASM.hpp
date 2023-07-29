@@ -1858,6 +1858,9 @@ namespace art{
 
 		size_t ex_scopes=0;
 		size_t value_lifetime_scopes=0;
+		static void remove_maloc_scope(ScopeAction* action){
+			free(action->filter_data);
+		}
 	public:
 		ScopeManager(BuildProlog& csm) :csm(csm) {}
 		~ScopeManager() noexcept(false) {
@@ -1880,8 +1883,11 @@ namespace art{
 			if (it == scope_actions.end())
 				throw CompileTimeException("invalid exception scope");
 			ScopeAction* action = csm.create_filter(filter_fun);
-			action->filter_data = data;
+			char* data_ptr = (char*)malloc(data_size);
+			memcpy(data_ptr, data, data_size);
+			action->filter_data = data_ptr;
 			action->filter_data_len = data_size;
+			action->cleanup_filter_data = remove_maloc_scope;
 			action->function_begin_off = it->second.begin_off;
 			it->second.actions.push_back(action);
 			return action;
@@ -1892,8 +1898,11 @@ namespace art{
 				throw CompileTimeException("invalid exception scope");
 			ScopeAction* action = csm.create_finally(final_fun);
 			action->function_begin_off = it->second.begin_off;
-			action->finally_data = data;
+			char* data_ptr = (char*)malloc(data_size);
+			memcpy(data_ptr, data, data_size);
+			action->finally_data = data_ptr;
 			action->finally_data_len = data_size;
+			action->cleanup_filter_data = remove_maloc_scope;
 			it->second.actions.push_back(action);
 			return action;
 		}

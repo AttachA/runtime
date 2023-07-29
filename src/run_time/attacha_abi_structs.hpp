@@ -85,7 +85,7 @@ namespace art{
 		(handle_begin)
 		(handle_catch)
 		(handle_finally)
-		(handle_convert)
+		(handle_end)
 
 		(value_hold)
 		(value_unhold)

@@ -72,7 +72,30 @@ extern "C" uint64_t CallTypeCall(art::DynamicCall::PROC proc, list_array<art::Dy
 	}
 }
 #elif defined(LINUX) && defined(__x86_64__)
-extern "C" uint64_t __fastcall ArgumentsPrepareCallFor_V_AMD64(void* rsi, void* rdi, void* rcx, void* rcx, void* rdx, void* r8, void* r9, art::DynamicCall::PROC proc, size_t values_count, void* args);
+extern "C" uint64_t ArgumentsPrepareCallFor_V_AMD64(void* rdi, void* rsi, void* rdx, void* rcx, void* r8, void* r9, art::DynamicCall::PROC proc, size_t values_count, void* args){
+	//generated asm code by copilot, not tested
+	asm(""
+		"push rbp\n\t"
+		"mov rbp, rsp\n\t"
+		"mov rax, %0\n\t"
+		"mov r10, %1\n\t"
+		"mul rax, 8\n\t"
+		"while:\n\t"
+		"cmp rax, 0\n\t"
+		"je end\n\t"
+		"sub rax, 8\n\t"
+		"push qword ptr [r10+rax]\n\t"
+		"jmp while\n\t"
+		"end:\n\t"
+		"call %2\n\t"
+		"mov rsp, rbp\n\t"
+		"pop rbp\n\t"
+		"ret\n\t"
+		::"r"(values_count),"r"(args),"r"(proc):
+	);
+}
+
+
 extern "C" uint64_t CallTypeCall(art::DynamicCall::PROC proc, list_array<art::DynamicCall::ArgumentsHolder::ArgumentItem>&arguments, size_t struct_size, bool used_this, void* this_pointer) {
 	if (used_this)
 		arguments.push_front(art::DynamicCall::ArgumentsHolder::ArgumentItem(this_pointer));
@@ -92,7 +115,7 @@ extern "C" uint64_t CallTypeCall(art::DynamicCall::PROC proc, list_array<art::Dy
 		register_rcx = new char[struct_size];
 		i = 1;
 	}
-	for (; i < 4; i++) {
+	for (; i < 6; i++) {
 		if (!arguments.size())
 			break;
 		switch (i) {
@@ -177,28 +200,50 @@ uint64_t FunctionCall(art::DynamicCall::PROC proc, void** args, int max_i, void*
 #else
 //System V i386 ABI
 uint64_t FunctionCall(art::DynamicCall::PROC proc, void** args, int max_i, void* struct_mem) {
-	size_t i = 0;
-	void* arg;
-	__asm__ volatile("mov %0, %%edx"::"r"(max_i) : "%edx");
-repeart:
-	__asm__ volatile(
-		"cmp 0, %edx\n\t"
-		"jne not_end\n\t"
-		"jmp end"
-	);
-not_end:
-	__asm__ volatile("push %0"::"r"(arg):);
-	arg = args[i++];
-	goto repeart;
-	end:
-	__asm__ volatile(
-		"cmp 0, %0\n\t"
-		"je just_call"
-		::"r"(struct_mem):
-	);
-	__asm__ volatile("push %0"::"r"(struct_mem):);
-just_call:
-	__asm__ volatile("call %0"::"r"(proc):);
+	//generated asm code by copilot, not tested
+	if(struct_mem == nullptr){
+		asm(""
+			"push ebp\n\t"
+			"mov ebp, esp\n\t"
+			"mov eax, %0\n\t"
+			"mov ebx, %1\n\t"
+			"mul ebx\n\t"
+			"while:\n\t"
+			"cmp eax, 0\n\t"
+			"je end\n\t"
+			"sub eax, 4\n\t"
+			"push dword ptr [ebp+eax]\n\t"
+			"jmp while\n\t"
+			"end:\n\t"
+			"call %2\n\t"
+			"mov esp, ebp\n\t"
+			"pop ebp\n\t"
+			"ret\n\t"
+			::"r"(max_i),"r"(args),"r"(proc):
+		);
+	}else{
+		asm(""
+			"push ebp\n\t"
+			"mov ebp, esp\n\t"
+			"mov eax, %0\n\t"
+			"mov ebx, %1\n\t"
+			"mul ebx\n\t"
+			"while:\n\t"
+			"cmp eax, 0\n\t"
+			"je end\n\t"
+			"sub eax, 4\n\t"
+			"push dword ptr [ebp+eax]\n\t"
+			"jmp while\n\t"
+			"end:\n\t"
+			"mov eax, %3\n\t"
+			"push eax\n\t"
+			"call %2\n\t"
+			"mov esp, ebp\n\t"
+			"pop ebp\n\t"
+			"ret\n\t"
+			::"r"(max_i),"r"(args),"r"(proc),"r"(struct_mem):
+		);
+	}
 }
 #endif
 
