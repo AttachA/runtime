@@ -348,7 +348,7 @@ namespace art{
             ValueItem read(uint32_t size, bool require_all = true){
                 File_* file = new File_(this, _handle, size, read_pointer, require_all);
                 switch(pointer_mode){
-                    case pointer_mode::seprated:
+                    case pointer_mode::separated:
                         read_pointer += size;
                         break;
                     case pointer_mode::combined:
@@ -368,7 +368,7 @@ namespace art{
             ValueItem read(uint8_t* data, uint32_t size, bool require_all = true) {
                 File_* file = new File_(this, _handle, size, read_pointer, require_all);
                 switch(pointer_mode){
-                    case pointer_mode::seprated:
+                    case pointer_mode::separated:
                         read_pointer += size;
                         break;
                     case pointer_mode::combined:
@@ -405,7 +405,7 @@ namespace art{
             ValueItem write(uint8_t* data, uint32_t size) {
                 File_* file = new File_(this, _handle, (char*)data, size, write_pointer);
                 switch(pointer_mode){
-                    case pointer_mode::seprated:
+                    case pointer_mode::separated:
                         write_pointer += size;
                         break;
                     case pointer_mode::combined:
@@ -438,7 +438,7 @@ namespace art{
                 switch (pointer_offset) {
                 case pointer_offset::begin:
                     switch(pointer_mode){
-                        case pointer_mode::seprated:
+                        case pointer_mode::separated:
                         switch(pointer){
                                 case pointer::read:
                                     read_pointer = offset;
@@ -455,7 +455,7 @@ namespace art{
                     break;
                 case pointer_offset::current:
                     switch(pointer_mode){
-                        case pointer_mode::seprated:
+                        case pointer_mode::separated:
                             switch(pointer){
                                 case pointer::read:
                                     read_pointer += offset;
@@ -474,7 +474,7 @@ namespace art{
                     auto size = _file_size();
                     if(size != -1){
                             switch(pointer_mode){
-                                case pointer_mode::seprated:
+                                case pointer_mode::separated:
                                     switch(pointer){
                                         case pointer::read:
                                             read_pointer = size + offset;
@@ -1334,7 +1334,7 @@ namespace art{
             };
             std::wstring _path;
             HANDLE _directory;
-            bool deph_scan;
+            bool depth_scan;
             bool _is_running = false;
             std::unordered_map<long long, file_state> states;
 
@@ -1346,7 +1346,7 @@ namespace art{
             typed_lgr<EventSystem> _folder_last_write = new EventSystem;
             typed_lgr<EventSystem> _folder_security_change = new EventSystem;
             typed_lgr<EventSystem> _folder_size_change = new EventSystem;
-            typed_lgr<EventSystem> _folder_attibutes = new EventSystem;
+            typed_lgr<EventSystem> _folder_attributes = new EventSystem;
 
 
             typed_lgr<EventSystem> _file_name_change = new EventSystem;
@@ -1356,7 +1356,7 @@ namespace art{
             typed_lgr<EventSystem> _file_last_access = new EventSystem;
             typed_lgr<EventSystem> _file_security_change = new EventSystem;
             typed_lgr<EventSystem> _file_size_change = new EventSystem;
-            typed_lgr<EventSystem> _file_attibutes = new EventSystem;
+            typed_lgr<EventSystem> _file_attributes = new EventSystem;
 
             typed_lgr<EventSystem> watcher_shutdown = new EventSystem;
             bool createHandle(FolderChangesMonitorHandle* handle){
@@ -1364,7 +1364,7 @@ namespace art{
                     _directory,
                     handle->buffer, 
                     sizeof(handle->buffer), 
-                    deph_scan, 
+                    depth_scan, 
                     FILE_NOTIFY_CHANGE_FILE_NAME 
                     | FILE_NOTIFY_CHANGE_DIR_NAME 
                     | FILE_NOTIFY_CHANGE_ATTRIBUTES 
@@ -1388,7 +1388,7 @@ namespace art{
                 file_last_access,
                 file_security_change,
                 file_size_change,
-                file_attibutes,
+                file_attributes,
 
                 folder_name_change,
                 folder_creation,
@@ -1397,10 +1397,10 @@ namespace art{
                 folder_last_write,
                 folder_security_change,
                 folder_size_change,
-                folder_attibutes
+                folder_attributes
             };
             
-            void manualy_iterate(const std::wstring& _path, list_array<int64_t>& ids){
+            void manually_iterate(const std::wstring& _path, list_array<int64_t>& ids){
                 WIN32_FIND_DATAW fd;
                 HANDLE hFind;
                 {
@@ -1469,9 +1469,9 @@ namespace art{
                                     if(it->second.current->FileAttributes != info.dwFileAttributes){
                                         ValueItem args{name, (uint32_t)info.dwFileAttributes};
                                         if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                            _folder_attibutes->async_notify(args);
+                                            _folder_attributes->async_notify(args);
                                         else
-                                            _file_attibutes->async_notify(args);
+                                            _file_attributes->async_notify(args);
                                         action = FILE_ACTION_MODIFIED;
                                     }
                                     if(it->second.current->FileSize.QuadPart != file_size.QuadPart){
@@ -1544,17 +1544,17 @@ namespace art{
                                 it->second.full_path = name;
                             }
                             CloseHandle(file);
-                            if(deph_scan)
+                            if(depth_scan)
                                 if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                    manualy_iterate(file_name, ids);
+                                    manually_iterate(file_name, ids);
                         }
                     }while(::FindNextFileW(hFind, &fd));
                     ::FindClose(hFind);
                 }
             }
-            void manualy_iterate(){
+            void manually_iterate(){
                 list_array<int64_t> ids;
-                manualy_iterate(_path, ids);
+                manually_iterate(_path, ids);
                 std::unordered_set<int64_t> _ids;
                 _ids.reserve(ids.size());
                 for(auto& id : ids)
@@ -1587,8 +1587,8 @@ namespace art{
                 NativeWorkersSingleton::register_handle(_directory, this);
             }
         public:
-            FolderChangesMonitorImpl(const std::wstring& path, bool deph_scan) noexcept(false) : deph_scan(deph_scan), _path(path){initialize();}
-            FolderChangesMonitorImpl(std::wstring&& path, bool deph_scan) noexcept(false) : deph_scan(false), _path(path) {initialize();}
+            FolderChangesMonitorImpl(const std::wstring& path, bool depth_scan) noexcept(false) : depth_scan(depth_scan), _path(path){initialize();}
+            FolderChangesMonitorImpl(std::wstring&& path, bool depth_scan) noexcept(false) : depth_scan(false), _path(path) {initialize();}
             ~FolderChangesMonitorImpl(){
                 stop();
                 if(_directory != INVALID_HANDLE_VALUE)
@@ -1666,9 +1666,9 @@ namespace art{
                                     if(old_info.current->FileAttributes != info->FileAttributes){
                                         ValueItem args{name, (uint32_t)info->FileAttributes};
                                         if(is_folder)
-                                            _folder_attibutes->async_notify(args);
+                                            _folder_attributes->async_notify(args);
                                         else
-                                            _folder_attibutes->async_notify(args);
+                                            _folder_attributes->async_notify(args);
                                     }
                                     if(old_info.current->FileSize.QuadPart != info->FileSize.QuadPart){
                                         ValueItem args{name, (long long)info->FileSize.QuadPart};
@@ -1731,7 +1731,7 @@ namespace art{
                 }while(info->NextEntryOffset != 0);
                 if(createHandle(handle) == false){
                     if(GetLastError() == ERROR_NOTIFY_ENUM_DIR){
-                        manualy_iterate();
+                        manually_iterate();
                         if(createHandle(handle) == true)
                             return;
                     }
@@ -1746,7 +1746,7 @@ namespace art{
                     return;
                 if (_directory == INVALID_HANDLE_VALUE)
                     throw AException("FolderChangesMonitorException", "Can't start monitor");
-                manualy_iterate();
+                manually_iterate();
                 auto handle = new FolderChangesMonitorHandle(this);
                 if (createHandle(handle) == false) {
                     delete handle;
@@ -1769,7 +1769,7 @@ namespace art{
             void once_scan() noexcept(false){
                 if(_is_running)
                     return;
-                manualy_iterate();
+                manually_iterate();
             }
             void stop() noexcept(false){
                 if(!_is_running)
@@ -1939,14 +1939,14 @@ namespace art{
             );
             CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() = define_FolderChangesMonitor;
         }
-        ValueItem createFolderChangesMonitor(const char* path, size_t length, bool deph){
+        ValueItem createFolderChangesMonitor(const char* path, size_t length, bool depth){
             if(CXX::Interface::typeVTable<typed_lgr<EventSystem>>() == nullptr)
-                throw MissingDependencyException("parralel library with event_system is not loaded, required for folder_changes_monitor");
+                throw MissingDependencyException("Parallel library with event_system is not loaded, required for folder_changes_monitor");
             if(CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() == nullptr)
                 init();
             std::wstring wpath;
             utf8::utf8to16(path, path + length, std::back_inserter(wpath));
-            return ValueItem(CXX::Interface::constructStructure<typed_lgr<FolderChangesMonitorImpl>>(define_FolderChangesMonitor, new FolderChangesMonitorImpl(std::move(wpath), deph)), no_copy);
+            return ValueItem(CXX::Interface::constructStructure<typed_lgr<FolderChangesMonitorImpl>>(define_FolderChangesMonitor, new FolderChangesMonitorImpl(std::move(wpath), depth)), no_copy);
         }
         
         ValueItem remove(const char* path, size_t length){

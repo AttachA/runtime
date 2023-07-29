@@ -1684,7 +1684,7 @@ namespace art{
 			if (stack_offset % 16)
 				throw CompileTimeException("Invalid frame offset, it must be aligned by 16");
 			if(uint8_t(stack_offset / 16) != stack_offset / 16)
-				throw CompileTimeException("frameoffset too large");
+				throw CompileTimeException("Frame offset too large");
 			csm.lea(frame_ptr, stack_ptr, stack_offset);
 			if ((uint8_t)csm.offset() != csm.offset())
 				throw CompileTimeException("prolog too large");

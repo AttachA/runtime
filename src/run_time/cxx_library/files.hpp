@@ -34,7 +34,7 @@ namespace art{
             end
         };
         enum class pointer_mode : uint8_t{
-            seprated,
+            separated,
             combined
         };
         enum class on_open_action : uint8_t{
@@ -48,8 +48,8 @@ namespace art{
             struct {
                 bool delete_on_close : 1;
                 bool posix_semantics : 1;//used in windows
-                bool random_access : 1;//hinit to cache manager
-                bool sequential_scan : 1;//hinit to cache manager
+                bool random_access : 1;//hint to cache manager
+                bool sequential_scan : 1;//hint to cache manager
             };
             uint8_t value;
         };
@@ -57,10 +57,10 @@ namespace art{
             struct  {
                 bool delete_on_close : 1;
                 bool posix_semantics : 1;//used in windows
-                bool random_access : 1;//hinit to cache manager
-                bool sequential_scan : 1;//hinit to cache manager
-                bool no_buffering : 1;//hinit to cache manager, affect seec and read write operations, like disc page size aligned operations
-                bool write_through : 1;//hinit to cache manager
+                bool random_access : 1;//hint to cache manager
+                bool sequential_scan : 1;//hint to cache manager
+                bool no_buffering : 1;//hint to cache manager, affect seec and read write operations, like disc page size aligned operations
+                bool write_through : 1;//hint to cache manager
             };
             uint8_t value;
         };
@@ -125,7 +125,7 @@ namespace art{
     #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
             ::std::fstream get_fstream() const;//not mapped to proxy definition, can be used only in native c++ code
     #endif
-            //reguire explicit close, destructor will not close it,
+            //require explicit close, destructor will not close it,
             // BlockingFileHandle will be not used when ::std::fstream alive,
             // can cause desync, ie thread unsafe
         };
