@@ -32,22 +32,22 @@ namespace art{
 
     //not consume resources if not used
     class NativeWorkersSingleton {
-        class CancelationNotify{};
-        class CancelationManager : public NativeWorkerManager{
+        class CancellationNotify{};
+        class CancellationManager : public NativeWorkerManager{
             public:
             virtual void handle(void* data, class NativeWorkerHandle* overlapped, unsigned long dwBytesTransferred, bool status) override {
                 delete overlapped;
-                throw CancelationNotify();
+                throw CancellationNotify();
             }
-            CancelationManager() = default;
-            ~CancelationManager() = default;
+            CancellationManager() = default;
+            ~CancellationManager() = default;
         };
-        class CancelationHandle : public NativeWorkerHandle{
+        class CancellationHandle : public NativeWorkerHandle{
             public:
-            CancelationHandle(CancelationManager& ref) : NativeWorkerHandle(&ref) {}
+            CancellationHandle(CancellationManager& ref) : NativeWorkerHandle(&ref) {}
         };
 
-        static inline CancelationManager cancelation_manager_instance;
+        static inline CancellationManager cancellation_manager_instance;
         static inline NativeWorkersSingleton* instance = nullptr;
         static inline art::mutex instance_mutex;
         std::shared_ptr<void> m_hCompletionPort;
@@ -67,30 +67,30 @@ namespace art{
         std::pair<uint32_t, uint32_t> proceed_hill_climb(double sample_seconds){
             const uint32_t max_threads = art::thread::hardware_concurrency();
             std::lock_guard<art::mutex> lock(hill_climb_mutex);
-            uint32_t recomended_thread_count = 0;
-            uint32_t recomended_sleep_count = 0;
+            uint32_t recommended_thread_count = 0;
+            uint32_t recommended_sleep_count = 0;
             if(hill_climb_processed.empty()){
                 art::thread(&NativeWorkersSingleton::dispatch, this).detach();
                 return { 100, 1 };
             }
             for(auto& item : hill_climb_processed){
                 auto [thread_count, sleep_count] = hill_climb.climb(hill_climb_processed.size(), sample_seconds, item, 1, max_threads);
-                recomended_thread_count += thread_count;
-                recomended_sleep_count += sleep_count;
+                recommended_thread_count += thread_count;
+                recommended_sleep_count += sleep_count;
                 item = 0;
             }
-            recomended_thread_count /= hill_climb_processed.size();
-            recomended_sleep_count /= hill_climb_processed.size();
+            recommended_thread_count /= hill_climb_processed.size();
+            recommended_sleep_count /= hill_climb_processed.size();
 
-            ptrdiff_t diff = recomended_thread_count - hill_climb_processed.size();
+            ptrdiff_t diff = recommended_thread_count - hill_climb_processed.size();
             if(diff > 0){
                 for(ptrdiff_t i = diff; i > 0; i--)
                     art::thread(&NativeWorkersSingleton::dispatch, this).detach();
             }else if(diff < 0){
                 for(ptrdiff_t i = diff; i < 0; i++)
-                    post_work(new CancelationHandle(cancelation_manager_instance), 0);
+                    post_work(new CancellationHandle(cancellation_manager_instance), 0);
             }
-            return { recomended_thread_count, 1 };
+            return { recommended_thread_count, 1 };
         }
         void dispatch() {
             if(enable_thread_naming)
@@ -120,7 +120,7 @@ namespace art{
                 }
                 try{
                     lpOverlapped->manager->handle((void*)data, lpOverlapped, dwBytesTransferred, status);
-                }catch(const CancelationNotify&){
+                }catch(const CancellationNotify&){
                     break;
                 }
                 item++;

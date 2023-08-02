@@ -3,8 +3,8 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-#ifndef RUN_TIME_UTIL_IN_PLACE_OPTONAL
-#define RUN_TIME_UTIL_IN_PLACE_OPTONAL
+#ifndef RUN_TIME_UTIL_IN_PLACE_OPTIONAL
+#define RUN_TIME_UTIL_IN_PLACE_OPTIONAL
 #include <stdexcept>
 //explicitly in place optional
 namespace art{
@@ -99,4 +99,4 @@ namespace art{
         }
     };
 }
-#endif /* RUN_TIME_UTIL_IN_PLACE_OPTONAL */
+#endif /* RUN_TIME_UTIL_IN_PLACE_OPTIONAL */

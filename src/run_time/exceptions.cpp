@@ -74,15 +74,15 @@ namespace art{
         std::string result = AttachARuntimeException::full_info();
         result += "\nStackTrace:";
         for (auto& frame : stack_trace) {
-            auto rframe = FrameResult::JitResolveFrame(frame);
-            result += "\n\t" + rframe.fn_name + ": " + std::to_string(rframe.line);
+            auto r_frame = FrameResult::JitResolveFrame(frame);
+            result += "\n\t" + r_frame.fn_name + ": " + std::to_string(r_frame.line);
         }
         return result;
     }
         
     std::string RoutineHandleExceptions::full_info() const {
         std::string res = name() + std::string(": caught two exceptions in routine: ");
-        res += inner_exception_info(get_iner_exception());
+        res += inner_exception_info(get_inner_exception());
         res += inner_exception_info(second_exception);
         return res;
     }

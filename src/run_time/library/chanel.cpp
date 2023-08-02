@@ -16,7 +16,7 @@ namespace art{
 				std::lock_guard guard(m);
 				if (val.meta.vtype == VType::noting) {
 					try {
-						throw AException("TaskDeath", "Chanel died before all handlers unsubed");
+						throw AException("TaskDeath", "Chanel died before all handlers unsubbed");
 					}
 					catch (...) {
 						val = std::current_exception();
@@ -108,14 +108,14 @@ namespace art{
 
 		Chanel::Chanel() {}
 		Chanel::~Chanel() {
-			for(auto& it : auto_notifyer) {
+			for(auto& it : auto_notifier) {
 				std::lock_guard guard(it->no_race);
 				it->end_of_life = true;
 			}
 			std::lock_guard guard(no_race);
-			auto_notifyer.clear();
-			auto begin = suber.begin();
-			auto end = suber.end();
+			auto_notifier.clear();
+			auto begin = subscribers.begin();
+			auto end = subscribers.end();
 			ValueItem val = _lazy_load_singleton_chanelDeath();
 			while (begin != end) {
 				(*begin)->allow_sub = false;
@@ -126,11 +126,11 @@ namespace art{
 		void Chanel::notify(const ValueItem& val) {
 			std::lock_guard guard(no_race);
 			{
-				auto begin = suber.begin();
-				auto end = suber.end();
+				auto begin = subscribers.begin();
+				auto end = subscribers.end();
 				while (begin != end) {
 					if (begin->totalLinks() == 1)
-						begin = suber.erase(begin);
+						begin = subscribers.erase(begin);
 					else
 						(*begin++)->put(val);
 				}
@@ -149,11 +149,11 @@ namespace art{
 		void Chanel::notify(ValueItem&& val) {
 			std::lock_guard guard(no_race);
 			{
-				auto begin = suber.begin();
-				auto end = suber.end();
+				auto begin = subscribers.begin();
+				auto end = subscribers.end();
 				while (begin != end) {
 					if (begin->totalLinks() == 1)
-						begin = suber.erase(begin);
+						begin = subscribers.erase(begin);
 					else
 						(*begin++)->put(std::move(val));
 				}
@@ -172,11 +172,11 @@ namespace art{
 		void Chanel::notify(ValueItem* vals, uint32_t len) {
 			std::lock_guard guard(no_race);
 			{	
-				auto begin = suber.begin();
-				auto end = suber.end();
+				auto begin = subscribers.begin();
+				auto end = subscribers.end();
 				while (begin != end) {
 					if (begin->totalLinks() == 1)
-						begin = suber.erase(begin);
+						begin = subscribers.erase(begin);
 					else {
 						auto ibegin = vals;
 						auto iend = vals + len;
@@ -233,7 +233,7 @@ namespace art{
 			Task::start(res->notifier_task);
 
 			std::lock_guard guard(no_race);
-			auto_notifyer.emplace_back(res);
+			auto_notifier.emplace_back(res);
 			return res;
 		}
 		
@@ -245,7 +245,7 @@ namespace art{
 			Task::start(res->notifier_task);
 
 			std::lock_guard guard(no_race);
-			auto_notifyer.emplace_back(res);
+			auto_notifier.emplace_back(res);
 			return res;
 		}
 		
@@ -258,7 +258,7 @@ namespace art{
 			Task::start(res->notifier_task);
 
 			std::lock_guard guard(no_race);
-			auto_notifyer.emplace_back(res);
+			auto_notifier.emplace_back(res);
 			return res;
 		}
 		typed_lgr<AutoEventChanel> Chanel::auto_event(typed_lgr<EventSystem>& event, AutoEventChanel::NotifyType type){
@@ -272,40 +272,40 @@ namespace art{
 
 		typed_lgr<ChanelHandler> Chanel::create_handle() {
 			std::lock_guard guard(no_race);
-			return suber.emplace_back(new ChanelHandler());
+			return subscribers.emplace_back(new ChanelHandler());
 		}
 		typed_lgr<ChanelHandler> Chanel::add_handle(typed_lgr<ChanelHandler> handler) {
 			std::lock_guard guard(no_race);
-			return suber.emplace_back(handler);
+			return subscribers.emplace_back(handler);
 		}
 		void Chanel::remove_handle(typed_lgr<ChanelHandler> handle) {
 			std::lock_guard guard(no_race);
-			auto end = suber.end();
-			auto found = std::find(suber.begin(), end, handle);
+			auto end = subscribers.end();
+			auto found = std::find(subscribers.begin(), end, handle);
 			if (found == end)
 				return;
 			else {
 				(*found)->allow_sub = false;
 				(*found)->res_cache.push(_lazy_load_singleton_handleDeath());
-				suber.erase(found);
+				subscribers.erase(found);
 			}
 		}
-		void Chanel::remove_auto_notify(typed_lgr<AutoNotifyChanel> notifyer){
+		void Chanel::remove_auto_notify(typed_lgr<AutoNotifyChanel> notifier){
 			{
-				std::lock_guard guard(notifyer->no_race);
-				notifyer->end_of_life = true;
+				std::lock_guard guard(notifier->no_race);
+				notifier->end_of_life = true;
 			}
 			std::lock_guard guard(no_race);
-			auto end = auto_notifyer.end();
-			auto found = std::find(auto_notifyer.begin(), end, notifyer);
+			auto end = auto_notifier.end();
+			auto found = std::find(auto_notifier.begin(), end, notifier);
 			if (found == end)
 				return;
-			auto_notifyer.erase(found);
+			auto_notifier.erase(found);
 		}
-		void Chanel::remove_auto_event(typed_lgr<AutoEventChanel> eventer){
+		void Chanel::remove_auto_event(typed_lgr<AutoEventChanel> notifier){
 			std::lock_guard guard(no_race);
 			auto end = auto_events.end();
-			auto found = std::find(auto_events.begin(), end, eventer);
+			auto found = std::find(auto_events.begin(), end, notifier);
 			if (found == end)
 				return;
 			auto_events.erase(found);

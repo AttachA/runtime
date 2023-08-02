@@ -26,7 +26,7 @@ namespace art{
 
 
 
-	bool calc_safe_deph_arr(void* ptr);
+	bool calc_safe_depth_arr(void* ptr);
 
 	template<class T>
 	void defaultDestructor(void* a) {
@@ -250,7 +250,7 @@ namespace art{
 				return ValueItem(Structure::copy(val), no_copy);
 			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnvironment>>)
 				return ValueItem(new typed_lgr<class FuncEnvironment>(val), VType::function, no_copy);
-			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Enviropment>)
+			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Environment>)
 				return ValueItem(new typed_lgr<class FuncEnvironment>(new FuncEnvironment(val,false)), VType::function, no_copy);
 			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueItem>)
 				return val;
@@ -269,7 +269,7 @@ namespace art{
 						std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>> ||
 						std::is_same_v<std::remove_cvref_t<T>, nullptr_t> ||
 						std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnvironment>> ||
-						std::is_same_v<std::remove_cvref_t<T>, Enviropment> ||
+						std::is_same_v<std::remove_cvref_t<T>, Environment> ||
 						std::is_same_v<std::remove_cvref_t<T>, bool> ||
 						std::is_same_v<std::remove_cvref_t<T>, void*>
 						),

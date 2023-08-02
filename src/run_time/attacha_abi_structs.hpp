@@ -65,7 +65,7 @@ namespace art{
 		(as)
 		(is)
 		(store_bool)//store bool from value for if statements, set false if type is noting, numeric types is zero and containers is empty, if another then true
-		(load_bool)//used if need save equaluty result, set numeric type as 1 or 0
+		(load_bool)//used if need save equality result, set numeric type as 1 or 0
 
 		(inline_native)
 		(call_value_function)
@@ -94,14 +94,14 @@ namespace art{
 		(localize_gc)
 		(from_gc)
 		(table_jump)
-		(xarray_slice)//farray and sarray slice by creating reference to original array with moved pointer and new size
+		(xarray_slice)//faarr and saarr slice by creating reference to original array with moved pointer and new size
 		(store_constant)
-		(get_refrence)
+		(get_reference)
 		(make_as_const)
 		(remove_const_protect)
 		(copy_un_constant)
-		(copy_un_refrence)
-		(move_un_refrence)
+		(copy_un_reference)
+		(move_un_reference)
 		(remove_qualifiers)
 	)
 
@@ -287,7 +287,7 @@ namespace art{
 		(undefined_ptr)
 		(except_value)//default from except call
 		(faarr)//fixed any array
-		(saarr)//stack fixed any array //only local, cannont returned, cannont be used with lgr, cannont be passed as arguments
+		(saarr)//stack fixed any array //only local, cannot returned, cannot be used with lgr, cannot be passed as arguments
 		
 		(struct_)//like c++ class, but with dynamic abilities
 
@@ -362,7 +362,7 @@ namespace art{
 		bool used_static : 1;
 		bool in_debug : 1;
 		bool run_time_computable : 1;//in files always false
-		bool is_patchable : 1;//define function is patchable or not, if not patchable, in function header and footer excluded atomic usage count modificatiion
+		bool is_patchable : 1;//define function is patchable or not, if not patchable, in function header and footer excluded atomic usage count modification
 		//10bits left
 	};
 
@@ -438,7 +438,7 @@ namespace art{
 		bool operator!=(const ValueItemConstIterator& compare) const{ return iterator.operator!=(compare.iterator);}
 	};
 	namespace __{
-		template<typename T, bool as_refrence>
+		template<typename T, bool as_reference>
 		class array{
 			T* data;
 			uint32_t length;
@@ -446,7 +446,7 @@ namespace art{
 		public:
 			array():data(nullptr), length(0){}
 			array(T* data, uint32_t length) : length(length){
-				if constexpr (as_refrence){
+				if constexpr (as_reference){
 					this->data = data;
 				}else{
 					this->data = new T[length];
@@ -457,7 +457,7 @@ namespace art{
 			}
 			array(uint32_t length, T* data) : data(data), length(length){}
 			array(const array<T,false>& copy) : length(copy.length){
-				if constexpr (as_refrence){
+				if constexpr (as_reference){
 					data = copy.data;
 				}else{
 					data = new T[length];
@@ -467,7 +467,7 @@ namespace art{
 				}
 			}
 			array(const array<T,true>& copy) : length(copy.length){
-				if constexpr (as_refrence){
+				if constexpr (as_reference){
 					data = copy.data;
 				}else{
 					data = new T[length];
@@ -481,18 +481,18 @@ namespace art{
 				move.length = 0;
 			}
 			~array(){
-				if constexpr(!as_refrence)
+				if constexpr(!as_reference)
 					if(data) delete[] data;
 			}
 			T& operator[](uint32_t index){
-				if constexpr (as_refrence){
+				if constexpr (as_reference){
 					return data[index];
 				}else{
 					return data[index];
 				}
 			}
 			const T& operator[](uint32_t index) const{
-				if constexpr (as_refrence){
+				if constexpr (as_reference){
 					return data[index];
 				}else{
 					return data[index];
@@ -524,8 +524,8 @@ namespace art{
 	template<typename T>
 	using array_ref_t = __::array<T,true>;
 	
-	struct as_refrence_t {};
-	constexpr inline as_refrence_t as_refrence = {};
+	struct as_reference_t {};
+	constexpr inline as_reference_t as_reference = {};
 
 	struct no_copy_t {};
 	constexpr inline no_copy_t no_copy = {};
@@ -552,7 +552,7 @@ namespace art{
 		ValueItem(list_array<ValueItem>&& val);
 		ValueItem(ValueItem* vals, uint32_t len);
 		ValueItem(ValueItem* vals, uint32_t len, no_copy_t);
-		ValueItem(ValueItem* vals, uint32_t len, as_refrence_t);
+		ValueItem(ValueItem* vals, uint32_t len, as_reference_t);
 		ValueItem(void* undefined_ptr);
 
 		ValueItem(const int8_t* vals, uint32_t len);
@@ -577,16 +577,16 @@ namespace art{
 		ValueItem(float* vals, uint32_t len, no_copy_t);
 		ValueItem(double* vals, uint32_t len, no_copy_t);
 
-		ValueItem(int8_t* vals, uint32_t len, as_refrence_t);
-		ValueItem(uint8_t* vals, uint32_t len, as_refrence_t);
-		ValueItem(int16_t* vals, uint32_t len, as_refrence_t);
-		ValueItem(uint16_t* vals, uint32_t len, as_refrence_t);
-		ValueItem(int32_t* vals, uint32_t len, as_refrence_t);
-		ValueItem(uint32_t* vals, uint32_t len, as_refrence_t);
-		ValueItem(int64_t* vals, uint32_t len, as_refrence_t);
-		ValueItem(uint64_t* vals, uint32_t len, as_refrence_t);
-		ValueItem(float* vals, uint32_t len, as_refrence_t);
-		ValueItem(double* vals, uint32_t len, as_refrence_t);
+		ValueItem(int8_t* vals, uint32_t len, as_reference_t);
+		ValueItem(uint8_t* vals, uint32_t len, as_reference_t);
+		ValueItem(int16_t* vals, uint32_t len, as_reference_t);
+		ValueItem(uint16_t* vals, uint32_t len, as_reference_t);
+		ValueItem(int32_t* vals, uint32_t len, as_reference_t);
+		ValueItem(uint32_t* vals, uint32_t len, as_reference_t);
+		ValueItem(int64_t* vals, uint32_t len, as_reference_t);
+		ValueItem(uint64_t* vals, uint32_t len, as_reference_t);
+		ValueItem(float* vals, uint32_t len, as_reference_t);
+		ValueItem(double* vals, uint32_t len, as_reference_t);
 		ValueItem(class Structure*, no_copy_t);
 		template<size_t len>
 		ValueItem(ValueItem(&vals)[len]) : ValueItem(vals, len) {}
@@ -618,60 +618,60 @@ namespace art{
 		}
 		ValueItem(ValueItem&& move);
 		ValueItem(const void* vall, ValueMeta meta);
-		ValueItem(void* vall, ValueMeta meta, as_refrence_t);
+		ValueItem(void* vall, ValueMeta meta, as_reference_t);
 		ValueItem(void* vall, ValueMeta meta, no_copy_t);
 		ValueItem(VType);
 		ValueItem(ValueMeta);
 		ValueItem(const ValueItem&);
 
-		ValueItem(ValueItem& ref, as_refrence_t);
-		ValueItem(bool& val, as_refrence_t);
-		ValueItem(int8_t& val, as_refrence_t);
-		ValueItem(uint8_t& val, as_refrence_t);
-		ValueItem(int16_t& val, as_refrence_t);
-		ValueItem(uint16_t& val, as_refrence_t);
-		ValueItem(int32_t& val, as_refrence_t);
-		ValueItem(uint32_t& val, as_refrence_t);
-		ValueItem(int64_t& val, as_refrence_t);
-		ValueItem(uint64_t& val, as_refrence_t);
-		ValueItem(float& val, as_refrence_t);
-		ValueItem(double& val, as_refrence_t);
-		ValueItem(class Structure*, as_refrence_t);
-		ValueItem(std::string& val, as_refrence_t);
-		ValueItem(list_array<ValueItem>& val, as_refrence_t);
+		ValueItem(ValueItem& ref, as_reference_t);
+		ValueItem(bool& val, as_reference_t);
+		ValueItem(int8_t& val, as_reference_t);
+		ValueItem(uint8_t& val, as_reference_t);
+		ValueItem(int16_t& val, as_reference_t);
+		ValueItem(uint16_t& val, as_reference_t);
+		ValueItem(int32_t& val, as_reference_t);
+		ValueItem(uint32_t& val, as_reference_t);
+		ValueItem(int64_t& val, as_reference_t);
+		ValueItem(uint64_t& val, as_reference_t);
+		ValueItem(float& val, as_reference_t);
+		ValueItem(double& val, as_reference_t);
+		ValueItem(class Structure*, as_reference_t);
+		ValueItem(std::string& val, as_reference_t);
+		ValueItem(list_array<ValueItem>& val, as_reference_t);
 
-		ValueItem(std::exception_ptr&, as_refrence_t);
-		ValueItem(std::chrono::steady_clock::time_point&, as_refrence_t);
-		ValueItem(std::unordered_map<ValueItem, ValueItem>&, as_refrence_t);
-		ValueItem(std::unordered_set<ValueItem>&, as_refrence_t);
-		ValueItem(typed_lgr<struct Task>& task, as_refrence_t);
-		ValueItem(ValueMeta&, as_refrence_t);
-		ValueItem(typed_lgr<class FuncEnvironment>&, as_refrence_t);
+		ValueItem(std::exception_ptr&, as_reference_t);
+		ValueItem(std::chrono::steady_clock::time_point&, as_reference_t);
+		ValueItem(std::unordered_map<ValueItem, ValueItem>&, as_reference_t);
+		ValueItem(std::unordered_set<ValueItem>&, as_reference_t);
+		ValueItem(typed_lgr<struct Task>& task, as_reference_t);
+		ValueItem(ValueMeta&, as_reference_t);
+		ValueItem(typed_lgr<class FuncEnvironment>&, as_reference_t);
 
 		
-		ValueItem(const ValueItem& ref, as_refrence_t);
-		ValueItem(const bool& val, as_refrence_t);
-		ValueItem(const int8_t& val, as_refrence_t);
-		ValueItem(const uint8_t& val, as_refrence_t);
-		ValueItem(const int16_t& val, as_refrence_t);
-		ValueItem(const uint16_t& val, as_refrence_t);
-		ValueItem(const int32_t& val, as_refrence_t);
-		ValueItem(const uint32_t& val, as_refrence_t);
-		ValueItem(const int64_t& val, as_refrence_t);
-		ValueItem(const uint64_t& val, as_refrence_t);
-		ValueItem(const float& val, as_refrence_t);
-		ValueItem(const double& val, as_refrence_t);
-		ValueItem(const class Structure*, as_refrence_t);
-		ValueItem(const std::string& val, as_refrence_t);
-		ValueItem(const list_array<ValueItem>& val, as_refrence_t);
+		ValueItem(const ValueItem& ref, as_reference_t);
+		ValueItem(const bool& val, as_reference_t);
+		ValueItem(const int8_t& val, as_reference_t);
+		ValueItem(const uint8_t& val, as_reference_t);
+		ValueItem(const int16_t& val, as_reference_t);
+		ValueItem(const uint16_t& val, as_reference_t);
+		ValueItem(const int32_t& val, as_reference_t);
+		ValueItem(const uint32_t& val, as_reference_t);
+		ValueItem(const int64_t& val, as_reference_t);
+		ValueItem(const uint64_t& val, as_reference_t);
+		ValueItem(const float& val, as_reference_t);
+		ValueItem(const double& val, as_reference_t);
+		ValueItem(const class Structure*, as_reference_t);
+		ValueItem(const std::string& val, as_reference_t);
+		ValueItem(const list_array<ValueItem>& val, as_reference_t);
 
-		ValueItem(const std::exception_ptr&, as_refrence_t);
-		ValueItem(const std::chrono::steady_clock::time_point&, as_refrence_t);
-		ValueItem(const std::unordered_map<ValueItem, ValueItem>&, as_refrence_t);
-		ValueItem(const std::unordered_set<ValueItem>&, as_refrence_t);
-		ValueItem(const typed_lgr<struct Task>& task, as_refrence_t);
-		ValueItem(const ValueMeta&, as_refrence_t);
-		ValueItem(const typed_lgr<class FuncEnvironment>&, as_refrence_t);
+		ValueItem(const std::exception_ptr&, as_reference_t);
+		ValueItem(const std::chrono::steady_clock::time_point&, as_reference_t);
+		ValueItem(const std::unordered_map<ValueItem, ValueItem>&, as_reference_t);
+		ValueItem(const std::unordered_set<ValueItem>&, as_reference_t);
+		ValueItem(const typed_lgr<struct Task>& task, as_reference_t);
+		ValueItem(const ValueMeta&, as_reference_t);
+		ValueItem(const typed_lgr<class FuncEnvironment>&, as_reference_t);
 
 
 		ValueItem(array_t<bool>&& val);
@@ -848,7 +848,7 @@ namespace art{
 		ValueItemConstIterator cend() const{ return end(); }
 		size_t size() const;
 	};
-	typedef ValueItem* (*Enviropment)(ValueItem* args, uint32_t len);
+	typedef ValueItem* (*Environment)(ValueItem* args, uint32_t len);
 
 
 	ENUM_t(ClassAccess, uint8_t,
@@ -878,7 +878,7 @@ namespace art{
 		ClassAccess access : 2;
 		bool deletable : 1;
 		MethodInfo() : ref(nullptr), name(), owner_name(), optional(nullptr), access(ClassAccess::pub), deletable(true) {}
-		MethodInfo(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
+		MethodInfo(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
 		MethodInfo(const std::string& name, typed_lgr<class FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
 
 		~MethodInfo();
@@ -889,15 +889,15 @@ namespace art{
 	};
 
 	struct AttachAVirtualTable {
-		Enviropment destructor;//args: Structure* structure
-		Enviropment copy;//args: Structure* dst, Structure* src, bool at_construct
-		Enviropment move;//args: Structure* dst, Structure* src, bool at_construct
-		Enviropment compare;//args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
+		Environment destructor;//args: Structure* structure
+		Environment copy;//args: Structure* dst, Structure* src, bool at_construct
+		Environment move;//args: Structure* dst, Structure* src, bool at_construct
+		Environment compare;//args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
 		uint64_t table_size;
 		char data[];
 
 		//{
-		//  Enviropment[table_size] table;
+		//  Environment[table_size] table;
 		//  MethodInfo [table_size] table_additional_info;
 		//	typed_lgr<class FuncEnvironment> holder_destructor;
 		//	typed_lgr<class FuncEnvironment> holder_copy;
@@ -923,9 +923,9 @@ namespace art{
 		const MethodInfo& getMethodInfo(uint64_t index) const;
 		const MethodInfo& getMethodInfo(const std::string& name, ClassAccess access) const;
 
-		Enviropment* getMethods(uint64_t& size);
-		Enviropment getMethod(uint64_t index) const;
-		Enviropment getMethod(const std::string& name, ClassAccess access) const;
+		Environment* getMethods(uint64_t& size);
+		Environment getMethod(uint64_t index) const;
+		Environment getMethod(const std::string& name, ClassAccess access) const;
 
 		uint64_t getMethodIndex(const std::string& name, ClassAccess access) const;
 		bool hasMethod(const std::string& name, ClassAccess access) const;
@@ -976,10 +976,10 @@ namespace art{
 		const MethodInfo& getMethodInfo(uint64_t index) const ;
 		const MethodInfo& getMethodInfo(const std::string& name, ClassAccess access) const ;
 
-		Enviropment getMethod(uint64_t index) const;
-		Enviropment getMethod(const std::string& name, ClassAccess access) const;
+		Environment getMethod(uint64_t index) const;
+		Environment getMethod(const std::string& name, ClassAccess access) const;
 
-		void addMethod(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
+		void addMethod(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
 		void addMethod(const std::string& name, const typed_lgr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
 
 		void removeMethod(const std::string& name, ClassAccess access);
@@ -995,7 +995,7 @@ namespace art{
 		void derive(AttachAVirtualTable& parent);
 	};
 
-	//static values can be implemented by builder, allocate somewhere in memory and put refrences to functions, not structure 
+	//static values can be implemented by builder, allocate somewhere in memory and put references to functions, not structure 
 	class Structure{
 	public:
 		//return true if allowed
@@ -1037,12 +1037,12 @@ namespace art{
 		ValueItem getRawArray(const Item* item) {
 			if(item->inlined){
 				if(item->type.as_ref)
-					return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_refrence);
+					return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_reference);
 				else
 					return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len);
 			}else{
 				if(item->type.as_ref)
-					return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_refrence);
+					return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_reference);
 				else
 					return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len);
 			}
@@ -1052,12 +1052,12 @@ namespace art{
 			ValueItem result;
 			if(item->inlined){
 				if(item->type.as_ref)
-					result = ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_refrence);
+					result = ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_reference);
 				else
 					result = ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len);
 			}else{
 				if(item->type.as_ref)
-					result = ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_refrence);
+					result = ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_reference);
 				else
 					result = ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len);
 			}
@@ -1067,20 +1067,20 @@ namespace art{
 		template<typename T>
 		ValueItem getType(const Item* item) const {
 			if(item->type.as_ref)
-				return ValueItem(static_value_get_ref<T>(item->offset, 0, 0), as_refrence);
+				return ValueItem(static_value_get_ref<T>(item->offset, 0, 0), as_reference);
 			else
 				return ValueItem(static_value_get_ref<T>(item->offset, 0, 0));
 		}
 		template<typename T>
 		ValueItem getRawArrayRef(const Item* item) {
 			if(item->inlined)
-				return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_refrence);
+				return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_reference);
 			else
-				return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_refrence);
+				return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_reference);
 		}
 		template<typename T>
 		ValueItem getTypeRef(const Item* item){
-			return ValueItem(static_value_get_ref<T>(item->offset, 0, 0), as_refrence);
+			return ValueItem(static_value_get_ref<T>(item->offset, 0, 0), as_reference);
 		}
 
 		ValueItem _static_value_get(const Item* item) const;
@@ -1176,10 +1176,10 @@ namespace art{
 		void dynamic_value_set(const std::string& name, ValueItem value);
 
 		uint64_t table_get_id(const std::string& name, ClassAccess access) const;
-		Enviropment table_get(uint64_t fn_id) const;
-		Enviropment table_get_dynamic(const std::string& name, ClassAccess access) const;//table_get(table_get_id(name, access))
+		Environment table_get(uint64_t fn_id) const;
+		Environment table_get_dynamic(const std::string& name, ClassAccess access) const;//table_get(table_get_id(name, access))
 		
-		void add_method(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
+		void add_method(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
 		void add_method(const std::string& name, const typed_lgr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
 
 		bool has_method(const std::string& name, ClassAccess access) const;
@@ -1209,24 +1209,20 @@ namespace art{
 		static void move(Structure* dst, Structure* src, bool at_construct);
 		static Structure* move(Structure* src);
 		static int8_t compare(Structure* a, Structure* b);//vtable
-		static int8_t compare_refrence(Structure* a, Structure* b);//refrence compare
+		static int8_t compare_reference(Structure* a, Structure* b);//reference compare
 		static int8_t compare_object(Structure* a, Structure* b);//compare by Item*`s
 		static int8_t compare_full(Structure* a, Structure* b);//compare && compare_object
 
 
 
-		void* get_raw_data();//can be useful for light proxy clases
+		void* get_raw_data();//can be useful for light proxy classes
 
 		std::string get_name() const;
 	};
 }
-#ifndef FFDSSC
-#define FFDSSC
-
 namespace std {
 	inline size_t hash<art::ValueItem>::operator()(const art::ValueItem& cit) const {
 		return cit.hash();
 	}
 }
-#endif // !1
 #endif /* SRC_RUN_TIME_ATTACHA_ABI_STRUCTS */

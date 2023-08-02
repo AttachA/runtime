@@ -695,7 +695,7 @@ namespace art{
 
 
 	template<double(*fn)(double)>
-	ValueItem math_thrigonomic_impl(ValueItem& val) {
+	ValueItem math_trigonometric_impl(ValueItem& val) {
 		if (val.meta.vtype == VType::async_res)
 			val.getAsync();
 		switch (val.meta.vtype) {
@@ -708,7 +708,7 @@ namespace art{
 		case VType::i64:
 		case VType::ui64:
 			ValueItem tmp((double)val);
-			return math_thrigonomic_impl<fn>(tmp);
+			return math_trigonometric_impl<fn>(tmp);
 		}
 		switch (val.meta.vtype) {
 		case VType::flo:
@@ -720,11 +720,11 @@ namespace art{
 		}
 	}
 	template<double(*fn)(double), class T>
-	ValueItem* math_thrigonomic(T* args, uint32_t args_len) {
+	ValueItem* math_trigonometric(T* args, uint32_t args_len) {
 		T* new_arr = new T[args_len];
 		for (size_t i = 0; i < args_len; i++) {
 			if constexpr (std::is_same_v<T, ValueItem>)
-				new_arr[i] = math_thrigonomic_impl<fn>(args[i]);
+				new_arr[i] = math_trigonometric_impl<fn>(args[i]);
 			else {
 				new_arr[i] = (T)fn((double)args[i]);
 			}
@@ -732,7 +732,7 @@ namespace art{
 		return new ValueItem(new_arr, args_len);
 	}
 	template<double(*fn)(double)>
-	ValueItem* math_thrigonomic(ValueItem* args, uint32_t args_len) {
+	ValueItem* math_trigonometric(ValueItem* args, uint32_t args_len) {
 		if (args) {
 			if (args_len == 1) {
 				switch (args->meta.vtype) {
@@ -740,38 +740,38 @@ namespace art{
 					list_array<ValueItem> new_uarr;
 					new_uarr.reserve_push_back((((list_array<ValueItem>*)args->getSourcePtr())->size()));
 					for (auto& it : *(list_array<ValueItem>*)args->getSourcePtr())
-						new_uarr.push_back(math_thrigonomic_impl<fn>(it));
+						new_uarr.push_back(math_trigonometric_impl<fn>(it));
 					return new ValueItem(std::move(new_uarr));
 				}
 				case VType::faarr:
 				case VType::saarr:
-					return math_thrigonomic<fn,ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn,ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_i8:
-					return math_thrigonomic<fn, int8_t>((int8_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn, int8_t>((int8_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_i16:
-					return math_thrigonomic<fn, int16_t>((int16_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn, int16_t>((int16_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_i32:
-					return math_thrigonomic<fn, int32_t>((int32_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn, int32_t>((int32_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_i64:
-					return math_thrigonomic<fn, int64_t>((int64_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn, int64_t>((int64_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_ui8:
-					return math_thrigonomic<fn, uint8_t>((uint8_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn, uint8_t>((uint8_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_ui16:
-					return math_thrigonomic<fn, uint16_t >((uint16_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn, uint16_t >((uint16_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_ui32:
-					return math_thrigonomic<fn, uint32_t>((uint32_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn, uint32_t>((uint32_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_ui64:
-					return math_thrigonomic<fn, uint64_t>((uint64_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn, uint64_t>((uint64_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_flo:
-					return math_thrigonomic<fn, float>((float*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn, float>((float*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_doub:
-					return math_thrigonomic<fn, double>((double*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric<fn, double>((double*)args->getSourcePtr(), args->meta.val_len);
 				default:
 					return new ValueItem(*args);
 				}
 			}
 			else {
-				return math_thrigonomic<fn, ValueItem>(args, args_len);
+				return math_trigonometric<fn, ValueItem>(args, args_len);
 			}
 		}
 		return nullptr;
@@ -880,7 +880,7 @@ namespace art{
 	void initStandardLib_exception(){
 		INIT_CHECK
 		FuncEnvironment::AddNative(exceptions::get_current_exception_name, "exception current_get_name", false);
-		FuncEnvironment::AddNative(exceptions::get_current_exception_desctription, "exception current_get_desctription", false);
+		FuncEnvironment::AddNative(exceptions::get_current_exception_description, "exception current_get_description", false);
 		FuncEnvironment::AddNative(exceptions::get_current_exception_full_description, "exception current_get_full_description", false);
 		FuncEnvironment::AddNative(exceptions::has_current_exception_inner_exception, "exception current_has_inner", false);
 		FuncEnvironment::AddNative(exceptions::unpack_current_exception, "exception current_unpack", false);
@@ -950,37 +950,37 @@ namespace art{
 		FuncEnvironment::AddNative(math_transform_fn<(float(*)(float))trunc, (double(*)(double))trunc>, "math fix", false);
 		
 		FuncEnvironment::AddNative(math_factorial, "math factorial", false);
-		FuncEnvironment::AddNative(math_thrigonomic<sin>, "math sin", false);
-		FuncEnvironment::AddNative(math_thrigonomic<asin>, "math asin", false);
-		FuncEnvironment::AddNative(math_thrigonomic<cos>, "math cos", false);
-		FuncEnvironment::AddNative(math_thrigonomic<acos>, "math acos", false);
-		FuncEnvironment::AddNative(math_thrigonomic<tan>, "math tan", false);
-		FuncEnvironment::AddNative(math_thrigonomic<atan>, "math atan", false);
-		FuncEnvironment::AddNative(math_thrigonomic<csc>, "math csc", false);
-		FuncEnvironment::AddNative(math_thrigonomic<acsc>, "math acsc", false);
-		FuncEnvironment::AddNative(math_thrigonomic<sec>, "math sec", false);
-		FuncEnvironment::AddNative(math_thrigonomic<asec>, "math asec", false);
-		FuncEnvironment::AddNative(math_thrigonomic<cot>, "math cot", false);
-		FuncEnvironment::AddNative(math_thrigonomic<acot>, "math acot", false);
-		FuncEnvironment::AddNative(math_thrigonomic<sinh>, "math sinh", false);
-		FuncEnvironment::AddNative(math_thrigonomic<asinh>, "math asinh", false);
-		FuncEnvironment::AddNative(math_thrigonomic<cosh>, "math cosh", false);
-		FuncEnvironment::AddNative(math_thrigonomic<acosh>, "math acosh", false);
-		FuncEnvironment::AddNative(math_thrigonomic<tanh>, "math tanh", false);
-		FuncEnvironment::AddNative(math_thrigonomic<atanh>, "math atanh", false);
-		FuncEnvironment::AddNative(math_thrigonomic<csch>, "math csch", false);
-		FuncEnvironment::AddNative(math_thrigonomic<acsch>, "math acsch", false);
-		FuncEnvironment::AddNative(math_thrigonomic<sech>, "math sech", false);
-		FuncEnvironment::AddNative(math_thrigonomic<asech>, "math asech", false);
-		FuncEnvironment::AddNative(math_thrigonomic<coth>, "math coth", false);
-		FuncEnvironment::AddNative(math_thrigonomic<acoth>, "math acoth", false);
+		FuncEnvironment::AddNative(math_trigonometric<sin>, "math sin", false);
+		FuncEnvironment::AddNative(math_trigonometric<asin>, "math asin", false);
+		FuncEnvironment::AddNative(math_trigonometric<cos>, "math cos", false);
+		FuncEnvironment::AddNative(math_trigonometric<acos>, "math acos", false);
+		FuncEnvironment::AddNative(math_trigonometric<tan>, "math tan", false);
+		FuncEnvironment::AddNative(math_trigonometric<atan>, "math atan", false);
+		FuncEnvironment::AddNative(math_trigonometric<csc>, "math csc", false);
+		FuncEnvironment::AddNative(math_trigonometric<acsc>, "math acsc", false);
+		FuncEnvironment::AddNative(math_trigonometric<sec>, "math sec", false);
+		FuncEnvironment::AddNative(math_trigonometric<asec>, "math asec", false);
+		FuncEnvironment::AddNative(math_trigonometric<cot>, "math cot", false);
+		FuncEnvironment::AddNative(math_trigonometric<acot>, "math acot", false);
+		FuncEnvironment::AddNative(math_trigonometric<sinh>, "math sinh", false);
+		FuncEnvironment::AddNative(math_trigonometric<asinh>, "math asinh", false);
+		FuncEnvironment::AddNative(math_trigonometric<cosh>, "math cosh", false);
+		FuncEnvironment::AddNative(math_trigonometric<acosh>, "math acosh", false);
+		FuncEnvironment::AddNative(math_trigonometric<tanh>, "math tanh", false);
+		FuncEnvironment::AddNative(math_trigonometric<atanh>, "math atanh", false);
+		FuncEnvironment::AddNative(math_trigonometric<csch>, "math csch", false);
+		FuncEnvironment::AddNative(math_trigonometric<acsch>, "math acsch", false);
+		FuncEnvironment::AddNative(math_trigonometric<sech>, "math sech", false);
+		FuncEnvironment::AddNative(math_trigonometric<asech>, "math asech", false);
+		FuncEnvironment::AddNative(math_trigonometric<coth>, "math coth", false);
+		FuncEnvironment::AddNative(math_trigonometric<acoth>, "math acoth", false);
 
-		FuncEnvironment::AddNative(math_thrigonomic<sqrt>, "math sqrt", false);
-		FuncEnvironment::AddNative(math_thrigonomic<cbrt>, "math cbrt", false);
+		FuncEnvironment::AddNative(math_trigonometric<sqrt>, "math sqrt", false);
+		FuncEnvironment::AddNative(math_trigonometric<cbrt>, "math cbrt", false);
 		FuncEnvironment::AddNative(math_pow, "math pow", false);
-		FuncEnvironment::AddNative(math_thrigonomic<log>, "math log", false);
-		FuncEnvironment::AddNative(math_thrigonomic<log2>, "math log2", false);
-		FuncEnvironment::AddNative(math_thrigonomic<log10>, "math log10", false);
+		FuncEnvironment::AddNative(math_trigonometric<log>, "math log", false);
+		FuncEnvironment::AddNative(math_trigonometric<log2>, "math log2", false);
+		FuncEnvironment::AddNative(math_trigonometric<log10>, "math log10", false);
 	}
 	void initStandardLib_file(){
 		INIT_CHECK
@@ -994,7 +994,7 @@ namespace art{
 		FuncEnvironment::AddNative(file::rename, "file rename", false);
 		FuncEnvironment::AddNative(file::copy, "file copy", false);
 	}
-	void initStandardLib_paralel(){
+	void initStandardLib_parallel(){
 		INIT_CHECK
 		parallel::init();
 		FuncEnvironment::AddNative(parallel::constructor::createProxy_Mutex, "# parallel mutex", false);
@@ -1018,7 +1018,7 @@ namespace art{
 		FuncEnvironment::AddNative(parallel::task_runtime::explicitStartTimer, "parallel task_runtime explicitStartTimer", false);
 		FuncEnvironment::AddNative(parallel::task_runtime::reduce_executor, "parallel task_runtime reduce_executor", false);
 		FuncEnvironment::AddNative(parallel::task_runtime::total_executors, "parallel task_runtime total_executors", false);
-		FuncEnvironment::AddNative(parallel::this_task::check_cancelation, "parallel this_task check_cancelation", false);
+		FuncEnvironment::AddNative(parallel::this_task::check_cancellation, "parallel this_task check_cancellation", false);
 		FuncEnvironment::AddNative(parallel::this_task::is_task, "parallel this_task is_task", false);
 		FuncEnvironment::AddNative(parallel::this_task::self_cancel, "parallel this_task self_cancel", false);
 		FuncEnvironment::AddNative(parallel::this_task::sleep, "parallel this_task sleep", false);
@@ -1059,7 +1059,7 @@ namespace art{
 	}
 	void initStandardLib_internal_run_time(){
 		INIT_CHECK
-		FuncEnvironment::AddNative(internal::run_time::gc_hinit_collect, "internal run_time gc_hinit_collect", false);
+		FuncEnvironment::AddNative(internal::run_time::gc_hint_collect, "internal run_time gc_hint_collect", false);
 		FuncEnvironment::AddNative(internal::run_time::gc_pause, "internal run_time gc_pause", false);
 		FuncEnvironment::AddNative(internal::run_time::gc_resume, "internal run_time gc_resume", false);
 	}
@@ -1186,7 +1186,7 @@ namespace art{
 		initStandardLib_console();
 		initStandardLib_math();
 		initStandardLib_file();
-		initStandardLib_paralel();
+		initStandardLib_parallel();
 		initStandardLib_chanel();
 		initStandardLib_internal();
 		initStandardLib_internal_memory();
@@ -1204,7 +1204,7 @@ namespace art{
 		initStandardLib_console();
 		initStandardLib_math();
 		initStandardLib_file();
-		initStandardLib_paralel();
+		initStandardLib_parallel();
 		initStandardLib_chanel();
 		initStandardLib_net();
 		initStandardLib_internal();

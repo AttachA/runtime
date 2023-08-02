@@ -102,7 +102,7 @@ namespace art {
 			return nullptr;
 		}
 
-		namespace standart_short_operator{
+		namespace standard_short_operator{
 			//d && i - integer
 			AttachAFun(d,1,{
 				if(is_integer(args[0].meta.vtype))
@@ -302,25 +302,25 @@ namespace art {
 			})
 		}
 		std::unordered_map<std::string, typed_lgr<FuncEnvironment>> printf_operators = {
-			{"d", new FuncEnvironment(standart_short_operator::d)},
-			{"i", new FuncEnvironment(standart_short_operator::d)},
-			{"u", new FuncEnvironment(standart_short_operator::u)},
-			{"o", new FuncEnvironment(standart_short_operator::o)},
-			{"x", new FuncEnvironment(standart_short_operator::x)},
-			{"X", new FuncEnvironment(standart_short_operator::X)},
-			{"f", new FuncEnvironment(standart_short_operator::f)},
-			{"F", new FuncEnvironment(standart_short_operator::F)},
-			{"e", new FuncEnvironment(standart_short_operator::e)},
-			{"E", new FuncEnvironment(standart_short_operator::E)},
-			{"g", new FuncEnvironment(standart_short_operator::g)},
-			{"G", new FuncEnvironment(standart_short_operator::G)},
-			{"a", new FuncEnvironment(standart_short_operator::a)},
-			{"A", new FuncEnvironment(standart_short_operator::A)},
-			{"c", new FuncEnvironment(standart_short_operator::c)},
-			{"s", new FuncEnvironment(standart_short_operator::s)},
-			{"p", new FuncEnvironment(standart_short_operator::p)},
-			{"n", new FuncEnvironment(standart_short_operator::n)},
-			{"%", new FuncEnvironment(standart_short_operator::percent)}
+			{"d", new FuncEnvironment(standard_short_operator::d)},
+			{"i", new FuncEnvironment(standard_short_operator::d)},
+			{"u", new FuncEnvironment(standard_short_operator::u)},
+			{"o", new FuncEnvironment(standard_short_operator::o)},
+			{"x", new FuncEnvironment(standard_short_operator::x)},
+			{"X", new FuncEnvironment(standard_short_operator::X)},
+			{"f", new FuncEnvironment(standard_short_operator::f)},
+			{"F", new FuncEnvironment(standard_short_operator::F)},
+			{"e", new FuncEnvironment(standard_short_operator::e)},
+			{"E", new FuncEnvironment(standard_short_operator::E)},
+			{"g", new FuncEnvironment(standard_short_operator::g)},
+			{"G", new FuncEnvironment(standard_short_operator::G)},
+			{"a", new FuncEnvironment(standard_short_operator::a)},
+			{"A", new FuncEnvironment(standard_short_operator::A)},
+			{"c", new FuncEnvironment(standard_short_operator::c)},
+			{"s", new FuncEnvironment(standard_short_operator::s)},
+			{"p", new FuncEnvironment(standard_short_operator::p)},
+			{"n", new FuncEnvironment(standard_short_operator::n)},
+			{"%", new FuncEnvironment(standard_short_operator::percent)}
 		};
 		ValueItem* register_format_operator(ValueItem* args, uint32_t len) {
 			if (len >= 2) {

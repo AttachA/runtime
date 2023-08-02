@@ -17,35 +17,35 @@ namespace art{
         void deallocate(stack_context& sctx);
 
         //returns true if the stack is shrinked
-        static bool shrink_current(size_t bytes_treeshold = (1 << 12) * 3);
+        static bool shrink_current(size_t bytes_threshold = (1 << 12) * 3);
 
-        //make sure 'bytes_to_use' avaible in stack, and increase stack without slow STATUS_GUARD_PAGE_VIOLATION
+        //make sure 'bytes_to_use' available in stack, and increase stack without slow STATUS_GUARD_PAGE_VIOLATION
         static bool prepare(size_t bytes_to_use);
         //alloc all stack without slow STATUS_GUARD_PAGE_VIOLATION
         static bool prepare();
 
         //returns 
-        // farr[
-        //     farr[undefined_ptr stack_begin_from, undefined_ptr stack_end_at, ui64 used_memory, str desk, bool fault_prot]
+        // faarr[
+        //     faarr[undefined_ptr stack_begin_from, undefined_ptr stack_end_at, ui64 used_memory, str desk, bool fault_prot]
         //     ...
         // ]
         //
         static ValueItem* dump_current();
-        //default formated string
+        //default formatted string
         static std::string dump_current_str();
         //console
         static void dump_current_out();
 
         //returns 
-        // farr[
-        //     farr[undefined_ptr stack_begin_from, undefined_ptr stack_end_at, ui64 used_memory, str desk, bool fault_prot]
+        // faarr[
+        //     faarr[undefined_ptr stack_begin_from, undefined_ptr stack_end_at, ui64 used_memory, str desk, bool fault_prot]
         //     ...
         // ]
         //or
         //
         // false if invalid ptr
         static ValueItem* dump(void*);
-        //default formated string
+        //default formatted string
         static std::string dump_str(void*);
         //console
         static void dump_out(void*);

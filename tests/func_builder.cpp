@@ -3,9 +3,9 @@
 using namespace art;
 
 
-TEST(FuncEviroBuilder, static_test){
+TEST(FuncEnviroBuilder, static_test){
     {
-        FuncEviroBuilder builder;
+        FuncEnviroBuilder builder;
         auto noting = builder.create_constant(nullptr);
         auto one = builder.create_constant(1);
         auto num = builder.create_constant(0ui32);
@@ -22,9 +22,9 @@ TEST(FuncEviroBuilder, static_test){
     EXPECT_EQ(CXX::cxxCall("static_test"), 3);
     FuncEnvironment::Unload("static_test");
 }
-TEST(FuncEviroBuilder, table_jump){
+TEST(FuncEnviroBuilder, table_jump){
     {
-        FuncEviroBuilder builder;
+        FuncEnviroBuilder builder;
         builder.table_jump(
             { "0", "1", "2", "3" },
             0_arg,
@@ -63,9 +63,9 @@ TEST(FuncEviroBuilder, table_jump){
     EXPECT_EQ(CXX::cxxCall("table_jump_test", -100), 30);
     FuncEnvironment::Unload("table_jump_test");
 }
-TEST(FuncEviroBuilder,table_jump_2){
+TEST(FuncEnviroBuilder,table_jump_2){
     {
-        FuncEviroBuilder builder;
+        FuncEnviroBuilder builder;
         builder.table_jump(
             { "0", "1", "2", "3" },
             0_arg,

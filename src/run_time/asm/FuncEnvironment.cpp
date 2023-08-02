@@ -19,12 +19,12 @@
 namespace art{
 	using namespace reader;
 	std::shared_ptr<asmjit::JitRuntime> art = std::make_shared<asmjit::JitRuntime>();
-	std::unordered_map<std::string, typed_lgr<FuncEnvironment>> enviropments;
-	TaskMutex enviropments_lock;
+	std::unordered_map<std::string, typed_lgr<FuncEnvironment>> environments;
+	TaskMutex environments_lock;
 
 
 	std::string try_resolve_frame(FuncHandle::inner_handle* env){
-		for(auto& it : enviropments){
+		for(auto& it : environments){
 			if(it.second){
 				if(it.second->inner_handle() == env)
 					return it.first.data();
@@ -149,9 +149,9 @@ namespace art{
 			return (std::string*)values.back().getSourcePtr();
 		}
 	}
-	void _compilerFabric_call_fun_string(CASM& a, std::string& fnn, bool is_async, list_array<typed_lgr<FuncEnvironment>>& used_enviros){
-		typed_lgr<FuncEnvironment> fn = FuncEnvironment::enviropment(fnn);
-		used_enviros.push_back(fn);
+	void _compilerFabric_call_fun_string(CASM& a, std::string& fnn, bool is_async, list_array<typed_lgr<FuncEnvironment>>& used_environs){
+		typed_lgr<FuncEnvironment> fn = FuncEnvironment::environment(fnn);
+		used_environs.push_back(fn);
 		if (is_async) {
 			BuildCall b(a, 4);
 			b.addArg(fnn.c_str());
@@ -168,7 +168,7 @@ namespace art{
 		}
 	}
 	template<bool use_result = true, bool do_cleanup = true>
-	void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values, std::vector<ValueItem*> static_map, list_array<typed_lgr<FuncEnvironment>>& used_enviros) {
+	void compilerFabric_call(CASM& a, const std::vector<uint8_t>& data, size_t data_len, size_t& i, list_array<ValueItem>& values, std::vector<ValueItem*> static_map, list_array<typed_lgr<FuncEnvironment>>& used_environs) {
 		CallFlags flags;
 		flags.encoded = readData<uint8_t>(data, data_len, i);
 		BuildCall b(a, 0);
@@ -187,7 +187,7 @@ namespace art{
 					a,
 					*_compilerFabric_get_constant_string(value_index, values, static_map),
 					flags.async_mode,
-					used_enviros
+					used_environs
 				);
 			}
 		}
@@ -309,9 +309,9 @@ namespace art{
 		class_ptr->getAsync();
 		list_array<ValueItem> args_tmp;
 		args_tmp.reserve_push_back(len + 1);
-		args_tmp.push_back(ValueItem(*class_ptr, as_refrence));
+		args_tmp.push_back(ValueItem(*class_ptr, as_reference));
 		for(uint32_t i = 0; i < len; i++)
-			args_tmp.push_back(ValueItem(args[i], as_refrence));
+			args_tmp.push_back(ValueItem(args[i], as_reference));
 		return _valueItemDynamicCall<async_mode>(name, class_ptr, access, args_tmp.data(), len + 1);
 	}
 
@@ -322,9 +322,9 @@ namespace art{
 		class_ptr->getAsync();
 		list_array<ValueItem> args_tmp;
 		args_tmp.reserve_push_back(len + 1);
-		args_tmp.push_back(ValueItem(*class_ptr, as_refrence));
+		args_tmp.push_back(ValueItem(*class_ptr, as_reference));
 		for(uint32_t i = 0; i < len; i++)
-			args_tmp.push_back(ValueItem(args[i], as_refrence));
+			args_tmp.push_back(ValueItem(args[i], as_reference));
 			
 		return _valueItemDynamicCall<async_mode>(id, class_ptr, args_tmp.data(), len + 1);
 	}
@@ -1201,11 +1201,11 @@ namespace art{
 		*result = val->make_slice((uint32_t)*start, (uint32_t)*end);
 	}
 	void Unchecked_make_slice00(ValueItem* result, ValueItem* arr, uint32_t start, uint32_t end){
-		*result = ValueItem(arr + start, ValueMeta(VType::faarr,false,true, end - start), as_refrence);
+		*result = ValueItem(arr + start, ValueMeta(VType::faarr,false,true, end - start), as_reference);
 	}
 
 	void ValueItem_make_ref(ValueItem* result, ValueItem* source){
-		*result = ValueItem(*source, as_refrence);
+		*result = ValueItem(*source, as_reference);
 	}
 	void ValueItem_copy_unref(ValueItem* result, ValueItem* source){
 		ValueMeta meta = source->meta;
@@ -1282,11 +1282,11 @@ namespace art{
 				//prevent catch CLR exception
 				return exception::try_catch_all(info);
 			case 5:{//attacha filter function
-				Enviropment env_filter = internal::readFromArrayAsValue<Enviropment>(data_info);
+				Environment env_filter = internal::readFromArrayAsValue<Environment>(data_info);
 				uint16_t filter_enviro_slice_begin = internal::readFromArrayAsValue<uint32_t>(data_info);
 				uint16_t filter_enviro_slice_end = internal::readFromArrayAsValue<uint32_t>(data_info);
 				if(filter_enviro_slice_begin >= filter_enviro_slice_end)
-					throw InvalidIL("Invalid enviroment slice");
+					throw InvalidIL("Invalid environment slice");
 				uint16_t filter_enviro_size = filter_enviro_slice_end - filter_enviro_slice_begin;
 				auto env_res = env_filter((ValueItem*)enviro + filter_enviro_slice_begin, filter_enviro_size);
 				if(env_res == nullptr)
@@ -1306,11 +1306,11 @@ namespace art{
 	}
 	void _attacha_finally(void* data, size_t size, void* enviro){
 		uint8_t* data_info = (uint8_t*)data;
-		Enviropment env_finalizer = internal::readFromArrayAsValue<Enviropment>(data_info);
+		Environment env_finalizer = internal::readFromArrayAsValue<Environment>(data_info);
 		uint16_t finalizer_enviro_slice_begin = internal::readFromArrayAsValue<uint32_t>(data_info);
 		uint16_t finalizer_enviro_slice_end = internal::readFromArrayAsValue<uint32_t>(data_info);
 		if(finalizer_enviro_slice_begin >= finalizer_enviro_slice_end)
-			throw InvalidIL("Invalid enviroment slice");
+			throw InvalidIL("Invalid environment slice");
 		uint16_t finalizer_enviro_size = finalizer_enviro_slice_end - finalizer_enviro_slice_begin;
 		auto tmp = env_finalizer((ValueItem*)enviro + finalizer_enviro_slice_begin, finalizer_enviro_size);
 		if(tmp != nullptr)
@@ -1391,7 +1391,7 @@ namespace art{
 		std::unordered_map<uint64_t, Label> label_bind_map;
 		std::unordered_map<uint64_t, Label*> label_map;
 		list_array<ValueItem>& values;
-		list_array<typed_lgr<FuncEnvironment>>& used_enviros;
+		list_array<typed_lgr<FuncEnvironment>>& used_environs;
 		bool do_jump_to_ret = false;
 		bool in_debug;
 		FuncHandle::inner_handle* build_func;
@@ -1412,8 +1412,8 @@ namespace art{
 			bool in_debug,
 			FuncHandle::inner_handle* build_func,
 			uint16_t static_values,
-			list_array<typed_lgr<FuncEnvironment>>& used_enviros
-			) : a(a), scope(scope), scope_map(scope_map), prolog(prolog), self_function(self_function), data(data), data_len(data_len), i(start_from),skip_count(start_from), values(values), in_debug(in_debug), build_func(build_func), used_enviros(used_enviros) {
+			list_array<typed_lgr<FuncEnvironment>>& used_environs
+			) : a(a), scope(scope), scope_map(scope_map), prolog(prolog), self_function(self_function), data(data), data_len(data_len), i(start_from),skip_count(start_from), values(values), in_debug(in_debug), build_func(build_func), used_environs(used_environs) {
 				label_bind_map.reserve(jump_list.size());
 				label_map.reserve(jump_list.size());
 				size_t i = 0;
@@ -1624,7 +1624,7 @@ namespace art{
 		}
 #pragma endregion
 #pragma region dynamic call
-		void dunamic_arg_set(){
+		void dynamic_arg_set(){
 			BuildCall b(a, 1);
 			ValueIndexPos item = readIndexPos(data, data_len, i);
 			b.lea_valindex({static_map, values}, item);
@@ -1636,7 +1636,7 @@ namespace art{
 			CallFlags flags;
 			flags.encoded = readData<uint8_t>(data, data_len, i);
 			if (flags.async_mode)
-				throw InvalidIL("Fail compile async 'call_self', for asynchonly call self use 'call' command");
+				throw InvalidIL("Fail compile async 'call_self', for asynchronous call self use 'call' command");
 			BuildCall b(a, 0);
 			b.addArg(arg_ptr);
 			b.addArg(arg_len_32);
@@ -1654,7 +1654,7 @@ namespace art{
 			CallFlags flags;
 			flags.encoded = readData<uint8_t>(data, data_len, i);
 			if (flags.async_mode)
-				throw InvalidIL("Fail compile async 'call_self', for asynchonly call self use 'call' command");
+				throw InvalidIL("Fail compile async 'call_self', for asynchronous call self use 'call' command");
 			BuildCall b(a, 3);
 			b.addArg(this);
 			b.addArg(arg_ptr);
@@ -2173,7 +2173,7 @@ namespace art{
 					);
 				else
 					builder::write(handler_data, 
-						FuncEnvironment::enviropment(
+						FuncEnvironment::environment(
 							readString(data, data_len, i)
 						)->get_func_ptr()
 					);
@@ -2193,7 +2193,7 @@ namespace art{
 			if (handle == -1)
 				throw InvalidIL("Undefined handle");
 			std::vector<uint8_t> handler_data;
-			handler_data.reserve(sizeof(Enviropment) + sizeof(uint16_t) * 2);
+			handler_data.reserve(sizeof(Environment) + sizeof(uint16_t) * 2);
 			if(readData<bool>(data, data_len, i))//as local
 				builder::write(handler_data, 
 					build_func->localFn(
@@ -2202,7 +2202,7 @@ namespace art{
 				);
 			else
 				builder::write(handler_data, 
-					FuncEnvironment::enviropment(
+					FuncEnvironment::environment(
 						readString(data, data_len, i)
 					)->get_func_ptr()
 				);
@@ -2390,7 +2390,7 @@ namespace art{
 					throw InvalidIL("Invalid opcode, unsupported slice type");
 			}
 		}
-		void dynamic_get_refrence(){
+		void dynamic_get_reference(){
 			BuildCall b(a, 2);
 			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
 			b.lea_valindex({static_map, values}, readIndexPos(data, data_len, i));
@@ -2420,7 +2420,7 @@ namespace art{
 			a.or_(resr,ValueMeta(VType::noting,false,true,0,false).encoded);
 			a.mov_valindex_meta({static_map, values}, result_index, resr, argr0);
 		}
-		void dynamic_copy_un_refrence(){
+		void dynamic_copy_un_reference(){
 			ValueIndexPos result_index = readIndexPos(data, data_len, i);
 			ValueIndexPos source_index = readIndexPos(data, data_len, i);
 			BuildCall b(a, 2);
@@ -2428,7 +2428,7 @@ namespace art{
 			b.lea_valindex({static_map, values}, source_index);
 			b.finalize(ValueItem_copy_unref);
 		}
-		void dynamic_move_un_refrence(){
+		void dynamic_move_un_reference(){
 			ValueIndexPos result_index = readIndexPos(data, data_len, i);
 			ValueIndexPos source_index = readIndexPos(data, data_len, i);
 			BuildCall b(a, 2);
@@ -2863,12 +2863,12 @@ namespace art{
 				case Opcode::log_not: dynamic_log_not(); break;
 				case Opcode::compare: dynamic_compare(); break;
 				case Opcode::jump: dynamic_jump(); break;
-				case Opcode::arg_set: dunamic_arg_set(); break;
-				case Opcode::call: compilerFabric_call<true>(a, data, data_len, i, values, static_map, used_enviros); break;
+				case Opcode::arg_set: dynamic_arg_set(); break;
+				case Opcode::call: compilerFabric_call<true>(a, data, data_len, i, values, static_map, used_environs); break;
 				case Opcode::call_self: dynamic_call_self(); break;
 				case Opcode::call_local: compilerFabric_call_local<true>(a, data, data_len, i, build_func, values, static_map);
 				case Opcode::call_and_ret: {
-					compilerFabric_call<false, false>(a, data, data_len, i, values, static_map, used_enviros);
+					compilerFabric_call<false, false>(a, data, data_len, i, values, static_map, used_environs);
 					do_jump_to_ret = true;
 					break;
 				}
@@ -2946,12 +2946,12 @@ namespace art{
 				case Opcode::xarray_slice: dynamic_xarray_slice(); break;
 				case Opcode::store_constant: store_constant(); break;
 				
-				case Opcode::get_refrence: dynamic_get_refrence(); break;
+				case Opcode::get_reference: dynamic_get_reference(); break;
 				case Opcode::make_as_const: dynamic_make_as_const(); break;
 				case Opcode::remove_const_protect: dynamic_remove_const_protect(); break;
 				case Opcode::copy_un_constant: dynamic_copy_un_constant(); break;
-				case Opcode::copy_un_refrence: dynamic_copy_un_refrence(); break;
-				case Opcode::move_un_refrence: dynamic_move_un_refrence(); break;
+				case Opcode::copy_un_reference:dynamic_copy_un_reference(); break;
+				case Opcode::move_un_reference: dynamic_move_un_reference(); break;
 				case Opcode::remove_qualifiers: dynamic_remove_qualifiers(); break;
 				default:
 					throw InvalidIL("Invalid opcode");
@@ -2982,7 +2982,7 @@ namespace art{
 
 
 
-	FuncHandle::inner_handle::inner_handle(Enviropment env, bool is_cheap) : is_cheap(is_cheap){
+	FuncHandle::inner_handle::inner_handle(Environment env, bool is_cheap) : is_cheap(is_cheap){
 		_type = FuncType::own;
 		this->env = env;
 	}
@@ -3058,14 +3058,14 @@ namespace art{
 	void FuncHandle::inner_handle::compile() {
 		if (frame != nullptr)
 			throw InvalidOperation("Function already compiled");
-		used_enviros.clear();
+		used_environs.clear();
 		RuntimeCompileException error_handler;
 		CodeHolder code;
 		code.setErrorHandler(&error_handler);
 		code.init(art->environment());
 		CASM a(code);
-		BuildProlog bprolog(a);
-		ScopeManager scope(bprolog);
+		BuildProlog b_prolog(a);
+		ScopeManager scope(b_prolog);
 		ScopeManagerMap scope_map(scope);
 
 
@@ -3102,18 +3102,18 @@ namespace art{
 			auto self = this;
 			scope.setExceptionFinal(is_patchable_exception_finalizer, _inner_handle_finalizer, &self, sizeof(self));
 		}
-		bprolog.pushReg(frame_ptr);
+		b_prolog.pushReg(frame_ptr);
 		if(max_values)
-			bprolog.pushReg(enviro_ptr);
-		bprolog.pushReg(arg_ptr);
-		bprolog.pushReg(arg_len);
-		bprolog.alignPush();
-		bprolog.stackAlloc(0x20);//c++ abi
-		bprolog.setFrame();
-		bprolog.end_prolog();
+			b_prolog.pushReg(enviro_ptr);
+		b_prolog.pushReg(arg_ptr);
+		b_prolog.pushReg(arg_len);
+		b_prolog.alignPush();
+		b_prolog.stackAlloc(0x20);//c++ abi
+		b_prolog.setFrame();
+		b_prolog.end_prolog();
 		//OS dependent prolog end 
 
-		//Init enviropment
+		//Init environment
 		a.mov(arg_ptr, argr0);
 		a.mov(arg_len_32, argr1_32);
 		a.mov(enviro_ptr, stack_ptr);
@@ -3132,7 +3132,7 @@ namespace art{
 			a.label_bind(correct);
 		}
 
-		//Clean enviropment
+		//Clean environment
 		{
 			std::vector<ValueItem*> empty_static_map;
 			ValueIndexPos ipos;
@@ -3145,7 +3145,7 @@ namespace art{
 			}
 		}
 		Label prolog = a.newLabel();
-		CompilerFabric fabric(a,scope,scope_map,prolog, self_function, cross_code, cross_code.size(), to_be_skiped, jump_list, values, flags.in_debug, this, to_alloc_statics, used_enviros);
+		CompilerFabric fabric(a,scope,scope_map,prolog, self_function, cross_code, cross_code.size(), to_be_skiped, jump_list, values, flags.in_debug, this, to_alloc_statics, used_environs);
 		fabric.build();
 
 		a.label_bind(prolog);
@@ -3164,7 +3164,7 @@ namespace art{
 		}
 		a.pop();
 		a.pop(resr);
-		auto& tmp = bprolog.finalize_epilog();
+		auto& tmp = b_prolog.finalize_epilog();
 		
 		if(flags.is_patchable){
 			scope.endExceptionScope(is_patchable_exception_finalizer);
@@ -3190,10 +3190,10 @@ namespace art{
 		a.jmp((size_t)exception::__get_internal_handler());
 		a.finalize();
 		auto resolved_frame =try_resolve_frame(this);
-		env = (Enviropment)tmp.init(frame, a.code(), *art, resolved_frame.data());
-		//remove self from used_enviros
+		env = (Environment)tmp.init(frame, a.code(), *art, resolved_frame.data());
+		//remove self from used_environs
 		auto my_trampoline = parent ? parent->get_trampoline_code() : nullptr;
-		used_enviros.remove_if([my_trampoline](typed_lgr<FuncEnvironment>& a){return a->get_func_ptr() == my_trampoline;});
+		used_environs.remove_if([my_trampoline](typed_lgr<FuncEnvironment>& a){return a->get_func_ptr() == my_trampoline;});
 	}
 
 	
@@ -3239,7 +3239,7 @@ namespace art{
 		size_t code_size = trampoline_code.textSection()->realSize();
 		code_size = code_size + asmjit::Support::alignUp(code_size, trampoline_code.textSection()->alignment());
 		FuncHandle* code;
-		CASM::alocate_and_prepare_code(sizeof(FuncHandle),(uint8_t*&)code, &trampoline_code, art->allocator(),0);
+		CASM::allocate_and_prepare_code(sizeof(FuncHandle),(uint8_t*&)code, &trampoline_code, art->allocator(),0);
 		new(code) FuncHandle();
 		char* code_raw = (char*)code + sizeof(FuncHandle);
 		char* code_data = (char*)code + sizeof(FuncHandle) + code_size - 1;
@@ -3273,7 +3273,7 @@ namespace art{
 	void FuncHandle::release_func_handle(FuncHandle* handle){
 		std::shared_ptr<asmjit::JitRuntime> art = *(std::shared_ptr<asmjit::JitRuntime>*)handle->art_ref;
 		handle->~FuncHandle();
-		CASM::relase_code((uint8_t*)handle, art->allocator());
+		CASM::release_code((uint8_t*)handle, art->allocator());
 	}
 	FuncHandle::~FuncHandle(){
 		lock_guard lock(compile_lock);
@@ -3370,7 +3370,7 @@ namespace art{
 	ValueItem* FuncEnvironment::syncWrapper(ValueItem* args, uint32_t arguments_size) {
 		if(func_ == nullptr)
 			throw InvalidFunction("Function is force unloaded");
-		return ((Enviropment)&func_->trampoline_code)(args, arguments_size);
+		return ((Environment)&func_->trampoline_code)(args, arguments_size);
 	}
 	ValueItem* FuncEnvironment::asyncWrapper(typed_lgr<FuncEnvironment>* self, ValueItem* arguments, uint32_t arguments_size) {
 		return FuncEnvironment::async_call(*self, arguments, arguments_size);
@@ -3396,8 +3396,8 @@ namespace art{
 			fn_ptr = nullptr;
 		}
 		{
-			unique_lock guard(enviropments_lock);
-			for(auto& it : enviropments)
+			unique_lock guard(environments_lock);
+			for(auto& it : environments)
 				if(it.second.getPtr() == this)
 					return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)fn_ptr);
 		}
@@ -3411,8 +3411,8 @@ namespace art{
 	}
 
 	void FuncEnvironment::fastHotPatch(const std::string& func_name, FuncHandle::inner_handle* new_enviro) {
-		unique_lock guard(enviropments_lock);
-		auto& tmp = enviropments[func_name];
+		unique_lock guard(environments_lock);
+		auto& tmp = environments[func_name];
 		guard.unlock();
 		tmp->patch(new_enviro);
 	}
@@ -3423,12 +3423,12 @@ namespace art{
 		for(auto& it : patches)
 			fastHotPatch(it.first, it.second);
 	}
-	typed_lgr<FuncEnvironment> FuncEnvironment::enviropment(const std::string& func_name) {
-		return enviropments[func_name];
+	typed_lgr<FuncEnvironment> FuncEnvironment::environment(const std::string& func_name) {
+		return environments[func_name];
 	}
 	ValueItem* FuncEnvironment::callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
-		auto found = enviropments.find(func_name);
-		if (found != enviropments.end()) {
+		auto found = environments.find(func_name);
+		if (found != environments.end()) {
 			if (run_async)
 				return async_call(found->second, arguments, arguments_size);
 			else
@@ -3436,43 +3436,43 @@ namespace art{
 		}
 		throw NotImplementedException();
 	}
-	void FuncEnvironment::AddNative(Enviropment function, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
-		art::lock_guard guard(enviropments_lock);
-		if (enviropments.contains(symbol_name))
-			throw SymbolException("Fail alocate symbol: \"" + symbol_name + "\" cause them already exists");
+	void FuncEnvironment::AddNative(Environment function, const std::string& symbol_name, bool can_be_unloaded, bool is_cheap) {
+		art::lock_guard guard(environments_lock);
+		if (environments.contains(symbol_name))
+			throw SymbolException("Fail allocate symbol: \"" + symbol_name + "\" cause them already exists");
 		auto symbol = new FuncHandle::inner_handle(function, is_cheap);
-		enviropments[symbol_name] = new FuncEnvironment(symbol, can_be_unloaded);
+		environments[symbol_name] = new FuncEnvironment(symbol, can_be_unloaded);
 	}
 	bool FuncEnvironment::Exists(const std::string& symbol_name) {
-		art::lock_guard guard(enviropments_lock);
-		return enviropments.contains(symbol_name);
+		art::lock_guard guard(environments_lock);
+		return environments.contains(symbol_name);
 	}
 	void FuncEnvironment::Load(typed_lgr<FuncEnvironment> fn, const std::string& symbol_name) {
-		art::lock_guard guard(enviropments_lock);
-		auto found = enviropments.find(symbol_name);
-		if (found != enviropments.end()) {
+		art::lock_guard guard(environments_lock);
+		auto found = environments.find(symbol_name);
+		if (found != environments.end()) {
 			if (found->second->func_ != nullptr)
 				if(found->second->func_->handle != nullptr)
 					throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
 			found->second = fn;
 		}
 		else
-			enviropments[symbol_name] = fn;
+			environments[symbol_name] = fn;
 	}
 	void FuncEnvironment::Unload(const std::string& func_name) {
-		art::lock_guard guard(enviropments_lock);
-		auto found = enviropments.find(func_name);
-		if (found != enviropments.end()){
+		art::lock_guard guard(environments_lock);
+		auto found = environments.find(func_name);
+		if (found != environments.end()){
 			if (!found->second->can_be_unloaded) 
 				throw SymbolException("Fail unload symbol: \"" + func_name + "\" cause them can't be unloaded");
-			enviropments.erase(found);
+			environments.erase(found);
 		}
 	}
 	void FuncEnvironment::ForceUnload(const std::string& func_name) {
-		art::lock_guard guard(enviropments_lock);
-		auto found = enviropments.find(func_name);
-		if (found != enviropments.end())
-			enviropments.erase(found);
+		art::lock_guard guard(environments_lock);
+		auto found = environments.find(func_name);
+		if (found != environments.end())
+			environments.erase(found);
 	}
 	void FuncEnvironment::forceUnload(){
 		FuncHandle* handle = func_;
@@ -3480,8 +3480,8 @@ namespace art{
 		if(handle)
 			FuncHandle::release_func_handle(handle);
 	}
-	void FuncEnvironment::clear_enviros(){
-		enviropments.clear();
+	void FuncEnvironment::clear_environs(){
+		environments.clear();
 	}
 #pragma endregion
 }

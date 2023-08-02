@@ -1,7 +1,7 @@
 #ifndef RUN_TIME_CXX_LIBRARY_FILES
 #define RUN_TIME_CXX_LIBRARY_FILES
 #include "../tasks.hpp"
-#include "../util/in_place_optonal.hpp"
+#include "../util/in_place_optional.hpp"
 #include "../attacha_abi_structs.hpp"
 #include "../../../configuration/compatibility.hpp"
 #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
@@ -59,7 +59,7 @@ namespace art{
                 bool posix_semantics : 1;//used in windows
                 bool random_access : 1;//hint to cache manager
                 bool sequential_scan : 1;//hint to cache manager
-                bool no_buffering : 1;//hint to cache manager, affect seec and read write operations, like disc page size aligned operations
+                bool no_buffering : 1;//hint to cache manager, affect seek and read write operations, like disc page size aligned operations
                 bool write_through : 1;//hint to cache manager
             };
             uint8_t value;
@@ -169,7 +169,7 @@ namespace art{
             bool is_corrupted();
         };
 
-        ValueItem createFolderChangesMonitor(const char* path, size_t length, bool deph);
+        ValueItem createFolderChangesMonitor(const char* path, size_t length, bool depth);
 
 
         ValueItem remove(const char* path, size_t length);

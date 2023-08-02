@@ -7,7 +7,7 @@ namespace art{
         void* __get_internal_handler();
         ValueItem* get_current_exception_name();
         ValueItem* get_current_exception_name();
-        ValueItem* get_current_exception_desctription();
+        ValueItem* get_current_exception_description();
         ValueItem* get_current_exception_full_description();
         ValueItem* has_current_exception_inner_exception();
         void unpack_current_exception();

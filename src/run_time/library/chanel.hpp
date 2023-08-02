@@ -47,8 +47,8 @@ namespace art {
 		};
 		class Chanel {
 			TaskMutex no_race;
-			std::list<typed_lgr<ChanelHandler>> suber;
-			std::list<typed_lgr<AutoNotifyChanel>> auto_notifyer;
+			std::list<typed_lgr<ChanelHandler>> subscribers;
+			std::list<typed_lgr<AutoNotifyChanel>> auto_notifier;
 			std::list<typed_lgr<AutoEventChanel>> auto_events;
 		public:
 			Chanel();
@@ -65,8 +65,8 @@ namespace art {
 			typed_lgr<ChanelHandler> create_handle();
 			typed_lgr<ChanelHandler> add_handle(typed_lgr<ChanelHandler> handler);
 			void remove_handle(typed_lgr<ChanelHandler> handle);
-			void remove_auto_notify(typed_lgr<AutoNotifyChanel> notifyer);
-			void remove_auto_event(typed_lgr<AutoEventChanel> notifyer);
+			void remove_auto_notify(typed_lgr<AutoNotifyChanel> notifier);
+			void remove_auto_event(typed_lgr<AutoEventChanel> notifier);
 		};
 
 

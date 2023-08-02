@@ -14,13 +14,13 @@ namespace art{
 
         //not thread safe!
         namespace memory{
-            //returns farr[farr[ptr from, ptr to, len, str desk, bool is_fault]...], args: array/value ptr
+            //returns faarr[faarr[ptr from, ptr to, len, str desk, bool is_fault]...], args: array/value ptr
             ValueItem* dump(ValueItem*, uint32_t);
         }
 
         //not thread safe!
         namespace stack {
-            //reduce stack size, returns bool, args: shrink treeshold(optional)
+            //reduce stack size, returns bool, args: shrink threshold(optional)
             ValueItem* shrink(ValueItem*, uint32_t);
             //grow stack size, returns bool, args: grow count
             ValueItem* prepare(ValueItem*, uint32_t);
@@ -28,7 +28,7 @@ namespace art{
             ValueItem* reserve(ValueItem*, uint32_t);
 
 
-            //returns farr[farr[ptr from, ptr to, str desk, bool is_fault]...], args: none
+            //returns faarr[faarr[ptr from, ptr to, str desk, bool is_fault]...], args: none
             ValueItem* dump(ValueItem*, uint32_t);
 
             //better stack is supported?
@@ -58,12 +58,12 @@ namespace art{
         }
 
         namespace run_time{
-            //not recomended to use, use only for debug
+            //not recommended to use, use only for debug
             ValueItem* gc_pause(ValueItem*, uint32_t);
             ValueItem* gc_resume(ValueItem*, uint32_t);
 
             //gc can ignore this hint
-            ValueItem* gc_hinit_collect(ValueItem*, uint32_t);
+            ValueItem* gc_hint_collect(ValueItem*, uint32_t);
 
             namespace native{
                 namespace construct{

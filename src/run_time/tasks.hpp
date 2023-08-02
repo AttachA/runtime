@@ -24,14 +24,14 @@ namespace art{
 		};
 	}
 
-	//it do abort when catched, recomended do rethrow manually and catching by const refrence
+	//it do abort when catched, recommended do rethrow manually and catching by const reference
 	class TaskCancellation : AttachARuntimeException {
 		bool in_landing = false;
 		friend void forceCancelCancellation(TaskCancellation& cancel_token);
 	public:
 		TaskCancellation();
 		~TaskCancellation() noexcept(false);
-		bool _in_landig();
+		bool _in_landing();
 	};
 
 
@@ -54,7 +54,7 @@ namespace art{
 		bool is_locked();
 		//put here child task(not started), and it will lock mutex, and unlock it when it will be finished
 		void lifecycle_lock(typed_lgr<struct Task> task);
-		//put here child task(not started), and it will lock mutex and relock it when recived value from child task, and unlock it when it will be finished
+		//put here child task(not started), and it will lock mutex and relock it when received value from child task, and unlock it when it will be finished
 		void sequence_lock(typed_lgr<struct Task> task);
 		bool is_own();
 	};
@@ -72,7 +72,7 @@ namespace art{
 		bool is_locked();
 		//put here child task(not started), and it will lock mutex, and unlock it when it will be finished
 		void lifecycle_lock(typed_lgr<struct Task> task);
-		//put here child task(not started), and it will lock mutex and relock it when recived value from child task, and unlock it when it will be finished
+		//put here child task(not started), and it will lock mutex and relock it when received value from child task, and unlock it when it will be finished
 		void sequence_lock(typed_lgr<struct Task> task);
 		bool is_own();
 	};
@@ -176,7 +176,7 @@ namespace art{
 		TaskResult fres;
 		typed_lgr<class FuncEnvironment> ex_handle;//if ex_handle is nullptr then exception will be stored in fres
 		typed_lgr<class FuncEnvironment> func;
-		std::forward_list<typed_lgr<class TaskEnvironment>> _task_envs;//if _task_envs is empty then task use global task enviropment
+		std::forward_list<typed_lgr<class TaskEnvironment>> _task_envs;//if _task_envs is empty then task use global task environment
 		ValueItem args;
 		art::mutex no_race;
 		MutexUnify relock_0;
@@ -198,7 +198,7 @@ namespace art{
 		Task(Task&& mov) noexcept;
 		~Task();
 		void auto_bind_worker_enable(bool enable = true);
-		void set_worker_id(uint16_t id);//disables auto_bind_worker and manualy bind task to worker
+		void set_worker_id(uint16_t id);//disables auto_bind_worker and manually bind task to worker
 
 
 
@@ -206,7 +206,7 @@ namespace art{
 		static void start(list_array<typed_lgr<Task>>& lgr_task);
 		static void start(const typed_lgr<Task>& lgr_task);
 		
-		//if count zero then threads count will be dynamicaly calculated
+		//if count zero then threads count will be dynamically calculated
 		static uint16_t create_bind_only_executor(uint16_t fixed_count, bool allow_implicit_start);//return id of executor, this worker can't be used for regular tasks, only for binded tasks
 		static void close_bind_only_executor(uint16_t id);
 
@@ -236,13 +236,13 @@ namespace art{
 		static void notify_cancel(list_array<typed_lgr<Task>>& tasks);
 		static class ValueEnvironment* task_local();
 		static size_t task_id();
-		static void check_cancelation();
+		static void check_cancellation();
 		static void self_cancel();
 		static bool is_task();
 
 
-		//clean unused memory, used for debug pruproses, ie memory leak
-		//not recomended use in production
+		//clean unused memory, used for debug purposes, ie memory leak
+		//not recommended use in production
 		static void clean_up();
 
 		static typed_lgr<Task> dummy_task();
@@ -272,11 +272,11 @@ namespace art{
 		std::list<__::resume_task> resume_task;
 		art::timed_mutex no_race;
 		art::condition_variable native_notify;
-		size_t allow_treeshold = 0;
-		size_t max_treeshold = 0;
+		size_t allow_threshold = 0;
+		size_t max_threshold = 0;
 	public:
 		TaskSemaphore() {}
-		void setMaxTreeshold(size_t val);
+		void setMaxThreshold(size_t val);
 		void lock();
 		bool try_lock();
 		bool try_lock_for(size_t milliseconds);
@@ -288,17 +288,17 @@ namespace art{
 	class EventSystem {
 		friend ValueItem* __async_notify(ValueItem* vals, uint32_t);
 		TaskMutex no_race;
-		std::list<typed_lgr<class FuncEnvironment>> heigh_priorihty;
-		std::list<typed_lgr<class FuncEnvironment>> upper_avg_priorihty;
-		std::list<typed_lgr<class FuncEnvironment>> avg_priorihty;
-		std::list<typed_lgr<class FuncEnvironment>> lower_avg_priorihty;
-		std::list<typed_lgr<class FuncEnvironment>> low_priorihty;
+		std::list<typed_lgr<class FuncEnvironment>> heigh_priority;
+		std::list<typed_lgr<class FuncEnvironment>> upper_avg_priority;
+		std::list<typed_lgr<class FuncEnvironment>> avg_priority;
+		std::list<typed_lgr<class FuncEnvironment>> lower_avg_priority;
+		std::list<typed_lgr<class FuncEnvironment>> low_priority;
 
-		std::list<typed_lgr<class FuncEnvironment>> async_heigh_priorihty;
-		std::list<typed_lgr<class FuncEnvironment>> async_upper_avg_priorihty;
-		std::list<typed_lgr<class FuncEnvironment>> async_avg_priorihty;
-		std::list<typed_lgr<class FuncEnvironment>> async_lower_avg_priorihty;
-		std::list<typed_lgr<class FuncEnvironment>> async_low_priorihty;
+		std::list<typed_lgr<class FuncEnvironment>> async_heigh_priority;
+		std::list<typed_lgr<class FuncEnvironment>> async_upper_avg_priority;
+		std::list<typed_lgr<class FuncEnvironment>> async_avg_priority;
+		std::list<typed_lgr<class FuncEnvironment>> async_lower_avg_priority;
+		std::list<typed_lgr<class FuncEnvironment>> async_low_priority;
 
 		static bool removeOne(std::list<typed_lgr<class FuncEnvironment>>& list, const typed_lgr<class FuncEnvironment>& func);
 		void async_call(std::list<typed_lgr<class FuncEnvironment>>& list, ValueItem& args);
@@ -306,7 +306,7 @@ namespace art{
 
 		bool sync_call(std::list<typed_lgr<class FuncEnvironment>>& list, ValueItem& args);
 	public:
-		enum class Priorithy {
+		enum class Priority {
 			heigh,
 			upper_avg,
 			avg,
@@ -314,25 +314,25 @@ namespace art{
 			low
 		};
 		void operator+=(const typed_lgr<class FuncEnvironment>& func);
-		void join(const typed_lgr<class FuncEnvironment>& func, bool async_mode = false, Priorithy priorithy = Priorithy::avg);
-		bool leave(const typed_lgr<class FuncEnvironment>& func, bool async_mode = false, Priorithy priorithy = Priorithy::avg);
+		void join(const typed_lgr<class FuncEnvironment>& func, bool async_mode = false, Priority priority = Priority::avg);
+		bool leave(const typed_lgr<class FuncEnvironment>& func, bool async_mode = false, Priority priority = Priority::avg);
 
 		bool await_notify(ValueItem& args);
 		bool notify(ValueItem& args);
 		bool sync_notify(ValueItem& args);
 		typed_lgr<Task> async_notify(ValueItem& args);
 		void clear(){
-			heigh_priorihty.clear();
-			upper_avg_priorihty.clear();
-			avg_priorihty.clear();
-			lower_avg_priorihty.clear();
-			low_priorihty.clear();
+			heigh_priority.clear();
+			upper_avg_priority.clear();
+			avg_priority.clear();
+			lower_avg_priority.clear();
+			low_priority.clear();
 
-			async_heigh_priorihty.clear();
-			async_upper_avg_priorihty.clear();
-			async_avg_priorihty.clear();
-			async_lower_avg_priorihty.clear();
-			async_low_priorihty.clear();
+			async_heigh_priority.clear();
+			async_upper_avg_priority.clear();
+			async_avg_priority.clear();
+			async_lower_avg_priority.clear();
+			async_low_priority.clear();
 		}
 	};
 	class TaskLimiter {
@@ -340,13 +340,13 @@ namespace art{
 		std::list<__::resume_task> resume_task;
 		art::timed_mutex no_race;
 		art::condition_variable_any native_notify;
-		size_t allow_treeshold = 0;
-		size_t max_treeshold = 1;
+		size_t allow_threshold = 0;
+		size_t max_threshold = 1;
 		bool locked = false;
 		void unchecked_unlock();
 	public:
 		TaskLimiter() {}
-		void set_max_treeshold(size_t val);
+		void set_max_threshold(size_t val);
 		void lock();
 		bool try_lock();
 		bool try_lock_for(size_t milliseconds);
@@ -358,13 +358,13 @@ namespace art{
 		art::mutex no_race;
 		std::list<typed_lgr<Task>> awake_list;
 		class ValueEnvironment* env = nullptr;
-		bool cancelation_token = false;
+		bool cancellation_token = false;
 		bool disabled = false;
 		size_t max_work = 0;
 		size_t in_work = 0;
 		~TaskEnvironment();
 		TaskEnvironment() = default;
-		bool check_cancelation();
+		bool check_cancellation();
 		void _awake();
 		bool can_i_work();
 		void set_max_work(size_t new_max_work);

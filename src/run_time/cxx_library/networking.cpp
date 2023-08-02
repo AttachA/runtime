@@ -786,10 +786,10 @@ namespace art{
 					break;
 			}
 			if(!checkup())
-				return ValueItem(nullptr, ValueMeta(VType::raw_arr_ui8, false, false, 0) , as_refrence);
+				return ValueItem(nullptr, ValueMeta(VType::raw_arr_ui8, false, false, 0) , as_reference);
 			int readed = 0; 
 			char* data = handle->read_available_no_copy(readed);
-			return ValueItem(data, ValueMeta(VType::raw_arr_ui8, false, false, readed) , as_refrence);
+			return ValueItem(data, ValueMeta(VType::raw_arr_ui8, false, false, readed) , as_reference);
 		}
 		ValueItem read_available(char* buffer, int buffer_len){
 			std::lock_guard lg(mutex);
@@ -999,8 +999,8 @@ namespace art{
 
 #pragma endregion
 
-#pragma region TcpNetworkBlocing
-	class TcpNetworkBlocing{
+#pragma region TcpNetworkBlocking
+	class TcpNetworkBlocking{
 		friend class TcpNetworkManager;
 		tcp_handle* handle;
 		TaskMutex mutex;
@@ -1017,8 +1017,8 @@ namespace art{
 			return true;
 		}
 	public:
-		TcpNetworkBlocing(tcp_handle* handle):handle(handle), last_error(tcp_handle::error::none){}
-		~TcpNetworkBlocing(){
+		TcpNetworkBlocking(tcp_handle* handle):handle(handle), last_error(tcp_handle::error::none){}
+		~TcpNetworkBlocking(){
 			std::lock_guard lg(mutex);
 			if(handle)
 				delete handle;
@@ -1115,25 +1115,25 @@ namespace art{
 			return last_error;
 		}
 	};
-	AttachAFun(funs_TcpNetworkBlocing_read, 2,{
-		return CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).read((uint32_t)args[1]);
+	AttachAFun(funs_TcpNetworkBlocking_read, 2,{
+		return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).read((uint32_t)args[1]);
 	});
-	AttachAFun(funs_TcpNetworkBlocing_available_bytes, 1,{
-		return CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).available_bytes();
+	AttachAFun(funs_TcpNetworkBlocking_available_bytes, 1,{
+		return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).available_bytes();
 	});
-	AttachAFun(funs_TcpNetworkBlocing_write, 2,{
+	AttachAFun(funs_TcpNetworkBlocking_write, 2,{
 		if(args[1].meta.vtype != VType::raw_arr_ui8)
 			throw InvalidArguments("The third argument must be a raw_arr_ui8.");
 		if(len == 2)
-			return CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), args[1].meta.val_len);
+			return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), args[1].meta.val_len);
 		else{
 			uint32_t len = (uint32_t)args[2];
 			if(len > args[1].meta.val_len)
 				throw OutOfRange("The length of the data to be sent is greater than the length of array.");
-			return CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), len);
+			return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), len);
 		}
 	});
-	AttachAFun(funs_TcpNetworkBlocing_write_file, 2,{
+	AttachAFun(funs_TcpNetworkBlocking_write_file, 2,{
 		ValueItem& arg1 = args[1];
 		uint64_t data_len = 0;
 		uint64_t offset = 0;
@@ -1151,45 +1151,45 @@ namespace art{
 			auto& proxy = (Structure&)args[1];
 			if(proxy.get_vtable()){
 				if(proxy.get_vtable() == CXX::Interface::typeVTable<typed_lgr<art::files::FileHandle>>())
-					return CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+					return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
 				else if(proxy.get_vtable() == CXX::Interface::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
-					return CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+					return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
 			}
 			throw InvalidArguments("The second argument must be a file handle or a file path.");
 		}else{
 			std::string& path = *((std::string*)arg1.getSourcePtr());
-			return CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).write_file(path.data(), path.size(), data_len, offset, chunks_size);
+			return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write_file(path.data(), path.size(), data_len, offset, chunks_size);
 		}
 	});
-	AttachAFun(funs_TcpNetworkBlocing_close, 1,{
-		CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).close();
+	AttachAFun(funs_TcpNetworkBlocking_close, 1,{
+		CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).close();
 	});
-	AttachAFun(funs_TcpNetworkBlocing_reset, 1,{
-		CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).reset();
+	AttachAFun(funs_TcpNetworkBlocking_reset, 1,{
+		CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).reset();
 	});
-	AttachAFun(funs_TcpNetworkBlocing_rebuffer, 2,{
-		CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).rebuffer((int32_t)args[1]);
+	AttachAFun(funs_TcpNetworkBlocking_rebuffer, 2,{
+		CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).rebuffer((int32_t)args[1]);
 	});
-	AttachAFun(funs_TcpNetworkBlocing_is_closed, 1,{
-		return CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).is_closed();
+	AttachAFun(funs_TcpNetworkBlocking_is_closed, 1,{
+		return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).is_closed();
 	});
-	AttachAFun(funs_TcpNetworkBlocing_error, 1,{
-		return (uint8_t)CXX::Interface::getExtractAs<TcpNetworkBlocing>(args[0], define_TcpNetworkBlocking).error();
+	AttachAFun(funs_TcpNetworkBlocking_error, 1,{
+		return (uint8_t)CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).error();
 	});
 
 	void init_define_TcpNetworkBlocking(){
 		if(define_TcpNetworkBlocking != nullptr)
 			return;
-		define_TcpNetworkBlocking = CXX::Interface::createTable<TcpNetworkBlocing>("tcp_network_blocking",
-			CXX::Interface::direct_method("read", funs_TcpNetworkBlocing_read),
-			CXX::Interface::direct_method("available_bytes", funs_TcpNetworkBlocing_available_bytes),
-			CXX::Interface::direct_method("write", funs_TcpNetworkBlocing_write),
-			CXX::Interface::direct_method("write_file", funs_TcpNetworkBlocing_write_file),
-			CXX::Interface::direct_method("close", funs_TcpNetworkBlocing_close),
-			CXX::Interface::direct_method("reset", funs_TcpNetworkBlocing_reset),
-			CXX::Interface::direct_method("rebuffer", funs_TcpNetworkBlocing_rebuffer),
-			CXX::Interface::direct_method("is_closed", funs_TcpNetworkBlocing_is_closed),
-			CXX::Interface::direct_method("error", funs_TcpNetworkBlocing_error)
+		define_TcpNetworkBlocking = CXX::Interface::createTable<TcpNetworkBlocking>("tcp_network_blocking",
+			CXX::Interface::direct_method("read", funs_TcpNetworkBlocking_read),
+			CXX::Interface::direct_method("available_bytes", funs_TcpNetworkBlocking_available_bytes),
+			CXX::Interface::direct_method("write", funs_TcpNetworkBlocking_write),
+			CXX::Interface::direct_method("write_file", funs_TcpNetworkBlocking_write_file),
+			CXX::Interface::direct_method("close", funs_TcpNetworkBlocking_close),
+			CXX::Interface::direct_method("reset", funs_TcpNetworkBlocking_reset),
+			CXX::Interface::direct_method("rebuffer", funs_TcpNetworkBlocking_rebuffer),
+			CXX::Interface::direct_method("is_closed", funs_TcpNetworkBlocking_is_closed),
+			CXX::Interface::direct_method("error", funs_TcpNetworkBlocking_error)
 		);
 	}
 
@@ -1214,7 +1214,7 @@ namespace art{
 
 		void make_acceptEx(void){
 		re_try:
-			static const auto adress_len = sizeof(sockaddr_storage) + 16;
+			static const auto address_len = sizeof(sockaddr_storage) + 16;
 			auto new_sock = WSASocketW(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
 			tcp_handle *pClientContext = new tcp_handle(new_sock, default_len, this);
 			pClientContext->opcode = tcp_handle::Opcode::ACCEPT;
@@ -1223,8 +1223,8 @@ namespace art{
 				new_sock,
 				pClientContext->buffer.buf,
 				0,
-				adress_len,
-				adress_len,
+				address_len,
+				address_len,
 				nullptr,
 				&pClientContext->overlapped
 			);
@@ -1245,7 +1245,7 @@ namespace art{
 		ValueItem accept_manager_construct(tcp_handle* self){
 			switch (manage_type) {
 			case TcpNetworkServer::ManageType::blocking:
-				return ValueItem(CXX::Interface::constructStructure<TcpNetworkBlocing>(define_TcpNetworkBlocking, self), no_copy);
+				return ValueItem(CXX::Interface::constructStructure<TcpNetworkBlocking>(define_TcpNetworkBlocking, self), no_copy);
 			case TcpNetworkServer::ManageType::write_delayed:
 				return ValueItem(CXX::Interface::constructStructure<TcpNetworkStream>(define_TcpNetworkStream,self), no_copy);
 			default:
@@ -1479,7 +1479,7 @@ namespace art{
 			Structure* tmp = CXX::Interface::constructStructure<universal_address>(define_UniversalAddress);
 			memcpy(tmp->get_data_no_vtable(), &connectionAddress, sizeof(sockaddr_in6));
 			tmp->fully_constructed = true;
-			ValueItem args(tmp, as_refrence);
+			ValueItem args(tmp, as_reference);
 			ValueItem* res;
 			try{
 				res = UniversalAddress::_define_to_string(&args, 1);

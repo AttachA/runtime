@@ -13,7 +13,7 @@ namespace art{
 		AttachAVirtualTable* define_Mutex;
 		AttachAVirtualTable* define_RecursiveMutex;
 		AttachAVirtualTable* define_Semaphore;
-		AttachAVirtualTable* define_ConcurentFile;
+		AttachAVirtualTable* define_ConcurrentFile;
 		AttachAVirtualTable* define_EventSystem;
 		AttachAVirtualTable* define_TaskLimiter;
 		AttachAVirtualTable* define_TaskQuery;
@@ -50,40 +50,40 @@ namespace art{
 			switch (len) {
 			case 1:{
 				mutex mt;
-				MutexUnify unif(mt);
-				unique_lock lock(unif);
+				MutexUnify unify(mt);
+				unique_lock lock(unify);
 				class_.wait(lock);
 				break;
 			}
 			case 2:{
 				if (args[1].meta.vtype == VType::struct_) {
 					auto& mutex = CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[1], define_Mutex);
-					MutexUnify unif(*mutex);
-					unique_lock lock(unif, adopt_lock);
+					MutexUnify unify(*mutex);
+					unique_lock lock(unify, adopt_lock);
 					class_.wait(lock);
 					lock.release();
 					break;
 				}
 				else if(args[1].meta.vtype == VType::time_point){
 					mutex mt;
-					MutexUnify unif(mt);
-					unique_lock lock(unif);
+					MutexUnify unify(mt);
+					unique_lock lock(unify);
 					auto res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[1]);
 					lock.release();
 					return res;
 				}
 				else{
 					mutex mt;
-					MutexUnify unif(mt);
-					unique_lock lock(unif);
+					MutexUnify unify(mt);
+					unique_lock lock(unify);
 					return class_.wait_for(lock, (size_t)args[1]);
 				}
 			}
 			case 3:
 			default:{
 				auto& mutex = CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[1], define_Mutex);
-				MutexUnify unif(*mutex);
-				unique_lock lock(unif, adopt_lock);
+				MutexUnify unify(*mutex);
+				unique_lock lock(unify, adopt_lock);
 				bool res;
 				if(args[2].meta.vtype == VType::time_point)
 					res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[2]);
@@ -100,15 +100,15 @@ namespace art{
 			switch (len) {
 			case 2:{
 				mutex mt;
-				MutexUnify unif(mt);
-				unique_lock lock(unif);
+				MutexUnify unify(mt);
+				unique_lock lock(unify);
 				return class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[1]);
 			}
 			case 3:
 			default:{
 				auto& mutex = CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[1], define_Mutex);
-				MutexUnify unif(*mutex);
-				unique_lock lock(unif, adopt_lock);
+				MutexUnify unify(*mutex);
+				unique_lock lock(unify, adopt_lock);
 				auto res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[2]);
 				lock.release();
 				return res;
@@ -288,16 +288,16 @@ namespace art{
 			CXX::excepted(args[1], VType::function);
 			auto& fun = *args[1].funPtr();
 			bool as_async = len > 2 ? (bool)args[2] : false;
-			EventSystem::Priorithy priorithy = len > 3 ? (EventSystem::Priorithy)(uint8_t)args[3] : EventSystem::Priorithy::avg;
-			class_.join(fun, as_async, priorithy);
+			EventSystem::Priority priority = len > 3 ? (EventSystem::Priority)(uint8_t)args[3] : EventSystem::Priority::avg;
+			class_.join(fun, as_async, priority);
 		})
 		AttachAFun(funs_EventSystem_leave, 2,{
 			auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
 			CXX::excepted(args[1], VType::function);
 			auto& fun = *args[1].funPtr();
 			bool as_async = len > 2 ? (bool)args[2] : false;
-			EventSystem::Priorithy priorithy = len > 3 ? (EventSystem::Priorithy)(uint8_t)args[3] : EventSystem::Priorithy::avg;
-			class_.leave(fun, as_async, priorithy);
+			EventSystem::Priority priority = len > 3 ? (EventSystem::Priority)(uint8_t)args[3] : EventSystem::Priority::avg;
+			class_.leave(fun, as_async, priority);
 		})
 		ValueItem __funs_EventSystem_get_values0(ValueItem* vals, uint32_t len) {
 			if (len > 2) {
@@ -365,9 +365,9 @@ namespace art{
 		}
 	#pragma endregion
 	#pragma region TaskLimiter
-		AttachAFun(funs_TaskLimiter_set_max_treeshold, 2, {
+		AttachAFun(funs_TaskLimiter_set_max_threshold, 2, {
 			auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
-			class_.set_max_treeshold((uint64_t)args[1]);
+			class_.set_max_threshold((uint64_t)args[1]);
 		})
 		AttachAFun(funs_TaskLimiter_lock, 1, {
 			auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
@@ -394,7 +394,7 @@ namespace art{
 		})
 		void init_TaskLimiter() {
 			define_TaskLimiter = CXX::Interface::createTable<typed_lgr<TaskLimiter>>("task_limiter",
-				CXX::Interface::direct_method("set_max_treeshold", funs_TaskLimiter_set_max_treeshold),
+				CXX::Interface::direct_method("set_max_threshold", funs_TaskLimiter_set_max_threshold),
 				CXX::Interface::direct_method("lock", funs_TaskLimiter_lock),
 				CXX::Interface::direct_method("unlock", funs_TaskLimiter_unlock),
 				CXX::Interface::direct_method("try_lock", funs_TaskLimiter_try_lock),
@@ -565,7 +565,7 @@ namespace art{
 			auto& task = CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
 			Task::await_task(task);
 			Task& task_ = *task;
-			ValueItem pre_res(task_.fres.results, as_refrence);
+			ValueItem pre_res(task_.fres.results, as_reference);
 			return (std::string)pre_res;
 		})
 		
@@ -653,7 +653,7 @@ namespace art{
 				CXX::Interface::direct_method(symbols::structures::convert::to_i64_arr, funs_Task_array_to_<int64_t>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_float_arr, funs_Task_array_to_<float>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_double_arr, funs_Task_array_to_<double>),
-				CXX::Interface::direct_method(symbols::structures::convert::to_farr, funs_Task_array_to_<ValueItem>),
+				CXX::Interface::direct_method(symbols::structures::convert::to_faarr, funs_Task_array_to_<ValueItem>),
 				CXX::Interface::direct_method(symbols::structures::iterable::begin, funs_Task_begin),
 				CXX::Interface::direct_method(symbols::structures::iterable::end, funs_Task_end),
 				CXX::Interface::direct_method("notify_cancel", funs_Task_notify_cancel)
@@ -779,7 +779,7 @@ namespace art{
 				CXX::Interface::direct_method(symbols::structures::convert::to_i64_arr, funs_TaskGroup_array_to_<int64_t>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_float_arr, funs_TaskGroup_array_to_<float>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_double_arr, funs_TaskGroup_array_to_<double>),
-				CXX::Interface::direct_method(symbols::structures::convert::to_farr, funs_TaskGroup_array_to_<ValueItem>),
+				CXX::Interface::direct_method(symbols::structures::convert::to_faarr, funs_TaskGroup_array_to_<ValueItem>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_set, funs_TaskGroup_to_set),
 				CXX::Interface::direct_method(symbols::structures::convert::to_uarr, funs_TaskGroup_await_multiple),
 				CXX::Interface::direct_method(symbols::structures::add_operator, funs_TaskGroup_add)
@@ -879,8 +879,8 @@ namespace art{
 
 			TaskConditionVariable cv;
 			TaskMutex mtx;
-			MutexUnify unif(mtx);
-			unique_lock ul(unif);
+			MutexUnify unify(mtx);
+			unique_lock ul(unify);
 			bool end = false;
 			ValueItem* res = nullptr;
 			typed_lgr<FuncEnvironment> func = *vals->funPtr();
@@ -935,11 +935,11 @@ namespace art{
 		struct _createAsyncThread_awaiter_struct {
 			TaskConditionVariable cv;
 			TaskMutex mtx;
-			MutexUnify unif;
+			MutexUnify unify;
 			bool end = false;
 			ValueItem* res = nullptr;
 			_createAsyncThread_awaiter_struct(){
-				unif = MutexUnify(mtx);
+				unify = MutexUnify(mtx);
 			}
 			~_createAsyncThread_awaiter_struct(){
 				if(!end){
@@ -952,7 +952,7 @@ namespace art{
 		
 		ValueItem* _createAsyncThread__Awaiter(ValueItem* val, uint32_t len){
 			_createAsyncThread_awaiter_struct* awaiter = (_createAsyncThread_awaiter_struct*)val->getSourcePtr();
-			unique_lock<MutexUnify> ul(awaiter->unif);
+			unique_lock<MutexUnify> ul(awaiter->unify);
 			try{
 				while(!awaiter->end)
 					awaiter->cv.wait(ul);
@@ -1070,8 +1070,8 @@ namespace art{
 			ValueItem* task_id(ValueItem*, uint32_t){
 				return new ValueItem(Task::task_id());
 			}
-			ValueItem* check_cancelation(ValueItem*, uint32_t){
-				Task::check_cancelation();
+			ValueItem* check_cancellation(ValueItem*, uint32_t){
+				Task::check_cancellation();
 				return nullptr;
 			}
 			ValueItem* self_cancel(ValueItem*, uint32_t){
@@ -1397,17 +1397,17 @@ namespace art{
 				AtomicObject(const AtomicObject& other) { *this = other; }
 				AtomicObject(AtomicObject&& other) { *this = std::move(other); }
 				AtomicObject& operator=(const AtomicObject& other){
-					unique_lock<TaskRecursiveMutex> olock(const_cast<AtomicObject&>(other).mutex);
+					unique_lock<TaskRecursiveMutex> object_lock(const_cast<AtomicObject&>(other).mutex);
 					ValueItem get(other.value);
-					olock.unlock();
+					object_lock.unlock();
 					lock_guard<TaskRecursiveMutex> lock(mutex);
 					value = std::move(get);
 					return *this;
 				}
 				AtomicObject& operator=(AtomicObject&& other){
-					unique_lock<TaskRecursiveMutex> olock(other.mutex);
+					unique_lock<TaskRecursiveMutex> object_lock(other.mutex);
 					ValueItem get(std::move(other.value));
-					olock.unlock();
+					object_lock.unlock();
 					lock_guard<TaskRecursiveMutex> lock(mutex);
 					value = std::move(get);
 					return *this;
@@ -1643,7 +1643,7 @@ namespace art{
 					lock_guard<TaskRecursiveMutex> lock(self.mutex);
 					return (array_t<double>)self.value;
 				})
-				static AttachAFun(__to_farr, 1, {
+				static AttachAFun(__to_faarr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 					lock_guard<TaskRecursiveMutex> lock(self.mutex);
 					return (array_t<ValueItem>)self.value;
@@ -1791,7 +1791,7 @@ namespace art{
 						CXX::Interface::direct_method(symbols::structures::convert::to_i64_arr, __to_i64_arr),
 						CXX::Interface::direct_method(symbols::structures::convert::to_float_arr, __to_float_arr),
 						CXX::Interface::direct_method(symbols::structures::convert::to_double_arr, __to_double_arr),
-						CXX::Interface::direct_method(symbols::structures::convert::to_farr, __to_farr),
+						CXX::Interface::direct_method(symbols::structures::convert::to_faarr, __to_faarr),
 						CXX::Interface::direct_method(symbols::structures::convert::to_timepoint, __to_timepoint),
 						CXX::Interface::direct_method(symbols::structures::convert::to_type_identifier, __to_type_identifier),
 						CXX::Interface::direct_method(symbols::structures::convert::to_function, __to_function),

@@ -4,9 +4,9 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 #pragma once
-#ifndef RUN_TIME_UTIL_ENUM_HELPER
-#define RUN_TIME_UTIL_ENUM_HELPER
-#include <boost/preprocessor/library.hpp>
+#ifndef SRC_RUN_TIME_UTIL_ENUM_HELPER
+#define SRC_RUN_TIME_UTIL_ENUM_HELPER
+#include <boost/preprocessor.hpp>
 #include <string>
 #define X_DEFINE_ENUM_WITH_STRING_CONVERSIONS_TOSTRING_CASE(r, data, elem)    \
     case data::elem : return BOOST_PP_STRINGIZE(elem);
@@ -67,4 +67,4 @@
         }                                                                     \
     }}
 
-#endif /* RUN_TIME_UTIL_ENUM_HELPER */
+#endif /* SRC_RUN_TIME_UTIL_ENUM_HELPER */

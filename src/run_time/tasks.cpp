@@ -307,7 +307,7 @@ namespace art{
 			abort();
 		}
 	}
-	bool TaskCancellation::_in_landig() {
+	bool TaskCancellation::_in_landing() {
 		return in_landing;
 	}
 		void forceCancelCancellation(TaskCancellation& cancel_token) {
@@ -484,7 +484,7 @@ namespace art{
 				self->on_timeout(self->args);
 		}
 	};
-	void checkCancelation() {
+	void checkCancellation() {
 		if (loc.curr_task->make_cancel)
 			throw TaskCancellation();
 		if (loc.curr_task->timeout != std::chrono::high_resolution_clock::time_point::min())
@@ -519,7 +519,7 @@ namespace art{
 			loc.curr_task->awake_check++;
 			--glob.tasks_in_swap;
 			loc.context_in_swap = false;
-			checkCancelation();
+			checkCancellation();
 		}else
 			throw InternalException("swapCtx() not allowed call in non-task thread or in dispatcher");
 	}
@@ -585,7 +585,7 @@ namespace art{
 	ctx::continuation context_exec(ctx::continuation&& sink) {
 		*loc.tmp_current_context = std::move(sink);
 		try {
-			checkCancelation();
+			checkCancellation();
 			ValueItem* res = loc.curr_task->func->syncWrapper((ValueItem*)loc.curr_task->args.val, loc.curr_task->args.meta.val_len);
 			MutexUnify mu(loc.curr_task->no_race);
 			art::unique_lock l(mu);
@@ -615,7 +615,7 @@ namespace art{
 	ctx::continuation context_ex_handle(ctx::continuation&& sink) {
 		*loc.tmp_current_context = std::move(sink);
 		try {
-			checkCancelation();
+			checkCancellation();
 			ValueItem* res = loc.curr_task->ex_handle->syncWrapper((ValueItem*)loc.curr_task->args.val, loc.curr_task->args.meta.val_len);
 			MutexUnify mu(loc.curr_task->no_race);
 			art::unique_lock l(mu);
@@ -678,7 +678,7 @@ namespace art{
 						if(context.in_close)
 							continue;
 						guard.unlock();
-						art::unique_lock context_quard(context.no_race);
+						art::unique_lock context_guard(context.no_race);
 						task->bind_to_worker_id = id;
 						context.tasks.push_back(std::move(task));
 						context.new_task_notifier.notify_one();
@@ -731,7 +731,7 @@ namespace art{
 		if(old_name.empty())
 			_set_name_thread_dbg("Worker " + std::to_string(_thread_id()) + ": " + mode);
 		else
-			_set_name_thread_dbg(old_name + " | (Temoral worker) " + std::to_string(_thread_id()) + ": " + mode);
+			_set_name_thread_dbg(old_name + " | (Temporal worker) " + std::to_string(_thread_id()) + ": " + mode);
 	}
 	void pseudo_task_handle(const std::string& old_name, bool &caught_ex){
 		loc.is_task_thread = false;
@@ -764,12 +764,12 @@ namespace art{
 	}
 
 	bool execute_task(const std::string& old_name){
-		bool pseudo_handle_caugnt_ex = false;
+		bool pseudo_handle_caught_ex = false;
 		if (!loc.curr_task->func)
 			return true;
 		if(loc.curr_task->_task_local == (ValueEnvironment*)-1 || loc.curr_task->func->isCheap()){
-			pseudo_task_handle(old_name, pseudo_handle_caugnt_ex);
-			if (pseudo_handle_caugnt_ex)
+			pseudo_task_handle(old_name, pseudo_handle_caught_ex);
+			if (pseudo_handle_caught_ex)
 				goto caught_ex;
 			goto end_task;
 		}
@@ -814,7 +814,7 @@ namespace art{
 		if(old_name.empty())
 			_set_name_thread_dbg("Worker " + std::to_string(_thread_id()));
 		else
-			_set_name_thread_dbg(old_name + " | (Temoral worker) " + std::to_string(_thread_id()));
+			_set_name_thread_dbg(old_name + " | (Temporal worker) " + std::to_string(_thread_id()));
 
 		art::unique_lock guard(glob.task_thread_safety);
 		glob.workers_completions.push_front(0);
@@ -899,7 +899,7 @@ namespace art{
 		std::list<typed_lgr<Task>>& queue = context.tasks;
 		art::recursive_mutex& safety = context.no_race;
 		art::condition_variable_any& notifier = context.new_task_notifier;
-		bool pseudo_handle_caugnt_ex = false;
+		bool pseudo_handle_caught_ex = false;
 		_set_name_thread_dbg("Binded worker " + std::to_string(_thread_id()) + ": " + std::to_string(id));
 
 		art::unique_lock guard(safety);
@@ -1204,8 +1204,8 @@ namespace art{
 		return id;
 	}
 	void Task::close_bind_only_executor(uint16_t id) {
-		MutexUnify unif(glob.binded_workers_safety);
-		art::unique_lock guard(unif);
+		MutexUnify unify(glob.binded_workers_safety);
+		art::unique_lock guard(unify);
 		std::list<typed_lgr<Task>> transfer_tasks;
 		if(!glob.binded_workers.contains(id)){
 			throw InternalException("Binded worker not found");
@@ -1220,9 +1220,9 @@ namespace art{
 			}
 			context.new_task_notifier.notify_all();
 			{
-				MultiplyMutex mmut{unif, context.no_race};
-				MutexUnify mmut_unif(mmut);
-				art::unique_lock re_lock(mmut_unif, art::adopt_lock);
+				MultiplyMutex mmut{unify, context.no_race};
+				MutexUnify mmut_unify(mmut);
+				art::unique_lock re_lock(mmut_unify, art::adopt_lock);
 				while(context.executors != 0)
 					context.on_closed_notifier.wait(re_lock);
 				re_lock.release();
@@ -1370,20 +1370,20 @@ namespace art{
 			loc.curr_task->fres.yieldResult(f_res, l);
 		}
 		else
-			throw EnviropmentRuinException("Thread attempt return yield result in non task enviro");
+			throw EnvironmentRuinException("Thread attempt return yield result in non task enviro");
 	}
 
-	void Task::check_cancelation() {
+	void Task::check_cancellation() {
 		if (loc.is_task_thread)
-			checkCancelation();
+			checkCancellation();
 		else
-			throw EnviropmentRuinException("Thread attempted check cancelation in non task enviro");
+			throw EnvironmentRuinException("Thread attempted check cancellation in non task enviro");
 	}
 	void Task::self_cancel() {
 		if (loc.is_task_thread)
 			throw TaskCancellation();
 		else
-			throw EnviropmentRuinException("Thread attempted cancel self, like task");
+			throw EnvironmentRuinException("Thread attempted cancel self, like task");
 	}
 	void Task::notify_cancel(typed_lgr<Task>& lgr_task){
 		if(lgr_task->_task_local == (ValueEnvironment*)-1)
@@ -1490,37 +1490,37 @@ namespace art{
 	}
 
 
-	class native_task_shedule : public NativeWorkerHandle, public NativeWorkerManager {
+	class native_task_schedule : public NativeWorkerHandle, public NativeWorkerManager {
 		typed_lgr<class FuncEnvironment> func;
 		ValueItem args;
 		bool started = false;
 	public:
 		typed_lgr<Task> task;
 		
-		native_task_shedule(typed_lgr<class FuncEnvironment> func) : NativeWorkerHandle(this){
+		native_task_schedule(typed_lgr<class FuncEnvironment> func) : NativeWorkerHandle(this){
 			this->func = func;
 			task = Task::dummy_task();
 			task->started = true;
 		}
-		native_task_shedule(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments) : NativeWorkerHandle(this){
+		native_task_schedule(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments) : NativeWorkerHandle(this){
 			this->func = func;
 			task = Task::dummy_task();
 			task->started = true;
 			put_arguments(args, std::move(arguments));
 		}
-		native_task_shedule(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments) : NativeWorkerHandle(this){
+		native_task_schedule(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments) : NativeWorkerHandle(this){
 			this->func = func;
 			task = Task::dummy_task();
 			task->started = true;
 			put_arguments(args, arguments);
 		}
-		native_task_shedule(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout): NativeWorkerHandle(this){
+		native_task_schedule(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout): NativeWorkerHandle(this){
 			this->func = func;
 			task = Task::callback_dummy(dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
 			task->started = true;
 			put_arguments(args, arguments);
 		}
-		native_task_shedule(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout): NativeWorkerHandle(this){
+		native_task_schedule(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout): NativeWorkerHandle(this){
 			this->func = func;
 			task = Task::callback_dummy(dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
 			task->started = true;
@@ -1552,44 +1552,44 @@ namespace art{
 	};
 
 	typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnvironment> func){
-		native_task_shedule* shedule = new native_task_shedule(func);
-		if(!shedule->start()){
-			delete shedule;
+		native_task_schedule* schedule = new native_task_schedule(func);
+		if(!schedule->start()){
+			delete schedule;
 			throw AttachARuntimeException("Failed to start native task");
 		}
-		return shedule->task;
+		return schedule->task;
 	}
 	typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments){
-		native_task_shedule* shedule = new native_task_shedule(func, arguments);
-		if(!shedule->start()){
-			delete shedule;
+		native_task_schedule* schedule = new native_task_schedule(func, arguments);
+		if(!schedule->start()){
+			delete schedule;
 			throw AttachARuntimeException("Failed to start native task");
 		}
-		return shedule->task;
+		return schedule->task;
 	}
 	typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments){
-		native_task_shedule* shedule = new native_task_shedule(func, std::move(arguments));
-		if(!shedule->start()){
-			delete shedule;
+		native_task_schedule* schedule = new native_task_schedule(func, std::move(arguments));
+		if(!schedule->start()){
+			delete schedule;
 			throw AttachARuntimeException("Failed to start native task");
 		}
-		return shedule->task;
+		return schedule->task;
 	}
 	typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
-		native_task_shedule* shedule = new native_task_shedule(func, arguments, dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
-		if(!shedule->start()){
-			delete shedule;
+		native_task_schedule* schedule = new native_task_schedule(func, arguments, dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
+		if(!schedule->start()){
+			delete schedule;
 			throw AttachARuntimeException("Failed to start native task");
 		}
-		return shedule->task;
+		return schedule->task;
 	}
 	typed_lgr<Task> Task::create_native_task(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout){
-		native_task_shedule* shedule = new native_task_shedule(func, std::move(arguments), dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
-		if(!shedule->start()){
-			delete shedule;
+		native_task_schedule* schedule = new native_task_schedule(func, std::move(arguments), dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
+		if(!schedule->start()){
+			delete schedule;
 			throw AttachARuntimeException("Failed to start native task");
 		}
-		return shedule->task;
+		return schedule->task;
 	}
 	void Task::explicitStartTimer() {
 		startTimeController();
@@ -1627,7 +1627,7 @@ namespace art{
 			swapCtxRelock(glob.task_thread_safety);
 		}
 		else
-			throw EnviropmentRuinException("Thread attempt return yield task in non task enviro");
+			throw EnvironmentRuinException("Thread attempt return yield task in non task enviro");
 	}
 
 #pragma endregion
@@ -2202,18 +2202,18 @@ namespace art{
 #pragma endregion
 
 #pragma region TaskSemaphore
-	void TaskSemaphore::setMaxTreeshold(size_t val) {
+	void TaskSemaphore::setMaxThreshold(size_t val) {
 		art::lock_guard guard(no_race);
 		release_all();
-		max_treeshold = val;
-		allow_treeshold = max_treeshold;
+		max_threshold = val;
+		allow_threshold = max_threshold;
 	}
 	void TaskSemaphore::lock() {
 		loc.curr_task->awaked = false;
 		loc.curr_task->time_end_flag = false;
 	re_try:
 		no_race.lock();
-		if (!allow_treeshold) {
+		if (!allow_threshold) {
 			if (loc.is_task_thread) {
 				art::lock_guard guard(glob.task_thread_safety);
 				resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
@@ -2229,19 +2229,19 @@ namespace art{
 			goto re_try;
 		}
 		else
-			--allow_treeshold;
+			--allow_threshold;
 		no_race.unlock();
 		return;
 	}
 	bool TaskSemaphore::try_lock() {
 		if (!no_race.try_lock())
 			return false;
-		if (!allow_treeshold) {
+		if (!allow_threshold) {
 			no_race.unlock();
 			return false;
 		}
 		else
-			--allow_treeshold;
+			--allow_threshold;
 		no_race.unlock();
 		return true;
 	}
@@ -2253,7 +2253,7 @@ namespace art{
 	re_try:
 		if (!no_race.try_lock_until(time_point))
 			return false;
-		if (!allow_treeshold) {
+		if (!allow_threshold) {
 			if (loc.is_task_thread) {
 				art::lock_guard guard(glob.task_thread_safety);
 				makeTimeWait(time_point);
@@ -2272,17 +2272,17 @@ namespace art{
 			}
 			goto re_try;
 		}
-		if (allow_treeshold)
-			--allow_treeshold;
+		if (allow_threshold)
+			--allow_threshold;
 		no_race.unlock();
 		return true;
 
 	}
 	void TaskSemaphore::release() {
 		art::lock_guard lg0(no_race);
-		if (allow_treeshold == max_treeshold)
+		if (allow_threshold == max_threshold)
 			return;
-		allow_treeshold++;
+		allow_threshold++;
 		native_notify.notify_one();
 		while (resume_task.size()) {
 			auto& it = resume_task.front();
@@ -2302,10 +2302,10 @@ namespace art{
 	}
 	void TaskSemaphore::release_all() {
 		art::lock_guard lg0(no_race);
-		if (allow_treeshold == max_treeshold)
+		if (allow_threshold == max_threshold)
 			return;
 		art::lock_guard lg1(glob.task_thread_safety);
-		allow_treeshold = max_treeshold;
+		allow_threshold = max_threshold;
 		native_notify.notify_all();
 		while (resume_task.size()) {
 			auto& it = resume_task.back();
@@ -2333,33 +2333,33 @@ namespace art{
 
 #pragma region TaskLimiter
 
-	void TaskLimiter::set_max_treeshold(size_t val) {
+	void TaskLimiter::set_max_threshold(size_t val) {
 		art::lock_guard guard(no_race);
 		if (val < 1)
 			val = 1;
-		if (max_treeshold == val)
+		if (max_threshold == val)
 			return;
-		if (max_treeshold > val) {
-			if(allow_treeshold > max_treeshold - val)
-				allow_treeshold -= max_treeshold - val;
+		if (max_threshold > val) {
+			if(allow_threshold > max_threshold - val)
+				allow_threshold -= max_threshold - val;
 			else {
 				locked = true;
-				allow_treeshold = 0;
+				allow_threshold = 0;
 			}
-			max_treeshold = val;
+			max_threshold = val;
 			return;
 		}
 		else {
-			if (!allow_treeshold) {
-				size_t unlocks = max_treeshold;
-				max_treeshold = val;
-				if (allow_treeshold >= 1)
+			if (!allow_threshold) {
+				size_t unlocks = max_threshold;
+				max_threshold = val;
+				if (allow_threshold >= 1)
 					locked = false;
 				while (unlocks-- >= 1)
 					unchecked_unlock();
 			}
 			else 
-				allow_treeshold += val - max_treeshold;
+				allow_threshold += val - max_threshold;
 		}
 	}
 	void TaskLimiter::lock() {
@@ -2374,11 +2374,11 @@ namespace art{
 			else 
 				native_notify.wait(guard);
 		}
-		if (--allow_treeshold == 0)
+		if (--allow_threshold == 0)
 			locked = true;
 
 		if (lock_check.contains(loc.curr_task.getPtr())) {
-			if (++allow_treeshold != 0)
+			if (++allow_threshold != 0)
 				locked = false;
 			no_race.unlock();
 			throw InvalidLock("Dead lock. Task try lock already locked task limiter");
@@ -2395,11 +2395,11 @@ namespace art{
 			no_race.unlock();
 			return false;
 		}
-		else if (--allow_treeshold <= 0)
+		else if (--allow_threshold <= 0)
 			locked = true;
 
 		if (lock_check.contains(loc.curr_task.getPtr())) {
-			if (++allow_treeshold != 0)
+			if (++allow_threshold != 0)
 				locked = false;
 			no_race.unlock();
 			throw InvalidLock("Dead lock. Task try lock already locked task limiter");
@@ -2430,11 +2430,11 @@ namespace art{
 			else if (native_notify.wait_until(guard, time_point) == art::cv_status::timeout)
 				return false;
 		}
-		if (--allow_treeshold <= 0)
+		if (--allow_threshold <= 0)
 			locked = true;
 
 		if (lock_check.contains(loc.curr_task.getPtr())) {
-			if (++allow_treeshold != 0)
+			if (++allow_threshold != 0)
 				locked = false;
 			no_race.unlock();
 			throw InvalidLock("Dead lock. Task try lock already locked task limiter");
@@ -2454,9 +2454,9 @@ namespace art{
 		unchecked_unlock();
 	}
 	void TaskLimiter::unchecked_unlock() {
-		if (allow_treeshold >= max_treeshold)
+		if (allow_threshold >= max_threshold)
 			return;
-		allow_treeshold++;
+		allow_threshold++;
 		native_notify.notify_one();
 		while (resume_task.size()) {
 			auto& it = resume_task.back();
@@ -2562,83 +2562,83 @@ namespace art{
 
 	void EventSystem::operator+=(const typed_lgr<FuncEnvironment>& func) {
 		art::lock_guard guard(no_race);
-		avg_priorihty.push_back(func);
+		avg_priority.push_back(func);
 	}
-	void EventSystem::join(const typed_lgr<FuncEnvironment>& func, bool async_mode, Priorithy priorithy) {
+	void EventSystem::join(const typed_lgr<FuncEnvironment>& func, bool async_mode, Priority priority) {
 		art::lock_guard guard(no_race);
 		if (async_mode) {
-			switch (priorithy) {
-			case Priorithy::heigh:
-				async_heigh_priorihty.push_back(func);
+			switch (priority) {
+			case Priority::heigh:
+				async_heigh_priority.push_back(func);
 				break;
-			case Priorithy::upper_avg:
-				async_upper_avg_priorihty.push_back(func);
+			case Priority::upper_avg:
+				async_upper_avg_priority.push_back(func);
 				break;
-			case Priorithy::avg:
-				async_avg_priorihty.push_back(func);
+			case Priority::avg:
+				async_avg_priority.push_back(func);
 				break;
-			case Priorithy::lower_avg:
-				async_lower_avg_priorihty.push_back(func);
+			case Priority::lower_avg:
+				async_lower_avg_priority.push_back(func);
 				break;
-			case Priorithy::low:
-				async_low_priorihty.push_back(func);
+			case Priority::low:
+				async_low_priority.push_back(func);
 				break;
 			default:
 				break;
 			}
 		}
 		else {
-			switch (priorithy) {
-			case Priorithy::heigh:
-				heigh_priorihty.push_back(func);
+			switch (priority) {
+			case Priority::heigh:
+				heigh_priority.push_back(func);
 				break;
-			case Priorithy::upper_avg:
-				upper_avg_priorihty.push_back(func);
+			case Priority::upper_avg:
+				upper_avg_priority.push_back(func);
 				break;
-			case Priorithy::avg:
-				avg_priorihty.push_back(func);
+			case Priority::avg:
+				avg_priority.push_back(func);
 				break;
-			case Priorithy::lower_avg:
-				lower_avg_priorihty.push_back(func);
+			case Priority::lower_avg:
+				lower_avg_priority.push_back(func);
 				break;
-			case Priorithy::low:
-				low_priorihty.push_back(func);
+			case Priority::low:
+				low_priority.push_back(func);
 				break;
 			default:
 				break;
 			}
 		}
 	}
-	bool EventSystem::leave(const typed_lgr<FuncEnvironment>& func, bool async_mode, Priorithy priorithy) {
+	bool EventSystem::leave(const typed_lgr<FuncEnvironment>& func, bool async_mode, Priority priority) {
 		art::lock_guard guard(no_race);
 		if (async_mode) {
-			switch (priorithy) {
-			case Priorithy::heigh:
-				return removeOne(async_heigh_priorihty, func);
-			case Priorithy::upper_avg:
-				return removeOne(async_upper_avg_priorihty, func);
-			case Priorithy::avg:
-				return removeOne(async_avg_priorihty, func);
-			case Priorithy::lower_avg:
-				return removeOne(async_lower_avg_priorihty, func);
-			case Priorithy::low:
-				return removeOne(async_low_priorihty, func);
+			switch (priority) {
+			case Priority::heigh:
+				return removeOne(async_heigh_priority, func);
+			case Priority::upper_avg:
+				return removeOne(async_upper_avg_priority, func);
+			case Priority::avg:
+				return removeOne(async_avg_priority, func);
+			case Priority::lower_avg:
+				return removeOne(async_lower_avg_priority, func);
+			case Priority::low:
+				return removeOne(async_low_priority, func);
 			default:
 				return false;
 			}
 		}
 		else {
-			switch (priorithy) {
-			case Priorithy::heigh:
-				return removeOne(heigh_priorihty, func);
-			case Priorithy::upper_avg:
-				return removeOne(upper_avg_priorihty, func);
-			case Priorithy::avg:
-				return removeOne(avg_priorihty, func);
-			case Priorithy::lower_avg:
-				return removeOne(lower_avg_priorihty, func);
-			case Priorithy::low:
-				return removeOne(low_priorihty, func);
+			switch (priority) {
+			case Priority::heigh:
+				return removeOne(heigh_priority, func);
+			case Priority::upper_avg:
+				return removeOne(upper_avg_priority, func);
+			case Priority::avg:
+				return removeOne(avg_priority, func);
+			case Priority::lower_avg:
+				return removeOne(lower_avg_priority, func);
+			case Priority::low:
+				return removeOne(low_priority, func);
 			default:
 				return false;
 			}
@@ -2646,60 +2646,60 @@ namespace art{
 	}
 
 	bool EventSystem::await_notify(ValueItem& it) {
-		if(sync_call(heigh_priorihty, it)	) return true;
-		if(sync_call(upper_avg_priorihty, it)) return true;
-		if(sync_call(avg_priorihty, it)		) return true;
-		if(sync_call(lower_avg_priorihty, it)) return true;
-		if(sync_call(low_priorihty, it)		) return true;
+		if(sync_call(heigh_priority, it)	) return true;
+		if(sync_call(upper_avg_priority, it)) return true;
+		if(sync_call(avg_priority, it)		) return true;
+		if(sync_call(lower_avg_priority, it)) return true;
+		if(sync_call(low_priority, it)		) return true;
 
-		if(awaitCall(async_heigh_priorihty, it)		) return true;
-		if(awaitCall(async_upper_avg_priorihty, it)	) return true;
-		if(awaitCall(async_avg_priorihty, it)		) return true;
-		if(awaitCall(async_lower_avg_priorihty, it)	) return true;
-		if(awaitCall(async_low_priorihty, it)		) return true;
+		if(awaitCall(async_heigh_priority, it)		) return true;
+		if(awaitCall(async_upper_avg_priority, it)	) return true;
+		if(awaitCall(async_avg_priority, it)		) return true;
+		if(awaitCall(async_lower_avg_priority, it)	) return true;
+		if(awaitCall(async_low_priority, it)		) return true;
 		return false;
 	}
 	bool EventSystem::notify(ValueItem& it) {
-		if (sync_call(heigh_priorihty, it)) return true;
-		if (sync_call(upper_avg_priorihty, it)) return true;
-		if (sync_call(avg_priorihty, it)) return true;
-		if (sync_call(lower_avg_priorihty, it)) return true;
-		if (sync_call(low_priorihty, it)) return true;
+		if (sync_call(heigh_priority, it)) return true;
+		if (sync_call(upper_avg_priority, it)) return true;
+		if (sync_call(avg_priority, it)) return true;
+		if (sync_call(lower_avg_priority, it)) return true;
+		if (sync_call(low_priority, it)) return true;
 
-		async_call(async_heigh_priorihty, it);
-		async_call(async_upper_avg_priorihty, it);
-		async_call(async_avg_priorihty, it);
-		async_call(async_lower_avg_priorihty, it);
-		async_call(async_low_priorihty, it);
+		async_call(async_heigh_priority, it);
+		async_call(async_upper_avg_priority, it);
+		async_call(async_avg_priority, it);
+		async_call(async_lower_avg_priority, it);
+		async_call(async_low_priority, it);
 		return false;
 	}
 	bool EventSystem::sync_notify(ValueItem& it) {
-		if(sync_call(heigh_priorihty, it)	) return true;
-		if(sync_call(upper_avg_priorihty, it)) return true;
-		if(sync_call(avg_priorihty, it)		) return true;
-		if(sync_call(lower_avg_priorihty, it)) return true;
-		if(sync_call(low_priorihty, it)		) return true;
-		if(sync_call(async_heigh_priorihty, it)		) return true;
-		if(sync_call(async_upper_avg_priorihty, it)	) return true;
-		if(sync_call(async_avg_priorihty, it)		) return true;
-		if(sync_call(async_lower_avg_priorihty, it)	) return true;
-		if(sync_call(async_low_priorihty, it)		) return true;
+		if(sync_call(heigh_priority, it)	) return true;
+		if(sync_call(upper_avg_priority, it)) return true;
+		if(sync_call(avg_priority, it)		) return true;
+		if(sync_call(lower_avg_priority, it)) return true;
+		if(sync_call(low_priority, it)		) return true;
+		if(sync_call(async_heigh_priority, it)		) return true;
+		if(sync_call(async_upper_avg_priority, it)	) return true;
+		if(sync_call(async_avg_priority, it)		) return true;
+		if(sync_call(async_lower_avg_priority, it)	) return true;
+		if(sync_call(async_low_priority, it)		) return true;
 		return false;
 	}
 
 	ValueItem* __async_notify(ValueItem* vals, uint32_t) {
 		EventSystem* es = (EventSystem*)vals->val;
 		ValueItem& args = vals[1];
-		if (es->sync_call(es->heigh_priorihty, args)) return new ValueItem(true);
-		if (es->sync_call(es->upper_avg_priorihty, args)) return new ValueItem(true);
-		if (es->sync_call(es->avg_priorihty, args)) return new ValueItem(true);
-		if (es->sync_call(es->lower_avg_priorihty, args)) return new ValueItem(true);
-		if (es->sync_call(es->low_priorihty, args)) return new ValueItem(true);
-		if (es->awaitCall(es->async_heigh_priorihty, args)) return new ValueItem(true);
-		if (es->awaitCall(es->async_upper_avg_priorihty, args)) return new ValueItem(true);
-		if (es->awaitCall(es->async_avg_priorihty, args)) return new ValueItem(true);
-		if (es->awaitCall(es->async_lower_avg_priorihty, args)) return new ValueItem(true);
-		if (es->awaitCall(es->async_low_priorihty, args)) return new ValueItem(true);
+		if (es->sync_call(es->heigh_priority, args)) return new ValueItem(true);
+		if (es->sync_call(es->upper_avg_priority, args)) return new ValueItem(true);
+		if (es->sync_call(es->avg_priority, args)) return new ValueItem(true);
+		if (es->sync_call(es->lower_avg_priority, args)) return new ValueItem(true);
+		if (es->sync_call(es->low_priority, args)) return new ValueItem(true);
+		if (es->awaitCall(es->async_heigh_priority, args)) return new ValueItem(true);
+		if (es->awaitCall(es->async_upper_avg_priority, args)) return new ValueItem(true);
+		if (es->awaitCall(es->async_avg_priority, args)) return new ValueItem(true);
+		if (es->awaitCall(es->async_lower_avg_priority, args)) return new ValueItem(true);
+		if (es->awaitCall(es->async_low_priority, args)) return new ValueItem(true);
 		return new ValueItem(false);
 	}
 	typed_lgr<FuncEnvironment> _async_notify(new FuncEnvironment(__async_notify,false, false));
@@ -3032,16 +3032,16 @@ namespace art{
 			if(executor_count == 0)
 				return {100, 1};
 			uint64_t sleep_count_avg = 0;
-			uint64_t recomended_workers_avg = 0;
+			uint64_t recommended_workers_avg = 0;
 			for(auto& completions: workers_completions){
-				auto [recomended_workers_,sleep_count_] = hill_climber.climb(executor_count, std::chrono::duration<double>(elapsed).count(), completions, 1, 10);
+				auto [recommended_workers_,sleep_count_] = hill_climber.climb(executor_count, std::chrono::duration<double>(elapsed).count(), completions, 1, 10);
 				completions = 0;
 				sleep_count_avg += sleep_count_;
-				recomended_workers_avg += recomended_workers_;
+				recommended_workers_avg += recommended_workers_;
 			}
 			sleep_count_avg /= executor_count;
-			recomended_workers_avg /= executor_count;
-			return {sleep_count_avg, int64_t(recomended_workers_avg) - executor_count};
+			recommended_workers_avg /= executor_count;
+			return {sleep_count_avg, int64_t(recommended_workers_avg) - executor_count};
 		}
 		void become_executor_count_manager(bool leave_after_finish){
 			art::unique_lock lock(glob.task_thread_safety);

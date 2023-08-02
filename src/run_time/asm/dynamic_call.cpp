@@ -178,7 +178,7 @@ uint64_t FunctionCall(art::DynamicCall::PROC proc, void** args, int max_i, void*
 	void* arg;
 	__asm {
 		mov ebx, max_i
-		repeart :
+		repeat :
 		cmp ebx, 0;
 		jne not_end
 			jmp end
@@ -188,7 +188,7 @@ uint64_t FunctionCall(art::DynamicCall::PROC proc, void** args, int max_i, void*
 	arg = args[i++];
 	__asm {
 		push arg;
-		jmp repeart
+		jmp repeat
 			end :
 		cmp struct_mem, 0;
 		je just_call

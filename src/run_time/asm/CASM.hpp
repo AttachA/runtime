@@ -1078,8 +1078,8 @@ namespace art{
 		void finalize(){
 			a.section(data);
 		}
-		static size_t alocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size_end);
-		static void relase_code(uint8_t* res, asmjit::JitAllocator* alloc);
+		static size_t allocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size_end);
+		static void release_code(uint8_t* res, asmjit::JitAllocator* alloc);
 		
 	};
 
@@ -1123,7 +1123,7 @@ namespace art{
 		union{
 			void(*destruct)(void**);
 			void(*destruct_register)(void*);
-			bool(*filter)(CXXExInfo& info, void** handle_adress, void* filter_data, size_t len, void* rsp);
+			bool(*filter)(CXXExInfo& info, void** handle_address, void* filter_data, size_t len, void* rsp);
 			void(*finally)(void*, size_t len, void* rsp);
 		};
 		union{
@@ -1194,7 +1194,7 @@ namespace art{
 		uint32_t exHandleOff = 0;
 		bool use_handle = false;
 
-		//return uwind_info_ptr
+		//return unwind_info_ptr
 		void* init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name="AttachA unnamed_symbol", const char* file_path ="");
 		static bool deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime);
 		static std::vector<void*> JitCaptureStackChainTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
@@ -1223,9 +1223,9 @@ namespace art{
 			}
 			if (total_arguments == 0) {
 				if (arg_c == 4)
-					throw CompileTimeException("Fail add argument, too much aguments");
+					throw CompileTimeException("Fail add argument, too much arguments");
 			}else if (arg_c == total_arguments)
-				throw CompileTimeException("Fail add argument, too much aguments");
+				throw CompileTimeException("Fail add argument, too much arguments");
 		}
 #else
 #define callStart()
@@ -1674,7 +1674,7 @@ namespace art{
 				res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_LARGE, 1).solid);
 			}
 			else 
-				throw CompileTimeException("Invalid uwind code, too large stack alocation");
+				throw CompileTimeException("Invalid unwind code, too large stack allocation");
 			stack_alloc.push_back({ cur_op++, size });
 			stack_align += size;
 		}
@@ -1858,7 +1858,7 @@ namespace art{
 
 		size_t ex_scopes=0;
 		size_t value_lifetime_scopes=0;
-		static void remove_maloc_scope(ScopeAction* action){
+		static void remove_malloc_scope(ScopeAction* action){
 			free(action->filter_data);
 		}
 	public:
@@ -1887,7 +1887,7 @@ namespace art{
 			memcpy(data_ptr, data, data_size);
 			action->filter_data = data_ptr;
 			action->filter_data_len = data_size;
-			action->cleanup_filter_data = remove_maloc_scope;
+			action->cleanup_filter_data = remove_malloc_scope;
 			action->function_begin_off = it->second.begin_off;
 			it->second.actions.push_back(action);
 			return action;
@@ -1902,7 +1902,7 @@ namespace art{
 			memcpy(data_ptr, data, data_size);
 			action->finally_data = data_ptr;
 			action->finally_data_len = data_size;
-			action->cleanup_filter_data = remove_maloc_scope;
+			action->cleanup_filter_data = remove_malloc_scope;
 			it->second.actions.push_back(action);
 			return action;
 		}

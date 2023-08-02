@@ -77,7 +77,7 @@ namespace art{
 		void* hGetProcIDDLL;
 		std::unordered_map<std::string, typed_lgr<class FuncEnvironment>> envs;
 	public:
-		NativeLib(const std::string& libray_path);
+		NativeLib(const std::string& library_path);
 		CALL_FUNC get_func(const std::string& func_name);
 		typed_lgr<class FuncEnvironment> get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ);
 		typed_lgr<class FuncEnvironment> get_own_enviro(const std::string& func_name);

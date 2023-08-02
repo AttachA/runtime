@@ -142,7 +142,7 @@ namespace art {
 				};
 				PlaceType ptype : 1;
 				ValueType vtype : 3;
-				size_t is_modifable : 1;
+				size_t is_modifiable : 1;
 				size_t vsize : sizeof(size_t) * 8 - 5;
 
 				template<class T>
@@ -150,13 +150,13 @@ namespace art {
 					ValueT val;
 					if constexpr (std::is_same_v<T, void>) {
 						val.ptype = PlaceType::as_ptr;
-						val.is_modifable = false;
+						val.is_modifiable = false;
 						val.vsize = 0;
 						val.vtype = ValueType::integer;
 					}
 					else {
 						val.ptype = std::is_pointer_v<T> ? PlaceType::as_ptr : PlaceType::as_value;
-						val.is_modifable = !std::is_const_v<T>;
+						val.is_modifiable = !std::is_const_v<T>;
 						val.vsize = sizeof(std::remove_pointer_t<T>);
 						if constexpr (std::is_unsigned_v<std::remove_pointer_t<T>>)
 							val.vtype = ValueType::integer;
@@ -172,7 +172,7 @@ namespace art {
 					return val;
 				}
 				bool is_void() const {
-					return ptype == PlaceType::as_ptr && vtype == ValueType::integer && !is_modifable && !vsize;
+					return ptype == PlaceType::as_ptr && vtype == ValueType::integer && !is_modifiable && !vsize;
 				}
 			};
 			list_array<ValueT> arguments;

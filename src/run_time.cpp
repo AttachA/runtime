@@ -99,7 +99,7 @@ namespace art{
 				return EXCEPTION_CONTINUE_SEARCH;//8 - thread attempted to execute to an inaccessible address
 		case EXCEPTION_INT_DIVIDE_BY_ZERO:
 		case EXCEPTION_FLT_DIVIDE_BY_ZERO:
-			throw DevideByZeroException();
+			throw DivideByZeroException();
 		case EXCEPTION_STACK_OVERFLOW: 
 			need_stack_restore = true;
 			throw StackOverflowException();
@@ -273,7 +273,7 @@ namespace art{
 				make_dump(e, &cxx);
 				break;
 			case FaultAction::invite_to_debugger: {
-				invite_to_debugger("In this program unhandled exception occoured");
+				invite_to_debugger("In this program unhandled exception occurred");
 				break;
 			}
 			case FaultAction::system_default:
@@ -296,7 +296,7 @@ namespace art{
 				make_dump(e, nullptr);
 				break;
 			case FaultAction::invite_to_debugger: {
-				invite_to_debugger("In this program unhandled exception occoured");
+				invite_to_debugger("In this program unhandled exception occurred");
 				break;
 			}
 			case FaultAction::system_default:
@@ -323,7 +323,7 @@ namespace art{
 	void ini_current() {
 		bool cur_siz = SetThreadStackGuarantee(&stack_size_tmp);
 		stack_size_tmp += fault_reserved_stack_size;
-		bool seted = SetThreadStackGuarantee(&stack_size_tmp);
+		bool setted = SetThreadStackGuarantee(&stack_size_tmp);
 		auto err = GetLastError();
 
 		AddVectoredExceptionHandler(0, win_exception_handler);
@@ -336,18 +336,18 @@ namespace art{
 	}();
 
 
-	NativeLib::NativeLib(const std::string& libray_path) {
+	NativeLib::NativeLib(const std::string& library_path) {
 		std::u16string res;
-		utf8::utf8to16(libray_path.begin(), libray_path.end(), std::back_inserter(res));
+		utf8::utf8to16(library_path.begin(), library_path.end(), std::back_inserter(res));
 
 		hGetProcIDDLL = LoadLibraryW((wchar_t*)res.c_str());
 		if (!hGetProcIDDLL)
-			throw LibrayNotFoundException();
+			throw LibraryNotFoundException();
 	}
 	CALL_FUNC NativeLib::get_func(const std::string& func_name) {
 		auto tmp = GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 		if (!tmp)
-			throw LibrayFunctionNotFoundException();
+			throw LibraryFunctionNotFoundException();
 		return (CALL_FUNC)tmp;
 	}
 	typed_lgr<FuncEnvironment> NativeLib::get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ) {
@@ -355,7 +355,7 @@ namespace art{
 		if (!env) {
 			DynamicCall::PROC tmp = (DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 			if (!tmp)
-				throw LibrayFunctionNotFoundException();
+				throw LibraryFunctionNotFoundException();
 			return env = new FuncEnvironment(tmp, templ, true, false);
 		}
 		return env;
@@ -363,9 +363,9 @@ namespace art{
 	typed_lgr<FuncEnvironment> NativeLib::get_own_enviro(const std::string& func_name){
 		auto& env = envs[func_name];
 		if (!env) {
-			Enviropment tmp = (Enviropment)(DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
+			Environment tmp = (Environment)(DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 			if (!tmp)
-				throw LibrayFunctionNotFoundException();
+				throw LibraryFunctionNotFoundException();
 			return env = new FuncEnvironment(tmp, true, false);
 		}
 		return env;
@@ -373,7 +373,7 @@ namespace art{
 	size_t NativeLib::get_pure_func(const std::string& func_name) {
 		size_t tmp = (size_t)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 		if (!tmp)
-			throw LibrayFunctionNotFoundException();
+			throw LibraryFunctionNotFoundException();
 		return tmp;
 	}
 	NativeLib::~NativeLib() {
@@ -391,8 +391,8 @@ namespace art{
 		if(!need_stack_restore)
 			return false;
 
-		bool is_successs = _resetstkoflw();
-		if (!is_successs)
+		bool is_successes = _resetstkoflw();
+		if (!is_successes)
 			std::exit(EXCEPTION_STACK_OVERFLOW);
 		need_stack_restore = false;
 		return true;
@@ -420,7 +420,7 @@ namespace art{
 	std::unordered_map<std::string, std::string> run_time_configuration;
 	void modify_run_time_config(const std::string& name, const std::string& value){
 		if(name == "default_fault_action"){
-	#if _configuration_run_time_fault_action_modifable
+	#if _configuration_run_time_fault_action_modifiable
 			if(value == "make_dump" || value == "0")
 				default_fault_action = FaultAction::make_dump;
 			else if(value == "show_error" || value == "1")
@@ -436,11 +436,11 @@ namespace art{
 			else
 				throw InvalidArguments("unrecognized value for default_fault_action");
 	#else
-			throw AttachARuntimeException("default_fault_action is not modifable")
+			throw AttachARuntimeException("default_fault_action is not modifiable")
 	#endif
 
 		}else if(name == "break_point_action"){
-	#if _configuration_run_time_break_point_action_modifable
+	#if _configuration_run_time_break_point_action_modifiable
 			if(value == "invite_to_debugger" || value == "0")
 				break_point_action = BreakPointAction::invite_to_debugger;
 			if(value == "throw_exception" || value == "1")
@@ -450,10 +450,10 @@ namespace art{
 			else
 				throw InvalidArguments("unrecognized value for break_point_action");
 	#else
-			throw AttachARuntimeException("break_point_action is not modifable")
+			throw AttachARuntimeException("break_point_action is not modifiable")
 	#endif
 		}else if(name == "exception_on_language_routine_action"){
-	#if _configuration_run_time_exception_on_language_routine_action_modifable
+	#if _configuration_run_time_exception_on_language_routine_action_modifiable
 			if(value == "invite_to_debugger" || value == "0")
 				exception_on_language_routine_action = ExceptionOnLanguageRoutineAction::invite_to_debugger;
 			if(value == "nest_exception" || value == "1")
@@ -465,10 +465,10 @@ namespace art{
 			else
 				throw InvalidArguments("unrecognized value for exception_on_language_routine_action");
 	#else
-			throw AttachARuntimeException("exception_on_language_routine_action is not modifable")
+			throw AttachARuntimeException("exception_on_language_routine_action is not modifiable")
 	#endif
 		}else if(name == "enable_thread_naming"){
-	#if _configuration_tasks_enable_thread_naming_modifable
+	#if _configuration_tasks_enable_thread_naming_modifiable
 			if(value == "true" || value == "1")
 				enable_thread_naming = true;
 			else if(value == "false" || value == "0")
@@ -476,10 +476,10 @@ namespace art{
 			else
 				throw InvalidArguments("unrecognized value for enable_thread_naming");
 	#else
-			throw AttachARuntimeException("enable_thread_naming is not modifable");
+			throw AttachARuntimeException("enable_thread_naming is not modifiable");
 	#endif
 		}else if(name == "enable_task_naming"){
-	#if _configuration_tasks_enable_task_naming_modifable
+	#if _configuration_tasks_enable_task_naming_modifiable
 			if(value == "true" || value == "1")
 				Task::enable_task_naming = true;
 			else if(value == "false" || value == "0")
@@ -487,10 +487,10 @@ namespace art{
 			else
 				throw InvalidArguments("unrecognized value for enable_task_naming");
 	#else
-			throw AttachARuntimeException("enable_task_naming is not modifable");
+			throw AttachARuntimeException("enable_task_naming is not modifiable");
 	#endif
 		}else if(name == "allow_intern_access"){
-	#if _configuration_run_time_allow_intern_access_modifable
+	#if _configuration_run_time_allow_intern_access_modifiable
 			if(value == "true" || value == "1")
 				allow_intern_access = true;
 			else if(value == "false" || value == "0")
@@ -498,10 +498,10 @@ namespace art{
 			else
 				throw InvalidArguments("unrecognized value for allow_intern_access");
 	#else
-			throw AttachARuntimeException("allow_intern_access is not modifable");
+			throw AttachARuntimeException("allow_intern_access is not modifiable");
 	#endif
 		}else if(name == "max_running_tasks"){
-	#if _configuration_tasks_max_running_tasks_modifable
+	#if _configuration_tasks_max_running_tasks_modifiable
 			if(value == "0")
 				Task::max_running_tasks = 0;
 			else{
@@ -512,10 +512,10 @@ namespace art{
 				}
 			}
 	#else
-			throw AttachARuntimeException("max_running_tasks is not modifable");
+			throw AttachARuntimeException("max_running_tasks is not modifiable");
 	#endif
 		}else if(name == "max_planned_tasks"){
-	#if _configuration_tasks_max_planned_tasks_modifable
+	#if _configuration_tasks_max_planned_tasks_modifiable
 			if(value == "0")
 				Task::max_planned_tasks = 0;
 			else{
@@ -526,10 +526,10 @@ namespace art{
 				}
 			}
 	#else
-			throw AttachARuntimeException("max_planned_tasks is not modifable");
+			throw AttachARuntimeException("max_planned_tasks is not modifiable");
 	#endif
 		}else if(name == "light_stack_max_buffer_size"){
-	#if _configuration_tasks_light_stack_max_buffer_size_modifable
+	#if _configuration_tasks_light_stack_max_buffer_size_modifiable
 			if(value == "0")
 				light_stack::max_buffer_size = 0;
 			else{
@@ -540,10 +540,10 @@ namespace art{
 				}
 			}
 	#else
-			throw AttachARuntimeException("light_stack_max_buffer_size is not modifable");
+			throw AttachARuntimeException("light_stack_max_buffer_size is not modifiable");
 	#endif
 		}else if(name == "light_stack_flush_used_stacks"){
-	#if _configuration_tasks_light_stack_flush_used_stacks_modifable
+	#if _configuration_tasks_light_stack_flush_used_stacks_modifiable
 			if(value == "true" || value == "1")
 				light_stack::flush_used_stacks = true;
 			else if(value == "false" || value == "0")
@@ -551,7 +551,7 @@ namespace art{
 			else
 				throw InvalidArguments("unrecognized value for light_stack_flush_used_stacks");
 	#else
-			throw AttachARuntimeException("light_stack_flush_used_stacks is not modifable");
+			throw AttachARuntimeException("light_stack_flush_used_stacks is not modifiable");
 	#endif
 		}else{
 			if(value.empty())

@@ -147,7 +147,7 @@ namespace art{
                     }else now_fullifed();
                 }
             }
-            void writen(uint32_t len){
+            void written(uint32_t len){
                 if(!is_read){
                     fullifed_bytes += len;
                     if(buffer_size > fullifed_bytes){
@@ -166,7 +166,7 @@ namespace art{
                 if(is_read)
                     readed(len);
                 else
-                    writen(len);
+                    written(len);
             }
         
             void start(){

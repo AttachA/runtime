@@ -11,8 +11,8 @@ namespace art{
         ValueItem* get_current_exception_name(ValueItem*, uint32_t){
             return exception::get_current_exception_name();
         }
-        ValueItem* get_current_exception_desctription(ValueItem*, uint32_t){
-            return exception::get_current_exception_desctription();
+        ValueItem* get_current_exception_description(ValueItem*, uint32_t){
+            return exception::get_current_exception_description();
         }
         ValueItem* get_current_exception_full_description(ValueItem*, uint32_t){
             return exception::get_current_exception_full_description();

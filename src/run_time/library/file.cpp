@@ -201,7 +201,7 @@ namespace art{
                 if(ascii_mode){
                     for(char c : string){
                         if(c > 127)
-                            throw InvalidType("Can't write utf8 or extrended ascii to regular ascii file");
+                            throw InvalidType("Can't write utf8 or extended ascii to regular ascii file");
                     }
                 }
                 return handle->write((uint8_t*)string.data(), string.size());
@@ -559,9 +559,9 @@ namespace art{
                 if(len >= 7)if(args[6].meta.vtype != VType::noting) pointer_mode = (files::pointer_mode)(uint8_t)args[6];
 
                 if(is_async){
-                    files::_async_flags aflags;
-                    aflags.value = flags.value;
-                    return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FileHandle>>(define_FileHandle, new files::FileHandle(path.c_str(), path.size(), mode, action, aflags, share, pointer_mode)), no_copy);
+                    files::_async_flags async_flags;
+                    async_flags.value = flags.value;
+                    return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FileHandle>>(define_FileHandle, new files::FileHandle(path.c_str(), path.size(), mode, action, async_flags, share, pointer_mode)), no_copy);
                 }
                 else
                     return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FileHandle>>(define_FileHandle, new files::FileHandle(path.c_str(), path.size(), mode, action, flags, share, pointer_mode)), no_copy);
@@ -592,14 +592,14 @@ namespace art{
             })
 
             AttachAFun(createProxy_FolderChangesMonitor, 1, {
-                bool calc_deph = len >= 2 ? (bool)args[1] : false;
+                bool calc_depth = len >= 2 ? (bool)args[1] : false;
                 if(args[0].meta.vtype == VType::string){
                     std::string& path = *(std::string*)args[0].getSourcePtr();
-                    return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_deph);
+                    return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_depth);
                 }
                 else{
                     std::string path = (std::string)args[0];
-                    return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_deph);
+                    return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_depth);
                 }
             })
             AttachAFun(createProxy_FolderBrowser, 0, {

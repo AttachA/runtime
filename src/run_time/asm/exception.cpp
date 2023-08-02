@@ -22,7 +22,7 @@ namespace art{
             uint8_t* data = (uint8_t*)DispatcherContext->HandlerData;
             bool execute = false;
             bool on_unwind = ExceptionRecord->ExceptionFlags & EXCEPTION_UNWINDING;
-            std::exception_ptr current_ex = std::current_exception();//internaly use same pointer as ExceptionRecord in thread local storage when used EH runtime
+            std::exception_ptr current_ex = std::current_exception();//internally use same pointer as ExceptionRecord in thread local storage when used EH runtime
             try{
                 while(true){
                     ScopeAction::Action action = (ScopeAction::Action)*data++;
@@ -216,7 +216,7 @@ namespace art{
                 }
             }
         }
-        ValueItem* get_current_exception_desctription(){
+        ValueItem* get_current_exception_description(){
             std::string description;
             if(current_ex_info.ex_ptr == nullptr){
                 if(current_ex_info.native_id == 0)
@@ -264,7 +264,7 @@ namespace art{
                     else if(current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty){return ty.ty_info->name() == typeid(std::exception).name();})){
                         description = std::string(current_ex_info.ty_arr[0].ty_info->name()) + ": " + ((std::exception*)current_ex_info.ex_ptr)->what();
                     }else
-                        description = "Can not decode excetion: " + std::string(current_ex_info.ty_arr[0].ty_info->name());
+                        description = "Can not decode exception: " + std::string(current_ex_info.ty_arr[0].ty_info->name());
                 }
             }
             return new ValueItem(description);
@@ -276,13 +276,13 @@ namespace art{
                     return new ValueItem(ex->full_info());
                 }
             }
-            return get_current_exception_desctription();
+            return get_current_exception_description();
         }
         ValueItem* has_current_exception_inner_exception(){
             if(current_ex_info.ex_ptr != nullptr){
                 if(current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty){return ty.ty_info->name() == typeid(AttachARuntimeException).name();})){
                     AttachARuntimeException* ex = (AttachARuntimeException*)current_ex_info.ex_ptr;
-                    return new ValueItem((bool)ex->get_iner_exception());
+                    return new ValueItem((bool)ex->get_inner_exception());
                 }
             }
             if(current_ex_info.native_id == 0)
@@ -293,7 +293,7 @@ namespace art{
             if(current_ex_info.ex_ptr != nullptr){
                 if(current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty){return ty.ty_info->name() == typeid(AttachARuntimeException).name();})){
                     AttachARuntimeException* ex = (AttachARuntimeException*)current_ex_info.ex_ptr;
-                    ex->throw_iner_exception();
+                    ex->throw_inner_exception();
                 }
             }
         }

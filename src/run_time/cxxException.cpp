@@ -24,7 +24,7 @@ namespace art{
 				}
 			};
 			struct ExCatchableType {
-				uint32_t properties; // bit field  IsScalar 1; RefrenceOnly: 2, HasVirtualBases 4; isWinRT: 8, IsStdBadAlloc 16
+				uint32_t properties; // bit field  IsScalar 1; referenceOnly: 2, HasVirtualBases 4; isWinRT: 8, IsStdBadAlloc 16
 				int32_t type_info;
 				uint32_t non_virtual_adjustment;
 				uint32_t offset_to_virtual_base_ptr;

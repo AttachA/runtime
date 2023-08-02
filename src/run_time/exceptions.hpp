@@ -29,10 +29,10 @@ namespace art {
 		virtual const char* name() const {
 			return "attach_a_runtime_exception";
 		}
-		void throw_iner_exception() const  {
+		void throw_inner_exception() const  {
 			std::rethrow_exception(inner_exception);
 		}
-		std::exception_ptr get_iner_exception() const  {
+		std::exception_ptr get_inner_exception() const  {
 			return inner_exception;
 		}
 	};
@@ -44,12 +44,12 @@ namespace art {
 			return "invalid_cast";
 		}
 	};
-	class UnmodifabeValue : public AttachARuntimeException {
+	class UnmodifiableValue : public AttachARuntimeException {
 	public:
-		UnmodifabeValue() : AttachARuntimeException() {}
-		UnmodifabeValue(std::exception_ptr inner_exception) : AttachARuntimeException(inner_exception) {}
+		UnmodifiableValue() : AttachARuntimeException() {}
+		UnmodifiableValue(std::exception_ptr inner_exception) : AttachARuntimeException(inner_exception) {}
 		const char* name() const override {
-			return "unmodifabe_value";
+			return "unmodifiable_value";
 		}
 	};
 	class InvalidOperation : public virtual AttachARuntimeException {
@@ -128,40 +128,40 @@ namespace art {
 			return "invalid_class_declaration_exception";
 		}
 	};
-	class LibrayNotFoundException : public AttachARuntimeException {
+	class LibraryNotFoundException : public AttachARuntimeException {
 	public:
-		LibrayNotFoundException() : AttachARuntimeException("Libray not found") {}
-		LibrayNotFoundException(std::exception_ptr inner_exception) : AttachARuntimeException("Libray not found", inner_exception) {}
-		LibrayNotFoundException(const std::string& desc) : AttachARuntimeException(desc) {}
-		LibrayNotFoundException(const std::string& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
+		LibraryNotFoundException() : AttachARuntimeException("library not found") {}
+		LibraryNotFoundException(std::exception_ptr inner_exception) : AttachARuntimeException("library not found", inner_exception) {}
+		LibraryNotFoundException(const std::string& desc) : AttachARuntimeException(desc) {}
+		LibraryNotFoundException(const std::string& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
 		const char* name() const override {
-			return "libray_not_found_exception";
+			return "library_not_found_exception";
 		}
 	};
-	class LibrayFunctionNotFoundException : public AttachARuntimeException {
+	class LibraryFunctionNotFoundException : public AttachARuntimeException {
 	public:
-		LibrayFunctionNotFoundException() : AttachARuntimeException("Libray function not found") {}
-		LibrayFunctionNotFoundException(std::exception_ptr inner_exception) : AttachARuntimeException("Libray function not found", inner_exception) {}
-		LibrayFunctionNotFoundException(const std::string& desc) : AttachARuntimeException(desc) {}
-		LibrayFunctionNotFoundException(const std::string& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
+		LibraryFunctionNotFoundException() : AttachARuntimeException("library function not found") {}
+		LibraryFunctionNotFoundException(std::exception_ptr inner_exception) : AttachARuntimeException("library function not found", inner_exception) {}
+		LibraryFunctionNotFoundException(const std::string& desc) : AttachARuntimeException(desc) {}
+		LibraryFunctionNotFoundException(const std::string& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
 		const char* name() const override {
-			return "libray_function_not_found_exception";
+			return "library_function_not_found_exception";
 		}
 	};
-	class EnviropmentRuinException : public AttachARuntimeException {
+	class EnvironmentRuinException : public AttachARuntimeException {
 	public:
-		EnviropmentRuinException() : AttachARuntimeException("Enviropment ruin exception") {}
-		EnviropmentRuinException(std::exception_ptr inner_exception) : AttachARuntimeException("Enviropment ruin exception", inner_exception) {}
-		EnviropmentRuinException(const std::string& desc) : AttachARuntimeException("EnviropmentRuinException: " + desc) {}
-		EnviropmentRuinException(const std::string& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
+		EnvironmentRuinException() : AttachARuntimeException("Environment ruin exception") {}
+		EnvironmentRuinException(std::exception_ptr inner_exception) : AttachARuntimeException("Environment ruin exception", inner_exception) {}
+		EnvironmentRuinException(const std::string& desc) : AttachARuntimeException("EnvironmentRuinException: " + desc) {}
+		EnvironmentRuinException(const std::string& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
 		const char* name() const override {
-			return "enviropment_ruin_exception";
+			return "environment_ruin_exception";
 		}
 	};
 	class InvalidArchitectureException : public AttachARuntimeException {
 	public:
-		InvalidArchitectureException() : AttachARuntimeException("Invalid archetecture") {}
-		InvalidArchitectureException(std::exception_ptr inner_exception) : AttachARuntimeException("Invalid archetecture", inner_exception) {}
+		InvalidArchitectureException() : AttachARuntimeException("Invalid architecture") {}
+		InvalidArchitectureException(std::exception_ptr inner_exception) : AttachARuntimeException("Invalid architecture", inner_exception) {}
 		const char* name() const override {
 			return "invalid_architecture_exception";
 		}
@@ -182,12 +182,12 @@ namespace art {
 			return "unused_debug_point_exception";
 		}
 	};
-	class DevideByZeroException : public AttachARuntimeException {
+	class DivideByZeroException : public AttachARuntimeException {
 	public:
-		DevideByZeroException() : AttachARuntimeException("Number devided by zero") {}
-		DevideByZeroException(std::exception_ptr inner_exception) : AttachARuntimeException("Number devided by zero", inner_exception) {}
+		DivideByZeroException() : AttachARuntimeException("Number divided by zero") {}
+		DivideByZeroException(std::exception_ptr inner_exception) : AttachARuntimeException("Number divided by zero", inner_exception) {}
 		const char* name() const override {
-			return "devide_by_zero_exception";
+			return "divide_by_zero_exception";
 		}
 	};
 	class BadInstructionException : public AttachARuntimeException {
@@ -247,8 +247,8 @@ namespace art {
 
 	class AttachedLangException : public AttachARuntimeException {
 	public:
-		AttachedLangException() : AttachARuntimeException("Caught unconvertable external attached langue exception") {}
-		AttachedLangException(std::exception_ptr inner_exception) : AttachARuntimeException("Caught unconvertable external attached langue exception", inner_exception) {}
+		AttachedLangException() : AttachARuntimeException("Caught unconvertible external attached langue exception") {}
+		AttachedLangException(std::exception_ptr inner_exception) : AttachARuntimeException("Caught unconvertible external attached langue exception", inner_exception) {}
 		const char* name() const override {
 			return "attached_lang_exception";
 		}
@@ -317,7 +317,7 @@ namespace art {
 		CompileTimeException(const std::string& msq) : AttachARuntimeException(msq) {}
 		CompileTimeException(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
 		const char* name() const override {
-			return "CompileTimeException";
+			return "compile_time_exception";
 		}
 	};
 	class HotPathException : public CompileTimeException {
@@ -325,7 +325,7 @@ namespace art {
 		HotPathException(const std::string& msq) : CompileTimeException(msq) {}
 		HotPathException(const std::string& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
 		const char* name() const override {
-			return "HotPathException";
+			return "hot_path_exception";
 		}
 	};
 	class SymbolException : public CompileTimeException {
@@ -333,7 +333,7 @@ namespace art {
 		SymbolException(const std::string& msq) : CompileTimeException(msq) {}
 		SymbolException(const std::string& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
 		const char* name() const override {
-			return "SymbolException";
+			return "symbol_exception";
 		}
 	};
 	class InvalidFunction : public CompileTimeException {
@@ -341,7 +341,7 @@ namespace art {
 		InvalidFunction(const std::string& msq) : CompileTimeException(msq) {}
 		InvalidFunction(const std::string& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
 		const char* name() const override {
-			return "InvalidFunction";
+			return "invalid_function";
 		}
 	};
 	class InvalidIL : public InvalidFunction {
@@ -349,7 +349,7 @@ namespace art {
 		InvalidIL(const std::string& msq) : InvalidFunction(msq) {}
 		InvalidIL(const std::string& msq, std::exception_ptr inner_exception) : InvalidFunction(msq, inner_exception) {}
 		const char* name() const override {
-			return "InvalidIL";
+			return "invalid_il";
 		}
 	};
 	class InvalidType : public CompileTimeException {
@@ -357,7 +357,7 @@ namespace art {
 		InvalidType(const std::string& msq) : CompileTimeException(msq) {}
 		InvalidType(const std::string& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
 		const char* name() const override {
-			return "InvalidType";
+			return "invalid_type";
 		}
 	};
 	class BadOperationException : public CompileTimeException {
@@ -365,7 +365,7 @@ namespace art {
 		BadOperationException() : CompileTimeException("Bad Operation") {}
 		BadOperationException(std::exception_ptr inner_exception) : CompileTimeException("Bad Operation", inner_exception) {}
 		const char* name() const override {
-			return "BadOperatinException";
+			return "bad_operation_exception";
 		}
 	};
 #pragma endregion

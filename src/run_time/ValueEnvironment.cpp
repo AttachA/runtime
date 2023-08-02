@@ -6,5 +6,5 @@
 
 #include "ValueEnvironment.hpp"
 namespace art{
-    ValueEnvironment enviropments;
+    ValueEnvironment environments;
 }

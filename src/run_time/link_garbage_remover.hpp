@@ -10,7 +10,7 @@
 #include "../library/list_array.hpp"
 namespace art{
 #define ENABLE_SNAPSHOTS_LGR false
-	extern thread_local std::unordered_set<const void*> __lgr_safe_deph;
+	extern thread_local std::unordered_set<const void*> __lgr_safe_depth;
 
 	class lgr {
 #if ENABLE_SNAPSHOTS_LGR
@@ -29,7 +29,7 @@ namespace art{
 		void* ptr = nullptr;
 		std::atomic_size_t* total = nullptr;
 		std::atomic_size_t* weak = nullptr;
-		bool in_safe_deph = false;
+		bool in_safe_depth = false;
 
 		void exit();
 		void join(std::atomic_size_t* p_total_links, std::atomic_size_t* tot_weak snap_rec_lgr_arg);
@@ -53,7 +53,7 @@ namespace art{
 		bool(*getCalcDepth(void) const)(void*);
 		bool alone();
 		void* try_take_ptr();
-		bool calcDeph();
+		bool calcDepth();
 		bool depth_safety() const;
 		bool is_deleted() const;
 		lgr take() {
@@ -159,8 +159,8 @@ namespace art{
 		T* getPtr() {
 			return (T*)actual_lgr.getPtr();
 		}
-		bool calcDeph() {
-			return actual_lgr.calcDeph();
+		bool calcDepth() {
+			return actual_lgr.calcDepth();
 		}
 		bool depth_safety() const {
 			return actual_lgr.depth_safety();

@@ -18,7 +18,7 @@ namespace art{
 	}
 #define CONV_ASMJIT(to_conv) { if(auto tmp = (to_conv)) throw CompileTimeException("Fail create func asmjit err code: " + std::to_string(tmp)); }
 	//return offset from allocated to additional size or code size
-	size_t CASM::alocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size_end) {
+	size_t CASM::allocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size_end) {
 		res = 0;
 		CONV_ASMJIT(code->flatten());
 		if(code->hasUnresolvedLinks()){
@@ -78,7 +78,7 @@ namespace art{
 		res = rx;
 		return codeSize;
 	}
-	void CASM::relase_code(uint8_t* code, asmjit::JitAllocator* alloc) {
+	void CASM::release_code(uint8_t* code, asmjit::JitAllocator* alloc) {
 		alloc->release(code);
 	}
 
@@ -146,22 +146,22 @@ namespace art{
 		UNWIND_HISTORY_TABLE history;
 		memset(&history, 0, sizeof(UNWIND_HISTORY_TABLE));
 		
-		ULONG64 establisherframe = 0;
-		PVOID handlerdata = nullptr;
+		ULONG64 establisher_frame = 0;
+		PVOID handler_data = nullptr;
 		
 		uint32_t frame;
 		for (frame = 0; frame < max_frames; frame++) {
-			ULONG64 imagebase;
-			PRUNTIME_FUNCTION rtfunc = RtlLookupFunctionEntry(context.Rip, &imagebase, &history);
+			ULONG64 image_base;
+			PRUNTIME_FUNCTION rt_func = RtlLookupFunctionEntry(context.Rip, &image_base, &history);
 		
-			KNONVOLATILE_CONTEXT_POINTERS nvcontext;
-			memset(&nvcontext, 0, sizeof(KNONVOLATILE_CONTEXT_POINTERS));
-			if (!rtfunc) {
+			KNONVOLATILE_CONTEXT_POINTERS nv_context;
+			memset(&nv_context, 0, sizeof(KNONVOLATILE_CONTEXT_POINTERS));
+			if (!rt_func) {
 				context.Rip = (ULONG64)(*(PULONG64)context.Rsp);
 				context.Rsp += 8;
 			}
 			else
-				RtlVirtualUnwind(UNW_FLAG_NHANDLER, imagebase, context.Rip, rtfunc, &context, &handlerdata, &establisherframe, &nvcontext);
+				RtlVirtualUnwind(UNW_FLAG_NHANDLER, image_base, context.Rip, rt_func, &context, &handler_data, &establisher_frame, &nv_context);
 			
 		
 			if (!context.Rip)
@@ -282,7 +282,7 @@ namespace art{
 		size_t unwindInfoSize = unwindInfo.size() * sizeof(uint16_t);
 
 		uint8_t* baseaddr;
-		size_t fun_size = CASM::alocate_and_prepare_code(0, baseaddr, code, runtime.allocator(), unwindInfoSize + sizeof(RUNTIME_FUNCTION));
+		size_t fun_size = CASM::allocate_and_prepare_code(0, baseaddr, code, runtime.allocator(), unwindInfoSize + sizeof(RUNTIME_FUNCTION));
 		if(!baseaddr){
 			const char* err = asmjit::DebugUtils::errorAsString(asmjit::Error(fun_size));
 			throw CompileTimeException(err);
@@ -410,76 +410,76 @@ namespace art{
 
 	std::vector<StackTraceItem> FrameResult::JitCaptureStackTrace(uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
 #ifdef _WIN64
-		std::lock_guard lg(DbgHelp_lock);//in windiws NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+		std::lock_guard lg(DbgHelp_lock);//in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
 		if (max_frames + 1 == 0)
 			throw std::bad_array_new_length();
 		max_frames += 1;
 		std::unique_ptr<void*,std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
 		void** frame = frames_buffer.get();
-		uint32_t numframes = CaptureStackTrace(max_frames, frame);
+		uint32_t num_frames = CaptureStackTrace(max_frames, frame);
 
 		std::unique_ptr<NativeSymbolResolver> nativeSymbols;
 		if (includeNativeFrames)
 			nativeSymbols.reset(new NativeSymbolResolver());
 
 		std::vector<StackTraceItem> stack_trace;
-		for (uint32_t i = framesToSkip + 1; i < numframes; i++)
+		for (uint32_t i = framesToSkip + 1; i < num_frames; i++)
 			stack_trace.push_back(JitGetStackFrameName(nativeSymbols.get(), frame[i]));
 		return stack_trace;
 	}
 
 	std::vector<void*> FrameResult::JitCaptureStackChainTrace(uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
 #ifdef _WIN64
-		std::lock_guard lg(DbgHelp_lock);//in windiws NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+		std::lock_guard lg(DbgHelp_lock);//in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
 		if (max_frames + 1 == 0)
 			throw std::bad_array_new_length();
 		max_frames += 1;
 		std::unique_ptr<void*,std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
 		void** frame = frames_buffer.get();
-		uint32_t numframes = CaptureStackTrace(max_frames, frame);
-		if (framesToSkip >= numframes)
+		uint32_t num_frames = CaptureStackTrace(max_frames, frame);
+		if (framesToSkip >= num_frames)
 			return {};
 		else 
-			return std::vector<void*>( frame + framesToSkip, frame + numframes);
+			return std::vector<void*>( frame + framesToSkip, frame + num_frames);
 	}
 
 	std::vector<StackTraceItem> FrameResult::JitCaptureExternStackTrace(void* rip, uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
 #ifdef _WIN64
-		std::lock_guard lg(DbgHelp_lock);//in windiws NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+		std::lock_guard lg(DbgHelp_lock);//in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
 		if (max_frames + 1 == 0)
 			throw std::bad_array_new_length();
 		max_frames += 1;
 		std::unique_ptr<void*,std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
 		void** frame = frames_buffer.get();
-		uint32_t numframes = CaptureStackTrace(max_frames, frame, rip);
+		uint32_t num_frames = CaptureStackTrace(max_frames, frame, rip);
 
 		std::unique_ptr<NativeSymbolResolver> nativeSymbols;
 		if (includeNativeFrames)
 			nativeSymbols.reset(new NativeSymbolResolver());
 
 		std::vector<StackTraceItem> stack_trace;
-		for (uint32_t i = framesToSkip + 1; i < numframes; i++)
+		for (uint32_t i = framesToSkip + 1; i < num_frames; i++)
 			stack_trace.push_back(JitGetStackFrameName(nativeSymbols.get(), frame[i]));
 		return stack_trace;
 	}
 
 	std::vector<void*> FrameResult::JitCaptureExternStackChainTrace(void* rip, uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
 #ifdef _WIN64
-		lock_guard lg(DbgHelp_lock);//in windiws NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+		lock_guard lg(DbgHelp_lock);//in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
 		if (max_frames + 1 == 0)
 			throw std::bad_array_new_length();
 		max_frames += 1;
 		std::unique_ptr<void*,std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
 		void** frame = frames_buffer.get();
-		uint32_t numframes = CaptureStackTrace(max_frames, frame, rip);
-		if (framesToSkip >= numframes)
+		uint32_t num_frames = CaptureStackTrace(max_frames, frame, rip);
+		if (framesToSkip >= num_frames)
 			return {};
 		else 
-			return std::vector<void*>(frame + framesToSkip, frame + numframes);
+			return std::vector<void*>(frame + framesToSkip, frame + num_frames);
 	}
 	StackTraceItem FrameResult::JitResolveFrame(void* rip, bool include_native){
 		if(include_native){

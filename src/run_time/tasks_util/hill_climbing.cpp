@@ -1,7 +1,7 @@
 //source https://github.com/dotnet/runtime/blob/main/src/libraries/System.Private.CoreLib/src/System/Threading/PortableThreadPool.HillClimbing.cs
 // used to balance the number of threads in thread pools, ported from the C# runtime sources
 // uses https://en.wikipedia.org/wiki/Hill_climbing to find the best number of threads to use
-// this and hill_climbing.hpp file licensed unde MIT license
+// this and hill_climbing.hpp file licensed under MIT license
 
 #include "hill_climbing.hpp"
 #define _USE_MATH_DEFINES
@@ -62,11 +62,11 @@ namespace art{
 
                 //
                 // we need to make sure we're collecting reasonably accurate data.  since we're just counting the end
-                // of each work item, we are goinng to be missing some data about what really happened during the
+                // of each work item, we are going to be missing some data about what really happened during the
                 // sample interval.  the count produced by each thread includes an initial work item that may have
                 // started well before the start of the interval, and each thread may have been running some new
                 // work item for some time before the end of the interval, which did not yet get counted.  so
-                // our count is going to be off by +/- thread_count workitems.
+                // our count is going to be off by +/- thread_count work items.
                 //
                 // the exception is that the thread that reported to us last time definitely wasn't running any work
                 // at that time, and the thread that's reporting now definitely isn't running a work item now.  so
@@ -91,7 +91,7 @@ namespace art{
                 }
 
                 //
-                // we've got enouugh data for our sample; reset our accumulators for next time.
+                // we've got enough data for our sample; reset our accumulators for next time.
                 //
                 accumulated_sample_duration_seconds = 0;
                 accumulated_completion_count = 0;

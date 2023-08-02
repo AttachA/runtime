@@ -9,13 +9,13 @@
 #include "asm/FuncEnvironment.hpp"
 
 namespace art{
-	struct FuncEviroBuilder_line_info {
+	struct FuncEnviroBuilder_line_info {
 		uint64_t begin;
 		uint64_t line;
 		uint64_t column;
 	};
 
-	class FuncEviroBuilder {
+	class FuncEnviroBuilder {
 		std::vector<uint8_t> code;
 		std::vector<uint64_t> jump_pos;
 		std::unordered_map<std::string, size_t> jump_pos_map;
@@ -67,12 +67,12 @@ namespace art{
 		void set_unify_constants(bool unify_constants) {
 			this->unify_constants = unify_constants;
 		}
-		FuncEviroBuilder(){
+		FuncEnviroBuilder(){
 			flags.can_be_unloaded = true;
 		}
 		//strict_mode - if true, then all local functions must has cross_code, by default true
 		//use_dynamic_values - if true, then constants can be any type, by default false, option ignored if strict_mode is true(then all constants will be stored at opcodes)
-		FuncEviroBuilder(bool strict_mode,bool use_dynamic_values = false) : strict_mode(strict_mode), use_dynamic_values(use_dynamic_values) {}
+		FuncEnviroBuilder(bool strict_mode,bool use_dynamic_values = false) : strict_mode(strict_mode), use_dynamic_values(use_dynamic_values) {}
 		ValueIndexPos create_constant(const ValueItem& val);
 		void set_stack_any_array(ValueIndexPos val, uint32_t len);
 		void remove(ValueIndexPos val,ValueMeta m);
@@ -142,9 +142,9 @@ namespace art{
 		void move(ValueIndexPos to, ValueIndexPos from);
 
 		void debug_break();
-		void force_debug_reak();
+		void force_debug_break();
 
-		void throw_ex(ValueIndexPos name, ValueIndexPos desck);
+		void throw_ex(ValueIndexPos name, ValueIndexPos desc);
 
 		void as(ValueIndexPos val, VType meta);
 		void is(ValueIndexPos val, VType meta);
@@ -269,26 +269,26 @@ namespace art{
 			TableJumpCheckFailAction too_small = TableJumpCheckFailAction::throw_exception,
 			const std::string& too_small_label = ""
 		);
-		void get_refrence(ValueIndexPos res, ValueIndexPos val);
+		void get_reference(ValueIndexPos res, ValueIndexPos val);
 		void make_as_const(ValueIndexPos res);
 		void remove_const_protect(ValueIndexPos res);
 		void copy_un_constant(ValueIndexPos res, ValueIndexPos val);
-		void copy_un_refrence(ValueIndexPos res, ValueIndexPos val);
-		void move_un_refrence(ValueIndexPos res, ValueIndexPos val);
+		void copy_un_reference(ValueIndexPos res, ValueIndexPos val);
+		void move_un_reference(ValueIndexPos res, ValueIndexPos val);
 		void remove_qualifiers(ValueIndexPos res);//same as ungc and remove_const_protect
 
 
 
 		
 
-		FuncEviroBuilder& O_flag_can_be_unloaded(bool can_be_unloaded);
-		FuncEviroBuilder& O_flag_is_translated(bool is_translated);
-		FuncEviroBuilder& O_flag_is_cheap(bool is_cheap);
-		FuncEviroBuilder& O_flag_used_vec128(uint8_t index);
-		FuncEviroBuilder& O_flag_is_patchable(bool is_patchabele);
+		FuncEnviroBuilder& O_flag_can_be_unloaded(bool can_be_unloaded);
+		FuncEnviroBuilder& O_flag_is_translated(bool is_translated);
+		FuncEnviroBuilder& O_flag_is_cheap(bool is_cheap);
+		FuncEnviroBuilder& O_flag_used_vec128(uint8_t index);
+		FuncEnviroBuilder& O_flag_is_patchable(bool is_patchable);
 		
-		FuncEviroBuilder_line_info O_line_info_begin();
-		void O_line_info_end(FuncEviroBuilder_line_info line_info);
+		FuncEnviroBuilder_line_info O_line_info_begin();
+		void O_line_info_end(FuncEnviroBuilder_line_info line_info);
 
 		typed_lgr<FuncEnvironment> O_prepare_func();
 		std::vector<uint8_t> O_build_func();

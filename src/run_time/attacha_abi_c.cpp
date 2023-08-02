@@ -50,7 +50,7 @@ namespace art{
 
 
 
-	bool calc_safe_deph_arr(void* ptr) {
+	bool calc_safe_depth_arr(void* ptr) {
 		list_array<ValueItem>& items = *(list_array<ValueItem>*)ptr;
 		for (ValueItem& it : items)
 			if (it.meta.use_gc)
@@ -187,13 +187,13 @@ namespace art{
 				*value = new ValueItem[meta.val_len]();
 				break;
 			case VType::saarr:
-				throw InvalidOperation("Fail alocate local stack value");
+				throw InvalidOperation("Fail allocate local stack value");
 				break;
 			}
 		}
 		if (meta.use_gc) {
 			void(*destructor)(void*) = nullptr;
-			bool(*deph)(void*) = nullptr;
+			bool(*depth)(void*) = nullptr;
 			switch (meta.vtype)
 			{
 			case VType::noting:
@@ -242,7 +242,7 @@ namespace art{
 				break;
 			case VType::uarr:
 				destructor = defaultDestructor<list_array<ValueItem>>;
-				deph = calc_safe_deph_arr;
+				depth = calc_safe_depth_arr;
 				break;
 			case VType::string:
 				destructor = defaultDestructor<std::string>;
@@ -254,7 +254,7 @@ namespace art{
 				destructor = arrayDestructor<ValueItem>;
 				break;
 			case VType::saarr:
-				throw InvalidOperation("Fail alocate local stack value");
+				throw InvalidOperation("Fail allocate local stack value");
 				break;
 			case VType::async_res:
 				destructor = defaultDestructor<typed_lgr<Task>>;
@@ -265,11 +265,11 @@ namespace art{
 			default:
 				break;
 			}
-			*value = new lgr(value, deph, destructor);
+			*value = new lgr(value, depth, destructor);
 		}
 		*(value + 1) = (void*)meta.encoded;
 	}
-	void removeArgsEnviropement(list_array<ValueItem>* env) {
+	void removeArgsEnvironnement(list_array<ValueItem>* env) {
 		delete env;
 	}
 	ValueItem* getAsyncValueItem(void* val) {
@@ -297,7 +297,7 @@ namespace art{
 			return new ValueItem(*(ValueItem*)value);
 		}
 		catch (const std::bad_alloc&) {
-			throw EnviropmentRuinException();
+			throw EnvironmentRuinException();
 		}
 	}
 	ValueItem* buildResTake(void** value) {
@@ -305,7 +305,7 @@ namespace art{
 			return new ValueItem(std::move(*(ValueItem*)value));
 		}
 		catch (const std::bad_alloc&) {
-			throw EnviropmentRuinException();
+			throw EnvironmentRuinException();
 		}
 	}
 
@@ -439,7 +439,7 @@ namespace art{
 		if (meta.vtype == VType::async_res)
 			getAsyncResult(*value, meta);
 		if (meta.vtype != typ)
-			throw InvalidType("Requested specifed type but recuived another");
+			throw InvalidType("Requested specifed type but received another");
 		if(meta.use_gc)
 			if (((lgr*)value)->is_deleted()) {
 				universalRemove(value);
@@ -452,7 +452,7 @@ namespace art{
 		if (meta.vtype == VType::async_res)
 			getAsyncResult(*value, meta);
 		if (meta.vtype != typ)
-			throw InvalidType("Requested specifed type but recuived another");
+			throw InvalidType("Requested specifed type but received another");
 		if (meta.use_gc)
 			if (((lgr*)value)->is_deleted()) {
 				universalFree(value, meta);
@@ -536,9 +536,9 @@ namespace art{
 
 
 	std::pair<bool, bool> compareArrays(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2) {
-		if (!calc_safe_deph_arr(val1))
+		if (!calc_safe_depth_arr(val1))
 			return { false,false };
-		else if (!calc_safe_deph_arr(val2))
+		else if (!calc_safe_depth_arr(val2))
 			return { false,false };
 		else {
 			auto& arr1 = *(list_array<ValueItem>*)val1;
@@ -560,7 +560,7 @@ namespace art{
 	}
 	//uarr and raw_arr_* or faarr/saarr
 	std::pair<bool, bool> compareUarrARawArr(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2, bool flip_args = false) {
-		if (!calc_safe_deph_arr(val1))
+		if (!calc_safe_depth_arr(val1))
 			return { false,false };
 		else {
 			auto& arr1 = *(list_array<ValueItem>*)val1;
@@ -690,7 +690,7 @@ namespace art{
 					break;
 				}
 				default:
-					throw InvalidOperation("Wrong compare operation, notify devs via github, reason: used function for compare uarr and raw_arr_* but second operand is actualy " + enum_to_string(cmp2.vtype));
+					throw InvalidOperation("Wrong compare operation, notify dev's via github, reason: used function for compare uarr and raw_arr_* but second operand is actually " + enum_to_string(cmp2.vtype));
 				}
 				return { true, false };
 			}
@@ -699,7 +699,7 @@ namespace art{
 	}
 	//uarr and raw_arr_* or faarr/saarr
 	std::pair<bool, bool> compareUarrAInterface(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2, bool flip_args = false) {
-		if (!calc_safe_deph_arr(val1))
+		if (!calc_safe_depth_arr(val1))
 			return { false,false };
 		else {
 			auto& arr1 = *(list_array<ValueItem>*)val1;
@@ -800,7 +800,7 @@ namespace art{
 		return { false,false,false };
 	}
 	std::pair<bool, bool> compareRawArrAInterface(ValueMeta cmp1, ValueMeta cmp2, void* val1, void* val2, bool flip_args = false) {
-		if (!calc_safe_deph_arr(val1))
+		if (!calc_safe_depth_arr(val1))
 			return { false,false };
 		else {
 			auto& arr1 = *(list_array<ValueItem>*)val1;
@@ -852,7 +852,7 @@ namespace art{
 					res = compareRawArrAInterface_Worst1(val1, val2, length);
 					break;
 				default:
-					throw InvalidOperation("Wrong compare operation, notify devs via github, reason: used function for compare uarr and raw_arr_* but second operand is actualy " + enum_to_string(cmp2.vtype));
+					throw InvalidOperation("Wrong compare operation, notify dev's via github, reason: used function for compare uarr and raw_arr_* but second operand is actually " + enum_to_string(cmp2.vtype));
 				}
 				auto& [eq, low, has_res] = res;
 				if (has_res)
@@ -1531,7 +1531,7 @@ namespace art{
 		void*& actual_val1 = val1_r.getSourcePtr();
 
 		if (!val1_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = val1_r;break;
@@ -1596,7 +1596,7 @@ namespace art{
 		void*& actual_val1 = val1_r.getSourcePtr();
 
 		if (!val1_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = val1_r;break;
@@ -1661,7 +1661,7 @@ namespace art{
 		void*& actual_val1 = val1_r.getSourcePtr();
 
 		if (!val1_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = val1_r;break;
@@ -1718,7 +1718,7 @@ namespace art{
 		void*& actual_val1 = val1_r.getSourcePtr();
 
 		if (!val1_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = val1_r;break;
@@ -1771,7 +1771,7 @@ namespace art{
 		void*& actual_val1 = val1_r.getSourcePtr();
 
 		if (!val1_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = val1_r;break;
@@ -1815,7 +1815,7 @@ namespace art{
 		void*& actual_val0 = val0_r.getSourcePtr();
 
 		if (!val0_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = 1;break;
@@ -1865,7 +1865,7 @@ namespace art{
 		void*& actual_val0 = val0_r.getSourcePtr();
 
 		if (!val0_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = -1;break;
@@ -1919,7 +1919,7 @@ namespace art{
 		void*& actual_val1 = val1_r.getSourcePtr();
 
 		if (!val0_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 		
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = val1_r;break;
@@ -1966,7 +1966,7 @@ namespace art{
 		void*& actual_val1 = val1_r.getSourcePtr();
 
 		if (!val0_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = val1_r;break;
@@ -2013,7 +2013,7 @@ namespace art{
 		void*& actual_val1 = val1_r.getSourcePtr();
 
 		if (!val0_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = val1_r;break;
@@ -2060,7 +2060,7 @@ namespace art{
 		void*& actual_val1 = val1_r.getSourcePtr();
 
 		if (!val0_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = val1_r;break;
@@ -2107,7 +2107,7 @@ namespace art{
 		void*& actual_val1 = val1_r.getSourcePtr();
 
 		if (!val0_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = val1_r;break;
@@ -2152,7 +2152,7 @@ namespace art{
 		void*& actual_val0 = val0_r.getSourcePtr();
 
 		if (!val0_r.meta.allow_edit)
-			throw UnmodifabeValue();
+			throw UnmodifiableValue();
 
 		switch (val0_r.meta.vtype) {
 		case VType::noting: val0_r = ValueItem(0);break;
@@ -2411,12 +2411,12 @@ namespace art{
 	}
 	ValueItem::ValueItem(ValueItem&& move) {
 		if(move.meta.vtype == VType::saarr && !move.meta.as_ref){
-			ValueItem* farrr = new ValueItem[move.meta.val_len];
+			ValueItem* faarrr = new ValueItem[move.meta.val_len];
 			ValueItem* src = (ValueItem*)move.getSourcePtr();
 			for (size_t i = 0; i < move.meta.val_len; i++)
-				farrr[i] = std::move(src[i]);
+				faarrr[i] = std::move(src[i]);
 				
-			val = farrr;
+			val = faarrr;
 			meta = move.meta;
 			meta.vtype = VType::faarr;
 			move.val = nullptr;
@@ -2437,7 +2437,7 @@ namespace art{
 		val = vall;
 		meta = vmeta;
 	}
-	ValueItem::ValueItem(void* vall, ValueMeta vmeta, as_refrence_t) {
+	ValueItem::ValueItem(void* vall, ValueMeta vmeta, as_reference_t) {
 		val = vall;
 		meta = vmeta;
 		meta.as_ref = true;
@@ -2507,8 +2507,8 @@ namespace art{
 	ValueItem::ValueItem(ValueItem* vals, uint32_t len, no_copy_t){
 		*this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len), no_copy);
 	}
-	ValueItem::ValueItem(ValueItem* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len), as_refrence);
+	ValueItem::ValueItem(ValueItem* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len), as_reference);
 	}
 
 	ValueItem::ValueItem(void* undefined_ptr) {
@@ -2577,35 +2577,35 @@ namespace art{
 	ValueItem::ValueItem(double* vals, uint32_t len, no_copy_t){
 		*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), no_copy);
 	}
-	ValueItem::ValueItem(int8_t* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len), as_refrence);
+	ValueItem::ValueItem(int8_t* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len), as_reference);
 	}
-	ValueItem::ValueItem(uint8_t* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len), as_refrence);
+	ValueItem::ValueItem(uint8_t* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len), as_reference);
 	}
-	ValueItem::ValueItem(int16_t* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len), as_refrence);
+	ValueItem::ValueItem(int16_t* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len), as_reference);
 	}
-	ValueItem::ValueItem(uint16_t* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len), as_refrence);
+	ValueItem::ValueItem(uint16_t* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len), as_reference);
 	}
-	ValueItem::ValueItem(int32_t* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len), as_refrence);
+	ValueItem::ValueItem(int32_t* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len), as_reference);
 	}
-	ValueItem::ValueItem(uint32_t* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len), as_refrence);
+	ValueItem::ValueItem(uint32_t* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len), as_reference);
 	}
-	ValueItem::ValueItem(int64_t* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len), as_refrence);
+	ValueItem::ValueItem(int64_t* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len), as_reference);
 	}
-	ValueItem::ValueItem(uint64_t* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len), as_refrence);
+	ValueItem::ValueItem(uint64_t* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len), as_reference);
 	}
-	ValueItem::ValueItem(float* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len), as_refrence);
+	ValueItem::ValueItem(float* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len), as_reference);
 	}
-	ValueItem::ValueItem(double* vals, uint32_t len, as_refrence_t){
-		*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), as_refrence);
+	ValueItem::ValueItem(double* vals, uint32_t len, as_reference_t){
+		*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), as_reference);
 	}
 
 	ValueItem::ValueItem(typed_lgr<struct Task> task) {
@@ -2725,113 +2725,113 @@ namespace art{
 		meta = VType::type_identifier;
 	}
 
-	ValueItem::ValueItem(Structure* str, as_refrence_t){
+	ValueItem::ValueItem(Structure* str, as_reference_t){
 		val = str;
 		meta = VType::struct_;
 		meta.as_ref = true;
 	}
 	
-	ValueItem::ValueItem(ValueItem& ref, as_refrence_t){
+	ValueItem::ValueItem(ValueItem& ref, as_reference_t){
 		val = ref.val;
 		meta = ref.meta;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(bool& val, as_refrence_t){
+	ValueItem::ValueItem(bool& val, as_reference_t){
 		this->val = &val;
 		meta = VType::boolean;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(int8_t& val, as_refrence_t){
+	ValueItem::ValueItem(int8_t& val, as_reference_t){
 		this->val = &val;
 		meta = VType::i8;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(uint8_t& val, as_refrence_t){
+	ValueItem::ValueItem(uint8_t& val, as_reference_t){
 		this->val = &val;
 		meta = VType::ui8;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(int16_t& val, as_refrence_t){
+	ValueItem::ValueItem(int16_t& val, as_reference_t){
 		this->val = &val;
 		meta = VType::i16;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(uint16_t& val, as_refrence_t){
+	ValueItem::ValueItem(uint16_t& val, as_reference_t){
 		this->val = &val;
 		meta = VType::ui16;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(int32_t& val, as_refrence_t){
+	ValueItem::ValueItem(int32_t& val, as_reference_t){
 		this->val = &val;
 		meta = VType::i32;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(uint32_t& val, as_refrence_t){
+	ValueItem::ValueItem(uint32_t& val, as_reference_t){
 		this->val = &val;
 		meta = VType::ui32;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(int64_t& val, as_refrence_t){
+	ValueItem::ValueItem(int64_t& val, as_reference_t){
 		this->val = &val;
 		meta = VType::i64;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(uint64_t& val, as_refrence_t){
+	ValueItem::ValueItem(uint64_t& val, as_reference_t){
 		this->val = &val;
 		meta = VType::ui64;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(float& val, as_refrence_t){
+	ValueItem::ValueItem(float& val, as_reference_t){
 		this->val = &val;
 		meta = VType::flo;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(double& val, as_refrence_t){
+	ValueItem::ValueItem(double& val, as_reference_t){
 		this->val = &val;
 		meta = VType::doub;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(std::string& val, as_refrence_t){
+	ValueItem::ValueItem(std::string& val, as_reference_t){
 		this->val = &val;
 		meta = VType::string;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(list_array<ValueItem>& val, as_refrence_t){
+	ValueItem::ValueItem(list_array<ValueItem>& val, as_reference_t){
 		this->val = &val;
 		meta = VType::uarr;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(std::exception_ptr&val, as_refrence_t){
+	ValueItem::ValueItem(std::exception_ptr&val, as_reference_t){
 		this->val = &val;
 		meta = VType::except_value;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(std::chrono::steady_clock::time_point&val, as_refrence_t){
+	ValueItem::ValueItem(std::chrono::steady_clock::time_point&val, as_reference_t){
 		this->val = &val;
 		meta = VType::time_point;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(std::unordered_map<ValueItem, ValueItem>&val, as_refrence_t){
+	ValueItem::ValueItem(std::unordered_map<ValueItem, ValueItem>&val, as_reference_t){
 		this->val = &val;
 		meta = VType::map;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(std::unordered_set<ValueItem>&val, as_refrence_t){
+	ValueItem::ValueItem(std::unordered_set<ValueItem>&val, as_reference_t){
 		this->val = &val;
 		meta = VType::set;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(typed_lgr<struct Task>& val, as_refrence_t){
+	ValueItem::ValueItem(typed_lgr<struct Task>& val, as_reference_t){
 		this->val = &val;
 		meta = VType::async_res;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(ValueMeta&val, as_refrence_t){
+	ValueItem::ValueItem(ValueMeta&val, as_reference_t){
 		this->val = &val;
 		meta = VType::type_identifier;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(typed_lgr<class FuncEnvironment>&val, as_refrence_t){
+	ValueItem::ValueItem(typed_lgr<class FuncEnvironment>&val, as_reference_t){
 		this->val = &val;
 		meta = VType::function;
 		meta.as_ref = true;
@@ -2841,133 +2841,133 @@ namespace art{
 
 
 
-	ValueItem::ValueItem(const ValueItem& ref, as_refrence_t){
+	ValueItem::ValueItem(const ValueItem& ref, as_reference_t){
 		val = ref.val;
 		meta = ref.meta;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const bool& val, as_refrence_t){
+	ValueItem::ValueItem(const bool& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::boolean;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const int8_t& val, as_refrence_t){
+	ValueItem::ValueItem(const int8_t& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::i8;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const uint8_t& val, as_refrence_t){
+	ValueItem::ValueItem(const uint8_t& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::ui8;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const int16_t& val, as_refrence_t){
+	ValueItem::ValueItem(const int16_t& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::i16;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const uint16_t& val, as_refrence_t){
+	ValueItem::ValueItem(const uint16_t& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::ui16;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const int32_t& val, as_refrence_t){
+	ValueItem::ValueItem(const int32_t& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::i32;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const uint32_t& val, as_refrence_t){
+	ValueItem::ValueItem(const uint32_t& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::ui32;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const int64_t& val, as_refrence_t){
+	ValueItem::ValueItem(const int64_t& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::i64;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const uint64_t& val, as_refrence_t){
+	ValueItem::ValueItem(const uint64_t& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::ui64;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const float& val, as_refrence_t){
+	ValueItem::ValueItem(const float& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::flo;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const double& val, as_refrence_t){
+	ValueItem::ValueItem(const double& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::doub;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const Structure* str, as_refrence_t){
+	ValueItem::ValueItem(const Structure* str, as_reference_t){
 		val = const_cast<Structure*>(str);
 		meta = VType::struct_;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const std::string& val, as_refrence_t){
+	ValueItem::ValueItem(const std::string& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::string;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const list_array<ValueItem>& val, as_refrence_t){
+	ValueItem::ValueItem(const list_array<ValueItem>& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::uarr;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const std::exception_ptr&val, as_refrence_t){
+	ValueItem::ValueItem(const std::exception_ptr&val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::except_value;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const std::chrono::steady_clock::time_point&val, as_refrence_t){
+	ValueItem::ValueItem(const std::chrono::steady_clock::time_point&val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::time_point;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const std::unordered_map<ValueItem, ValueItem>&val, as_refrence_t){
+	ValueItem::ValueItem(const std::unordered_map<ValueItem, ValueItem>&val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::map;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const std::unordered_set<ValueItem>&val, as_refrence_t){
+	ValueItem::ValueItem(const std::unordered_set<ValueItem>&val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::set;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const typed_lgr<struct Task>& val, as_refrence_t){
+	ValueItem::ValueItem(const typed_lgr<struct Task>& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::async_res;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const ValueMeta&val, as_refrence_t){
+	ValueItem::ValueItem(const ValueMeta&val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::type_identifier;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const typed_lgr<class FuncEnvironment>&val, as_refrence_t){
+	ValueItem::ValueItem(const typed_lgr<class FuncEnvironment>&val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::function;
 		meta.as_ref = true;
@@ -3001,18 +3001,18 @@ namespace art{
 	ValueItem::ValueItem(const array_t<double>& val) : ValueItem(val.data, val.length) {}
 	ValueItem::ValueItem(const array_t<ValueItem>& val) : ValueItem(val.data, val.length) {}
 	
-	ValueItem::ValueItem(const array_ref_t<bool>& val) : ValueItem((uint8_t*)val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<int8_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<uint8_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<int16_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<uint16_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<int32_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<uint32_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<int64_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<uint64_t>& val) : ValueItem(val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<float>& val) : ValueItem(val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<double>& val) : ValueItem(val.data, val.length, as_refrence) {}
-	ValueItem::ValueItem(const array_ref_t<ValueItem>& val) : ValueItem(val.data, val.length, as_refrence) {}
+	ValueItem::ValueItem(const array_ref_t<bool>& val) : ValueItem((uint8_t*)val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<int8_t>& val) : ValueItem(val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<uint8_t>& val) : ValueItem(val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<int16_t>& val) : ValueItem(val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<uint16_t>& val) : ValueItem(val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<int32_t>& val) : ValueItem(val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<uint32_t>& val) : ValueItem(val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<int64_t>& val) : ValueItem(val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<uint64_t>& val) : ValueItem(val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<float>& val) : ValueItem(val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<double>& val) : ValueItem(val.data, val.length, as_reference) {}
+	ValueItem::ValueItem(const array_ref_t<ValueItem>& val) : ValueItem(val.data, val.length, as_reference) {}
 #pragma endregion
 
 	ValueItem::~ValueItem() {
@@ -5001,7 +5001,7 @@ namespace art{
 			return;
 		if(needAllocType(meta.vtype)){
 			void(*destructor)(void*) = nullptr;
-			bool(*deph)(void*) = nullptr;
+			bool(*depth)(void*) = nullptr;
 			switch (meta.vtype) {
 			case VType::raw_arr_i8:
 			case VType::raw_arr_ui8:
@@ -5023,7 +5023,7 @@ namespace art{
 				break;
 			case VType::uarr:
 				destructor = defaultDestructor<list_array<ValueItem>>;
-				deph = calc_safe_deph_arr;
+				depth = calc_safe_depth_arr;
 				break;
 			case VType::string:
 				destructor = defaultDestructor<std::string>;
@@ -5046,7 +5046,7 @@ namespace art{
 			default:
 				break;
 			}
-			val = new lgr(val, deph, destructor);
+			val = new lgr(val, depth, destructor);
 		}else{
 			void(*destructor)(void*) = nullptr;
 			void* new_val = nullptr;
@@ -5147,25 +5147,25 @@ namespace art{
 		if(start > end) start = end;
 		ValueMeta res_meta = meta;
 		res_meta.val_len = end - start;
-		if(end == start) return ValueItem(nullptr, res_meta, as_refrence);
+		if(end == start) return ValueItem(nullptr, res_meta, as_reference);
 		switch (meta.vtype) {
 		case VType::saarr:
 		case VType::faarr:
-			return ValueItem((ValueItem*)val + start, res_meta, as_refrence);
+			return ValueItem((ValueItem*)val + start, res_meta, as_reference);
 		case VType::raw_arr_ui8:
 		case VType::raw_arr_i8:
-			return ValueItem((uint8_t*)val + start, res_meta, as_refrence);
+			return ValueItem((uint8_t*)val + start, res_meta, as_reference);
 		case VType::raw_arr_ui16:
 		case VType::raw_arr_i16:
-			return ValueItem((uint16_t*)val + start, res_meta, as_refrence);
+			return ValueItem((uint16_t*)val + start, res_meta, as_reference);
 		case VType::raw_arr_ui32:
 		case VType::raw_arr_i32:
 		case VType::raw_arr_flo:
-			return ValueItem((uint32_t*)val + start, res_meta, as_refrence);
+			return ValueItem((uint32_t*)val + start, res_meta, as_reference);
 		case VType::raw_arr_ui64:
 		case VType::raw_arr_i64:
 		case VType::raw_arr_doub:
-			return ValueItem((uint64_t*)val + start, res_meta, as_refrence);
+			return ValueItem((uint64_t*)val + start, res_meta, as_reference);
 		
 		default:
 			throw InvalidOperation("Can't make slice of this type: " + enum_to_string(meta.vtype));
@@ -5566,9 +5566,9 @@ namespace art{
 				return i->second;
 			}
 			else if(item.meta.vtype == VType::set)
-				throw InvalidOperation("Set iterator not support gettting item refrence by iterator");
+				throw InvalidOperation("Set iterator not support gettting item reference by iterator");
 			else if(item.meta.vtype == VType::struct_)
-				throw InvalidOperation("Structure not support gettting item refrence by iterator");
+				throw InvalidOperation("Structure not support gettting item reference by iterator");
 			else
 				throw InvalidOperation("ValueItem not iterable");
 		}
@@ -5584,9 +5584,9 @@ namespace art{
 				return &i->second;
 			}
 			else if(item.meta.vtype == VType::set)
-				throw InvalidOperation("Set iterator not support gettting item refrence by iterator");
+				throw InvalidOperation("Set iterator not support gettting item reference by iterator");
 			else if(item.meta.vtype == VType::struct_)
-				throw InvalidOperation("Structure not support gettting item refrence by iterator");
+				throw InvalidOperation("Structure not support gettting item reference by iterator");
 			else
 				throw InvalidOperation("ValueItem not iterable");
 		}
@@ -5634,7 +5634,7 @@ namespace art{
 				i->second = item;
 			}
 			else if(item.meta.vtype == VType::set)
-				throw InvalidOperation("Set iterator not support gettting item refrence by iterator");
+				throw InvalidOperation("Set iterator not support getting item reference by iterator");
 			else if(item.meta.vtype == VType::struct_){
 				Structure& st = (Structure&)(ValueItem&)iterator_data;
 				if(st.has_method(symbols::structures::iterable::set, ClassAccess::pub))
@@ -5689,7 +5689,7 @@ namespace art{
 		ValueItem ValueItemConstIterator::get() const { return iterator.get(); }
 #pragma endregion
 #pragma region MethodInfo
-	MethodInfo::MethodInfo(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	MethodInfo::MethodInfo(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
 		this->name = name;
 		this->ref = new FuncEnvironment(method, false);
 		this->access = access;
@@ -5748,15 +5748,15 @@ namespace art{
 #pragma endregion
 #pragma region AttachAVirtualTable
 	AttachAVirtualTable::AttachAVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move, typed_lgr<class FuncEnvironment> compare){
-		this->destructor = destructor ? (Enviropment)destructor->get_func_ptr() : nullptr;
-		this->copy = copy ? (Enviropment)copy->get_func_ptr() : nullptr;
-		this->move = move ? (Enviropment)move->get_func_ptr() : nullptr;
-		this->compare = compare ? (Enviropment)compare->get_func_ptr() : nullptr;
+		this->destructor = destructor ? (Environment)destructor->get_func_ptr() : nullptr;
+		this->copy = copy ? (Environment)copy->get_func_ptr() : nullptr;
+		this->move = move ? (Environment)move->get_func_ptr() : nullptr;
+		this->compare = compare ? (Environment)compare->get_func_ptr() : nullptr;
 		table_size = methods.size();
-		Enviropment* table = getMethods(table_size);
+		Environment* table = getMethods(table_size);
 		MethodInfo* table_additional_info = getMethodsInfo(table_size);
 		for (uint64_t i = 0; i < table_size; i++) {
-			table[i] = (Enviropment)(methods[i].ref? methods[i].ref->get_func_ptr() : nullptr);
+			table[i] = (Environment)(methods[i].ref? methods[i].ref->get_func_ptr() : nullptr);
 			new(table_additional_info + i)MethodInfo(methods[i]);
 		}
 		auto tmp = getAfterMethods();
@@ -5770,7 +5770,7 @@ namespace art{
 	AttachAVirtualTable* AttachAVirtualTable::create(list_array<MethodInfo>& methods,  typed_lgr<class FuncEnvironment> destructor,  typed_lgr<class FuncEnvironment> copy,  typed_lgr<class FuncEnvironment> move,  typed_lgr<class FuncEnvironment> compare){
 		size_t to_allocate = 
 			sizeof(AttachAVirtualTable) 
-			+ sizeof(Enviropment) * methods.size() 
+			+ sizeof(Environment) * methods.size() 
 			+ sizeof(MethodInfo) * methods.size() 
 			+ sizeof(typed_lgr<class FuncEnvironment>) * 4 
 			+ sizeof(std::string)
@@ -5785,7 +5785,7 @@ namespace art{
 		free(table);
 	}
 	AttachAVirtualTable::~AttachAVirtualTable(){
-		MethodInfo* table_additional_info = (MethodInfo*)(data + sizeof(Enviropment) * table_size);
+		MethodInfo* table_additional_info = (MethodInfo*)(data + sizeof(Environment) * table_size);
 		for (uint64_t i = 0; i < table_size; i++) 
 			table_additional_info[i].~MethodInfo();
 			
@@ -5828,11 +5828,11 @@ namespace art{
 	}
 	MethodInfo* AttachAVirtualTable::getMethodsInfo(uint64_t& size){
 		size = table_size;
-		return (MethodInfo*)(data + sizeof(Enviropment) * table_size);
+		return (MethodInfo*)(data + sizeof(Environment) * table_size);
 	}
 	const MethodInfo* AttachAVirtualTable::getMethodsInfo(uint64_t& size) const {
 		size = table_size;
-		return (MethodInfo*)(data + sizeof(Enviropment) * table_size);
+		return (MethodInfo*)(data + sizeof(Environment) * table_size);
 	}
 	MethodInfo& AttachAVirtualTable::getMethodInfo(uint64_t index) {
 		if(index >= table_size) throw InvalidOperation("Index out of range");
@@ -5860,17 +5860,17 @@ namespace art{
 		}
 		throw InvalidOperation("Method not found");
 	}
-	Enviropment* AttachAVirtualTable::getMethods(uint64_t& size){
+	Environment* AttachAVirtualTable::getMethods(uint64_t& size){
 		size = table_size;
-		return (Enviropment*)data;
+		return (Environment*)data;
 	}
-	Enviropment AttachAVirtualTable::getMethod(uint64_t index) const {
+	Environment AttachAVirtualTable::getMethod(uint64_t index) const {
 		if(index >= table_size) throw InvalidOperation("Index out of range");
-		Enviropment* table = (Enviropment*)data;
+		Environment* table = (Environment*)data;
 		return table[index];
 	}
-	Enviropment AttachAVirtualTable::getMethod(const std::string& name, ClassAccess access) const {
-		return (Enviropment)getMethodInfo(name,access).ref->get_func_ptr();
+	Environment AttachAVirtualTable::getMethod(const std::string& name, ClassAccess access) const {
+		return (Environment)getMethodInfo(name,access).ref->get_func_ptr();
 	}
 
 	uint64_t AttachAVirtualTable::getMethodIndex(const std::string& name, ClassAccess access) const {
@@ -5896,10 +5896,10 @@ namespace art{
 		getAfterMethods()->name = name;
 	}
 	AttachAVirtualTable::AfterMethods* AttachAVirtualTable::getAfterMethods(){
-		return (AfterMethods*)(data + sizeof(Enviropment) * table_size + sizeof(MethodInfo) * table_size);
+		return (AfterMethods*)(data + sizeof(Environment) * table_size + sizeof(MethodInfo) * table_size);
 	}
 	const AttachAVirtualTable::AfterMethods* AttachAVirtualTable::getAfterMethods() const {
-		return (AfterMethods*)(data + sizeof(Enviropment) * table_size + sizeof(MethodInfo) * table_size);
+		return (AfterMethods*)(data + sizeof(Environment) * table_size + sizeof(MethodInfo) * table_size);
 	}
 #pragma endregion
 
@@ -5980,15 +5980,15 @@ namespace art{
 		throw InvalidOperation("Method not found");
 	}
 
-	Enviropment AttachADynamicVirtualTable::getMethod(uint64_t index) const {
+	Environment AttachADynamicVirtualTable::getMethod(uint64_t index) const {
 		if(index >= methods.size()) throw InvalidOperation("Index out of range");
-		return (Enviropment)methods[index].ref->get_func_ptr();
+		return (Environment)methods[index].ref->get_func_ptr();
 	}
-	Enviropment AttachADynamicVirtualTable::getMethod(const std::string& name, ClassAccess access) const {
-		return (Enviropment)getMethodInfo(name, access).ref->get_func_ptr();
+	Environment AttachADynamicVirtualTable::getMethod(const std::string& name, ClassAccess access) const {
+		return (Environment)getMethodInfo(name, access).ref->get_func_ptr();
 	}
 
-	void AttachADynamicVirtualTable::addMethod(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	void AttachADynamicVirtualTable::addMethod(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
 		methods.push_back(MethodInfo(name, method, access, return_values, arguments, tags, owner_name));
 	}
 	void AttachADynamicVirtualTable::addMethod(const std::string& name, const typed_lgr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
@@ -6294,7 +6294,7 @@ namespace art{
 			char* ptr = data;
 			ptr += item->offset;
 			ptr += item->bit_offset / 8;
-			ValueItem(ptr, item->type, as_refrence) = set;
+			ValueItem(ptr, item->type, as_reference) = set;
 			return;
 		}
 		switch (item->type.vtype) {
@@ -6498,7 +6498,7 @@ namespace art{
 			throw NotImplementedException();
 		}
 	}
-	Enviropment Structure::table_get(uint64_t fn_id) const {
+	Environment Structure::table_get(uint64_t fn_id) const {
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			throw InvalidArguments("vtable disabled");
@@ -6511,7 +6511,7 @@ namespace art{
 			throw NotImplementedException();
 		}
 	}
-	Enviropment Structure::table_get_dynamic(const std::string& name, ClassAccess access) const {
+	Environment Structure::table_get_dynamic(const std::string& name, ClassAccess access) const {
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			throw InvalidArguments("vtable disabled");
@@ -6524,7 +6524,7 @@ namespace art{
 			throw NotImplementedException();
 		}
 	}
-	void Structure::add_method(const std::string& name, Enviropment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	void Structure::add_method(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
 		if(vtable_mode != VTableMode::AttachADynamicVirtualTable)
 			throw InvalidOperation("vtable must be dynamic to add new method");
 		((AttachADynamicVirtualTable*)get_vtable())->addMethod(name, method, access, return_values, arguments, tags, owner_name);
@@ -6727,7 +6727,7 @@ namespace art{
 		}
 		case VTableMode::AttachAVirtualTable:
 			if(reinterpret_cast<AttachAVirtualTable*>(vtable)->copy){
-				ValueItem args = {ValueItem(dst,as_refrence), ValueItem(src,as_refrence), true};
+				ValueItem args = {ValueItem(dst,as_reference), ValueItem(src,as_reference), true};
 				auto res = reinterpret_cast<AttachAVirtualTable*>(vtable)->copy((ValueItem*)args.getSourcePtr(),3);
 				if(res)
 					delete res;
@@ -6736,7 +6736,7 @@ namespace art{
 			break;
 		case VTableMode::AttachADynamicVirtualTable:
 			if(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->copy){
-				art::CXX::cxxCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->copy, ValueItem(dst,as_refrence), ValueItem(src,as_refrence), true);
+				art::CXX::cxxCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->copy, ValueItem(dst,as_reference), ValueItem(src,as_reference), true);
 			}
 			else throw NotImplementedException();
 			break;
@@ -6843,7 +6843,7 @@ namespace art{
 			throw NotImplementedException();
 		}	
 	}
-	int8_t Structure::compare_refrence(Structure* a, Structure* b){
+	int8_t Structure::compare_reference(Structure* a, Structure* b){
 		ptrdiff_t diff = (char*)a - (char*)b;
 		return 
 			diff < 0 ? -1 :

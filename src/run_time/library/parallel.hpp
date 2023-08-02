@@ -18,7 +18,7 @@ namespace art {
 			ValueItem* createProxy_EventSystem(ValueItem*, uint32_t);
 			ValueItem* createProxy_TaskLimiter(ValueItem*, uint32_t);
 
-			//args: [func, (fault handler), (timeout), (used_task_local)], sarr,farr[args....]
+			//args: [func, (fault handler), (timeout), (used_task_local)], saarr,faarr[args....]
 			ValueItem* createProxy_TaskQuery(ValueItem*, uint32_t);
 			ValueItem* construct_Task(ValueItem*, uint32_t);
 			ValueItem* createProxy_TaskGroup(ValueItem*, uint32_t);
@@ -29,7 +29,7 @@ namespace art {
 			ValueItem* sleep(ValueItem*, uint32_t);
 			ValueItem* sleep_until(ValueItem*, uint32_t);
 			ValueItem* task_id(ValueItem*, uint32_t);
-			ValueItem* check_cancelation(ValueItem*, uint32_t);
+			ValueItem* check_cancellation(ValueItem*, uint32_t);
 			ValueItem* self_cancel(ValueItem*, uint32_t);
 			ValueItem* is_task(ValueItem*, uint32_t);
 		}
@@ -70,7 +70,7 @@ namespace art {
 		//returns task that wait native thread and return function result
 		ValueItem* createAsyncThread(ValueItem*, uint32_t);
 
-		//returns task, args: [func, (fault handler), (timeout), (used_task_local)], sarr,farr[args....]
+		//returns task, args: [func, (fault handler), (timeout), (used_task_local)], saarr,faarr[args....]
 		ValueItem* createTask(ValueItem*, uint32_t);
 	}
 }

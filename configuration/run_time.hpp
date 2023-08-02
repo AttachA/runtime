@@ -44,9 +44,9 @@ namespace configuration {
         constexpr bool allow_intern_access = false;
     }
 }
-#define _configuration_run_time_fault_action_modifable true
-#define _configuration_run_time_break_point_action_modifable true
-#define _configuration_run_time_exception_on_language_routine_action_modifable true
-#define _configuration_run_time_allow_intern_access_modifable false
-#define _configuration_run_time_enable_thread_naming_modifable true
+#define _configuration_run_time_fault_action_modifiable true
+#define _configuration_run_time_break_point_action_modifiable true
+#define _configuration_run_time_exception_on_language_routine_action_modifiable true
+#define _configuration_run_time_allow_intern_access_modifiable false
+#define _configuration_run_time_enable_thread_naming_modifiable true
 #endif /* CONFIGURATION_RUN_TIME */

@@ -9,25 +9,25 @@
 #include "attacha_abi_structs.hpp"
 namespace art{
 	class ValueEnvironment {
-		std::unordered_map<std::string, ValueEnvironment*> enviropments;
+		std::unordered_map<std::string, ValueEnvironment*> environments;
 	public:
 		ValueItem value;
-		ValueEnvironment*& joinEnviropment(const std::string& str) {
-			return enviropments[str];
+		ValueEnvironment*& joinEnvironment(const std::string& str) {
+			return environments[str];
 		}
-		bool hasEnviropment(const std::string& str) {
-			return enviropments.contains(str);
+		bool hasEnvironment(const std::string& str) {
+			return environments.contains(str);
 		}
-		void removeEnviropment(const std::string& str) {
-			delete enviropments[str];
-			enviropments.erase(str);
+		void removeEnvironment(const std::string& str) {
+			delete environments[str];
+			environments.erase(str);
 		}
 		void clear() {
-			for (auto& [key, value] : enviropments)
+			for (auto& [key, value] : environments)
 				delete value;
-			enviropments.clear();
+			environments.clear();
 			value = nullptr;
 		}
 	};
-	extern ValueEnvironment enviropments;
+	extern ValueEnvironment environments;
 }

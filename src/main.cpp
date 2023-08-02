@@ -33,7 +33,7 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	console::print(&msq, 1);
 
 
-	FuncEviroBuilder build;
+	FuncEnviroBuilder build;
 	auto fn_console_set_text_color = build.create_constant("console set_text_color");
 	auto fn_console_printf = build.create_constant("console printf");
 	auto text = build.create_constant("The test text, Current color: r%d,g%d,b%d\n");
@@ -66,16 +66,16 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 
 
 	{
-		FuncEviroBuilder build;
+		FuncEnviroBuilder build;
 		auto fn_Yay = build.create_constant("Yay");
 		build.call_and_ret(fn_Yay);
 		build.O_load_func("Yay");
 	}
-	typed_lgr<FuncEnvironment> env = FuncEnvironment::enviropment("sleep_test");
-	////Task::start(new Task(FuncEnvironment::enviropment("4"), nullptr));
-	//Task::start(new Task(FuncEnvironment::enviropment("3"), nullptr));
-	//Task::start(new Task(FuncEnvironment::enviropment("2"), nullptr));
-	//Task::start(new Task(FuncEnvironment::enviropment("1"), nullptr));
+	typed_lgr<FuncEnvironment> env = FuncEnvironment::environment("sleep_test");
+	////Task::start(new Task(FuncEnvironment::environment("4"), nullptr));
+	//Task::start(new Task(FuncEnvironment::environment("3"), nullptr));
+	//Task::start(new Task(FuncEnvironment::environment("2"), nullptr));
+	//Task::start(new Task(FuncEnvironment::environment("1"), nullptr));
 	
 	Task::await_end_tasks(true);
 	try {
@@ -102,8 +102,8 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	list_array<typed_lgr<Task>> tasks;
 
 	//for (size_t i = 0; i < 10000; i++) {
-	//	tasks.push_back(new Task(FuncEnvironment::enviropment("start"), noting));
-	//	tasks.push_back(new Task(FuncEnvironment::enviropment("1"), noting));
+	//	tasks.push_back(new Task(FuncEnvironment::environment("start"), noting));
+	//	tasks.push_back(new Task(FuncEnvironment::environment("1"), noting));
 	//	tasks.push_back(new Task(env, noting));
 	//}
 	//

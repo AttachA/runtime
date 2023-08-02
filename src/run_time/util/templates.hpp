@@ -4,141 +4,141 @@
 #include "../attacha_abi.hpp"
 namespace art{
     namespace templates{	
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct static_funtion_info {
-            using return_type = ReturmTyp;
-            inline static ValueMeta arguments[sizeof...(Argumetns)? sizeof...(Argumetns) : 1] = { Type_as_ValueMeta<Argumetns>()... };
-            using arguments_type = std::tuple<Argumetns...>;
-            constexpr static size_t arguments_count = sizeof...(Argumetns);
+        template<typename ReturnTyp, typename ...Arguments>
+        struct static_function_info {
+            using return_type = ReturnTyp;
+            inline static ValueMeta arguments[sizeof...(Arguments)? sizeof...(Arguments) : 1] = { Type_as_ValueMeta<Arguments>()... };
+            using arguments_type = std::tuple<Arguments...>;
+            constexpr static size_t arguments_count = sizeof...(Arguments);
             constexpr static bool is_static = true;
             constexpr static bool always_perfect = 
-                sizeof...(Argumetns) == 2
-                && std::is_same_v<ReturmTyp, ValueItem*>
-                && std::is_same_v<std::tuple<Argumetns...>, std::tuple<ValueItem*, uint32_t>>;
+                sizeof...(Arguments) == 2
+                && std::is_same_v<ReturnTyp, ValueItem*>
+                && std::is_same_v<std::tuple<Arguments...>, std::tuple<ValueItem*, uint32_t>>;
         };
         
 
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct method_funtion_info {
-            using return_type = ReturmTyp;
-            inline static ValueMeta arguments[sizeof...(Argumetns)? sizeof...(Argumetns) : 1] = { Type_as_ValueMeta<Argumetns>()... };
-            using arguments_type = std::tuple<Argumetns...>;
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct method_function_info {
+            using return_type = ReturnTyp;
+            inline static ValueMeta arguments[sizeof...(Arguments)? sizeof...(Arguments) : 1] = { Type_as_ValueMeta<Arguments>()... };
+            using arguments_type = std::tuple<Arguments...>;
             using class_type = Class_;
-            constexpr static size_t arguments_count = sizeof...(Argumetns);
+            constexpr static size_t arguments_count = sizeof...(Arguments);
             constexpr static bool is_static = false;
             constexpr static bool always_perfect = 
-                sizeof...(Argumetns) == 2
-                && std::is_same_v<ReturmTyp, ValueItem*>
-                && std::is_same_v<std::tuple<Argumetns...>, std::tuple<ValueItem*, uint32_t>>;
+                sizeof...(Arguments) == 2
+                && std::is_same_v<ReturnTyp, ValueItem*>
+                && std::is_same_v<std::tuple<Arguments...>, std::tuple<ValueItem*, uint32_t>>;
         };
         
 
-        template<typename> struct funtion_info {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...)> : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) &>  : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) &&>  : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) const> : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) const &> : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) const &&> : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) volatile> : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) volatile &> : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) volatile &&> : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) const volatile> : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) const volatile &> : static_funtion_info<ReturmTyp, Argumetns...> {};
-        template<typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Argumetns...) const volatile &&> : static_funtion_info<ReturmTyp, Argumetns...> {};
+        template<typename> struct function_info {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...)> : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) &>  : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) &&>  : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) const> : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) const &> : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) const &&> : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) volatile> : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) volatile &> : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) volatile &&> : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) const volatile> : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) const volatile &> : static_function_info<ReturnTyp, Arguments...> {};
+        template<typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Arguments...) const volatile &&> : static_function_info<ReturnTyp, Arguments...> {};
 
 
 
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...)> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) &> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) &&> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const &> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const &&> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) volatile> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) volatile &> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) volatile &&> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const volatile> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const volatile &> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
-        template<typename Class_, typename ReturmTyp, typename ...Argumetns>
-        struct funtion_info<ReturmTyp(Class_::*)(Argumetns...) const volatile &&> : method_funtion_info<Class_, ReturmTyp, Argumetns...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...)> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) &> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) &&> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) const> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) const &> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) const &&> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) volatile> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) volatile &> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) volatile &&> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) const volatile> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) const volatile &> : method_function_info<Class_, ReturnTyp, Arguments...> {};
+        template<typename Class_, typename ReturnTyp, typename ...Arguments>
+        struct function_info<ReturnTyp(Class_::*)(Arguments...) const volatile &&> : method_function_info<Class_, ReturnTyp, Arguments...> {};
 
 
 
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp()> : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() &>  : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() &&>  : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() const> : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() const &> : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() const &&> : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() volatile> : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() volatile &> : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() volatile &&> : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() const volatile> : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() const volatile &> : static_funtion_info<ReturmTyp> {};
-        template<typename ReturmTyp>
-        struct funtion_info<ReturmTyp() const volatile &&> : static_funtion_info<ReturmTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp()> : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() &>  : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() &&>  : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() const> : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() const &> : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() const &&> : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() volatile> : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() volatile &> : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() volatile &&> : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() const volatile> : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() const volatile &> : static_function_info<ReturnTyp> {};
+        template<typename ReturnTyp>
+        struct function_info<ReturnTyp() const volatile &&> : static_function_info<ReturnTyp> {};
 
 
 
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)()> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() &> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() &&> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() const> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() const &> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() const &&> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() volatile> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() volatile &> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() volatile &&> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() const volatile> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() const volatile &> : method_funtion_info<Class_, ReturmTyp> {};
-        template<typename Class_, typename ReturmTyp>
-        struct funtion_info<ReturmTyp(Class_::*)() const volatile &&> : method_funtion_info<Class_, ReturmTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)()> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() &> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() &&> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() const> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() const &> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() const &&> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() volatile> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() volatile &> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() volatile &&> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() const volatile> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() const volatile &> : method_function_info<Class_, ReturnTyp> {};
+        template<typename Class_, typename ReturnTyp>
+        struct function_info<ReturnTyp(Class_::*)() const volatile &&> : method_function_info<Class_, ReturnTyp> {};
 
         template<typename T>
         struct store_value {

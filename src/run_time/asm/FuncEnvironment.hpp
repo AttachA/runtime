@@ -45,20 +45,20 @@ namespace art {
 				}
 			};
 			std::vector<typed_lgr<FuncEnvironment>> local_funcs;
-			list_array<typed_lgr<FuncEnvironment>> used_enviros;
+			list_array<typed_lgr<FuncEnvironment>> used_environs;
 			list_array<ValueItem> values;
 			std::vector<uint8_t> cross_code;
-			Enviropment env = nullptr;
+			Environment env = nullptr;
 			FuncHandle* parent = nullptr;
 			uint8_t* frame = nullptr;
 			std::atomic_size_t ref_count = 0;
 			
 			FuncType _type : 4;
-			bool is_cheap : 1;//function without context switchs and with fast code
-			bool is_patchable : 1 = true;//function without context switchs and with fast code
+			bool is_cheap : 1;//function without context switches and with fast code
+			bool is_patchable : 1 = true;//function without context switches and with fast code
 			
 
-			inner_handle(Enviropment env, bool is_cheap);
+			inner_handle(Environment env, bool is_cheap);
 			inner_handle(void* func, const DynamicCall::FunctionTemplate& template_func, bool is_cheap);
 			inner_handle(void* func, ProxyFunction proxy_func, bool is_cheap);
 			inner_handle(const std::vector<uint8_t>& code, bool is_cheap);
@@ -135,7 +135,7 @@ namespace art {
 			func_ = FuncHandle::make_func_handle(env);
 		}
 	public:
-		FuncEnvironment(Enviropment env, bool can_be_unloaded = false, bool is_cheap = false) : can_be_unloaded(can_be_unloaded){
+		FuncEnvironment(Environment env, bool can_be_unloaded = false, bool is_cheap = false) : can_be_unloaded(can_be_unloaded){
 			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(env, is_cheap));
 		}
 		FuncEnvironment(void* func, const DynamicCall::FunctionTemplate& template_func, bool can_be_unloaded = false, bool is_cheap = false) : can_be_unloaded(can_be_unloaded){
@@ -188,14 +188,14 @@ namespace art {
 
 		static void fastHotPatch(const std::string& func_name, FuncHandle::inner_handle* new_enviro);
 		static void fastHotPatch(const patch_list& patches);
-		static typed_lgr<FuncEnvironment> enviropment(const std::string& func_name);
+		static typed_lgr<FuncEnvironment> environment(const std::string& func_name);
 		static ValueItem* callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async);
 
 		static bool Exists(const std::string& symbol_name);
 		static void Load(typed_lgr<FuncEnvironment> fn, const std::string& symbol_name);
 		static void Unload(const std::string& func_name);
 		static void ForceUnload(const std::string& func_name);
-		static void AddNative(Enviropment env,const std::string& func_name, bool can_be_unloaded = true, bool is_cheap = false);
+		static void AddNative(Environment env,const std::string& func_name, bool can_be_unloaded = true, bool is_cheap = false);
 		template<class _FN>
 		static void AddNative(_FN env,const std::string& func_name, bool can_be_unloaded = true, bool is_cheap = false);
 
@@ -223,6 +223,6 @@ namespace art {
 		std::string to_string() const;
 		const std::vector<uint8_t>& get_cross_code();
 		void forceUnload();
-		static void clear_enviros();
+		static void clear_environs();
 	};
 }

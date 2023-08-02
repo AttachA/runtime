@@ -321,7 +321,7 @@ namespace art{
 							break;
 						case VType::string:
 							if (to_add.vsize == 1) {
-								if (to_add.is_modifable)
+								if (to_add.is_modifiable)
 									call.AddPtrArgument(((std::string*)arg)->data());
 								else
 									call.AddArray(((std::string*)arg)->c_str(), ((std::string*)arg)->size());

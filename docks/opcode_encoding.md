@@ -132,7 +132,7 @@
             [is_more_or_eq:6]
     }
     [arg_set: 18]{
-        (value_id:uint16_t)// determines the value to be set as argument, can also convert to farr VType
+        (value_id:uint16_t)// determines the value to be set as argument, can also convert to faarr VType
     }
     [call: 19]{
         (call_flags:struct CallFlags){

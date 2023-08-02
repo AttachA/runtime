@@ -3,7 +3,7 @@
 //source https://github.com/dotnet/runtime/blob/main/src/libraries/System.Private.CoreLib/src/System/Threading/PortableThreadPool.HillClimbing.cs
 // used to balance the number of threads in thread pools, ported from the C# runtime sources
 // uses https://en.wikipedia.org/wiki/Hill_climbing to find the best number of threads to use
-// this and hill_climbing.cpp file licensed unde MIT license
+// this and hill_climbing.cpp file licensed under MIT license
 #include <tuple>
 #include <vector>
 #include <random>

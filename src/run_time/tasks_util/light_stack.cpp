@@ -112,13 +112,13 @@ namespace art{
             return create_stack(size__);
     }
 
-    void unlimited_beffer(stack_context& sctx ){
+    void unlimited_buffer(stack_context& sctx ){
         if (!stack_allocations.push(sctx)) 
             ::VirtualFree(static_cast<char*>(sctx.sp) - sctx.size, 0, MEM_RELEASE);
         else
             stack_allocations_buffer++;
     }
-    void limited_beffer(stack_context& sctx ){
+    void limited_buffer(stack_context& sctx ){
     if (++stack_allocations_buffer < light_stack::max_buffer_size) {
             if (!stack_allocations.push(sctx)) {
                 ::VirtualFree(static_cast<char*>(sctx.sp) - sctx.size, 0, MEM_RELEASE);
@@ -134,9 +134,9 @@ namespace art{
     void light_stack::deallocate(stack_context& sctx ) {
         assert(sctx.sp);
         if(!max_buffer_size)
-            unlimited_beffer(sctx);
+            unlimited_buffer(sctx);
         else if(max_buffer_size != SIZE_MAX)
-            limited_beffer(sctx);
+            limited_buffer(sctx);
         else
             ::VirtualFree(static_cast<char*>(sctx.sp) - sctx.size, 0, MEM_RELEASE);
     }
@@ -298,14 +298,14 @@ namespace art{
     }
 
     //shit code, TO-DO fix it
-    bool light_stack::shrink_current(size_t bytes_treeshold){
+    bool light_stack::shrink_current(size_t bytes_threshold){
         bool* pPtr = GetStackPointer();
         stack_snapshot snapshot(pPtr);
         
         size_t unused = snapshot.committed->length - size_t((snapshot.committed->base + snapshot.committed->length) - pPtr);
-        if(unused <= bytes_treeshold)
+        if(unused <= bytes_threshold)
             return false;
-        size_t to_free = (unused - bytes_treeshold) / page_size * page_size;
+        size_t to_free = (unused - bytes_threshold) / page_size * page_size;
         if(!to_free)
             return false;
 
@@ -461,7 +461,7 @@ namespace art{
         }
         return new ValueItem(std::move(stack));
     }
-    //default formated string
+    //default formatted string
     std::string light_stack::dump_str(void*){
         return "";
     }

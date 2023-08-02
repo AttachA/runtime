@@ -21,10 +21,10 @@ namespace symbols{
         constexpr const char* const bitwise_xor_operator = "operator^=";
         constexpr const char* const bitwise_shift_left_operator = "operator<<=";
         constexpr const char* const bitwise_shift_right_operator = "operator>>=";
-        constexpr const char* const adress_operator = "operator@=";
+        constexpr const char* const address_operator = "operator@=";
         constexpr const char* const symbol_operator = "operator$=";
         constexpr const char* const set_non_noting_operator = "operator?=";
-        constexpr const char* const orctop_operator = "operator#=";
+        constexpr const char* const hash_operator = "operator#=";
 
 
 
@@ -55,10 +55,10 @@ namespace symbols{
             constexpr const char* const copy_bitwise_xor_operator = "operator^";
             constexpr const char* const copy_bitwise_shift_left_operator = "operator<<";
             constexpr const char* const copy_bitwise_shift_right_operator = "operator>>";
-            constexpr const char* const copy_adress_operator = "operator@";
+            constexpr const char* const copy_address_operator = "operator@";
             constexpr const char* const copy_symbol_operator = "operator$";
             constexpr const char* const copy_set_non_noting_operator = "operator?";
-            constexpr const char* const copy_orctop_operator = "operator#";
+            constexpr const char* const copy_hash_operator = "operator#";
         }
         namespace iterable{
             constexpr const char* const begin = "begin";
@@ -100,7 +100,7 @@ namespace symbols{
             constexpr const char* const to_float_arr = "to_float[]";
             constexpr const char* const to_double_arr = "to_double[]";
 
-            constexpr const char* const to_farr = "to_farr";
+            constexpr const char* const to_faarr = "to_faarr";
             constexpr const char* const to_uarr = "to_uarr";
         }
     }

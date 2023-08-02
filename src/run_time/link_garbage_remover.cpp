@@ -6,7 +6,7 @@
 
 #include "link_garbage_remover.hpp"
 namespace art{
-	thread_local std::unordered_set<const void*> __lgr_safe_deph;
+	thread_local std::unordered_set<const void*> __lgr_safe_depth;
 #if ENABLE_SNAPSHOTS_LGR
 #include "CASM.hpp"
 	void lgr_join_snapshot(list_array<std::vector<void*>*>* snap_records, std::vector<void*>*& set_current_snap) {
@@ -53,7 +53,7 @@ namespace art{
 	void lgr::exit() {
 		lgr_exit_snapshot(snap_records, current_snap);
 		if (total == nullptr);
-		else if (!in_safe_deph) {
+		else if (!in_safe_depth) {
 			if (!weak)
 				return;
 			--(*weak);
@@ -83,9 +83,9 @@ namespace art{
 		lgr_join_snapshot(snap_records, current_snap);
 		total = p_total_links;
 		weak = tot_weak;
-		if (p_total_links && (in_safe_deph = calcDeph()))
+		if (p_total_links && (in_safe_depth = calcDepth()))
 			++(*p_total_links);
-		else if (!in_safe_deph && tot_weak)
+		else if (!in_safe_depth && tot_weak)
 			++(*tot_weak);
 	}
 	lgr::lgr() {}
@@ -95,10 +95,10 @@ namespace art{
 			total = new std::atomic_size_t{ 1 };
 			weak = new std::atomic_size_t{ 0 };
 			if (!as_weak)
-				in_safe_deph = calcDeph();
+				in_safe_depth = calcDepth();
 			else
-				in_safe_deph = false;
-			if (!in_safe_deph) {
+				in_safe_depth = false;
+			if (!in_safe_depth) {
 				++(*weak);
 				--(*total);
 			}
@@ -121,7 +121,7 @@ namespace art{
 		ptr = mov.ptr;
 		total = mov.total;
 		weak = mov.weak;
-		in_safe_deph = mov.in_safe_deph;
+		in_safe_depth = mov.in_safe_depth;
 		calc_depth = mov.calc_depth;
 		destructor = mov.destructor;
 		mov.ptr = nullptr;
@@ -129,7 +129,7 @@ namespace art{
 		mov.weak = nullptr;
 	}
 	lgr::~lgr() {
-		if (total || !in_safe_deph)
+		if (total || !in_safe_depth)
 			exit();
 	}
 	lgr& lgr::operator=(nullptr_t) {
@@ -155,7 +155,7 @@ namespace art{
 		ptr = mov.ptr;
 		total = mov.total;
 		weak = mov.weak;
-		in_safe_deph = mov.in_safe_deph;
+		in_safe_depth = mov.in_safe_depth;
 		calc_depth = mov.calc_depth;
 		destructor = mov.destructor;
 		mov.ptr = nullptr;
@@ -224,16 +224,16 @@ namespace art{
 		}
 		return nullptr;
 	}
-	bool lgr::calcDeph() {
+	bool lgr::calcDepth() {
 		bool res = depth_safety();
-		__lgr_safe_deph.clear();
+		__lgr_safe_depth.clear();
 		return res;
 	}
 	bool lgr::depth_safety() const {
-		if (__lgr_safe_deph.contains(ptr))
+		if (__lgr_safe_depth.contains(ptr))
 			return false;
 		if (calc_depth) {
-			__lgr_safe_deph.emplace(ptr);
+			__lgr_safe_depth.emplace(ptr);
 			return calc_depth(ptr);
 		}
 		else

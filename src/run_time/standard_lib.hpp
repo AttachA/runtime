@@ -19,7 +19,7 @@ namespace art {
 	void initStandardLib_console();
 	void initStandardLib_math();
 	void initStandardLib_file();
-	void initStandardLib_paralel();
+	void initStandardLib_parallel();
 	void initStandardLib_chanel();
 	void initStandardLib_internal();
 	void initStandardLib_internal_memory();
