@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.20)
-project(AttachA CXX ASM_MASM)
-set(CMAKE_CXX_STANDARD 23)
+project(AttachA CXX)
+set(CMAKE_CXX_STANDARD 20)
 set(Boost_NO_WARN_NEW_VERSIONS ON)
 #enable_testing()
 #add_subdirectory(tests)
 
 if(MSVC)
+  enable_language(ASM_MASM)
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
@@ -22,6 +23,7 @@ FILE(GLOB SRCFILES
         src/run_time/asm/dynamic_call_asm.asm 
         src/run_time/*.cpp
         src/run_time/asm/*.cpp
+        src/run_time/asm/il_compiler/*.cpp
         src/run_time/cxx_library/*.cpp
         src/run_time/library/*.cpp
         src/run_time/tasks_util/*.cpp
