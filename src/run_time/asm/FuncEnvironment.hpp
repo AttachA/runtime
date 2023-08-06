@@ -51,6 +51,7 @@ namespace art {
 			Environment env = nullptr;
 			FuncHandle* parent = nullptr;
 			uint8_t* frame = nullptr;
+			std::string* cross_code_compiler_name_version = nullptr;
 			std::atomic_size_t ref_count = 0;
 			
 			FuncType _type : 4;
@@ -61,13 +62,13 @@ namespace art {
 			inner_handle(Environment env, bool is_cheap);
 			inner_handle(void* func, const DynamicCall::FunctionTemplate& template_func, bool is_cheap);
 			inner_handle(void* func, ProxyFunction proxy_func, bool is_cheap);
-			inner_handle(const std::vector<uint8_t>& code, bool is_cheap);
-			inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool is_cheap);
-			inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<typed_lgr<FuncEnvironment>>& local_funcs, bool is_cheap);
+			inner_handle(const std::vector<uint8_t>& code, bool is_cheap, std::string* cross_code_compiler_name_version );
+			inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool is_cheap, std::string* cross_code_compiler_name_version);
+			inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<typed_lgr<FuncEnvironment>>& local_funcs, bool is_cheap, std::string* cross_code_compiler_name_version);
 
-			inner_handle(std::vector<uint8_t>&& code, bool is_cheap);
-			inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, bool is_cheap);
-			inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<typed_lgr<FuncEnvironment>>&& local_funcs, bool is_cheap);
+			inner_handle(std::vector<uint8_t>&& code, bool is_cheap, std::string* cross_code_compiler_name_version);
+			inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, bool is_cheap, std::string* cross_code_compiler_name_version);
+			inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<typed_lgr<FuncEnvironment>>&& local_funcs, bool is_cheap, std::string* cross_code_compiler_name_version);
 			size_t localFnSize(){
 				return local_funcs.size();
 			}
@@ -144,23 +145,23 @@ namespace art {
 		FuncEnvironment(void* func, FuncHandle::inner_handle::ProxyFunction proxy_func, bool can_be_unloaded = false, bool is_cheap = false) : can_be_unloaded(can_be_unloaded){
 			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(func, proxy_func, is_cheap));
 		}
-		FuncEnvironment(const std::vector<uint8_t>& code, bool can_be_unloaded = false, bool is_cheap = false) : can_be_unloaded(can_be_unloaded){
-			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(code, is_cheap));
+		FuncEnvironment(const std::vector<uint8_t>& code, bool can_be_unloaded = false, bool is_cheap = false, std::string* cross_code_compiler_name_version = nullptr) : can_be_unloaded(can_be_unloaded){
+			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(code, is_cheap, cross_code_compiler_name_version));
 		}
-		FuncEnvironment(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool can_be_unloaded = false, bool is_cheap = false) : can_be_unloaded(can_be_unloaded) {
-			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(code, values, is_cheap));
+		FuncEnvironment(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool can_be_unloaded = false, bool is_cheap = false, std::string* cross_code_compiler_name_version = nullptr) : can_be_unloaded(can_be_unloaded) {
+			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(code, values, is_cheap, cross_code_compiler_name_version));
 		}
-		FuncEnvironment(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<typed_lgr<FuncEnvironment>>& local_funcs, bool can_be_unloaded = false, bool is_cheap = false) : can_be_unloaded(can_be_unloaded){
-			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(code, values, local_funcs, is_cheap));
+		FuncEnvironment(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<typed_lgr<FuncEnvironment>>& local_funcs, bool can_be_unloaded = false, bool is_cheap = false, std::string* cross_code_compiler_name_version = nullptr) : can_be_unloaded(can_be_unloaded){
+			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(code, values, local_funcs, is_cheap, cross_code_compiler_name_version));
 		}
-		FuncEnvironment(std::vector<uint8_t>&& code, bool can_be_unloaded = false, bool is_cheap = false) : can_be_unloaded(can_be_unloaded){
-			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(std::move(code), is_cheap));
+		FuncEnvironment(std::vector<uint8_t>&& code, bool can_be_unloaded = false, bool is_cheap = false, std::string* cross_code_compiler_name_version = nullptr) : can_be_unloaded(can_be_unloaded){
+			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(std::move(code), is_cheap, cross_code_compiler_name_version));
 		}
-		FuncEnvironment(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, bool can_be_unloaded = false, bool is_cheap = false) : can_be_unloaded(can_be_unloaded){
-			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(std::move(code), std::move(values), is_cheap));
+		FuncEnvironment(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, bool can_be_unloaded = false, bool is_cheap = false, std::string* cross_code_compiler_name_version = nullptr) : can_be_unloaded(can_be_unloaded){
+			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(std::move(code), std::move(values), is_cheap, cross_code_compiler_name_version));
 		}
-		FuncEnvironment(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<typed_lgr<FuncEnvironment>>&& local_funcs, bool can_be_unloaded = false, bool is_cheap = false) : can_be_unloaded(can_be_unloaded){
-			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(std::move(code), std::move(values), std::move(local_funcs), is_cheap));
+		FuncEnvironment(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<typed_lgr<FuncEnvironment>>&& local_funcs, bool can_be_unloaded = false, bool is_cheap = false, std::string* cross_code_compiler_name_version = nullptr) : can_be_unloaded(can_be_unloaded){
+			func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(std::move(code), std::move(values), std::move(local_funcs), is_cheap, cross_code_compiler_name_version));
 		}
 		FuncEnvironment() {
 			func_ = FuncHandle::make_func_handle();

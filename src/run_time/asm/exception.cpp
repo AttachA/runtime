@@ -361,5 +361,98 @@ namespace art{
                 });
             }
 	    }
+        bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro) {
+            uint8_t* data_info = (uint8_t*)data;
+            list_array<std::string> exceptions;
+            *continue_from = internal::readFromArrayAsValue<void*>(data_info);
+            switch (*data_info++) {
+                case 0: {
+                    uint64_t handle_count = internal::readFromArrayAsValue<uint64_t>(data_info);
+                    exceptions.reserve_push_back(handle_count);
+                    for (size_t i = 0; i < handle_count; i++) {
+                        std::string string;
+                        size_t len = 0;
+                        char* str = internal::readFromArrayAsArray<char>(data_info, len);
+                        string.assign(str, len);
+                        delete[] str;
+                        exceptions.push_back(string);
+                    }
+                    break;
+                }
+                case 1: {
+                    uint16_t value = internal::readFromArrayAsValue<uint16_t>(data_info);
+                    ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
+                    exceptions.push_back((std::string)*item);
+                    break;
+                }
+                case 2: {
+                    uint64_t handle_count = internal::readFromArrayAsValue<uint64_t>(data_info);
+                    exceptions.reserve_push_back(handle_count);
+                    for (size_t i = 0; i < handle_count; i++) {
+                        uint16_t value = internal::readFromArrayAsValue<uint16_t>(data_info);
+                        ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
+                        exceptions.push_back((std::string)*item);
+                    }
+                    break;
+                }
+                case 3: {
+                    uint64_t handle_count = internal::readFromArrayAsValue<uint64_t>(data_info);
+                    exceptions.reserve_push_back(handle_count);
+                    for (size_t i = 0; i < handle_count; i++) {
+                        bool is_dynamic = internal::readFromArrayAsValue<bool>(data_info);
+                        if (!is_dynamic) {
+                            std::string string;
+                            size_t len = 0;
+                            char* str = internal::readFromArrayAsArray<char>(data_info, len);
+                            string.assign(str, len);
+                            delete[] str;
+                            exceptions.push_back(string);
+                        }
+                        else {
+                            uint16_t value = internal::readFromArrayAsValue<uint16_t>(data_info);
+                            ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
+                            exceptions.push_back((std::string)*item);
+                        }
+                    }
+                    break;
+                }
+                case 4://catch all
+                    //prevent catch CLR exception
+                    return exception::try_catch_all(info);
+                case 5:{//attacha filter function
+                    Environment env_filter = internal::readFromArrayAsValue<Environment>(data_info);
+                    uint16_t filter_enviro_slice_begin = internal::readFromArrayAsValue<uint32_t>(data_info);
+                    uint16_t filter_enviro_slice_end = internal::readFromArrayAsValue<uint32_t>(data_info);
+                    if(filter_enviro_slice_begin >= filter_enviro_slice_end)
+                        throw InvalidIL("Invalid environment slice");
+                    uint16_t filter_enviro_size = filter_enviro_slice_end - filter_enviro_slice_begin;
+                    auto env_res = env_filter((ValueItem*)enviro + filter_enviro_slice_begin, filter_enviro_size);
+                    if(env_res == nullptr)
+                        return false;
+                    else{
+                        bool res = (bool)*env_res;
+                        delete env_res;
+                        return res;
+                    }
+                }
+                default:
+                    throw BadOperationException();
+            }
+            return exception::map_native_exception_names(info).contains_one([&exceptions](const std::string& str) {
+                return exceptions.contains(str);
+            });
+        }
+        void _attacha_finally(void* data, size_t size, void* enviro){
+            uint8_t* data_info = (uint8_t*)data;
+            Environment env_finalizer = internal::readFromArrayAsValue<Environment>(data_info);
+            uint16_t finalizer_enviro_slice_begin = internal::readFromArrayAsValue<uint32_t>(data_info);
+            uint16_t finalizer_enviro_slice_end = internal::readFromArrayAsValue<uint32_t>(data_info);
+            if(finalizer_enviro_slice_begin >= finalizer_enviro_slice_end)
+                throw InvalidIL("Invalid environment slice");
+            uint16_t finalizer_enviro_size = finalizer_enviro_slice_end - finalizer_enviro_slice_begin;
+            auto tmp = env_finalizer((ValueItem*)enviro + finalizer_enviro_slice_begin, finalizer_enviro_size);
+            if(tmp != nullptr)
+                delete tmp;
+        }
     }
 }

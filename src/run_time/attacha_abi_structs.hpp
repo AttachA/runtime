@@ -152,7 +152,6 @@ namespace art{
 		struct {
 			uint8_t move_mode : 1;
 			ArrCheckMode checked : 2;
-			uint8_t by_val_mode : 1;
 		};
 		uint8_t raw;
 	};

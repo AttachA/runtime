@@ -61,7 +61,11 @@ void FuncEnviroBuilder::sum(ValueIndexPos val0, ValueIndexPos val1) {
 	useVal(val1);
 }
 void FuncEnviroBuilder::sum(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0, ValueMeta m1) {
-	sum(val0, val1);//TO-DO
+	builder::write(code, Command(Opcode::sum, false, true));
+	builder::writeIndexPos(code, val0);
+	builder::write(code, m0);
+	builder::writeIndexPos(code, val1);
+	builder::write(code, m1);
 	useVal(val0);
 	useVal(val1);
 }
@@ -73,7 +77,11 @@ void FuncEnviroBuilder::minus(ValueIndexPos val0, ValueIndexPos val1) {
 	useVal(val1);
 }
 void FuncEnviroBuilder::minus(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0, ValueMeta m1) {
-	minus(val0, val1);//TO-DO
+	builder::write(code, Command(Opcode::minus, false, true));
+	builder::writeIndexPos(code, val0);
+	builder::write(code, m0);
+	builder::writeIndexPos(code, val1);
+	builder::write(code, m1);
 	useVal(val0);
 	useVal(val1);
 }
@@ -85,7 +93,11 @@ void FuncEnviroBuilder::div(ValueIndexPos val0, ValueIndexPos val1) {
 	useVal(val1);
 }
 void FuncEnviroBuilder::div(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0, ValueMeta m1) {
-	div(val0, val1);//TO-DO
+	builder::write(code, Command(Opcode::div, false, true));
+	builder::writeIndexPos(code, val0);
+	builder::write(code, m0);
+	builder::writeIndexPos(code, val1);
+	builder::write(code, m1);
 	useVal(val0);
 	useVal(val1);
 }
@@ -97,7 +109,11 @@ void FuncEnviroBuilder::mul(ValueIndexPos val0, ValueIndexPos val1) {
 	useVal(val1);
 }
 void FuncEnviroBuilder::mul(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0, ValueMeta m1){
-	mul(val0, val1);//TO-DO
+	builder::write(code, Command(Opcode::mul, false, true));
+	builder::writeIndexPos(code, val0);
+	builder::write(code, m0);
+	builder::writeIndexPos(code, val1);
+	builder::write(code, m1);
 	useVal(val0);
 	useVal(val1);
 }
@@ -109,7 +125,11 @@ void FuncEnviroBuilder::rest(ValueIndexPos val0, ValueIndexPos val1) {
 	useVal(val1);
 }
 void FuncEnviroBuilder::rest(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0, ValueMeta m1) {
-	mul(val0, val1);//TO-DO
+	builder::write(code, Command(Opcode::rest, false, true));
+	builder::writeIndexPos(code, val0);
+	builder::write(code, m0);
+	builder::writeIndexPos(code, val1);
+	builder::write(code, m1);
 	useVal(val0);
 	useVal(val1);
 }
@@ -123,7 +143,11 @@ void FuncEnviroBuilder::bit_xor(ValueIndexPos val0, ValueIndexPos val1) {
 	useVal(val1);
 }
 void FuncEnviroBuilder::bit_xor(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0, ValueMeta m1) {
-	bit_xor(val0, val1);//TO-DO
+	builder::write(code, Command(Opcode::bit_xor, false, true));
+	builder::writeIndexPos(code, val0);
+	builder::write(code, m0);
+	builder::writeIndexPos(code, val1);
+	builder::write(code, m1);
 	useVal(val0);
 	useVal(val1);
 }
@@ -136,7 +160,11 @@ void FuncEnviroBuilder::bit_or(ValueIndexPos val0, ValueIndexPos val1) {
 	useVal(val1);
 }
 void FuncEnviroBuilder::bit_or(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0, ValueMeta m1) {
-	bit_or(val0, val1);//TO-DO
+	builder::write(code, Command(Opcode::bit_or, false, true));
+	builder::writeIndexPos(code, val0);
+	builder::write(code, m0);
+	builder::writeIndexPos(code, val1);
+	builder::write(code, m1);
 	useVal(val0);
 	useVal(val1);
 }
@@ -149,7 +177,11 @@ void FuncEnviroBuilder::bit_and(ValueIndexPos val0, ValueIndexPos val1) {
 	useVal(val1);
 }
 void FuncEnviroBuilder::bit_and(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0, ValueMeta m1) {
-	bit_and(val0, val1);//TO-DO
+	builder::write(code, Command(Opcode::bit_and, false, true));
+	builder::writeIndexPos(code, val0);
+	builder::write(code, m0);
+	builder::writeIndexPos(code, val1);
+	builder::write(code, m1);
 	useVal(val0);
 	useVal(val1);
 }
@@ -160,7 +192,9 @@ void FuncEnviroBuilder::bit_not(ValueIndexPos val0) {
 	useVal(val0);
 }
 void FuncEnviroBuilder::bit_not(ValueIndexPos val, ValueMeta m) {
-	bit_not(val);//TO-DO
+	builder::write(code, Command(Opcode::bit_not, false, true));
+	builder::writeIndexPos(code, val);
+	builder::write(code, m);
 	useVal(val);
 }
 #pragma endregion
@@ -177,7 +211,11 @@ void FuncEnviroBuilder::compare(ValueIndexPos val0, ValueIndexPos val1) {
 	useVal(val1);
 }
 void FuncEnviroBuilder::compare(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0, ValueMeta m1) {
-	compare(val0, val1);//TO-DO
+	builder::write(code, Command(Opcode::compare, false, true));
+	builder::writeIndexPos(code, val0);
+	builder::write(code, m0);
+	builder::writeIndexPos(code, val1);
+	builder::write(code, m1);
 	useVal(val0);
 	useVal(val1);
 }
@@ -233,10 +271,8 @@ void FuncEnviroBuilder::call_self(ValueIndexPos res, bool is_async) {
 }
 
 
-uint32_t FuncEnviroBuilder::add_local_fn(typed_lgr<FuncEnvironment> fn) {
-	uint32_t res = static_cast<uint32_t>(local_funs.size());
-	if (res != local_funs.size())
-		throw CompileTimeException("too many local funcs");
+uint64_t FuncEnviroBuilder::add_local_fn(typed_lgr<FuncEnvironment> fn) {
+	uint64_t res = local_funs.size();
 	if(fn->get_cross_code().empty()){
 		if(strict_mode)
 			throw CompileTimeException("local func must have cross code");
@@ -267,12 +303,6 @@ void FuncEnviroBuilder::call_local(ValueIndexPos in_mem_fn, ValueIndexPos res, b
 	useVal(in_mem_fn);
 	useVal(res);
 }
-void FuncEnviroBuilder::call_local_idx(uint32_t fn, bool is_async) {
-	call_local(create_constant(fn), is_async);
-}
-void FuncEnviroBuilder::call_local_idx(uint32_t fn, ValueIndexPos res, bool is_async) {
-	call_local(create_constant(fn), res, is_async);
-}
 
 void FuncEnviroBuilder::call_and_ret(ValueIndexPos fn_mem, bool is_async, bool fn_mem_only_str) {
 	builder::write(code, Command(Opcode::call_and_ret, false, fn_mem_only_str));
@@ -301,9 +331,6 @@ void FuncEnviroBuilder::call_local_and_ret(ValueIndexPos in_mem_fn, bool is_asyn
 	code.push_back(f.encoded);
 	builder::writeIndexPos(code, in_mem_fn);
 	useVal(in_mem_fn);
-}
-void FuncEnviroBuilder::call_local_and_ret_idx(uint32_t fn, bool is_async) {
-	call_local_and_ret(create_constant(fn), is_async);
 }
 
 void FuncEnviroBuilder::ret(ValueIndexPos val) {
@@ -398,465 +425,274 @@ void FuncEnviroBuilder::bind_pos(const std::string& name) {
 	jump_pos[jumpMap(name)] = code.size();
 }
 #pragma region arr_op
-void FuncEnviroBuilder::arr_set(ValueIndexPos arr, ValueIndexPos from, uint64_t to, bool move, ArrCheckMode check_bounds, VType array_type) {
-	if (array_type != VType::noting) {
-		switch (array_type) {
-		case VType::raw_arr_i8:
-		case VType::raw_arr_i16:
-		case VType::raw_arr_i32:
-		case VType::raw_arr_i64:
-		case VType::raw_arr_ui8:
-		case VType::raw_arr_ui16:
-		case VType::raw_arr_ui32:
-		case VType::raw_arr_ui64:
-		case VType::raw_arr_flo:
-		case VType::raw_arr_doub:
-		case VType::uarr:
-		case VType::faarr:
-		case VType::saarr:
-		case VType::struct_:
-			break;
-		default:
-			throw InvalidOperation("Unsupported operation to non array type and interface type");
-		}
+	void default_static_header_arr_op(std::vector<uint8_t>& code, ValueIndexPos arr, ValueMeta arr_meta, bool move = false, ArrCheckMode check_bounds = ArrCheckMode::no_check){
+		builder::write(code, Command(Opcode::arr_op, false, true));
+		builder::writeIndexPos(code ,arr);
+		OpArrFlags flags;
+		flags.move_mode = move;
+		flags.checked = check_bounds;
+		builder::write(code, flags.raw);
+		builder::write(code, arr_meta);
 	}
-	builder::write(code, Command(Opcode::arr_op, false, array_type != VType::noting));
-	builder::writeIndexPos(code ,arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	flags.move_mode = move;
-	flags.checked = check_bounds;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::set);
-	if(array_type != VType::noting)
-		builder::write(code, array_type);
-	builder::writeIndexPos(code, from);
-	builder::write(code, to);
-}
-void FuncEnviroBuilder::arr_setByVal(ValueIndexPos arr, ValueIndexPos from, ValueIndexPos to, bool move, ArrCheckMode check_bounds, VType array_type) {
-	if (array_type != VType::noting) {
-		switch (array_type) {
-		case VType::raw_arr_i8:
-		case VType::raw_arr_i16:
-		case VType::raw_arr_i32:
-		case VType::raw_arr_i64:
-		case VType::raw_arr_ui8:
-		case VType::raw_arr_ui16:
-		case VType::raw_arr_ui32:
-		case VType::raw_arr_ui64:
-		case VType::raw_arr_flo:
-		case VType::raw_arr_doub:
-		case VType::uarr:
-		case VType::faarr:
-		case VType::saarr:
-		case VType::struct_:
-			break;
-		default:
-			throw InvalidOperation("Unsupported operation to non array type and interface type");
-		}
+
+	void FuncEnviroBuilder::_static_arr::set(ValueIndexPos index, ValueIndexPos val, bool move, ArrCheckMode check_bounds){
+		default_static_header_arr_op(build.code, arr, arr_meta, move, check_bounds);
+		build.code.push_back((uint8_t)OpcodeArray::set);
+		builder::writeIndexPos(build.code, index);
+		builder::writeIndexPos(build.code, val);
 	}
-	builder::write(code, Command(Opcode::arr_op, false, array_type != VType::noting));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	flags.move_mode = move;
-	flags.checked = check_bounds;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::set);
-	if (array_type != VType::noting)
-		builder::write(code, array_type);
-	builder::writeIndexPos(code, from);
-	builder::writeIndexPos(code, to);
-}
-void FuncEnviroBuilder::arr_insert(ValueIndexPos arr, ValueIndexPos from, uint64_t to, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::insert);
-	builder::writeIndexPos(code, from);
-	builder::write(code, to);
-}
-void FuncEnviroBuilder::arr_insertByVal(ValueIndexPos arr, ValueIndexPos from, ValueIndexPos to, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::insert);
-	builder::writeIndexPos(code, from);
-	builder::writeIndexPos(code, to);
-}
-void FuncEnviroBuilder::arr_push_end(ValueIndexPos arr, ValueIndexPos from, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::push_end);
-	builder::writeIndexPos(code, from);
-}
-void FuncEnviroBuilder::arr_push_start(ValueIndexPos arr, ValueIndexPos from, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::push_start);
-	builder::writeIndexPos(code, from);
-}
-void FuncEnviroBuilder::arr_insert_range(ValueIndexPos arr, ValueIndexPos arr2, uint64_t arr2_start, uint64_t arr2_end, uint64_t arr_pos, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::insert_range);
-	builder::writeIndexPos(code, arr2);
-	builder::write(code, arr_pos);
-	builder::write(code, arr2_start);
-	builder::write(code, arr2_end);
-}
-void FuncEnviroBuilder::arr_insert_rangeByVal(ValueIndexPos arr, ValueIndexPos arr2, ValueIndexPos arr2_start, ValueIndexPos arr2_end, ValueIndexPos arr_pos, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::insert_range);
-	builder::writeIndexPos(code, arr2);
-	builder::writeIndexPos(code, arr_pos);
-	builder::writeIndexPos(code, arr2_start);
-	builder::writeIndexPos(code, arr2_end);
-}
-void FuncEnviroBuilder::arr_get(ValueIndexPos arr, ValueIndexPos to, uint64_t from, bool move, ArrCheckMode check_bounds, VType array_type) {
-	if (array_type != VType::noting) {
-		switch (array_type) {
-		case VType::raw_arr_i8:
-		case VType::raw_arr_i16:
-		case VType::raw_arr_i32:
-		case VType::raw_arr_i64:
-		case VType::raw_arr_ui8:
-		case VType::raw_arr_ui16:
-		case VType::raw_arr_ui32:
-		case VType::raw_arr_ui64:
-		case VType::raw_arr_flo:
-		case VType::raw_arr_doub:
-		case VType::uarr:
-		case VType::faarr:
-		case VType::saarr:
-		case VType::struct_:
-			break;
-		default:
-			throw InvalidOperation("Unsupported operation to non array type and interface type");
-		}
+	void FuncEnviroBuilder::_static_arr::insert(ValueIndexPos index, ValueIndexPos val, bool move){
+		default_static_header_arr_op(build.code, arr, arr_meta, move);
+		build.code.push_back((uint8_t)OpcodeArray::insert);
+		builder::writeIndexPos(build.code, index);
+		builder::writeIndexPos(build.code, val);
 	}
-	builder::write(code, Command(Opcode::arr_op, false, array_type != VType::noting));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	flags.move_mode = move;
-	flags.checked = check_bounds;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::get);
-	if (array_type != VType::noting)
-		builder::write(code, array_type);
-	builder::writeIndexPos(code, to);
-	builder::write(code, from);
-}
-void FuncEnviroBuilder::arr_getByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos from, bool move, ArrCheckMode check_bounds, VType array_type) {
-	if (array_type != VType::noting) {
-		switch (array_type) {
-		case VType::raw_arr_i8:
-		case VType::raw_arr_i16:
-		case VType::raw_arr_i32:
-		case VType::raw_arr_i64:
-		case VType::raw_arr_ui8:
-		case VType::raw_arr_ui16:
-		case VType::raw_arr_ui32:
-		case VType::raw_arr_ui64:
-		case VType::raw_arr_flo:
-		case VType::raw_arr_doub:
-		case VType::uarr:
-		case VType::faarr:
-		case VType::saarr:
-		case VType::struct_:
-			break;
-		default:
-			throw InvalidOperation("Unsupported operation to non array type and interface type");
-		}
+	void FuncEnviroBuilder::_static_arr::push_end(ValueIndexPos val, bool move){
+		default_static_header_arr_op(build.code, arr, arr_meta, move);
+		build.code.push_back((uint8_t)OpcodeArray::push_end);
+		builder::writeIndexPos(build.code, val);
 	}
-	builder::write(code, Command(Opcode::arr_op, false, array_type != VType::noting));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	flags.move_mode = move;
-	flags.checked = check_bounds;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::get);
-	if (array_type != VType::noting)
-		builder::write(code, array_type);
-	builder::writeIndexPos(code, to);
-	builder::writeIndexPos(code, from);
-}
-void FuncEnviroBuilder::arr_take(ValueIndexPos arr, ValueIndexPos to, uint64_t from, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::take);
-	builder::writeIndexPos(code, to);
-	builder::write(code, from);
-}
-void FuncEnviroBuilder::arr_takeByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos from, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::take);
-	builder::writeIndexPos(code, to);
-	builder::writeIndexPos(code, from);
-}
-void FuncEnviroBuilder::arr_take_end(ValueIndexPos arr, ValueIndexPos to, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::take_end);
-	builder::writeIndexPos(code, to);
-}
-void FuncEnviroBuilder::arr_take_start(ValueIndexPos arr, ValueIndexPos to, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::take_start);
-	builder::writeIndexPos(code, to);
-}
-void FuncEnviroBuilder::arr_get_range(ValueIndexPos arr, ValueIndexPos to, uint64_t start, uint64_t end, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::get_range);
-	builder::writeIndexPos(code, to);
-	builder::write(code, start);
-	builder::write(code, end);
-}
-void FuncEnviroBuilder::arr_get_rangeByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::get_range);
-	builder::writeIndexPos(code, to);
-	builder::writeIndexPos(code, start);
-	builder::writeIndexPos(code, end);
-}
-void FuncEnviroBuilder::arr_take_range(ValueIndexPos arr, ValueIndexPos to, uint64_t start, uint64_t end, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::take_range);
-	builder::writeIndexPos(code, to);
-	builder::write(code, start);
-	builder::write(code, end);
-}
-void FuncEnviroBuilder::arr_take_rangeByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	flags.move_mode = move;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::take_range);
-	builder::writeIndexPos(code, to);
-	builder::writeIndexPos(code, start);
-	builder::writeIndexPos(code, end);
-}
-void FuncEnviroBuilder::arr_pop_end(ValueIndexPos arr, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	code.push_back(0);
-	code.push_back((uint8_t)OpcodeArray::pop_end);
-}
-void FuncEnviroBuilder::arr_pop_start(ValueIndexPos arr, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	code.push_back(0);
-	code.push_back((uint8_t)OpcodeArray::pop_start);
-}
-void FuncEnviroBuilder::arr_remove_item(ValueIndexPos arr, uint64_t in, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::remove_item);
-	builder::write(code, in);
-}
-void FuncEnviroBuilder::arr_remove_itemByVal(ValueIndexPos arr, ValueIndexPos in, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::remove_item);
-	builder::writeIndexPos(code, in);
-}
-void FuncEnviroBuilder::arr_remove_range(ValueIndexPos arr, uint64_t start, uint64_t end, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::remove_range);
-	builder::write(code, start);
-	builder::write(code, end);
-}
-void FuncEnviroBuilder::arr_remove_rangeByVal(ValueIndexPos arr, ValueIndexPos start, ValueIndexPos end, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::remove_range);
-	builder::writeIndexPos(code, start);
-	builder::writeIndexPos(code, end);
-}
-void FuncEnviroBuilder::arr_resize(ValueIndexPos arr, uint64_t new_size, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::resize);
-	builder::write(code, new_size);
-}
-void FuncEnviroBuilder::arr_resizeByVal(ValueIndexPos arr, ValueIndexPos new_size, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::resize);
-	builder::writeIndexPos(code, new_size);
-}
-void FuncEnviroBuilder::arr_resize_default(ValueIndexPos arr, uint64_t new_size, ValueIndexPos default_init_val, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::resize_default);
-	builder::write(code, new_size);
-	builder::writeIndexPos(code, default_init_val);
-}
-void FuncEnviroBuilder::arr_resize_defaultByVal(ValueIndexPos arr, ValueIndexPos new_size, ValueIndexPos default_init_val, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::resize_default);
-	builder::writeIndexPos(code, new_size);
-	builder::writeIndexPos(code, default_init_val);
-}
-void FuncEnviroBuilder::arr_reserve_push_end(ValueIndexPos arr, uint64_t new_size, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::reserve_push_end);
-	builder::write(code, new_size);
-}
-void FuncEnviroBuilder::arr_reserve_push_endByVal(ValueIndexPos arr, ValueIndexPos new_size, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::reserve_push_end);
-	builder::writeIndexPos(code, new_size);
-}
-void FuncEnviroBuilder::arr_reserve_push_start(ValueIndexPos arr, uint64_t new_size, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::reserve_push_start);
-	builder::write(code, new_size);
-}
-void FuncEnviroBuilder::arr_reserve_push_startByVal(ValueIndexPos arr, ValueIndexPos new_size, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::reserve_push_start);
-	builder::writeIndexPos(code, new_size);
-}
-void FuncEnviroBuilder::arr_commit(ValueIndexPos arr, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	code.push_back(0);
-	code.push_back((uint8_t)OpcodeArray::commit);
-}
-void FuncEnviroBuilder::arr_decommit(ValueIndexPos arr, uint64_t blocks_count, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = false;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::remove_item);
-	builder::write(code, blocks_count);
-}
-void FuncEnviroBuilder::arr_decommitByVal(ValueIndexPos arr, ValueIndexPos blocks_count, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::remove_item);
-	builder::writeIndexPos(code, blocks_count);
-}
-void FuncEnviroBuilder::arr_remove_reserved(ValueIndexPos arr, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	code.push_back(0);
-	code.push_back((uint8_t)OpcodeArray::remove_reserved);
-}
-void FuncEnviroBuilder::arr_size(ValueIndexPos arr, ValueIndexPos set_to, bool static_mode) {
-	builder::write(code, Command(Opcode::arr_op, false, static_mode));
-	builder::writeIndexPos(code, arr);
-	OpArrFlags flags;
-	flags.by_val_mode = true;
-	code.push_back(flags.raw);
-	code.push_back((uint8_t)OpcodeArray::size);
-	builder::writeIndexPos(code, set_to);
-}
+	void FuncEnviroBuilder::_static_arr::push_start(ValueIndexPos val, bool move){
+		default_static_header_arr_op(build.code, arr, arr_meta, move);
+		build.code.push_back((uint8_t)OpcodeArray::push_start);
+		builder::writeIndexPos(build.code, val);
+	}
+	void FuncEnviroBuilder::_static_arr::insert_range(ValueIndexPos arr2, ValueIndexPos arr2_start, ValueIndexPos arr2_end, ValueIndexPos arr_pos, bool move){
+		default_static_header_arr_op(build.code, arr, arr_meta, move);
+		build.code.push_back((uint8_t)OpcodeArray::insert_range);
+		builder::writeIndexPos(build.code, arr2);
+		builder::writeIndexPos(build.code, arr2_start);
+		builder::writeIndexPos(build.code, arr2_end);
+		builder::writeIndexPos(build.code, arr_pos);
+	}
+	void FuncEnviroBuilder::_static_arr::get(ValueIndexPos to, ValueIndexPos index, bool move, ArrCheckMode check_bounds){
+		default_static_header_arr_op(build.code, arr, arr_meta, move, check_bounds);
+		build.code.push_back((uint8_t)OpcodeArray::get);
+		builder::writeIndexPos(build.code, to);
+		builder::writeIndexPos(build.code, index);
+	}
+	void FuncEnviroBuilder::_static_arr::take(ValueIndexPos to, ValueIndexPos index, bool move){
+		default_static_header_arr_op(build.code, arr, arr_meta, move);
+		build.code.push_back((uint8_t)OpcodeArray::take);
+		builder::writeIndexPos(build.code, to);
+		builder::writeIndexPos(build.code, index);
+	}
+	void FuncEnviroBuilder::_static_arr::take_end(ValueIndexPos to, bool move){
+		default_static_header_arr_op(build.code, arr, arr_meta, move);
+		build.code.push_back((uint8_t)OpcodeArray::take_end);
+		builder::writeIndexPos(build.code, to);
+	}
+	void FuncEnviroBuilder::_static_arr::take_start(ValueIndexPos to, bool move){
+		default_static_header_arr_op(build.code, arr, arr_meta, move);
+		build.code.push_back((uint8_t)OpcodeArray::take_start);
+		builder::writeIndexPos(build.code, to);
+	}
+	void FuncEnviroBuilder::_static_arr::get_range(ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move){
+		default_static_header_arr_op(build.code, arr, arr_meta, move);
+		build.code.push_back((uint8_t)OpcodeArray::get_range);
+		builder::writeIndexPos(build.code, to);
+		builder::writeIndexPos(build.code, start);
+		builder::writeIndexPos(build.code, end);
+	}
+	void FuncEnviroBuilder::_static_arr::take_range(ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move){
+		default_static_header_arr_op(build.code, arr, arr_meta, move);
+		build.code.push_back((uint8_t)OpcodeArray::take_range);
+		builder::writeIndexPos(build.code, to);
+		builder::writeIndexPos(build.code, start);
+		builder::writeIndexPos(build.code, end);
+	}
+	void FuncEnviroBuilder::_static_arr::pop_end(){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::pop_end);
+	}
+	void FuncEnviroBuilder::_static_arr::pop_start(){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::pop_start);
+	}
+	void FuncEnviroBuilder::_static_arr::remove_item(ValueIndexPos in){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::remove_item);
+		builder::writeIndexPos(build.code, in);
+	}
+	void FuncEnviroBuilder::_static_arr::remove_range(ValueIndexPos start, ValueIndexPos end){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::remove_range);
+		builder::writeIndexPos(build.code, start);
+		builder::writeIndexPos(build.code, end);
+	}
+	void FuncEnviroBuilder::_static_arr::resize(ValueIndexPos new_size){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::resize);
+		builder::writeIndexPos(build.code, new_size);
+	}
+	void FuncEnviroBuilder::_static_arr::resize_default(ValueIndexPos new_size, ValueIndexPos default_init_val){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::resize_default);
+		builder::writeIndexPos(build.code, new_size);
+		builder::writeIndexPos(build.code, default_init_val);
+	}
+	void FuncEnviroBuilder::_static_arr::reserve_push_end(ValueIndexPos new_size){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::reserve_push_end);
+		builder::writeIndexPos(build.code, new_size);
+	}
+	void FuncEnviroBuilder::_static_arr::reserve_push_start(ValueIndexPos new_size){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::reserve_push_start);
+		builder::writeIndexPos(build.code, new_size);
+	}
+	void FuncEnviroBuilder::_static_arr::commit(){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::commit);
+	}
+	void FuncEnviroBuilder::_static_arr::decommit(ValueIndexPos blocks_count){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::decommit);
+		builder::writeIndexPos(build.code, blocks_count);
+	}
+	void FuncEnviroBuilder::_static_arr::remove_reserved(){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::remove_reserved);
+	}
+	void FuncEnviroBuilder::_static_arr::size(ValueIndexPos set_to){
+		default_static_header_arr_op(build.code, arr, arr_meta, false);
+		build.code.push_back((uint8_t)OpcodeArray::size);
+		builder::writeIndexPos(build.code, set_to);
+	}
+
+	void default_dynamic_header_arr_op(std::vector<uint8_t>& code, ValueIndexPos arr, bool move = false, ArrCheckMode check_bounds = ArrCheckMode::no_check){
+		builder::write(code, Command(Opcode::arr_op, false, false));
+		builder::writeIndexPos(code ,arr);
+		OpArrFlags flags;
+		flags.move_mode = move;
+		flags.checked = check_bounds;
+		builder::write(code, flags.raw);
+	}
+
+	void FuncEnviroBuilder::_arr::set(ValueIndexPos index, ValueIndexPos val, bool move, ArrCheckMode check_bounds){
+		default_dynamic_header_arr_op(build.code, arr, move, check_bounds);
+		build.code.push_back((uint8_t)OpcodeArray::set);
+		builder::writeIndexPos(build.code, index);
+		builder::writeIndexPos(build.code, val);
+	}
+	void FuncEnviroBuilder::_arr::insert(ValueIndexPos index, ValueIndexPos val, bool move){
+		default_dynamic_header_arr_op(build.code, arr, move);
+		build.code.push_back((uint8_t)OpcodeArray::insert);
+		builder::writeIndexPos(build.code, index);
+		builder::writeIndexPos(build.code, val);
+	}
+	void FuncEnviroBuilder::_arr::push_end(ValueIndexPos val, bool move){
+		default_dynamic_header_arr_op(build.code, arr, move);
+		build.code.push_back((uint8_t)OpcodeArray::push_end);
+		builder::writeIndexPos(build.code, val);
+	}
+	void FuncEnviroBuilder::_arr::push_start(ValueIndexPos val, bool move){
+		default_dynamic_header_arr_op(build.code, arr, move);
+		build.code.push_back((uint8_t)OpcodeArray::push_start);
+		builder::writeIndexPos(build.code, val);
+	}
+	void FuncEnviroBuilder::_arr::insert_range(ValueIndexPos arr2, ValueIndexPos arr2_start, ValueIndexPos arr2_end, ValueIndexPos arr_pos, bool move){
+		default_dynamic_header_arr_op(build.code, arr, move);
+		build.code.push_back((uint8_t)OpcodeArray::insert_range);
+		builder::writeIndexPos(build.code, arr2);
+		builder::writeIndexPos(build.code, arr2_start);
+		builder::writeIndexPos(build.code, arr2_end);
+		builder::writeIndexPos(build.code, arr_pos);
+	}
+	void FuncEnviroBuilder::_arr::get(ValueIndexPos to, ValueIndexPos index, bool move, ArrCheckMode check_bounds){
+		default_dynamic_header_arr_op(build.code, arr, move, check_bounds);
+		build.code.push_back((uint8_t)OpcodeArray::get);
+		builder::writeIndexPos(build.code, to);
+		builder::writeIndexPos(build.code, index);
+	}
+	void FuncEnviroBuilder::_arr::take(ValueIndexPos to, ValueIndexPos index, bool move){
+		default_dynamic_header_arr_op(build.code, arr, move);
+		build.code.push_back((uint8_t)OpcodeArray::take);
+		builder::writeIndexPos(build.code, to);
+		builder::writeIndexPos(build.code, index);
+	}
+	void FuncEnviroBuilder::_arr::take_end(ValueIndexPos to, bool move){
+		default_dynamic_header_arr_op(build.code, arr, move);
+		build.code.push_back((uint8_t)OpcodeArray::take_end);
+		builder::writeIndexPos(build.code, to);
+	}
+	void FuncEnviroBuilder::_arr::take_start(ValueIndexPos to, bool move){
+		default_dynamic_header_arr_op(build.code, arr, move);
+		build.code.push_back((uint8_t)OpcodeArray::take_start);
+		builder::writeIndexPos(build.code, to);
+	}
+	void FuncEnviroBuilder::_arr::get_range(ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move){
+		default_dynamic_header_arr_op(build.code, arr, move);
+		build.code.push_back((uint8_t)OpcodeArray::get_range);
+		builder::writeIndexPos(build.code, to);
+		builder::writeIndexPos(build.code, start);
+		builder::writeIndexPos(build.code, end);
+	}
+	void FuncEnviroBuilder::_arr::take_range(ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move){
+		default_dynamic_header_arr_op(build.code, arr, move);
+		build.code.push_back((uint8_t)OpcodeArray::take_range);
+		builder::writeIndexPos(build.code, to);
+		builder::writeIndexPos(build.code, start);
+		builder::writeIndexPos(build.code, end);
+	}
+	void FuncEnviroBuilder::_arr::pop_end(){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::pop_end);
+	}
+	void FuncEnviroBuilder::_arr::pop_start(){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::pop_start);
+	}
+	void FuncEnviroBuilder::_arr::remove_item(ValueIndexPos in){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::remove_item);
+		builder::writeIndexPos(build.code, in);
+	}
+	void FuncEnviroBuilder::_arr::remove_range(ValueIndexPos start, ValueIndexPos end){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::remove_range);
+		builder::writeIndexPos(build.code, start);
+		builder::writeIndexPos(build.code, end);
+	}
+	void FuncEnviroBuilder::_arr::resize(ValueIndexPos new_size){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::resize);
+		builder::writeIndexPos(build.code, new_size);
+	}
+	void FuncEnviroBuilder::_arr::resize_default(ValueIndexPos new_size, ValueIndexPos default_init_val){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::resize_default);
+		builder::writeIndexPos(build.code, new_size);
+		builder::writeIndexPos(build.code, default_init_val);
+	}
+	void FuncEnviroBuilder::_arr::reserve_push_end(ValueIndexPos new_size){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::reserve_push_end);
+		builder::writeIndexPos(build.code, new_size);
+	}
+	void FuncEnviroBuilder::_arr::reserve_push_start(ValueIndexPos new_size){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::reserve_push_start);
+		builder::writeIndexPos(build.code, new_size);
+	}
+	void FuncEnviroBuilder::_arr::commit(){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::commit);
+	}
+	void FuncEnviroBuilder::_arr::decommit(ValueIndexPos blocks_count){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::decommit);
+		builder::writeIndexPos(build.code, blocks_count);
+	}
+	void FuncEnviroBuilder::_arr::remove_reserved(){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::remove_reserved);
+	}
+	void FuncEnviroBuilder::_arr::size(ValueIndexPos set_to){
+		default_dynamic_header_arr_op(build.code, arr);
+		build.code.push_back((uint8_t)OpcodeArray::size);
+		builder::writeIndexPos(build.code, set_to);
+	}
 #pragma endregion
 	//casm,
 #pragma region interface
@@ -1059,13 +895,6 @@ void FuncEnviroBuilder::xarray_slice(ValueIndexPos result, ValueIndexPos val){
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::all_inlined, xarray_slice_flags::_use_index_pos::none).encoded);
 }
-void FuncEnviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, uint32_t from){
-	builder::write(code, Command(Opcode::xarray_slice));
-	builder::writeIndexPos(code, result);
-	builder::writeIndexPos(code, val);
-	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::all_inlined, xarray_slice_flags::_use_index_pos::from).encoded);
-	builder::write(code, from);
-}
 void FuncEnviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, ValueIndexPos from){
 	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
@@ -1073,43 +902,12 @@ void FuncEnviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, Val
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::ref_0_inl_1, xarray_slice_flags::_use_index_pos::from).encoded);
 	builder::writeIndexPos(code, from);
 }
-void FuncEnviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, bool unused, uint32_t to){
-	builder::write(code, Command(Opcode::xarray_slice));
-	builder::writeIndexPos(code, result);
-	builder::writeIndexPos(code, val);
-	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::all_inlined, xarray_slice_flags::_use_index_pos::to).encoded);
-	builder::write(code, to);
-}
 void FuncEnviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, bool unused, ValueIndexPos to){
 	builder::write(code, Command(Opcode::xarray_slice));
 	builder::writeIndexPos(code, result);
 	builder::writeIndexPos(code, val);
 	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::inl_0_ref_1, xarray_slice_flags::_use_index_pos::to).encoded);
 	builder::writeIndexPos(code, to);
-}
-void FuncEnviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, uint32_t from, uint32_t to){
-	builder::write(code, Command(Opcode::xarray_slice));
-	builder::writeIndexPos(code, result);
-	builder::writeIndexPos(code, val);
-	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::all_inlined, xarray_slice_flags::_use_index_pos::from_to).encoded);
-	builder::write(code, from);
-	builder::write(code, to);
-}
-void FuncEnviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, uint32_t from, ValueIndexPos to){
-	builder::write(code, Command(Opcode::xarray_slice));
-	builder::writeIndexPos(code, result);
-	builder::writeIndexPos(code, val);
-	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::inl_0_ref_1, xarray_slice_flags::_use_index_pos::from_to).encoded);
-	builder::write(code, from);
-	builder::writeIndexPos(code, to);
-}
-void FuncEnviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, ValueIndexPos from, uint32_t to){
-	builder::write(code, Command(Opcode::xarray_slice));
-	builder::writeIndexPos(code, result);
-	builder::writeIndexPos(code, val);
-	code.push_back(xarray_slice_flags(xarray_slice_flags::_type::ref_0_inl_1, xarray_slice_flags::_use_index_pos::from_to).encoded);
-	builder::writeIndexPos(code, from);
-	builder::write(code, to);
 }
 void FuncEnviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, ValueIndexPos from, ValueIndexPos to){
 	builder::write(code, Command(Opcode::xarray_slice));
@@ -1187,6 +985,8 @@ typed_lgr<FuncEnvironment> FuncEnviroBuilder::O_prepare_func() {
 		return new FuncEnvironment(O_build_func(), flags.can_be_unloaded, flags.is_cheap);
 	else{
 		std::vector<uint8_t> fn;
+		builder::writeString(fn, "art_1.0.0");
+		size_t skip = fn.size();
 		builder::write(fn, flags);
 		if(flags.used_static)
 			builder::write(fn, static_values);
@@ -1201,7 +1001,7 @@ typed_lgr<FuncEnvironment> FuncEnviroBuilder::O_prepare_func() {
 			builder::write(fn, it);
 
 		fn.insert(fn.end(),code.begin(), code.end());
-		*(uint64_t*)(fn.data()) = fn.size();
+		*(uint64_t*)(fn.data() + skip) = fn.size();
 		all_constants.clear();
 		return new FuncEnvironment(std::move(fn), std::move(dynamic_values), std::move(local_funs), flags.can_be_unloaded, flags.is_cheap);
 	}
@@ -1262,6 +1062,8 @@ std::vector<uint8_t> FuncEnviroBuilder::O_build_func() {
 	if(flags.run_time_computable)
 		throw CompileTimeException("to build function, function must not use run time computable functions, ie dynamic");
 	std::vector<uint8_t> fn;
+	builder::writeString(fn, "art_1.0.0");
+	size_t skip = fn.size();
 	flags.has_local_functions = local_funs.size() > 0;
 	builder::write(fn, flags);
 	if(flags.used_static)
@@ -1290,12 +1092,12 @@ std::vector<uint8_t> FuncEnviroBuilder::O_build_func() {
 		builder::write(fn, it);
 
 	fn.insert(fn.end(),code.begin(), code.end());
-	*(uint64_t*)(fn.data()) = fn.size();
+	*(uint64_t*)(fn.data() + skip) = fn.size();
 	return fn;
 }
 void FuncEnviroBuilder::O_load_func(const std::string& str) {
 	FuncEnvironment::Load(O_prepare_func(), str);
 }
 void FuncEnviroBuilder::O_patch_func(const std::string& symbol_name){
-	FuncEnvironment::fastHotPatch(symbol_name, new FuncHandle::inner_handle(O_build_func(),flags.is_cheap));
+	FuncEnvironment::fastHotPatch(symbol_name, new FuncHandle::inner_handle(O_build_func(),flags.is_cheap, nullptr));
 }

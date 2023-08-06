@@ -11,6 +11,8 @@ namespace art{
 
 
 	bool needAlloc(ValueMeta type) {
+		if(type.as_ref)
+			return false;
 		if (type.use_gc)
 			return true;
 		return needAllocType(type.vtype);
@@ -2349,12 +2351,12 @@ namespace art{
 		case VType::ui64:
 		case VType::flo:
 		case VType::doub:
-			getValue(value) = (void*)1;
+			getValue(value) = (void*)boolean;
 			return;
 		default:
 			universalRemove(value);
 			meta = VType::boolean;
-			*value = (void*)1;
+			*value = (void*)boolean;
 		}
 	}
 
@@ -2411,12 +2413,12 @@ namespace art{
 	}
 	ValueItem::ValueItem(ValueItem&& move) {
 		if(move.meta.vtype == VType::saarr && !move.meta.as_ref){
-			ValueItem* faarrr = new ValueItem[move.meta.val_len];
+			ValueItem* faarr = new ValueItem[move.meta.val_len];
 			ValueItem* src = (ValueItem*)move.getSourcePtr();
 			for (size_t i = 0; i < move.meta.val_len; i++)
-				faarrr[i] = std::move(src[i]);
+				faarr[i] = std::move(src[i]);
 				
-			val = faarrr;
+			val = faarr;
 			meta = move.meta;
 			meta.vtype = VType::faarr;
 			move.val = nullptr;
@@ -2732,7 +2734,16 @@ namespace art{
 	}
 	
 	ValueItem::ValueItem(ValueItem& ref, as_reference_t){
-		val = ref.val;
+		if(
+			is_integer(ref.meta.vtype) 
+			|| ref.meta.vtype == VType::type_identifier 
+			|| ref.meta.vtype == VType::undefined_ptr 
+			|| ref.meta.vtype == VType::time_point
+			|| ref.meta.vtype == VType::boolean
+		)
+			val = &ref.val;
+		else
+			val = ref.val;
 		meta = ref.meta;
 		meta.as_ref = true;
 	}
@@ -5433,7 +5444,7 @@ namespace art{
 				this->iterator_data = (void*)size_t(end ? item.meta.val_len : 0);
 			
 			else if(item.meta.vtype == VType::uarr)
-				this->iterator_data = new list_array<ValueItem>::iterator<ValueItem>(end ? ((list_array<ValueItem>*)item.getSourcePtr())->end() : ((list_array<ValueItem>*)item.getSourcePtr())->begin());
+				this->iterator_data = new list_array<ValueItem>::iterator(end ? ((list_array<ValueItem>*)item.getSourcePtr())->end() : ((list_array<ValueItem>*)item.getSourcePtr())->begin());
 			else if(item.meta.vtype == VType::map){
 				std::unordered_map<ValueItem, ValueItem>& map = (std::unordered_map<ValueItem, ValueItem>&)item;
 				if(end)
@@ -5467,7 +5478,7 @@ namespace art{
 			if(is_raw_array(item.meta.vtype))
 				this->iterator_data = (void*)size_t(copy.iterator_data);
 			else if(item.meta.vtype == VType::uarr)
-				this->iterator_data = new list_array<ValueItem>::iterator<ValueItem>(*(list_array<ValueItem>::iterator<ValueItem>*)copy.iterator_data);
+				this->iterator_data = new list_array<ValueItem>::iterator(*(list_array<ValueItem>::iterator*)copy.iterator_data);
 			else if(item.meta.vtype == VType::map)
 				this->iterator_data = new std::unordered_map<ValueItem, ValueItem>::iterator(*(std::unordered_map<ValueItem, ValueItem>::iterator*)copy.iterator_data);
 			else if(item.meta.vtype == VType::set)
@@ -5484,7 +5495,7 @@ namespace art{
 			else if(item.meta.vtype == VType::struct_)
 				delete (ValueItem*)iterator_data;
 			else if(item.meta.vtype == VType::uarr)
-				delete (list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				delete (list_array<ValueItem>::iterator*)iterator_data;
 		}
 		ValueItemIterator& ValueItemIterator::operator++(){
 			if(is_raw_array(item.meta.vtype)){
@@ -5492,7 +5503,7 @@ namespace art{
 				i++;
 			}
 			else if(item.meta.vtype == VType::uarr){
-				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				list_array<ValueItem>::iterator& i = *(list_array<ValueItem>::iterator*)iterator_data;
 				i++;
 			}
 			else if(item.meta.vtype == VType::map){
@@ -5524,8 +5535,8 @@ namespace art{
 				return copy;
 			}
 			else if(item.meta.vtype == VType::uarr){
-				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
-				ValueItemIterator copy(item, new list_array<ValueItem>::iterator<ValueItem>(i));
+				list_array<ValueItem>::iterator& i = *(list_array<ValueItem>::iterator*)iterator_data;
+				ValueItemIterator copy(item, new list_array<ValueItem>::iterator(i));
 				i++;
 				return copy;
 			}
@@ -5558,7 +5569,7 @@ namespace art{
 			if(is_raw_array(item.meta.vtype))
 				return ((ValueItem*)item.getSourcePtr())[(size_t)iterator_data];
 			else if(item.meta.vtype == VType::uarr){
-				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				list_array<ValueItem>::iterator& i = *(list_array<ValueItem>::iterator*)iterator_data;
 				return *i;
 			}
 			else if(item.meta.vtype == VType::map){
@@ -5566,9 +5577,9 @@ namespace art{
 				return i->second;
 			}
 			else if(item.meta.vtype == VType::set)
-				throw InvalidOperation("Set iterator not support gettting item reference by iterator");
+				throw InvalidOperation("Set iterator not support getting item reference by iterator");
 			else if(item.meta.vtype == VType::struct_)
-				throw InvalidOperation("Structure not support gettting item reference by iterator");
+				throw InvalidOperation("Structure not support getting item reference by iterator");
 			else
 				throw InvalidOperation("ValueItem not iterable");
 		}
@@ -5576,7 +5587,7 @@ namespace art{
 			if(is_raw_array(item.meta.vtype))
 				return &((ValueItem*)item.getSourcePtr())[(size_t)iterator_data];
 			else if(item.meta.vtype == VType::uarr){
-				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				list_array<ValueItem>::iterator& i = *(list_array<ValueItem>::iterator*)iterator_data;
 				return &*i;
 			}
 			else if(item.meta.vtype == VType::map){
@@ -5584,9 +5595,9 @@ namespace art{
 				return &i->second;
 			}
 			else if(item.meta.vtype == VType::set)
-				throw InvalidOperation("Set iterator not support gettting item reference by iterator");
+				throw InvalidOperation("Set iterator not support getting item reference by iterator");
 			else if(item.meta.vtype == VType::struct_)
-				throw InvalidOperation("Structure not support gettting item reference by iterator");
+				throw InvalidOperation("Structure not support getting item reference by iterator");
 			else
 				throw InvalidOperation("ValueItem not iterable");
 		}
@@ -5596,7 +5607,7 @@ namespace art{
 			if(is_raw_array(item.meta.vtype))
 				return ((ValueItem*)item.getSourcePtr())[(size_t)iterator_data];
 			else if(item.meta.vtype == VType::uarr){
-				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				list_array<ValueItem>::iterator& i = *(list_array<ValueItem>::iterator*)iterator_data;
 				return *i;
 			}
 			else if(item.meta.vtype == VType::map){
@@ -5626,7 +5637,7 @@ namespace art{
 				((ValueItem*)item.getSourcePtr())[(size_t)iterator_data] = item;
 			
 			else if(item.meta.vtype == VType::uarr){
-				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
+				list_array<ValueItem>::iterator& i = *(list_array<ValueItem>::iterator*)iterator_data;
 				*i = item;
 			}
 			else if(item.meta.vtype == VType::map){
@@ -5655,8 +5666,8 @@ namespace art{
 				return i == j;
 			}
 			else if(item.meta.vtype == VType::uarr){
-				list_array<ValueItem>::iterator<ValueItem>& i = *(list_array<ValueItem>::iterator<ValueItem>*)iterator_data;
-				list_array<ValueItem>::iterator<ValueItem>& j = *(list_array<ValueItem>::iterator<ValueItem>*)compare.iterator_data;
+				list_array<ValueItem>::iterator& i = *(list_array<ValueItem>::iterator*)iterator_data;
+				list_array<ValueItem>::iterator& j = *(list_array<ValueItem>::iterator*)compare.iterator_data;
 				return i == j;
 			}
 			else if(item.meta.vtype == VType::map){

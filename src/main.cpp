@@ -23,7 +23,7 @@ void sleep_test() {
 
 
 
-
+uint8_t operator""ui8(unsigned long long int val);
 ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	ValueItem noting;
 
@@ -32,25 +32,31 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	ValueItem msq("test");
 	console::print(&msq, 1);
 
-
+	
 	FuncEnviroBuilder build;
 	auto fn_console_set_text_color = build.create_constant("console set_text_color");
 	auto fn_console_printf = build.create_constant("console printf");
 	auto text = build.create_constant("The test text, Current color: r%d,g%d,b%d\n");
 	auto num12 = build.create_constant(12ui8);
 	auto num128 = build.create_constant(128ui8);
+	auto num0 = build.create_constant(0ui8);
+	auto num1 = build.create_constant(1ui8);
+	auto num2 = build.create_constant(2ui8);
+	auto num3 = build.create_constant(3ui8);
+
+
 	build.set_stack_any_array(0_env, 4);
 	build.arg_set(0_env);
 
-	build.arr_set(0_env, num12, 0,false, ArrCheckMode::no_check, VType::faarr);
-	build.arr_set(0_env, num128, 1, false, ArrCheckMode::no_check, VType::faarr);
-	build.arr_set(0_env, num12, 2, false, ArrCheckMode::no_check, VType::faarr);
+	build.static_arr(0_env, VType::saarr).set(num12, num0, false, ArrCheckMode::no_check);
+	build.static_arr(0_env, VType::saarr).set(num128, num1, false, ArrCheckMode::no_check);
+	build.static_arr(0_env, VType::saarr).set(num12, num2, false, ArrCheckMode::no_check);
 	build.call(fn_console_set_text_color);
 
-	build.arr_set(0_env, text, 0, false, ArrCheckMode::no_check, VType::faarr);
-	build.arr_set(0_env, num12, 1, false, ArrCheckMode::no_check, VType::faarr);
-	build.arr_set(0_env, num128, 2, false, ArrCheckMode::no_check, VType::faarr);
-	build.arr_set(0_env, num12, 3, false, ArrCheckMode::no_check, VType::faarr);
+	build.static_arr(0_env, VType::saarr).set(text, num0, false, ArrCheckMode::no_check);
+	build.static_arr(0_env, VType::saarr).set(num12, num1, false, ArrCheckMode::no_check);
+	build.static_arr(0_env, VType::saarr).set(num128, num2, false, ArrCheckMode::no_check);
+	build.static_arr(0_env, VType::saarr).set(num12, num3, false, ArrCheckMode::no_check);
 	build.arg_set(0_env);
 	build.call(fn_console_printf);
 

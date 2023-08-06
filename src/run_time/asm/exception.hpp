@@ -17,6 +17,9 @@ namespace art{
         bool try_catch_all(CXXExInfo& cxx);
         bool has_exception();
         list_array<std::string> map_native_exception_names(CXXExInfo& cxx);
+
+        bool _attacha_filter(CXXExInfo &info, void **continue_from, void *data, size_t size, void *enviro);
+        void _attacha_finally(void *data, size_t size, void *enviro);
     }
 }
 

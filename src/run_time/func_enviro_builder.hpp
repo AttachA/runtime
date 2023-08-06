@@ -4,8 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 #pragma once
-#ifndef RUN_TIME_RUN_TIME_COMPILER
-#define RUN_TIME_RUN_TIME_COMPILER
+#ifndef SRC_RUN_TIME_FUNC_ENVIRO_BUILDER
+#define SRC_RUN_TIME_FUNC_ENVIRO_BUILDER
 #include "asm/FuncEnvironment.hpp"
 
 namespace art{
@@ -120,12 +120,10 @@ namespace art{
 		void call_self(bool is_async = false);
 		void call_self(ValueIndexPos res, bool is_async = false);
 
-		uint32_t add_local_fn(typed_lgr<FuncEnvironment> fn);
+		uint64_t add_local_fn(typed_lgr<FuncEnvironment> fn);
 
-		void call_local(ValueIndexPos in_mem_fn, bool is_async = false);
-		void call_local(ValueIndexPos in_mem_fn, ValueIndexPos res, bool is_async = false);
-		void call_local_idx(uint32_t fn, bool is_async = false);
-		void call_local_idx(uint32_t fn, ValueIndexPos res, bool is_async = false);
+		void call_local(ValueIndexPos fn, bool is_async = false);
+		void call_local(ValueIndexPos fn, ValueIndexPos res, bool is_async = false);
 		
 		void call_and_ret(ValueIndexPos fn_mem, bool is_async = false, bool fn_mem_only_str = false);
 
@@ -133,8 +131,7 @@ namespace art{
 		void call_self_and_ret(bool is_async = false);
 
 
-		void call_local_and_ret(ValueIndexPos in_mem_fn, bool is_async = false);
-		void call_local_and_ret_idx(uint32_t fn, bool is_async = false);
+		void call_local_and_ret(ValueIndexPos fn, bool is_async = false);
 		void ret(ValueIndexPos val);
 		void ret_take(ValueIndexPos val);
 		void ret();
@@ -158,69 +155,65 @@ namespace art{
 
 		void bind_pos(const std::string& label_name);
 	#pragma region arr_op
-		///<summary>set array_type to VType::noting if you need dynamic mode or array/interface type to enable static mode</summary>
-		void arr_set(ValueIndexPos arr, ValueIndexPos from, uint64_t to, bool move = true, ArrCheckMode check_bounds = ArrCheckMode::no_check, VType array_type = VType::noting);
-		///<summary>set array_type to VType::noting if you need dynamic mode or array/interface type to enable static mode</summary>
-		void arr_setByVal(ValueIndexPos arr, ValueIndexPos from, ValueIndexPos to, bool move = true, ArrCheckMode check_bounds = ArrCheckMode::no_check, VType array_type = VType::noting);
-
-		void arr_insert(ValueIndexPos arr, ValueIndexPos from, uint64_t to, bool move = true, bool static_mode = false);
-		void arr_insertByVal(ValueIndexPos arr, ValueIndexPos from, ValueIndexPos to, bool move = true, bool static_mode = false);
-
-		void arr_push_end(ValueIndexPos arr, ValueIndexPos from, bool move = true, bool static_mode = false);
-		void arr_push_start(ValueIndexPos arr, ValueIndexPos from, bool move = true, bool static_mode = false);
-
-		void arr_insert_range(ValueIndexPos arr, ValueIndexPos arr2, uint64_t arr2_start, uint64_t arr2_end, uint64_t arr_pos, bool move = true, bool static_mode = false);
-		void arr_insert_rangeByVal(ValueIndexPos arr, ValueIndexPos arr2, ValueIndexPos arr2_start, ValueIndexPos arr2_end, ValueIndexPos arr_pos, bool move = true, bool static_mode = false);
-
-		///<summary>set array_type to VType::noting if you need dynamic mode or array/interface type to enable static mode</summary>
-		void arr_get(ValueIndexPos arr, ValueIndexPos to, uint64_t from, bool move = true, ArrCheckMode check_bounds = ArrCheckMode::no_check, VType array_type = VType::noting);
-		///<summary>set array_type to VType::noting if you need dynamic mode or array/interface type to enable static mode</summary>
-		void arr_getByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos from, bool move = true, ArrCheckMode check_bounds = ArrCheckMode::no_check, VType array_type = VType::noting);
-
-		void arr_take(ValueIndexPos arr, ValueIndexPos to, uint64_t from, bool move = true, bool static_mode = false);
-		void arr_takeByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos from, bool move = true, bool static_mode = false);
-
-		void arr_take_end(ValueIndexPos arr, ValueIndexPos to, bool move = true, bool static_mode = false);
-		void arr_take_start(ValueIndexPos arr, ValueIndexPos to, bool move = true, bool static_mode = false);
-
-		void arr_get_range(ValueIndexPos arr, ValueIndexPos to, uint64_t start, uint64_t end, bool move = true, bool static_mode = false);
-		void arr_get_rangeByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move = true, bool static_mode = false);
-
-		void arr_take_range(ValueIndexPos arr, ValueIndexPos to, uint64_t start, uint64_t end, bool move = true, bool static_mode = false);
-		void arr_take_rangeByVal(ValueIndexPos arr, ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move = true, bool static_mode = false);
-
-
-		void arr_pop_end(ValueIndexPos arr, bool static_mode = false);
-		void arr_pop_start(ValueIndexPos arr, bool static_mode = false);
-
-		void arr_remove_item(ValueIndexPos arr, uint64_t in, bool static_mode = false);
-		void arr_remove_itemByVal(ValueIndexPos arr, ValueIndexPos in, bool static_mode = false);
-
-		void arr_remove_range(ValueIndexPos arr, uint64_t start, uint64_t end, bool static_mode = false);
-		void arr_remove_rangeByVal(ValueIndexPos arr, ValueIndexPos start, ValueIndexPos end, bool static_mode = false);
-
-		void arr_resize(ValueIndexPos arr, uint64_t new_size, bool static_mode = false);
-		void arr_resizeByVal(ValueIndexPos arr, ValueIndexPos new_size, bool static_mode = false);
-
-		void arr_resize_default(ValueIndexPos arr, uint64_t new_size, ValueIndexPos default_init_val, bool static_mode = false);
-		void arr_resize_defaultByVal(ValueIndexPos arr, ValueIndexPos new_size, ValueIndexPos default_init_val, bool static_mode = false);
-
-
-
-		void arr_reserve_push_end(ValueIndexPos arr, uint64_t new_size, bool static_mode = false);
-		void arr_reserve_push_endByVal(ValueIndexPos arr, ValueIndexPos new_size, bool static_mode = false);
-
-		void arr_reserve_push_start(ValueIndexPos arr, uint64_t new_size, bool static_mode = false);
-		void arr_reserve_push_startByVal(ValueIndexPos arr, ValueIndexPos new_size, bool static_mode = false);
-
-		void arr_commit(ValueIndexPos arr, bool static_mode = false);
-
-		void arr_decommit(ValueIndexPos arr, uint64_t blocks_count, bool static_mode = false);
-		void arr_decommitByVal(ValueIndexPos arr, ValueIndexPos blocks_count, bool static_mode = false);
-
-		void arr_remove_reserved(ValueIndexPos arr, bool static_mode = false);
-
-		void arr_size(ValueIndexPos arr, ValueIndexPos set_to, bool static_mode = false);
+		struct _arr{
+			FuncEnviroBuilder& build;
+			ValueIndexPos arr;
+			_arr(FuncEnviroBuilder& build, ValueIndexPos arr) : build(build), arr(arr) {}
+			void set(ValueIndexPos index, ValueIndexPos val, bool move = true, ArrCheckMode check_bounds = ArrCheckMode::no_check);
+			void insert(ValueIndexPos index, ValueIndexPos val, bool move = true);
+			void push_end(ValueIndexPos val, bool move = true);
+			void push_start(ValueIndexPos val, bool move = true);
+			void insert_range(ValueIndexPos arr2, ValueIndexPos arr2_start, ValueIndexPos arr2_end, ValueIndexPos arr_pos, bool move = true);
+			void get(ValueIndexPos to, ValueIndexPos index, bool move = true, ArrCheckMode check_bounds = ArrCheckMode::no_check);
+			void take(ValueIndexPos to, ValueIndexPos index, bool move = true);
+			void take_end(ValueIndexPos to, bool move = true);
+			void take_start(ValueIndexPos to, bool move = true);
+			void get_range(ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move = true);
+			void take_range(ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move = true);
+			void pop_end();
+			void pop_start();
+			void remove_item(ValueIndexPos in);
+			void remove_range(ValueIndexPos start, ValueIndexPos end);
+			void resize(ValueIndexPos new_size);
+			void resize_default(ValueIndexPos new_size, ValueIndexPos default_init_val);
+			void reserve_push_end(ValueIndexPos new_size);
+			void reserve_push_start(ValueIndexPos new_size);
+			void commit();
+			void decommit(ValueIndexPos blocks_count);
+			void remove_reserved();
+			void size(ValueIndexPos set_to);
+		};
+		_arr arr(ValueIndexPos arr){ return _arr(*this, arr); }
+		struct _static_arr {
+			FuncEnviroBuilder& build;
+			ValueIndexPos arr;
+			ValueMeta arr_meta;
+			_static_arr(FuncEnviroBuilder& build, ValueIndexPos arr, ValueMeta arr_meta) : build(build), arr(arr), arr_meta(arr_meta) {}
+			void set(ValueIndexPos index, ValueIndexPos val, bool move = true, ArrCheckMode check_bounds = ArrCheckMode::no_check);
+			void insert(ValueIndexPos index, ValueIndexPos val, bool move = true);
+			void push_end(ValueIndexPos val, bool move = true);
+			void push_start(ValueIndexPos val, bool move = true);
+			void insert_range(ValueIndexPos arr2, ValueIndexPos arr2_start, ValueIndexPos arr2_end, ValueIndexPos arr_pos, bool move = true);
+			void get(ValueIndexPos to, ValueIndexPos index, bool move = true, ArrCheckMode check_bounds = ArrCheckMode::no_check);
+			void take(ValueIndexPos to, ValueIndexPos index, bool move = true);
+			void take_end(ValueIndexPos to, bool move = true);
+			void take_start(ValueIndexPos to, bool move = true);
+			void get_range(ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move = true);
+			void take_range(ValueIndexPos to, ValueIndexPos start, ValueIndexPos end, bool move = true);
+			void pop_end();
+			void pop_start();
+			void remove_item(ValueIndexPos in);
+			void remove_range(ValueIndexPos start, ValueIndexPos end);
+			void resize(ValueIndexPos new_size);
+			void resize_default(ValueIndexPos new_size, ValueIndexPos default_init_val);
+			void reserve_push_end(ValueIndexPos new_size);
+			void reserve_push_start(ValueIndexPos new_size);
+			void commit();
+			void decommit(ValueIndexPos blocks_count);
+			void remove_reserved();
+			void size(ValueIndexPos set_to);
+		};
+		_static_arr static_arr(ValueIndexPos arr, ValueMeta arr_meta){ return _static_arr(*this, arr, arr_meta); }
 	#pragma endregion
 		//casm,
 		void call_value_interface(ClassAccess access, ValueIndexPos class_val, ValueIndexPos fn_name, bool is_async = false);
@@ -252,13 +245,8 @@ namespace art{
 		void localize_gc(ValueIndexPos val);
 		void from_gc(ValueIndexPos val);
 		void xarray_slice(ValueIndexPos result, ValueIndexPos val);
-		void xarray_slice(ValueIndexPos result, ValueIndexPos val, uint32_t from);
 		void xarray_slice(ValueIndexPos result, ValueIndexPos val, ValueIndexPos from);
-		void xarray_slice(ValueIndexPos result, ValueIndexPos val, bool unused, uint32_t to);
 		void xarray_slice(ValueIndexPos result, ValueIndexPos val, bool unused, ValueIndexPos to);
-		void xarray_slice(ValueIndexPos result, ValueIndexPos val, uint32_t from, uint32_t to);
-		void xarray_slice(ValueIndexPos result, ValueIndexPos val, uint32_t from, ValueIndexPos to);
-		void xarray_slice(ValueIndexPos result, ValueIndexPos val, ValueIndexPos from, uint32_t to);
 		void xarray_slice(ValueIndexPos result, ValueIndexPos val, ValueIndexPos from, ValueIndexPos to);
 		void table_jump(
 			std::vector<std::string> table,
@@ -296,4 +284,4 @@ namespace art{
 		void O_patch_func(const std::string& symbol_name);
 	};
 }
-#endif /* RUN_TIME_RUN_TIME_COMPILER */
+#endif /* SRC_RUN_TIME_FUNC_ENVIRO_BUILDER */
