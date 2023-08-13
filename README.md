@@ -20,4 +20,4 @@ Since this is a small VM implementation and unlike .NET/JVM does not do any runt
 # Notes for compiling project
 - Use cmake for compiling, in visual studio use vcpkg toolchain for cmake, in visual studio code everything is already configured, just run
 - If you wanna port to another platform use this libraries for compilation: [boost-context](https://www.boost.org), [boost-preprocessor](https://www.boost.org), [boost-lockfree](https://www.boost.org), [boost-uuid](https://www.boost.org), [asmjit](https://github.com/asmjit/asmjit) and [utf-cpp](https://github.com/nemtrif/utfcpp)
-- currently supported only x64 Windows and partilay x64 Linux
+- currently supported only x64 Windows and partilly x64 Linux
