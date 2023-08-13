@@ -271,21 +271,21 @@ namespace art {
 		}
 		inline void writePackedLen(std::vector<uint8_t>& data, uint64_t len){
 			if (len == 0) 
-				builder::write(data, 0ui8);
+				builder::write(data, (uint8_t)0);
 			else if (len <= UINT8_MAX) {
-				builder::write(data, 1ui8);
+				builder::write(data, (uint8_t)1);
 				builder::write(data, (uint8_t)len);
 			}
 			else if (len <= UINT16_MAX) {
-				builder::write(data, 2ui8);
+				builder::write(data, (uint8_t)2);
 				builder::write(data, (uint16_t)len);
 			}
 			else if (len <= UINT32_MAX) {
-				builder::write(data, 4ui8);
+				builder::write(data, (uint8_t)4);
 				builder::write(data, (uint32_t)len);
 			}
 			else {
-				builder::write(data, 8ui8);
+				builder::write(data, (uint8_t)8);
 				builder::write(data, len);
 			}
 		}

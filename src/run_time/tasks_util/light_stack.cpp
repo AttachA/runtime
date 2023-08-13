@@ -3,9 +3,6 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-
-#include <Windows.h>
-#include <intrin.h>//_AddressOfReturnAddress
 #include "light_stack.hpp"
 #include "../../run_time.hpp"
 #include "../library/console.hpp"
@@ -22,10 +19,11 @@ namespace art{
     std::atomic_size_t stack_allocations_buffer = configuration::tasks::light_stack::inital_buffer_size;
     bool light_stack::flush_used_stacks = configuration::tasks::light_stack::flush_used_stacks;
     size_t light_stack::max_buffer_size = configuration::tasks::light_stack::max_buffer_size;
-
-
-
-
+}
+#if defined(_WIN32) || defined(_WIN64)
+#include <Windows.h>
+#include <intrin.h>//_AddressOfReturnAddress
+namespace art{
     stack_context create_stack(size_t size){
         // calculate how many pages are required
         const size_t guard_page_size = (size_t(fault_reserved_pages) + 1) * page_size;
@@ -489,3 +487,177 @@ namespace art{
 
     bool light_stack::is_supported(){return true;}
 }
+#else if defined(__linux__) || defined(__linux) || defined(linux) || defined(__gnu_linux__)
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+namespace art{
+    stack_context create_stack(size_t size){
+        // calculate how many pages are required
+        const size_t guard_page_size = (size_t(fault_reserved_pages) + 1) * page_size;
+
+        void* vp = mmap(nullptr, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (!vp) 
+            throw AllocationException("VirtualAlloc failed");
+
+        // needs at least 3 pages to fully construct the coroutine and switch to it
+        const auto init_commit_size = page_size * 3;
+        auto pPtr = static_cast<uint8_t*>(vp) + size;
+        pPtr -= init_commit_size;
+        if (mprotect(pPtr, init_commit_size, PROT_READ | PROT_WRITE) == -1) 
+            throw AllocationException("VirtualAlloc failed");
+
+        //PROT_NONE already used for guard page
+        stack_context sctx;
+        sctx.size = size;
+        sctx.sp = static_cast<char*>(vp) + sctx.size;
+        return sctx;
+    }
+
+
+    BOOST_NOINLINE uint8_t* get_current_stack_pointer() {
+        return (uint8_t*)__builtin_return_address(0) + 8;
+    }
+   
+    size_t large_page_size = 0;//GetLargePageMinimum();
+
+    light_stack::light_stack(size_t size) BOOST_NOEXCEPT_OR_NOTHROW : size(size) {}
+
+    stack_context light_stack::allocate() {
+        const size_t guard_page_size = (size_t(fault_reserved_pages) + 1) * page_size;
+        const size_t pages = (size + guard_page_size + page_size - 1) / page_size;
+        // add one page at bottom that will be used as guard-page
+        const size_t size__ = (pages + 1) * page_size;
+
+        stack_context result;
+        if (stack_allocations.pop(result)) {
+            stack_allocations_buffer--;
+            if(!flush_used_stacks)
+                return result;
+            else {
+                memset(static_cast<char*>(result.sp) - result.size, 0xCC, result.size);
+                return result;
+            }
+        }
+        else
+            return create_stack(size__);
+    }
+
+    void unlimited_buffer(stack_context& sctx ){
+        if (!stack_allocations.push(sctx)) 
+            munmap(static_cast<char*>(sctx.sp) - sctx.size, sctx.size);
+        else
+            stack_allocations_buffer++;
+    }
+    void limited_buffer(stack_context& sctx ){
+    if (++stack_allocations_buffer < light_stack::max_buffer_size) {
+            if (!stack_allocations.push(sctx)) {
+                munmap(static_cast<char*>(sctx.sp) - sctx.size, sctx.size);
+                stack_allocations_buffer--;
+            }
+        }
+        else {
+            munmap(static_cast<char*>(sctx.sp) - sctx.size, sctx.size);
+            stack_allocations_buffer--;
+        }
+    }
+
+    void light_stack::deallocate(stack_context& sctx ) {
+        assert(sctx.sp);
+        if(!max_buffer_size)
+            unlimited_buffer(sctx);
+        else if(max_buffer_size != SIZE_MAX)
+            limited_buffer(sctx);
+        else
+            munmap(static_cast<char*>(sctx.sp) - sctx.size, sctx.size);
+    }
+
+
+    std::string fmt_protect(int prot) {
+        std::string res;
+        if (prot & PROT_NONE)
+            res += "NOACCESS";
+        if (prot & PROT_READ)
+            res += res.size() ? " & READONLY" : "READONLY";
+        if (prot & PROT_WRITE)
+            res += res.size() ? " & READWRITE" : "READWRITE";
+        if (prot & PROT_EXEC)
+            res += res.size() ? " & EXECUTE" : "EXECUTE";
+        if (prot & PROT_GROWSDOWN)
+            res += res.size() ? " & GROWSDOWN" : "GROWSDOWN";
+        if (prot & PROT_GROWSUP)
+            res += res.size() ? " & GROWSUP" : "GROWSUP";
+        #ifdef PROT_SAO
+        if (prot & PROT_SAO)
+            res += res.size() ? " & SAO" : "SAO";
+        #endif
+        #ifdef PROT_SEM
+        if (prot & PROT_SEM)
+            res += res.size() ? " & SEM" : "SEM";
+        #endif
+        if (prot & PROT_NONE)
+            res += res.size() ? " & NONE" : "NONE";
+        if (!res.size())
+            return "ZERO";
+        return res;
+    }
+
+    std::string dump_stack(bool* pPtr) {return "";}
+
+
+
+    struct allocation_details{
+        bool* base;
+        size_t size;
+        int prot;
+        int flags;
+    };
+
+    BOOST_NOINLINE bool* GetStackPointer() {
+        return (bool*)__builtin_return_address(0) + 8;
+    }
+
+    struct stack_snapshot {
+        stack_snapshot(bool* pPtr) {}
+        stack_snapshot() : stack_snapshot(GetStackPointer()) {}
+        std::vector<allocation_details> allocations;
+        allocation_details* reserved = nullptr;
+        allocation_details* guard = nullptr;
+        allocation_details* committed = nullptr;
+        bool valid = true;
+    };
+
+    enum stack_item{
+        reserved,
+        guard,
+        committed
+    };
+    template<stack_item item>
+    allocation_details get_stack_detail(bool* pPtr){return allocation_details();}
+    std::string dump_stack() {return "";}
+
+    //shit code, TO-DO fix it
+    bool light_stack::shrink_current(size_t bytes_threshold){return false;}
+
+    bool light_stack::prepare(){return false;}
+
+    bool light_stack::prepare(size_t bytes_to_use){return false;}
+
+
+    ValueItem* light_stack::dump_current(){return nullptr;}
+    std::string light_stack::dump_current_str(){return "";}
+    void light_stack::dump_current_out(){}
+
+    ValueItem* light_stack::dump(void* ptr){return nullptr;}
+    //default formatted string
+    std::string light_stack::dump_str(void*){return "";}
+    //console
+    void light_stack::dump_out(void* ptr){}
+    size_t light_stack::allocated_size(){return (size_t)-1;}
+    size_t light_stack::free_size(){return (size_t)-1;}
+    size_t light_stack::used_size(){return (size_t)-1;}
+    size_t light_stack::unused_size(){return (size_t)-1;}
+
+    bool light_stack::is_supported(){return false;}
+}
+#endif

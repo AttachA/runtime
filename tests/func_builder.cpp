@@ -8,7 +8,7 @@ TEST(FuncEnviroBuilder, static_test){
         FuncEnviroBuilder builder;
         auto noting = builder.create_constant(nullptr);
         auto one = builder.create_constant(1);
-        auto num = builder.create_constant(0ui32);
+        auto num = builder.create_constant((uint32_t)0);
         builder.compare(noting, 0_sta);
         builder.jump(JumpCondition::is_not_equal, "not_inited");
         builder.copy_un_constant(0_sta, num);

@@ -1472,17 +1472,17 @@ namespace art{
                         labels <<= 8;
                         labels |= data[to_be_skiped++];
                         labels <<= 8;
-                        __fallthrough;
+                        [[fallthrough]];
                     case 4:
                         labels |= data[to_be_skiped++];
                         labels <<= 8;
                         labels |= data[to_be_skiped++];
                         labels <<= 8;
-                        __fallthrough;
+                        [[fallthrough]];
                     case 2:
                         labels |= data[to_be_skiped++];
                         labels <<= 8;
-                        __fallthrough;
+                        [[fallthrough]];
                     case 1:
                         labels |= data[to_be_skiped++];
                         break;
@@ -1504,7 +1504,7 @@ namespace art{
                 size_t data_len,
                 CASM& casm_assembler,
                 list_array<std::pair<uint64_t, Label>>& jump_list,
-                std::vector<typed_lgr<FuncEnvironment>>& locals,
+                std::vector<art::shared_ptr<FuncEnvironment>>& locals,
                 FunctionMetaFlags& flags,
                 uint16_t& used_static_values,
                 uint16_t& used_enviro_vals, 

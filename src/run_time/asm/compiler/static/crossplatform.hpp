@@ -68,7 +68,7 @@ namespace art {
 			case VType::function: {
 				BuildCall b(compiler.a, 1);
 				b.mov_valindex({ compiler.static_map, compiler.values },value_index);
-				b.finalize(defaultDestructor<typed_lgr<FuncEnvironment>>);
+				b.finalize(defaultDestructor<art::shared_ptr<FuncEnvironment>>);
 				break;
 			}
 			case VType::faarr: {
@@ -98,7 +98,7 @@ namespace art {
 			case VType::async_res:{
 				BuildCall b(compiler.a, 1);
 				b.mov_valindex({ compiler.static_map, compiler.values },value_index);
-				b.finalize(defaultDestructor<typed_lgr<Task>>);
+				b.finalize(defaultDestructor<art::shared_ptr<Task>>);
 				break;
 			}
 			case VType::struct_:{
@@ -148,7 +148,7 @@ namespace art {
 						BuildCall b(compiler.a, 2);
 						b.mov_valindex({ compiler.static_map, compiler.values },to);
 						b.mov_valindex({ compiler.static_map, compiler.values },from);
-						b.finalize((typed_lgr<Task>&(typed_lgr<Task>::*)(typed_lgr<Task>&&))&typed_lgr<Task>::operator=);
+						b.finalize((art::shared_ptr<Task>&(art::shared_ptr<Task>::*)(art::shared_ptr<Task>&&))&art::shared_ptr<Task>::operator=);
 						break;
 					}
 					case VType::except_value: {
@@ -169,7 +169,7 @@ namespace art {
 						BuildCall b(compiler.a, 2);
 						b.mov_valindex({ compiler.static_map, compiler.values },to);
 						b.mov_valindex({ compiler.static_map, compiler.values },from);
-						b.finalize((typed_lgr<FuncEnvironment>&(typed_lgr<FuncEnvironment>::*)(typed_lgr<FuncEnvironment>&&))&typed_lgr<FuncEnvironment>::operator=);
+						b.finalize((art::shared_ptr<FuncEnvironment>&(art::shared_ptr<FuncEnvironment>::*)(art::shared_ptr<FuncEnvironment>&&))&art::shared_ptr<FuncEnvironment>::operator=);
 						break;
 					}
 					default:

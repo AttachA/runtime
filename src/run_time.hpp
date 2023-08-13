@@ -10,6 +10,7 @@
 #include "run_time/tasks.hpp"
 #include "run_time/cxxException.hpp"
 #include "run_time/util/enum_helper.hpp"
+#include "run_time/util/shared_ptr.hpp"
 namespace art{
 	typedef void* (*CALL_FUNC)(...);
 
@@ -63,8 +64,8 @@ namespace art{
 
 	void invite_to_debugger(const std::string& reason);
 	bool _set_name_thread_dbg(const std::string& name);
-	std::string _get_name_thread_dbg(int thread_id);
-	int _thread_id();
+	std::string _get_name_thread_dbg(unsigned long thread_id);
+	unsigned long _thread_id();
 
 	void ini_current();
 	void modify_run_time_config(const std::string& name, const std::string& value);
@@ -75,12 +76,12 @@ namespace art{
 
 	class NativeLib {
 		void* hGetProcIDDLL;
-		std::unordered_map<std::string, typed_lgr<class FuncEnvironment>> envs;
+		std::unordered_map<std::string, art::shared_ptr<FuncEnvironment>> envs;
 	public:
 		NativeLib(const std::string& library_path);
 		CALL_FUNC get_func(const std::string& func_name);
-		typed_lgr<class FuncEnvironment> get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ);
-		typed_lgr<class FuncEnvironment> get_own_enviro(const std::string& func_name);
+		art::shared_ptr<FuncEnvironment> get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ);
+		art::shared_ptr<FuncEnvironment> get_own_enviro(const std::string& func_name);
 		size_t get_pure_func(const std::string& func_name);
 		~NativeLib();
 	};

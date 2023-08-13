@@ -20,6 +20,17 @@
             "name": "Win-MinSizeRel",
             "configurePreset": "Win-MinSizeRel",
             "configuration": "MinSizeRel"
+        },
+        
+        {
+            "name": "Linux-Debug",
+            "configurePreset": "Win-Debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "Linux-Release",
+            "configurePreset": "Win-Release",
+            "configuration": "Release"
         }
     ],
     "configurePresets": [
@@ -32,6 +43,18 @@
                 "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
                 "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
                 "VCPKG_TARGET_TRIPLET": "x64-windows-static"
+            }
+        },
+        {
+            "name": "Linux-Basic",
+            "hidden": true,
+            "generator": "Ninja",
+            
+            "binaryDir": "${sourceDir}/out/build/${presetName}",
+            "cacheVariables": {
+                "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "VCPKG_TARGET_TRIPLET": "x64-linux"
             }
         },
         {
@@ -68,52 +91,32 @@
         {
             "name": "Win-Debug",
             "displayName": "Win-Debug",
-            "inherits": [
-                "Win-Basic",
-                "Debug"
-            ]
+            "inherits": [ "Win-Basic", "Debug" ]
         },
         {
             "name": "Win-Release",
             "displayName": "Win-Release",
-            "inherits": [
-                "Win-Basic",
-                "Release"
-            ]
+            "inherits": [ "Win-Basic", "Release" ]
         },
         {
             "name": "Win-RelWithDebInfo",
             "displayName": "Win-RelWithDebInfo",
-            "inherits": [
-                "Win-Basic",
-                "RelWithDebInfo"
-            ]
+            "inherits": [ "Win-Basic", "RelWithDebInfo" ]
         },
         {
             "name": "Win-MinSizeRel",
             "displayName": "Win-MinSizeRel",
-            "inherits": [
-                "Win-Basic",
-                "MinSizeRel"
-            ]
-        }
-    ],
-    "testPresets": [
+            "inherits": [ "Win-Basic", "MinSizeRel" ]
+        },
         {
-            "name": "GTest-Debug",
-            "description": "Runs GTest tests",
-            "displayName": "",
-            "configurePreset": "Win-Debug",
-            "output": {
-                "outputOnFailure": true
-            },
-            "execution": {
-                "noTestsAction": "error",
-                "stopOnFailure": true
-            },
-            "environment": {
-                "BUILD_TESTING": "ON"
-            }
+            "name": "Linux-Debug",
+            "displayName": "Linux-Debug",
+            "inherits": [ "Linux-Basic", "Debug" ]
+        },
+        {
+            "name": "Linux-Release",
+            "displayName": "Linux-Release",
+            "inherits": [ "Linux-Basic", "Release" ]
         }
     ]
 }

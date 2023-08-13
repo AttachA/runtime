@@ -7,7 +7,6 @@
 	#elif defined(__linux__)
 		#include "compiler/dynamic/amd64/linux.hpp"
 		#include "compiler/static/amd64/linux.hpp"
-		#error "Temporary unsupported platform"
 	#elif defined(__APPLE__)
 		#include "compiler/dynamic/amd64/macos.hpp"
 		#include "compiler/static/amd64/macos.hpp"

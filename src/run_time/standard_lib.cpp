@@ -720,7 +720,7 @@ namespace art{
 		}
 	}
 	template<double(*fn)(double), class T>
-	ValueItem* math_trigonometric(T* args, uint32_t args_len) {
+	ValueItem* math_trigonometric_(T* args, uint32_t args_len) {
 		T* new_arr = new T[args_len];
 		for (size_t i = 0; i < args_len; i++) {
 			if constexpr (std::is_same_v<T, ValueItem>)
@@ -745,33 +745,33 @@ namespace art{
 				}
 				case VType::faarr:
 				case VType::saarr:
-					return math_trigonometric<fn,ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn,ValueItem>((ValueItem*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_i8:
-					return math_trigonometric<fn, int8_t>((int8_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn, int8_t>((int8_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_i16:
-					return math_trigonometric<fn, int16_t>((int16_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn, int16_t>((int16_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_i32:
-					return math_trigonometric<fn, int32_t>((int32_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn, int32_t>((int32_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_i64:
-					return math_trigonometric<fn, int64_t>((int64_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn, int64_t>((int64_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_ui8:
-					return math_trigonometric<fn, uint8_t>((uint8_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn, uint8_t>((uint8_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_ui16:
-					return math_trigonometric<fn, uint16_t >((uint16_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn, uint16_t >((uint16_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_ui32:
-					return math_trigonometric<fn, uint32_t>((uint32_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn, uint32_t>((uint32_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_ui64:
-					return math_trigonometric<fn, uint64_t>((uint64_t*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn, uint64_t>((uint64_t*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_flo:
-					return math_trigonometric<fn, float>((float*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn, float>((float*)args->getSourcePtr(), args->meta.val_len);
 				case VType::raw_arr_doub:
-					return math_trigonometric<fn, double>((double*)args->getSourcePtr(), args->meta.val_len);
+					return math_trigonometric_<fn, double>((double*)args->getSourcePtr(), args->meta.val_len);
 				default:
 					return new ValueItem(*args);
 				}
 			}
 			else {
-				return math_trigonometric<fn, ValueItem>(args, args_len);
+				return math_trigonometric_<fn, ValueItem>(args, args_len);
 			}
 		}
 		return nullptr;

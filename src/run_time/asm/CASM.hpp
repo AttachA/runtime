@@ -85,15 +85,16 @@ namespace art{
 #else
 	constexpr creg8 resr_8h = asmjit::x86::ah;
 	constexpr creg8 resr1_8h = asmjit::x86::dh;
+	constexpr creg8 resr_8l = asmjit::x86::al;
+	constexpr creg8 resr1_8l = asmjit::x86::dl;
+
 	constexpr creg8 argr0_8h = asmjit::x86::dh;
-	constexpr creg8 argr1_8h = asmjit::x86::sh;
 	constexpr creg8 argr2_8h = asmjit::x86::dh;
 	constexpr creg8 argr3_8h = asmjit::x86::ch;
 
-	constexpr creg8 resr_8l = asmjit::x86::al;
-	constexpr creg8 resr1_8l = asmjit::x86::dl;
+
 	constexpr creg8 argr0_8l = asmjit::x86::dl;
-	constexpr creg8 argr1_8l = asmjit::x86::sl;
+	constexpr creg8 argr1_8l = asmjit::x86::sil;
 	constexpr creg8 argr2_8l = asmjit::x86::dl;
 	constexpr creg8 argr3_8l = asmjit::x86::cl;
 	constexpr creg8 argr4_8l = asmjit::x86::r8b;
@@ -127,16 +128,14 @@ namespace art{
 	constexpr creg64 argr4 = asmjit::x86::r8;
 	constexpr creg64 argr5 = asmjit::x86::r9;
 
-	constexpr creg64 enviro_ptr = asmjit::x86::r13;
-
-	constexpr creg64 arg_ptr = asmjit::x86::r12;
-	constexpr creg64 temp_ptr = asmjit::x86::r14;
-	constexpr creg64 mut_temp_ptr = asmjit::x86::r11;
-
 
 	constexpr creg64 stack_ptr = asmjit::x86::rsp;
 	constexpr creg64 frame_ptr = asmjit::x86::rbp;
-
+	constexpr creg64 enviro_ptr = asmjit::x86::r12;
+	constexpr creg64 arg_ptr = asmjit::x86::r13;
+	constexpr creg32 arg_len_32 = asmjit::x86::r14d;
+	constexpr creg64 arg_len = asmjit::x86::r14;
+	constexpr creg64 mut_temp_ptr = asmjit::x86::r11;
 
 
 	constexpr creg128 vec0 = asmjit::x86::xmm0;
@@ -1196,8 +1195,8 @@ namespace art{
 
 		//return unwind_info_ptr
 		void* init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name="AttachA unnamed_symbol", const char* file_path ="");
-		static bool deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime);
-		static std::vector<void*> JitCaptureStackChainTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
+        static bool deinit(uint8_t *frame, void *funct, asmjit::JitRuntime &runtime);
+        static std::vector<void*> JitCaptureStackChainTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
 		static std::vector<StackTraceItem> JitCaptureStackTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
 		static std::vector<StackTraceItem> JitCaptureExternStackTrace(void* rip, uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
 		static std::vector<void*> JitCaptureExternStackChainTrace(void* rip, uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);

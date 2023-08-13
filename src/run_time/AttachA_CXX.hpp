@@ -14,7 +14,7 @@
 namespace art{
 	namespace CXX {
 		template<class ...Types>
-		ValueItem cxxCall(typed_lgr<FuncEnvironment> func, Types... types) {
+		ValueItem cxxCall(art::shared_ptr<FuncEnvironment> func, Types... types) {
 			ValueItem args[] = {ABI_IMPL::BVcast(types)...};
 			ValueItem* res = func->syncWrapper(args, sizeof...(Types));
 			if (res == nullptr)
@@ -23,7 +23,7 @@ namespace art{
 			delete res;
 			return m;
 		}
-		inline ValueItem cxxCall(typed_lgr<FuncEnvironment> func) {
+		inline ValueItem cxxCall(art::shared_ptr<FuncEnvironment> func) {
 			ValueItem* res = func->syncWrapper(nullptr, 0);
 			if (res == nullptr)
 				return {};
@@ -419,7 +419,7 @@ namespace art{
 							ValueMeta, 
 							list_array<ValueMeta>
 						>
-					> functions_meta = {
+					> functtions_meta = {
 						([&]() {
 							using method_info = templates::function_info<Methods>;
 							return std::pair<ValueMeta, list_array<ValueMeta>>{
@@ -433,10 +433,10 @@ namespace art{
 							};
 						}())...
 					};
-					list_array<ValueMeta> return_values = functions_meta.convert<ValueMeta>(
+					list_array<ValueMeta> return_values = functtions_meta.convert<ValueMeta>(
 						[](const std::pair<ValueMeta, list_array<ValueMeta>>& v) {return v.first; }
 					);
-					list_array<list_array<ValueMeta>> arguments = functions_meta.convert<list_array<ValueMeta>>(
+					list_array<list_array<ValueMeta>> arguments = functtions_meta.convert<list_array<ValueMeta>>(
 						[](const std::pair<ValueMeta, list_array<ValueMeta>>& v) {return v.second; }
 					);
 					init_tuple<sizeof...(Methods)>(method.methods);
@@ -590,23 +590,23 @@ namespace art{
 	
 		
 				template<class Class_>
-				static typed_lgr<FuncEnvironment> ref_destructor(){
-					static typed_lgr<FuncEnvironment> ref = _createProxyTable_Impl_::destructor<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::destructor<Class_>, false) : nullptr;
+				static art::shared_ptr<FuncEnvironment> ref_destructor(){
+					static art::shared_ptr<FuncEnvironment> ref = _createProxyTable_Impl_::destructor<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::destructor<Class_>, false) : nullptr;
 					return ref;
 				}
 				template<class Class_>
-				static typed_lgr<FuncEnvironment> ref_copy(){
-					static typed_lgr<FuncEnvironment> ref = _createProxyTable_Impl_::copy<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::copy<Class_>, false) : nullptr;
+				static art::shared_ptr<FuncEnvironment> ref_copy(){
+					static art::shared_ptr<FuncEnvironment> ref = _createProxyTable_Impl_::copy<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::copy<Class_>, false) : nullptr;
 					return ref;
 				}
 				template<class Class_>
-				static typed_lgr<FuncEnvironment> ref_move(){
-					static typed_lgr<FuncEnvironment> ref = _createProxyTable_Impl_::move<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::move<Class_>, false) : nullptr;
+				static art::shared_ptr<FuncEnvironment> ref_move(){
+					static art::shared_ptr<FuncEnvironment> ref = _createProxyTable_Impl_::move<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::move<Class_>, false) : nullptr;
 					return ref;
 				}
 				template<class Class_>
-				static typed_lgr<FuncEnvironment> ref_compare(){
-					static typed_lgr<FuncEnvironment> ref = _createProxyTable_Impl_::compare<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::compare<Class_>, false) : nullptr;
+				static art::shared_ptr<FuncEnvironment> ref_compare(){
+					static art::shared_ptr<FuncEnvironment> ref = _createProxyTable_Impl_::compare<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::compare<Class_>, false) : nullptr;
 					return ref;
 				}
 			}
@@ -621,17 +621,17 @@ namespace art{
 			_createProxyTable_Impl_::are_same<MethodInfo,Methods...>::value
 			,AttachADynamicVirtualTable*>::type
 			createProxyDTable(Methods... methods){
-				list_array<MethodInfo> proxied;
-				proxied.resize(sizeof...(Methods));
+				list_array<MethodInfo> proxed;
+				proxed.resize(sizeof...(Methods));
 				size_t i = 0;
 				std::string owner_name = typeid(Class_).name();
 				([&](){
-					proxied[i].owner_name = owner_name;
-					proxied[i++] = methods;
+					proxed[i].owner_name = owner_name;
+					proxed[i++] = methods;
 				}(),...);
 	
 				auto res = new AttachADynamicVirtualTable(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -644,16 +644,16 @@ namespace art{
 			//std::enable_if Methods is MethodInfos
 			typename std::enable_if<_createProxyTable_Impl_::are_same<MethodInfo,Methods...>::value,AttachAVirtualTable*>::type
 			createProxyTable(Methods... methods){
-				list_array<MethodInfo> proxied;
-				proxied.resize(sizeof...(Methods));
+				list_array<MethodInfo> proxed;
+				proxed.resize(sizeof...(Methods));
 				size_t i = 0;
 				std::string owner_name = typeid(Class_).name();
 				([&](){
-					proxied[i].owner_name = owner_name;
-					proxied[i++] = methods;
+					proxed[i].owner_name = owner_name;
+					proxed[i++] = methods;
 				}(),...);
 				auto res = AttachAVirtualTable::create(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -665,19 +665,19 @@ namespace art{
 			template<class Class_, class ...DirectMethod>
 			typename std::enable_if<_createProxyTable_Impl_::are_same<direct_method,DirectMethod...>::value,AttachADynamicVirtualTable*>::type
 			createDTable(DirectMethod... methods){
-				list_array<MethodInfo> proxied;
-				proxied.resize(sizeof...(DirectMethod));
+				list_array<MethodInfo> proxed;
+				proxed.resize(sizeof...(DirectMethod));
 				size_t i = 0;
 				std::string owner_name = typeid(Class_).name();
 				([&](){
-					proxied[i].owner_name = owner_name;
-					proxied[i].name = methods.name;
-					proxied[i].access = methods.access;
-					proxied[i++].ref = new FuncEnvironment(methods.env,false);
+					proxed[i].owner_name = owner_name;
+					proxed[i].name = methods.name;
+					proxed[i].access = methods.access;
+					proxed[i++].ref = new FuncEnvironment(methods.env,false);
 				}(),...);
 	
 				auto res = new AttachADynamicVirtualTable(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -689,18 +689,18 @@ namespace art{
 			template<class Class_, class ...DirectMethod>
 			typename std::enable_if<_createProxyTable_Impl_::are_same<direct_method,DirectMethod...>::value,AttachAVirtualTable*>::type
 			createTable(DirectMethod... methods){
-				list_array<MethodInfo> proxied;
-				proxied.resize(sizeof...(DirectMethod));
+				list_array<MethodInfo> proxed;
+				proxed.resize(sizeof...(DirectMethod));
 				size_t i = 0;
 				std::string owner_name = typeid(Class_).name();
 				([&](){
-					proxied[i].owner_name = owner_name;
-					proxied[i].name = methods.name;
-					proxied[i].access = methods.access;
-					proxied[i++].ref = new FuncEnvironment(methods.env,false);
+					proxed[i].owner_name = owner_name;
+					proxed[i].name = methods.name;
+					proxed[i].access = methods.access;
+					proxed[i++].ref = new FuncEnvironment(methods.env,false);
 				}(),...);
 				auto res = AttachAVirtualTable::create(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -715,15 +715,15 @@ namespace art{
 			_createProxyTable_Impl_::are_same<MethodInfo,Methods...>::value
 			,AttachADynamicVirtualTable*>::type
 			createProxyDTable(const std::string& owner_name, Methods... methods){
-				list_array<MethodInfo> proxied;
-				proxied.resize(sizeof...(Methods));
+				list_array<MethodInfo> proxed;
+				proxed.resize(sizeof...(Methods));
 				size_t i = 0;
 				([&](){
-					proxied[i].owner_name = owner_name;
-					proxied[i++] = methods;
+					proxed[i].owner_name = owner_name;
+					proxed[i++] = methods;
 				}(),...);
 				auto res = new AttachADynamicVirtualTable(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -735,15 +735,15 @@ namespace art{
 			template<class Class_, class ...Methods>
 			typename std::enable_if<_createProxyTable_Impl_::are_same<MethodInfo,Methods...>::value,AttachAVirtualTable*>::type
 			createProxyTable(const std::string& owner_name, Methods... methods){
-				list_array<MethodInfo> proxied;
-				proxied.resize(sizeof...(Methods));
+				list_array<MethodInfo> proxed;
+				proxed.resize(sizeof...(Methods));
 				size_t i = 0;
 				([&](){
-					proxied[i].owner_name = owner_name;
-					proxied[i++] = methods;
+					proxed[i].owner_name = owner_name;
+					proxed[i++] = methods;
 				}(),...);
 				auto res = AttachAVirtualTable::create(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -755,18 +755,18 @@ namespace art{
 			template<class Class_, class ...DirectMethod>
 			typename std::enable_if<_createProxyTable_Impl_::are_same<direct_method,DirectMethod...>::value,AttachADynamicVirtualTable*>::type
 			createDTable(const std::string& owner_name, DirectMethod... methods){
-				list_array<MethodInfo> proxied;
-				proxied.resize(sizeof...(DirectMethod));
+				list_array<MethodInfo> proxed;
+				proxed.resize(sizeof...(DirectMethod));
 				size_t i = 0;
 				([&](){
-					proxied[i].owner_name = owner_name;
-					proxied[i].name = methods.name;
-					proxied[i].access = methods.access;
-					proxied[i++].ref = new FuncEnvironment(methods.env,false);
+					proxed[i].owner_name = owner_name;
+					proxed[i].name = methods.name;
+					proxed[i].access = methods.access;
+					proxed[i++].ref = new FuncEnvironment(methods.env,false);
 				}(),...);
 	
 				auto res = new AttachADynamicVirtualTable(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -778,18 +778,18 @@ namespace art{
 			template<class Class_, class ...DirectMethod>
 			typename std::enable_if<_createProxyTable_Impl_::are_same<direct_method,DirectMethod...>::value,AttachAVirtualTable*>::type
 			createTable(const std::string& owner_name, DirectMethod... methods){
-				list_array<MethodInfo> proxied;
-				proxied.resize(sizeof...(DirectMethod));
+				list_array<MethodInfo> proxed;
+				proxed.resize(sizeof...(DirectMethod));
 				size_t i = 0;
 				([&](){
-					proxied[i].owner_name = owner_name;
-					proxied[i].name = methods.name;
-					proxied[i].access = methods.access;
-					proxied[i++].ref = new FuncEnvironment(methods.env,false);
+					proxed[i].owner_name = owner_name;
+					proxed[i].name = methods.name;
+					proxed[i].access = methods.access;
+					proxed[i++].ref = new FuncEnvironment(methods.env,false);
 				}(),...);
 	
 				auto res = AttachAVirtualTable::create(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -801,9 +801,9 @@ namespace art{
 			
 			template<class Class_>
 			AttachADynamicVirtualTable* createProxyDTable(const std::string& owner_name){
-				list_array<MethodInfo> proxied;
+				list_array<MethodInfo> proxed;
 				auto res = new AttachADynamicVirtualTable(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -814,9 +814,9 @@ namespace art{
 			}
 			template<class Class_>
 			AttachAVirtualTable* createProxyTable(const std::string& owner_name){
-				list_array<MethodInfo> proxied;
+				list_array<MethodInfo> proxed;
 				auto res = AttachAVirtualTable::create(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -827,9 +827,9 @@ namespace art{
 			}
 			template<class Class_>
 			AttachADynamicVirtualTable* createDTable(const std::string& owner_name){
-				list_array<MethodInfo> proxied;
+				list_array<MethodInfo> proxed;
 				auto res = new AttachADynamicVirtualTable(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -840,9 +840,9 @@ namespace art{
 			}
 			template<class Class_>
 			AttachAVirtualTable* createTable(const std::string& owner_name){
-				list_array<MethodInfo> proxied;
+				list_array<MethodInfo> proxed;
 				auto res = AttachAVirtualTable::create(
-					proxied,
+					proxed,
 					_createProxyTable_Impl_::ref_destructor<Class_>(),
 					_createProxyTable_Impl_::ref_copy<Class_>(),
 					_createProxyTable_Impl_::ref_move<Class_>(),
@@ -902,7 +902,7 @@ namespace art{
 					}
 					return art::CXX::Interface::getAs<Class_>(proxy);
 				}else
-					throw InvalidArguments(vtable->name + ", type mismatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
+					throw InvalidArguments(vtable->name + ", type missmatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
 			}
 			template<class Class_>
 			Class_& getExtractAs(Structure& proxy, AttachAVirtualTable* vtable){
@@ -926,7 +926,7 @@ namespace art{
 					}
 					return art::CXX::Interface::getAs<Class_>(proxy);
 				}else
-					throw InvalidArguments(vtable->getName() + ", type mismatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
+					throw InvalidArguments(vtable->getName() + ", type missmatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
 			}
 	
 			template<class Class_>
@@ -954,18 +954,18 @@ namespace art{
 		}
 		template<class>
 		struct Proxy {};
-		template<class ReturnTyp, class ...Arguments>
-		struct Proxy<ReturnTyp(*)(Arguments...)> {
-			typedef  ReturnTyp(*Excepted)(Arguments...);
+		template<class ReturmTyp, class ...Argumetns>
+		struct Proxy<ReturmTyp(*)(Argumetns...)> {
+			typedef  ReturmTyp(*Excepted)(Argumetns...);
 			static ValueItem* proxy(Excepted fn, ValueItem* args, uint32_t len) {
-				arguments_range(len, sizeof...(Arguments));
+				arguments_range(len, sizeof...(Argumetns));
 				size_t arg_i = 0;
-				if constexpr (std::is_same_v<ReturnTyp, void>) {
-					fn(((Arguments)args[arg_i++])...);
+				if constexpr (std::is_same_v<ReturmTyp, void>) {
+					fn(((Argumetns)args[arg_i++])...);
 					return nullptr;
 				}
 				else
-					return new ValueItem((ReturnTyp)fn(((Arguments)args[arg_i++])...));
+					return new ValueItem((ReturmTyp)fn(((Argumetns)args[arg_i++])...));
 			}
 			static ValueItem* abstract_Proxy(void* fn, ValueItem* args, uint32_t len) {
 				Excepted cls_fn;
@@ -973,18 +973,18 @@ namespace art{
 				return proxy(cls_fn, args, len);
 			}
 		};
-		template<class Class_, class ReturnTyp, class ...Arguments>
-		struct Proxy<ReturnTyp(Class_::*)(Arguments...)> {
-			typedef  ReturnTyp(Class_::*Excepted)(Arguments...);
+		template<class Class_, class ReturmTyp, class ...Argumetns>
+		struct Proxy<ReturmTyp(Class_::*)(Argumetns...)> {
+			typedef  ReturmTyp(Class_::*Excepted)(Argumetns...);
 			static ValueItem* proxy(Excepted fn, ValueItem* args, uint32_t len) {
-				arguments_range(len, sizeof...(Arguments) + 1);
+				arguments_range(len, sizeof...(Argumetns) + 1);
 				size_t arg_i = 1;
-				if constexpr (std::is_same_v<ReturnTyp, void>) {
-					Interface::getAs<Class_>(args[0]).*fn(((Arguments)args[arg_i++])...);
+				if constexpr (std::is_same_v<ReturmTyp, void>) {
+					Interface::getAs<Class_>(args[0]).*fn(((Argumetns)args[arg_i++])...);
 					return nullptr;
 				}
 				else
-					return new ValueItem((ReturnTyp)(Interface::getAs<Class_>(args[0]).*fn)(((Arguments)args[arg_i++])...));
+					return new ValueItem((ReturmTyp)(Interface::getAs<Class_>(args[0]).*fn)(((Argumetns)args[arg_i++])...));
 			}
 			static ValueItem* abstract_Proxy(void* fn, ValueItem* args, uint32_t len) {
 				Excepted cls_fn;

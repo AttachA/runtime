@@ -67,13 +67,13 @@ namespace art{
 			else if constexpr (std::is_same_v<T, double*>) return VType::raw_arr_doub;
 			else if constexpr (std::is_same_v<T, list_array<ValueItem>>) return VType::uarr;
 			else if constexpr (std::is_same_v<T, std::string>) return VType::string;
-			else if constexpr (std::is_same_v<T, typed_lgr<Task>>) return VType::async_res;
+			else if constexpr (std::is_same_v<T, art::shared_ptr<Task>>) return VType::async_res;
 			else if constexpr (std::is_same_v<T, void*>) return VType::undefined_ptr;
 			else if constexpr (std::is_same_v<T, std::exception_ptr*>) return VType::except_value;
 			else if constexpr (std::is_same_v<T, ValueItem*>) return VType::faarr;
 			else if constexpr (std::is_same_v<T, Structure>) return VType::struct_;
 			else if constexpr (std::is_same_v<T, ValueMeta>) return VType::type_identifier;
-			else if constexpr (std::is_same_v<T, typed_lgr<class FuncEnvironment>>) return VType::function;
+			else if constexpr (std::is_same_v<T, art::shared_ptr<FuncEnvironment>>) return VType::function;
 			else return VType::noting;
 		}
 	public:
@@ -216,7 +216,7 @@ namespace art{
 		ValueItem SBcast(const std::string& str);
 		template<class T>
 		ValueItem BVcast(const T& val) {
-			if constexpr (std::is_same_v<std::remove_cvref_t<T>, nullptr_t>)
+			if constexpr (std::is_same_v<std::remove_cvref_t<T>, std::nullptr_t>)
 				return ValueItem();
 			if constexpr (std::is_same_v<std::remove_cvref_t<T>, bool>)
 				return ValueItem((void*)(0ull + val), VType::boolean);
@@ -248,10 +248,10 @@ namespace art{
 				return ValueItem(*(void**)&val, VType::type_identifier);
 			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Structure>)
 				return ValueItem(Structure::copy(val), no_copy);
-			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnvironment>>)
-				return ValueItem(new typed_lgr<class FuncEnvironment>(val), VType::function, no_copy);
+			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, art::shared_ptr<FuncEnvironment>>)
+				return ValueItem(new art::shared_ptr<FuncEnvironment>(val), VType::function, no_copy);
 			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Environment>)
-				return ValueItem(new typed_lgr<class FuncEnvironment>(new FuncEnvironment(val,false)), VType::function, no_copy);
+				return ValueItem(new art::shared_ptr<FuncEnvironment>(new FuncEnvironment(val,false)), VType::function, no_copy);
 			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueItem>)
 				return val;
 			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, void*>)
@@ -267,8 +267,8 @@ namespace art{
 						std::is_same_v<std::remove_cvref_t<T>, Structure> ||
 						std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
 						std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>> ||
-						std::is_same_v<std::remove_cvref_t<T>, nullptr_t> ||
-						std::is_same_v<std::remove_cvref_t<T>, typed_lgr<class FuncEnvironment>> ||
+						std::is_same_v<std::remove_cvref_t<T>, std::nullptr_t> ||
+						std::is_same_v<std::remove_cvref_t<T>, art::shared_ptr<FuncEnvironment>> ||
 						std::is_same_v<std::remove_cvref_t<T>, Environment> ||
 						std::is_same_v<std::remove_cvref_t<T>, bool> ||
 						std::is_same_v<std::remove_cvref_t<T>, void*>

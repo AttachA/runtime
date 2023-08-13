@@ -22,7 +22,7 @@ namespace art{
 		AttachAVirtualTable* define_TaskGroup;
 
 		template<size_t args_off>
-		void parseArgumentsToTask(ValueItem* args, uint32_t len, typed_lgr<FuncEnvironment>& func, typed_lgr<FuncEnvironment>& fault_func, std::chrono::high_resolution_clock::time_point& timeout, bool& used_task_local, ValueItem& arguments){
+		void parseArgumentsToTask(ValueItem* args, uint32_t len, art::shared_ptr<FuncEnvironment>& func, art::shared_ptr<FuncEnvironment>& fault_func, std::chrono::high_resolution_clock::time_point& timeout, bool& used_task_local, ValueItem& arguments){
 			timeout = std::chrono::high_resolution_clock::time_point::min();
 			used_task_local = false;
 
@@ -164,11 +164,11 @@ namespace art{
 		})
 		AttachAFun(funs_Mutex_lifecycle_lock, 2,{
 			auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
-			class_.lifecycle_lock((typed_lgr<Task>)args[1]);
+			class_.lifecycle_lock((art::shared_ptr<Task>)args[1]);
 		})
 		AttachAFun(funs_Mutex_sequence_lock, 2,{
 			auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
-			class_.sequence_lock((typed_lgr<Task>)args[1]);
+			class_.sequence_lock((art::shared_ptr<Task>)args[1]);
 		})
 		void init_Mutex() {
 			define_Mutex = CXX::Interface::createTable<typed_lgr<TaskMutex>>("mutex",
@@ -214,11 +214,11 @@ namespace art{
 		})
 		AttachAFun(funs_RecursiveMutex_lifecycle_lock, 2,{
 			auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
-			class_.lifecycle_lock((typed_lgr<Task>)args[1]);
+			class_.lifecycle_lock((art::shared_ptr<Task>)args[1]);
 		})
 		AttachAFun(funs_RecursiveMutex_sequence_lock, 2,{
 			auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
-			class_.sequence_lock((typed_lgr<Task>)args[1]);
+			class_.sequence_lock((art::shared_ptr<Task>)args[1]);
 		})
 
 		void init_RecursiveMutex() {
@@ -407,8 +407,8 @@ namespace art{
 	#pragma region TaskQuery
 		AttachAFun(funs_TaskQuery_add_task, 2, {
 			auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskQuery>>(args[0], define_TaskQuery);
-			typed_lgr<FuncEnvironment> func;
-			typed_lgr<FuncEnvironment> fault_func;
+			art::shared_ptr<FuncEnvironment> func;
+			art::shared_ptr<FuncEnvironment> fault_func;
 			std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min();
 			bool used_task_local = false;
 			ValueItem values;
@@ -426,7 +426,7 @@ namespace art{
 		AttachAFun(funs_TaskQuery_in_query, 2, {
 			auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskQuery>>(args[0], define_TaskQuery);
 			CXX::excepted(args[1], VType::async_res);
-			typed_lgr<Task>& task = *(typed_lgr<Task>*)args[1].getSourcePtr();
+			art::shared_ptr<Task>& task = *(art::shared_ptr<Task>*)args[1].getSourcePtr();
 			return class_.in_query(task);
 		})
 		AttachAFun(funs_TaskQuery_set_max_at_execution, 2, {
@@ -452,7 +452,7 @@ namespace art{
 	#pragma endregion
 	#pragma region TaskResultIterator
 		struct TaskResultIterator {
-			typed_lgr<Task> task;
+			art::shared_ptr<Task> task;
 			ptrdiff_t index = -1;
 			bool next(){
 				if(task->end_of_life){
@@ -526,43 +526,43 @@ namespace art{
 	#pragma endregion
 	#pragma region Task
 		AttachAFun(funs_Task_start, 1, {
-			Task::start(CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+			Task::start(CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task));
 		})
 		AttachAFun(funs_Task_yield_iterate, 1, {
-			return Task::yield_iterate(CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+			return Task::yield_iterate(CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task));
 		})
 		AttachAManagedFun(funs_Task_get_result, 1, {
 			if(len >= 2)
-				return Task::get_result(CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task), (size_t)args[1]);
+				return Task::get_result(CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task), (size_t)args[1]);
 			else
-				return Task::get_result(CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+				return Task::get_result(CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task));
 		})
 		AttachAFun(funs_Task_has_result, 1, {
 			if(len >= 2)
-				return Task::has_result(CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task), (size_t)args[1]);
+				return Task::has_result(CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task), (size_t)args[1]);
 			else
-				return Task::has_result(CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+				return Task::has_result(CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task));
 		})
 		AttachAFun(funs_Task_await_task, 1, {
 			if(len >= 2)
-				Task::await_task(CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task), (bool)args[1]);
+				Task::await_task(CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task), (bool)args[1]);
 			else
-				Task::await_task(CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+				Task::await_task(CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task));
 		})
 		AttachAFun(funs_Task_await_results, 1, {
-			return Task::await_results(CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+			return Task::await_results(CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task));
 		})
 		AttachAFun(funs_Task_notify_cancel, 1, {
-			Task::notify_cancel(CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task));
+			Task::notify_cancel(CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task));
 		})
 		AttachAFun(funs_Task_size, 1, {
-			Task& task = *CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+			Task& task = *CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task);
 			lock_guard lock(task.no_race);
 			return task.fres.results.size();
 		})
 
 		AttachAFun(funs_Task_to_string, 1, {
-			auto& task = CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+			auto& task = CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task);
 			Task::await_task(task);
 			Task& task_ = *task;
 			ValueItem pre_res(task_.fres.results, as_reference);
@@ -570,7 +570,7 @@ namespace art{
 		})
 		
 		AttachAFun(funs_Task_to_set, 1, {
-			auto& task = CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+			auto& task = CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task);
 			Task::await_task(task);
 			std::unordered_set<ValueItem> res;
 			for(auto& i : task->fres.results)
@@ -580,7 +580,7 @@ namespace art{
 
 		template<typename T>
 		AttachAFun(funs_Task_to_, 1, {
-			auto& task = CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+			auto& task = CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task);
 			if(task->fres.results.size() != 1){
 				ValueItem* res = Task::get_result(task, 0);
 				std::unique_ptr<ValueItem> res_(res);
@@ -591,7 +591,7 @@ namespace art{
 
 		template<typename T>
 		AttachAFun(funs_Task_array_to_, 1, {
-			auto& task = CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+			auto& task = CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task);
 			Task::await_task(task);
 			if(task->fres.results.size() > UINT32_MAX)
 				throw InvalidCast("Task internal result array is too large to convert to an array");
@@ -606,17 +606,17 @@ namespace art{
 			}
 		})
 		AttachAFun(funs_Task_begin, 1, {
-			auto& task = CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+			auto& task = CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task);
 			return CXX::Interface::constructStructure<TaskResultIterator>(define_TaskResultIterator, task, -1);
 		})
 		AttachAFun(funs_Task_end, 1, {
-			auto& task = CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0], define_Task);
+			auto& task = CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task);
 			Task::await_task(task);
 			return CXX::Interface::constructStructure<TaskResultIterator>(define_TaskResultIterator, task, task->fres.results.size());
 		})
 
 		void init_Task(){
-			define_Task = CXX::Interface::createTable<typed_lgr<Task>>("task",
+			define_Task = CXX::Interface::createTable<art::shared_ptr<Task>>("task",
 				CXX::Interface::direct_method("start", funs_Task_start),
 				CXX::Interface::direct_method("yield_iterate", funs_Task_yield_iterate),
 				CXX::Interface::direct_method("get_result", funs_Task_get_result),
@@ -640,7 +640,7 @@ namespace art{
 				CXX::Interface::direct_method(symbols::structures::convert::to_boolean, funs_Task_to_<bool>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_timepoint, funs_Task_to_<std::chrono::high_resolution_clock::time_point>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_type_identifier, funs_Task_to_<ValueMeta>),
-				CXX::Interface::direct_method(symbols::structures::convert::to_function, funs_Task_to_<typed_lgr<FuncEnvironment>&>),
+				CXX::Interface::direct_method(symbols::structures::convert::to_function, funs_Task_to_<art::shared_ptr<FuncEnvironment>&>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_map, funs_Task_to_<std::unordered_map<ValueItem,ValueItem>&>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_set, funs_Task_to_set),
 				CXX::Interface::direct_method(symbols::structures::convert::to_ui8_arr, funs_Task_array_to_<uint8_t>),
@@ -658,42 +658,42 @@ namespace art{
 				CXX::Interface::direct_method(symbols::structures::iterable::end, funs_Task_end),
 				CXX::Interface::direct_method("notify_cancel", funs_Task_notify_cancel)
 			);
-			CXX::Interface::typeVTable<typed_lgr<Task>>() = define_Task;
+			CXX::Interface::typeVTable<art::shared_ptr<Task>>() = define_Task;
 		}
 		
 	#pragma endregion
 	#pragma region TaskGroup
 		AttachAFun(funs_TaskGroup_start, 1, {
-			Task::start(CXX::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup));
+			Task::start(CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup));
 		})
 		AttachAFun(funs_TaskGroup_await_multiple, 1, {
 			switch (len) {
 			case 1:
-				Task::await_multiple(CXX::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup));
+				Task::await_multiple(CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup));
 				break;
 			case 2:
-				Task::await_multiple(CXX::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup), (bool)args[1]);
+				Task::await_multiple(CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup), (bool)args[1]);
 				break;
 			case 3:
 			default:{
 				bool release = (bool)args[2];
-				Task::await_multiple(CXX::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup), (bool)args[1], release);
+				Task::await_multiple(CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup), (bool)args[1], release);
 				if(release)
-					CXX::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup).clear();
+					CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup).clear();
 				break;
 			}
 			}
 		})
 		AttachAFun(funs_TaskGroup_await_results, 1, {
-			return Task::await_results(CXX::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup));
+			return Task::await_results(CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup));
 		})
 		AttachAFun(funs_TaskGroup_notify_cancel, 1, {
-			Task::notify_cancel(CXX::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup));
+			Task::notify_cancel(CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup));
 		})
 
 		template<typename T>
 		AttachAFun(funs_TaskGroup_array_to_, 1, {
-			auto results = Task::await_results(CXX::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup));
+			auto results = Task::await_results(CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup));
 			
 			if(results.size() > UINT32_MAX)
 				throw InvalidCast("Task internal result array is too large to convert to an array");
@@ -707,23 +707,23 @@ namespace art{
 		})
 		AttachAFun(funs_TaskGroup_to_set, 1, {
 			std::unordered_set<ValueItem> res;
-			for(auto& i : Task::await_results(CXX::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup)))
+			for(auto& i : Task::await_results(CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup)))
 				res.insert(i);
 			return res;
 		})
-		void ___createProxy_TaskGroup__push_item(list_array<typed_lgr<Task>>& tasks, ValueItem& item){
+		void ___createProxy_TaskGroup__push_item(list_array<art::shared_ptr<Task>>& tasks, ValueItem& item){
 			switch(item.meta.vtype){
 				case VType::async_res:
-					tasks.push_back((typed_lgr<Task>&)item);
+					tasks.push_back((art::shared_ptr<Task>&)item);
 					break;
 				case VType::struct_:
 					{
 						Structure& str = (Structure&)item;
 						if(str.get_vtable() == define_Task){
-							tasks.push_back(CXX::Interface::getAs<typed_lgr<Task>>(str));
+							tasks.push_back(CXX::Interface::getAs<art::shared_ptr<Task>>(str));
 							break;
 						}else if (str.get_vtable() == define_TaskGroup){
-							tasks.push_back(CXX::Interface::getAs<list_array<typed_lgr<Task>>>(str));
+							tasks.push_back(CXX::Interface::getAs<list_array<art::shared_ptr<Task>>>(str));
 							break;
 						}else
 							break;
@@ -759,12 +759,12 @@ namespace art{
 			}
 		}
 		AttachAFun(funs_TaskGroup_add, 1, {
-			auto& tasks = CXX::Interface::getExtractAs<list_array<typed_lgr<Task>>>(args[0], define_TaskGroup);
+			auto& tasks = CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup);
 			for(uint32_t i = 0; i < len; i++)
 				___createProxy_TaskGroup__push_item(tasks, args[i]);
 		})
 		void init_TaskGroup() {
-			define_TaskGroup = CXX::Interface::createTable<list_array<typed_lgr<Task>>>("task_group",
+			define_TaskGroup = CXX::Interface::createTable<list_array<art::shared_ptr<Task>>>("task_group",
 				CXX::Interface::direct_method("start", funs_TaskGroup_start),
 				CXX::Interface::direct_method("await_multiple", funs_TaskGroup_await_multiple),
 				CXX::Interface::direct_method("await_results", funs_TaskGroup_await_results),
@@ -784,7 +784,7 @@ namespace art{
 				CXX::Interface::direct_method(symbols::structures::convert::to_uarr, funs_TaskGroup_await_multiple),
 				CXX::Interface::direct_method(symbols::structures::add_operator, funs_TaskGroup_add)
 			);
-			CXX::Interface::typeVTable<list_array<typed_lgr<Task>>>() = define_TaskGroup;
+			CXX::Interface::typeVTable<list_array<art::shared_ptr<Task>>>() = define_TaskGroup;
 		}
 	#pragma endregion
 
@@ -821,28 +821,28 @@ namespace art{
 			}
 			AttachAFun(construct_Task, 1, {
 				if(args[0].meta.vtype == VType::async_res)
-					return ValueItem(CXX::Interface::constructStructure<typed_lgr<Task>>(define_Task, (typed_lgr<Task>&)args[0]), no_copy);
+					return ValueItem(CXX::Interface::constructStructure<art::shared_ptr<Task>>(define_Task, (art::shared_ptr<Task>&)args[0]), no_copy);
 				else if(args[0].meta.vtype == VType::function){
-					typed_lgr<FuncEnvironment> func;
-					typed_lgr<FuncEnvironment> fault_func;
+					art::shared_ptr<FuncEnvironment> func;
+					art::shared_ptr<FuncEnvironment> fault_func;
 					std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min();
 					bool used_task_local = false;
 					ValueItem values;
 					parseArgumentsToTask<0>(args, len, func, fault_func, timeout, used_task_local, values);
-					return ValueItem(CXX::Interface::constructStructure<typed_lgr<Task>>(define_Task, new Task(func,values, used_task_local,fault_func, timeout)), no_copy);
+					return ValueItem(CXX::Interface::constructStructure<art::shared_ptr<Task>>(define_Task, new Task(func,values, used_task_local,fault_func, timeout)), no_copy);
 				}
 				else
-					return ValueItem(CXX::Interface::constructStructure<typed_lgr<Task>>(define_Task, CXX::Interface::getExtractAs<typed_lgr<Task>>(args[0],define_Task)), no_copy);
+					return ValueItem(CXX::Interface::constructStructure<art::shared_ptr<Task>>(define_Task, CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0],define_Task)), no_copy);
 			})
 			ValueItem* createProxy_TaskGroup(ValueItem* val, uint32_t len) {
 				if(!len)
-					return new ValueItem(CXX::Interface::constructStructure<list_array<typed_lgr<Task>>>(define_TaskGroup), no_copy);
+					return new ValueItem(CXX::Interface::constructStructure<list_array<art::shared_ptr<Task>>>(define_TaskGroup), no_copy);
 				else{
-					list_array<typed_lgr<Task>> tasks;
+					list_array<art::shared_ptr<Task>> tasks;
 					tasks.reserve_push_back(len);
 					for(uint32_t i = 0; i < len; i++)
 						___createProxy_TaskGroup__push_item(tasks, val[i]);
-					return new ValueItem(CXX::Interface::constructStructure<list_array<typed_lgr<Task>>>(define_TaskGroup, std::move(tasks)), no_copy);
+					return new ValueItem(CXX::Interface::constructStructure<list_array<art::shared_ptr<Task>>>(define_TaskGroup, std::move(tasks)), no_copy);
 				}
 			}
 		}
@@ -851,14 +851,14 @@ namespace art{
 			CXX::arguments_range(len, 1);
 
 			if (len != 1) {
-				typed_lgr<FuncEnvironment> func = *vals->funPtr();
+				art::shared_ptr<FuncEnvironment> func = *vals->funPtr();
 				ValueItem* copyArgs = new ValueItem[len - 1];
 				vals++;
 				len--;
 				uint32_t i = 0;
 				while (len--)
 					copyArgs[i++] = *vals++;
-				thread([](typed_lgr<FuncEnvironment> func, ValueItem* args, uint32_t len) {
+				thread([](art::shared_ptr<FuncEnvironment> func, ValueItem* args, uint32_t len) {
 					auto tmp = FuncEnvironment::sync_call(func, args, len);
 					if (tmp)
 						delete tmp;
@@ -866,7 +866,7 @@ namespace art{
 				}, func, copyArgs, i).detach();
 			}
 			else {
-				thread([](typed_lgr<FuncEnvironment> func) {
+				thread([](art::shared_ptr<FuncEnvironment> func) {
 					auto tmp = FuncEnvironment::sync_call(func, nullptr, 0);
 					if (tmp)
 						delete tmp;
@@ -883,9 +883,9 @@ namespace art{
 			unique_lock ul(unify);
 			bool end = false;
 			ValueItem* res = nullptr;
-			typed_lgr<FuncEnvironment> func = *vals->funPtr();
+			art::shared_ptr<FuncEnvironment> func = *vals->funPtr();
 			if (len != 1) {
-				thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnvironment> func, ValueItem* args, uint32_t len) {
+				thread([&end, &res, &mtx, &cv](art::shared_ptr<FuncEnvironment> func, ValueItem* args, uint32_t len) {
 					try{
 						auto tmp = FuncEnvironment::sync_call(func, args, len);
 						unique_lock ul(mtx);
@@ -907,7 +907,7 @@ namespace art{
 
 			}
 			else {
-				thread([&end, &res, &mtx, &cv](typed_lgr<FuncEnvironment> func) {
+				thread([&end, &res, &mtx, &cv](art::shared_ptr<FuncEnvironment> func) {
 					try{
 						auto tmp = FuncEnvironment::sync_call(func, nullptr, 0);
 						unique_lock ul(mtx);
@@ -965,12 +965,12 @@ namespace art{
 			delete awaiter;
 			return awaiter->res;
 		}
-		typed_lgr<FuncEnvironment> __createAsyncThread__Awaiter = new FuncEnvironment(_createAsyncThread__Awaiter, false);
+		art::shared_ptr<FuncEnvironment> __createAsyncThread__Awaiter = new FuncEnvironment(_createAsyncThread__Awaiter, false);
 
 
 		ValueItem* createAsyncThread(ValueItem* vals, uint32_t len){
 			CXX::arguments_range(len, 1);
-			typed_lgr<FuncEnvironment> func = *vals->funPtr();
+			art::shared_ptr<FuncEnvironment> func = *vals->funPtr();
 			_createAsyncThread_awaiter_struct* awaiter = nullptr;
 			try{
 				awaiter = new _createAsyncThread_awaiter_struct();
@@ -983,7 +983,7 @@ namespace art{
 					while (len--)
 						copyArgs[i++] = *vals++;
 
-					thread([awaiter](typed_lgr<FuncEnvironment> func, ValueItem* args, uint32_t len) {
+					thread([awaiter](art::shared_ptr<FuncEnvironment> func, ValueItem* args, uint32_t len) {
 						try{
 							auto tmp = FuncEnvironment::sync_call(func, args, len);
 							unique_lock ul(awaiter->mtx);
@@ -1005,7 +1005,7 @@ namespace art{
 
 				}
 				else {
-					thread([awaiter](typed_lgr<FuncEnvironment> func) {
+					thread([awaiter](art::shared_ptr<FuncEnvironment> func) {
 						try{
 							auto tmp = FuncEnvironment::sync_call(func, nullptr, 0);
 							unique_lock ul(awaiter->mtx);
@@ -1037,9 +1037,9 @@ namespace art{
 
 		ValueItem* createTask(ValueItem* vals, uint32_t len){
 			CXX::arguments_range(len, 1);
-			typed_lgr<FuncEnvironment> func;
-			typed_lgr<FuncEnvironment> fault_func;
-			std::chrono::steady_clock::time_point timeout;
+			art::shared_ptr<FuncEnvironment> func;
+			art::shared_ptr<FuncEnvironment> fault_func;
+			std::chrono::high_resolution_clock::time_point timeout;
 			bool used_task_local;
 			ValueItem args;
 			parseArgumentsToTask<0>(vals, len, func,fault_func, timeout, used_task_local, args);
@@ -1263,8 +1263,8 @@ namespace art{
 				})
 				static AttachAFun(__to_timepoint, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
-					return std::chrono::steady_clock::time_point(
-						std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+					return std::chrono::high_resolution_clock::time_point(
+						std::chrono::duration_cast<std::chrono::high_resolution_clock::duration>(
 							std::chrono::duration<T>(self.load())
 						)
 					);
@@ -1671,7 +1671,7 @@ namespace art{
 				static AttachAFun(__to_timepoint, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 					lock_guard<TaskRecursiveMutex> lock(self.mutex);
-					return (std::chrono::steady_clock::time_point)self.value;
+					return (std::chrono::high_resolution_clock::time_point)self.value;
 				})
 				static AttachAFun(__to_map, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
@@ -1686,7 +1686,7 @@ namespace art{
 				static AttachAFun(__to_function, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 					lock_guard<TaskRecursiveMutex> lock(self.mutex);
-					return (typed_lgr<class FuncEnvironment>&)self.value;
+					return (art::shared_ptr<FuncEnvironment>&)self.value;
 				})
 
 				static AttachAFun(__explicit_await, 1, {

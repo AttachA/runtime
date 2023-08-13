@@ -301,7 +301,7 @@ namespace art {
 				return "%";
 			})
 		}
-		std::unordered_map<std::string, typed_lgr<FuncEnvironment>> printf_operators = {
+		std::unordered_map<std::string, art::shared_ptr<FuncEnvironment>> printf_operators = {
 			{"d", new FuncEnvironment(standard_short_operator::d)},
 			{"i", new FuncEnvironment(standard_short_operator::d)},
 			{"u", new FuncEnvironment(standard_short_operator::u)},

@@ -239,7 +239,7 @@ namespace art{
                 //
                 uint32_t new_thread_wave_magnitude = (uint32_t)(0.5 + (current_control_setting * average_throughput_noise * target_signal_to_noise_ratio * thread_magnitude_multiplier * 2.0));
                 new_thread_wave_magnitude = std::min(new_thread_wave_magnitude, max_thread_wave_magnitude);
-                new_thread_wave_magnitude = std::max(new_thread_wave_magnitude, 1ui32);
+                new_thread_wave_magnitude = std::max(new_thread_wave_magnitude, (uint32_t)1);
 
                 current_control_setting = std::min(double(max_threads - new_thread_wave_magnitude), current_control_setting);
                 current_control_setting = std::max(double(min_threads), current_control_setting);

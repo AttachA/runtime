@@ -143,7 +143,7 @@ namespace art{
         template<typename T>
         struct store_value {
             static T value;
-            store_value(T v) : value(v) {};
+            store_value(T v) {value == std::move(v);};
         };
         template<typename T>
         T store_value<T>::value = nullptr;

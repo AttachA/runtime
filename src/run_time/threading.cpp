@@ -4,7 +4,13 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 #include "threading.hpp"
+#include <thread>
+
+#ifdef _WIN32
 #include <Windows.h>
+#else
+#include <pthread.h>
+#endif
 namespace art {
 #ifdef _WIN32
     mutex::mutex() {
@@ -48,54 +54,7 @@ namespace art {
     }
 
 
-    recursive_mutex::recursive_mutex() {
-        count = 0;
-        owner = art::thread::id();
-    }
-    recursive_mutex::~recursive_mutex() {
-        
-    }
-    void recursive_mutex::lock() {
-        if (owner == art::this_thread::get_id()) {
-            count++;
-            return;
-        }
-        actual_mutex.lock();
-        owner = art::this_thread::get_id();
-        count = 1;
-    }
-    void recursive_mutex::unlock() {
-        if (owner != art::this_thread::get_id()) {
-            return;
-        }
-        count--;
-        if (count == 0) {
-            owner = art::thread::id();
-            actual_mutex.unlock();
-        }
-    }
-    bool recursive_mutex::try_lock() {
-        if (owner == art::this_thread::get_id()) {
-            count++;
-            return true;
-        }
-        if (actual_mutex.try_lock()) {
-            owner = art::this_thread::get_id();
-            count = 1;
-            return true;
-        }
-        return false;
-    }
     
-    relock_state recursive_mutex::relock_begin(){
-        unsigned int _count = count;
-        count = 1;
-        return relock_state(_count);
-    }
-    void recursive_mutex::relock_end(relock_state state){
-        count = state._state;
-        owner = art::this_thread::get_id();
-    }
     timed_mutex::timed_mutex() {
         
     }
@@ -272,53 +231,70 @@ namespace art {
     }
 #else
     mutex::mutex() {
-        pthread_mutex_init(&_mutex, nullptr);
+        _mutex = new pthread_mutex_t;
+        pthread_mutex_init(_mutex, nullptr);
     }
     mutex::~mutex() {
-        pthread_mutex_destroy(&_mutex);
+        pthread_mutex_destroy(_mutex);
+        delete _mutex;
     }
     void mutex::lock() {
-        pthread_mutex_lock(&_mutex);
+        int err = pthread_mutex_lock(_mutex);
+        if(err){
+            if(err == EDEADLK)
+                throw InvalidLock("Try lock already owned mutex");
+            throw SystemException(err);
+        }
     }
     void mutex::unlock() {
-        pthread_mutex_unlock(&_mutex);
+        int err = pthread_mutex_unlock(_mutex);
+        if(err){
+            if(err == EPERM)
+                throw InvalidLock("Try unlock non-owned mutex");
+            throw SystemException(err);
+        }
     }
     bool mutex::try_lock() {
-        return pthread_mutex_trylock(&_mutex) == 0;
-    }
-    recursive_mutex::recursive_mutex() {
-        pthread_mutexattr_t attr;
-        pthread_mutexattr_init(&attr);
-        pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-        pthread_mutex_init(&_mutex, &attr);
-        pthread_mutexattr_destroy(&attr);
-    }
-    recursive_mutex::~recursive_mutex() {
-        pthread_mutex_destroy(&_mutex);
-    }
-    void recursive_mutex::lock() {
-        pthread_mutex_lock(&_mutex);
-    }
-    void recursive_mutex::unlock() {
-        pthread_mutex_unlock(&_mutex);
-    }
-    bool recursive_mutex::try_lock() {
-        return pthread_mutex_trylock(&_mutex) == 0;
+        int err = pthread_mutex_trylock(_mutex);
+        if(err){
+            if(err == EBUSY)
+                return false;
+            throw SystemException(err);
+        }
+        return true;
     }
     timed_mutex::timed_mutex() {
-        pthread_mutex_init(&_mutex, nullptr);
+        _mutex = new pthread_mutex_t;
+        pthread_mutex_init(_mutex, nullptr);
     }
     timed_mutex::~timed_mutex() {
-        pthread_mutex_destroy(&_mutex);
+        pthread_mutex_destroy(_mutex);
+        delete _mutex;
     }
     void timed_mutex::lock() {
-        pthread_mutex_lock(&_mutex);
+        int err = pthread_mutex_lock(_mutex);
+        if(err){
+            if(err == EDEADLK)
+                throw InvalidLock("Try lock already owned mutex");
+            throw SystemException(err);
+        }
     }
     void timed_mutex::unlock() {
-        pthread_mutex_unlock(&_mutex);
+        int err = pthread_mutex_unlock(_mutex);
+        if(err){
+            if(err == EPERM)
+                throw InvalidLock("Try unlock non-owned mutex");
+            throw SystemException(err);
+        }
     }
     bool timed_mutex::try_lock() {
-        return pthread_mutex_trylock(&_mutex) == 0;
+        int err = pthread_mutex_trylock(_mutex);
+        if(err){
+            if(err == EBUSY)
+                return false;
+            throw SystemException(err);
+        }
+        return true;
     }
     bool timed_mutex::try_lock_for(std::chrono::milliseconds ms) {
         return try_lock_until(std::chrono::high_resolution_clock::now() + ms);
@@ -329,68 +305,212 @@ namespace art {
             if (sleep_ms.count() <= 0) 
                 return false;
             timespec ts;
-            ts.tv_sec = sleep_ms.count() / 1000;
-            ts.tv_nsec = (sleep_ms.count() % 1000) * 1000000;
-            if (pthread_mutex_timedlock(&_mutex, &ts) == 0) 
+            ts.tv_sec = sleep_ms.count() / 1000000000;
+            ts.tv_nsec = sleep_ms.count() % 1000000000;
+            int err = pthread_mutex_timedlock(_mutex, &ts);
+            if (err == 0)
                 return true;
+            if (err != ETIMEDOUT)
+                throw SystemException(err);
         }
     }
 
     condition_variable::condition_variable() {
-        pthread_cond_init(&_cond, nullptr);
+        _cond = new pthread_cond_t;
+        pthread_cond_init(_cond, nullptr);
     }
     condition_variable::~condition_variable() {
-        pthread_cond_destroy(&_cond);
+        pthread_cond_destroy(_cond);
+        delete _cond;
     }
     void condition_variable::notify_one() {
-        pthread_cond_signal(&_cond);
+        int err = pthread_cond_signal(_cond);
+        if(err)
+            throw SystemException(err);
     }
     void condition_variable::notify_all() {
-        pthread_cond_broadcast(&_cond);
+        int err = pthread_cond_broadcast(_cond);
+        if(err)
+            throw SystemException(err);
     }
     void condition_variable::wait(mutex& mtx) {
-        pthread_cond_wait(&_cond, &mtx._mutex);
+        int err = pthread_cond_wait(_cond, mtx._mutex);
+        if(err)
+            throw SystemException(err);
     }
-    bool condition_variable::wait_for(mutex& mtx, std::chrono::milliseconds ms) {
+    cv_status condition_variable::wait_for(mutex& mtx, std::chrono::milliseconds ms) {
         return wait_until(mtx, std::chrono::high_resolution_clock::now() + ms);
     }
-    bool condition_variable::wait_until(mutex& mtx, std::chrono::high_resolution_clock::time_point time) {
+    cv_status condition_variable::wait_until(mutex& mtx, std::chrono::high_resolution_clock::time_point time) {
         while (true) {
             auto sleep_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time - std::chrono::high_resolution_clock::now());
             if (sleep_ms.count() <= 0) {
-                return false;
+                return cv_status::timeout;
             }
             timespec ts;
-            ts.tv_sec = sleep_ms.count() / 1000;
-            ts.tv_nsec = (sleep_ms.count() % 1000) * 1000000;
-            if (pthread_cond_timedwait(&_cond, &mtx._mutex, &ts) == 0) {
-                return true;
+            ts.tv_sec = sleep_ms.count() / 1000000000;
+            ts.tv_nsec = sleep_ms.count() % 1000000000;
+            if (pthread_cond_timedwait(_cond, mtx._mutex, &ts) == 0) {
+                return cv_status::no_timeout;
             }
         }
-        return false;
+        return cv_status::no_timeout;
     }
     void condition_variable::wait(recursive_mutex& mtx) {
-        pthread_cond_wait(&_cond, &mtx.actual_mutex);
+        int err = pthread_cond_wait(_cond, mtx.actual_mutex._mutex);
+        if(err)
+            throw SystemException(err);
     }
-    bool condition_variable::wait_for(recursive_mutex& mtx, std::chrono::milliseconds ms) {
+    cv_status condition_variable::wait_for(recursive_mutex& mtx, std::chrono::milliseconds ms) {
         return wait_until(mtx, std::chrono::high_resolution_clock::now() + ms);
     }
-    bool condition_variable::wait_until(recursive_mutex& mtx, std::chrono::high_resolution_clock::time_point time) {
+    cv_status condition_variable::wait_until(recursive_mutex& mtx, std::chrono::high_resolution_clock::time_point time) {
         while (true) {
             auto sleep_ms = std::chrono::duration_cast<std::chrono::milliseconds>(time - std::chrono::high_resolution_clock::now());
             if (sleep_ms.count() <= 0) {
-                return false;
+                return cv_status::timeout;
             }
             timespec ts;
-            ts.tv_sec = sleep_ms.count() / 1000;
-            ts.tv_nsec = (sleep_ms.count() % 1000) * 1000000;
-            if (pthread_cond_timedwait(&_cond, &mtx.actual_mutex, &ts) == 0) {
-                return true;
+            ts.tv_sec = sleep_ms.count() / 1000000000;
+            ts.tv_nsec = sleep_ms.count() % 1000000000;
+
+            if (pthread_cond_timedwait(_cond, mtx.actual_mutex._mutex, &ts) == 0) {
+                return cv_status::no_timeout;
             }
+        }
+        return cv_status::no_timeout;
+    }
+
+    void* thread::create(void(*function)(void*), void* arg, unsigned long& id, size_t stack_size,bool stack_reservation, int& error_code){
+        error_code = 0;
+        pthread_attr_t attr;
+        if(int err = pthread_attr_init(&attr); err){
+            error_code = err;
+            return nullptr;
+        }
+        if(int err = pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE); err){
+            error_code = err;
+            return nullptr;
+        }
+        if(stack_reservation){
+            if(int err = pthread_attr_setstacksize(&attr, stack_size); err){
+                error_code = err;
+                return nullptr;
+            }
+        }
+        pthread_t thread;
+        if(int err = pthread_create(&thread, &attr, (void*(*)(void*))function, arg); err){
+            error_code = err;
+            return nullptr;
+        }
+        if(int err = pthread_attr_destroy(&attr); err){
+            error_code = err;
+            return nullptr;
+        }
+        id = (unsigned long)thread;
+        return (void*)thread;
+    }
+    [[nodiscard]] unsigned int thread::hardware_concurrency() noexcept{
+        return sysconf(_SC_NPROCESSORS_ONLN);
+    }
+    void thread::join(){
+        if(_thread){
+            if(int err = pthread_join((pthread_t)_thread, nullptr); err){
+                switch (err) {
+                case EDEADLK: throw InvalidLock("Thread::join() called on itself");
+                case EINVAL:throw InvalidArguments("Thread::join() called on a non joinable/detachable thread");
+                case ESRCH:throw InvalidArguments("Thread::join() called on a thread that does not exist or has already been joined/detached");
+                default: throw SystemException(err);
+                }
+            }
+            delete (pthread_t*)_thread;
+            _thread = nullptr;
+        }
+    }
+    void thread::detach(){
+        if(_thread){
+            if(int err = pthread_detach((pthread_t)_thread); err){
+                switch (err) {
+                case EINVAL:throw InvalidArguments("Thread::detach() called on a non joinable/detachable thread");
+                case ESRCH:throw InvalidArguments("Thread::detach() called on a thread that does not exist or has already been joined/detached");
+                default: throw SystemException(err);
+                }
+            }
+            _thread = nullptr;
+        }
+    }
+    namespace this_thread{
+        thread::id get_id() noexcept{
+            return thread::id(pthread_self());
+        }
+        void yield() noexcept{
+            sched_yield();
+        }
+        void sleep_for(std::chrono::milliseconds ms){
+            sleep_until(std::chrono::high_resolution_clock::now() + ms);
+        }
+        void sleep_until(std::chrono::high_resolution_clock::time_point time){
+            auto diff = time - std::chrono::high_resolution_clock::now();
+            while(diff.count() > 0){
+                timespec ts;
+                ts.tv_sec = diff.count() / 1000000000;
+                ts.tv_nsec = diff.count() % 1000000000;
+                nanosleep(&ts, nullptr);
+                diff = time - std::chrono::high_resolution_clock::now();
+            }
+        }
+    }
+#endif
+    recursive_mutex::recursive_mutex() {
+        count = 0;
+        owner = art::thread::id();
+    }
+    recursive_mutex::~recursive_mutex() {
+        
+    }
+    void recursive_mutex::lock() {
+        if (owner == art::this_thread::get_id()) {
+            count++;
+            return;
+        }
+        actual_mutex.lock();
+        owner = art::this_thread::get_id();
+        count = 1;
+    }
+    void recursive_mutex::unlock() {
+        if (owner != art::this_thread::get_id()) {
+            return;
+        }
+        count--;
+        if (count == 0) {
+            owner = art::thread::id();
+            actual_mutex.unlock();
+        }
+    }
+    bool recursive_mutex::try_lock() {
+        if (owner == art::this_thread::get_id()) {
+            count++;
+            return true;
+        }
+        if (actual_mutex.try_lock()) {
+            owner = art::this_thread::get_id();
+            count = 1;
+            return true;
         }
         return false;
     }
-#endif
+    
+    relock_state recursive_mutex::relock_begin(){
+        unsigned int _count = count;
+        count = 1;
+        return relock_state(_count);
+    }
+    void recursive_mutex::relock_end(relock_state state){
+        count = state._state;
+        owner = art::this_thread::get_id();
+    }
+
+
     void condition_variable_any::notify_one(){
         std::lock_guard<mutex> lock(_mutex);
         _cond.notify_one();
@@ -421,6 +541,9 @@ namespace art {
     }
     bool thread::id::operator>=(const id& other) const noexcept{
         return _id >= other._id;
+    }
+    thread::id::operator size_t() const noexcept{
+        return (size_t)_id;
     }
         
     [[nodiscard]] bool thread::joinable() const noexcept{

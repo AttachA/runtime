@@ -4,10 +4,10 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "../asm/dynamic_call.hpp"
 #include "../tasks_util/light_stack.hpp"
 #include "../asm/CASM.hpp"
 #include "../AttachA_CXX.hpp"
-#include "../asm/dynamic_call.hpp"
 #include "../func_enviro_builder.hpp"
 namespace art{
     namespace internal {
@@ -346,7 +346,7 @@ namespace art{
                 CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder)->call_self(is_async);
             })
             AttachAFun(funs_FuncBuilder_add_local_fn, 1,{
-                return CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder)->add_local_fn((typed_lgr<FuncEnvironment>)args[1]);
+                return CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder)->add_local_fn((art::shared_ptr<FuncEnvironment>)args[1]);
             })
             AttachAFun(funs_FuncBuilder_call_local, 2,{
                 bool is_async = false;
@@ -779,7 +779,7 @@ namespace art{
                     list_array<ValueItem> map_result;
                     map_result.reserve_push_back(result.size());
                     for(uint8_t it : result)
-                        map_result.push_back(it);
+                        map_result.push_back(ValueItem(it));
                     return map_result;
                 }
             })

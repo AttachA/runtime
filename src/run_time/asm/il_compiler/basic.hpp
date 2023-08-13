@@ -21,7 +21,7 @@ namespace art{
                 size_t end_offset,
                 CASM& casm_assembler,
                 list_array<std::pair<uint64_t, Label>>& jump_list,
-                std::vector<typed_lgr<FuncEnvironment>>& locals,
+                std::vector<art::shared_ptr<FuncEnvironment>>& locals,
                 FunctionMetaFlags& flags,
                 uint16_t& used_static_values,
                 uint16_t& used_enviro_vals, 

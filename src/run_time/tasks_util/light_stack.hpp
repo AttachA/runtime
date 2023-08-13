@@ -6,6 +6,7 @@
 
 #include <boost/context/stack_traits.hpp>
 #include <boost/context/stack_context.hpp>
+#include <boost/context/fiber.hpp>  
 #include "../attacha_abi.hpp"
 namespace art{
     struct light_stack {

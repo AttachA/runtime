@@ -32,7 +32,7 @@ namespace art{
         template<typename T, size_t to_read>
         void read_buffer(list_array<ValueItem>& results_holder, T*& buffer, size_t& size, size_t& rest){
             ValueItem item = handle->read(to_read);
-            typed_lgr<Task> task = *(typed_lgr<Task>*)item.val;
+            art::shared_ptr<Task> task = *(art::shared_ptr<Task>*)item.val;
             auto results = Task::await_results(task);
             buffer = (T*)results[0].val;
             size = results[0].meta.val_len / sizeof(T);
@@ -88,7 +88,7 @@ namespace art{
             line.reserve(1024);
             while(true){
                 ValueItem item = handle->read(1024);
-                typed_lgr<Task> task = *(typed_lgr<Task>*)item.val;
+                art::shared_ptr<Task> task = *(art::shared_ptr<Task>*)item.val;
                 auto results = Task::await_results(task);
                 item = std::move(results[0]);
                 if(item.meta.val_len == 0)
@@ -115,7 +115,7 @@ namespace art{
             word.reserve(32);
             while(true){
                 ValueItem item = handle->read(1024);
-                typed_lgr<Task> task = *(typed_lgr<Task>*)item.val;
+                art::shared_ptr<Task> task = *(art::shared_ptr<Task>*)item.val;
                 auto results = Task::await_results(task);
                 item = std::move(results[0]);
                 if(item.meta.val_len == 0)
@@ -143,7 +143,7 @@ namespace art{
             uint8_t bytes_need_read = 0;
             while(true){
                 ValueItem item = handle->read(1);
-                typed_lgr<Task> task = *(typed_lgr<Task>*)item.val;
+                art::shared_ptr<Task> task = *(art::shared_ptr<Task>*)item.val;
                 auto results = Task::await_results(task);
                 item = std::move(results[0]);
                 if(item.meta.val_len == 0)
@@ -259,7 +259,7 @@ namespace art{
             bool state_readed = false;
             while(true){
                 ValueItem item = handle->read(2);
-                typed_lgr<Task> task = *(typed_lgr<Task>*)item.val;
+                art::shared_ptr<Task> task = *(art::shared_ptr<Task>*)item.val;
                 auto results = Task::await_results(task);
                 {
                     ValueItem& item = results[0];
@@ -390,7 +390,7 @@ namespace art{
         ValueItem read_symbol_utf32(bool skip_spaces){
             while(true){
                 ValueItem item = handle->read(4);
-                typed_lgr<Task> task = *(typed_lgr<Task>*)item.val;
+                art::shared_ptr<Task> task = *(art::shared_ptr<Task>*)item.val;
                 auto results = Task::await_results(task);
                 {
                     ValueItem& item = results[0];

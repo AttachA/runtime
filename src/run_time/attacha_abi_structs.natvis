@@ -70,7 +70,7 @@
 			<!--<Item Name="[value]" Condition="meta.vtype == VType::function &amp;&amp; !meta.use_gc">*(typed_lgr&lt;FuncEnvironment*&gt;*)val</Item>-->
 			<!--<Item Name="[value]" Condition="meta.vtype == VType::set &amp;&amp; !meta.use_gc">*(std::unordered_map&lt;ValueItem,ValueItem&gt;*)val</Item>-->
 			<!--<Item Name="[value]" Condition="meta.vtype == VType::set &amp;&amp; !meta.use_gc">*(std::unordered_set&lt;ValueItem&gt;*)val</Item>-->
-			<Item Name="[value]" Condition="meta.vtype == VType::time_point &amp;&amp; !meta.use_gc">*(std::chrono::steady_clock::time_point*)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::time_point &amp;&amp; !meta.use_gc">*(std::chrono::high_resolution_clock::time_point*)val</Item>
 
 			<Synthetic Name="[Value]" Condition="meta.vtype == VType::raw_arr_i8 &amp;&amp; !meta.use_gc">
 				<DisplayString>{{ size={meta.val_len} }}</DisplayString>

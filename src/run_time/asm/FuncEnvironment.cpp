@@ -23,8 +23,8 @@
 #include "il_header_decoder.hpp"
 namespace art{
 	using namespace reader;
-	std::shared_ptr<asmjit::JitRuntime> art = std::make_shared<asmjit::JitRuntime>();
-	std::unordered_map<std::string, typed_lgr<FuncEnvironment>> environments;
+	art::shared_ptr<asmjit::JitRuntime> art = new asmjit::JitRuntime();
+	std::unordered_map<std::string, art::shared_ptr<FuncEnvironment>> environments;
 	TaskMutex environments_lock;
 
 
@@ -78,7 +78,7 @@ namespace art{
 		values.push_back(new DynamicCall::FunctionTemplate(template_func));
 		frame = (uint8_t*)func;
 	}
-	FuncHandle::inner_handle::inner_handle(void* func, FuncHandle::inner_handle::ProxyFunction proxy_func, bool is_cheap) : is_cheap(is_cheap) {
+	FuncHandle::inner_handle::inner_handle(void* func, FuncHandle::ProxyFunction proxy_func, bool is_cheap) : is_cheap(is_cheap) {
 		_type = FuncType::static_native_c;
 		values.push_back(func);
 		frame = (uint8_t*)proxy_func;
@@ -92,7 +92,7 @@ namespace art{
 		this->cross_code = code;
 		this->values = values;
 	}
-	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<typed_lgr<FuncEnvironment>>& local_funcs, bool is_cheap, std::string* cross_code_compiler_name_version) : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version) {
+	FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<art::shared_ptr<FuncEnvironment>>& local_funcs, bool is_cheap, std::string* cross_code_compiler_name_version) : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version) {
 		_type = FuncType::own;
 		this->cross_code = code;
 		this->values = values;
@@ -108,7 +108,7 @@ namespace art{
 		this->cross_code = std::move(code);
 		this->values = std::move(values);
 	}
-	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<typed_lgr<FuncEnvironment>>&& local_funcs, bool is_cheap, std::string* cross_code_compiler_name_version) : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version) {
+	FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<art::shared_ptr<FuncEnvironment>>&& local_funcs, bool is_cheap, std::string* cross_code_compiler_name_version) : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version) {
 		_type = FuncType::own;
 		this->cross_code = std::move(code);
 		this->values = std::move(values);
@@ -287,7 +287,7 @@ namespace art{
 		env = (Environment)tmp.init(frame, a.code(), *art, resolved_frame.data());
 		//remove self from used_environs
 		auto my_trampoline = parent ? parent->get_trampoline_code() : nullptr;
-		used_environs.remove_if([my_trampoline](typed_lgr<FuncEnvironment>& a) {return a->get_func_ptr() == my_trampoline;});
+		used_environs.remove_if([my_trampoline](art::shared_ptr<FuncEnvironment>& a) {return a->get_func_ptr() == my_trampoline;});
 	}
 
 	
@@ -297,7 +297,7 @@ namespace art{
 		return __attacha___::NativeProxy_DynamicToStatic(call, *template_func, arguments, arguments_size);
 	}
 	ValueItem* FuncHandle::inner_handle::static_call_helper(ValueItem* arguments, uint32_t arguments_size) {
-		FuncHandle::inner_handle::ProxyFunction proxy = (FuncHandle::inner_handle::ProxyFunction)frame;
+		FuncHandle::ProxyFunction proxy = (FuncHandle::ProxyFunction)frame;
 		void* func = (void*)values[0];
 		return proxy(func, arguments, arguments_size);
 	}
@@ -306,20 +306,20 @@ namespace art{
 
 #pragma region FuncHandle
 	FuncHandle* FuncHandle::make_func_handle(inner_handle* handle) {
-		if(handle ? handle->parent : false)
+		if(handle ? (bool)handle->parent : false)
 			throw InvalidArguments("Handle already in use");
 		RuntimeCompileException error_handler;
 		CodeHolder trampoline_code;
 		trampoline_code.setErrorHandler(&error_handler);
 		trampoline_code.init(art->environment());
 		CASM a(trampoline_code);
-		char fake_data[8]{ 0xFFi8 };
+		char fake_data[8]{ (char)0xFF };
 		Label compile_call_label = a.add_data(fake_data, 8);
 		Label handle_label = a.add_data(fake_data, 8);
 
 		Label not_compiled_code_fallback = a.newLabel();
 		Label data_label;
-		if(handle ? handle->env : false)
+		if(handle ? (bool)handle->env : false)
 			data_label = a.add_data((char*)handle->env, sizeof(handle->env));
 		else
 			data_label = a.add_label_ptr(not_compiled_code_fallback);
@@ -347,7 +347,7 @@ namespace art{
 
 
 		auto func_ptr = &compile_call;
-		if(handle ? handle->env : false)
+		if(handle ? (bool)handle->env : false)
 			*(void**)trampoline_jump = (char*)handle->env;
 		else
 			*(void**)trampoline_jump = trampoline_not_compiled_fallback;
@@ -361,11 +361,11 @@ namespace art{
 			handle->increase_usage();
 			handle->parent = code;
 		}
-		code->art_ref = new std::shared_ptr<asmjit::JitRuntime>(art);
+		code->art_ref = new art::shared_ptr<asmjit::JitRuntime>(art);
 		return code;
 	}
 	void FuncHandle::release_func_handle(FuncHandle* handle) {
-		std::shared_ptr<asmjit::JitRuntime> art = *(std::shared_ptr<asmjit::JitRuntime>*)handle->art_ref;
+		art::shared_ptr<asmjit::JitRuntime> art = *(art::shared_ptr<asmjit::JitRuntime>*)handle->art_ref;
 		handle->~FuncHandle();
 		CASM::release_code((uint8_t*)handle, art->allocator());
 	}
@@ -373,7 +373,7 @@ namespace art{
 		lock_guard lock(compile_lock);
 		if (handle)
 			handle->reduce_usage();
-		delete (std::shared_ptr<asmjit::JitRuntime>*)art_ref;
+		delete (art::shared_ptr<asmjit::JitRuntime>*)art_ref;
 	}
 	void FuncHandle::patch(inner_handle* handle) {
 		lock_guard lock(compile_lock);
@@ -453,11 +453,11 @@ namespace art{
 	}
 #pragma endregion
 #pragma region FuncEnvironment
-	ValueItem* FuncEnvironment::async_call(typed_lgr<FuncEnvironment> f, ValueItem* args, uint32_t args_len) {
+	ValueItem* FuncEnvironment::async_call(art::shared_ptr<FuncEnvironment> f, ValueItem* args, uint32_t args_len) {
 		ValueItem* res = new ValueItem();
 		res->meta = ValueMeta(VType::async_res, false, false).encoded;
 		res->val = new typed_lgr(new Task(f, ValueItem(args, ValueMeta(VType::saarr, false, true, args_len), no_copy)));
-		Task::start(*(typed_lgr<Task>*)res->val);
+		Task::start(*(art::shared_ptr<Task>*)res->val);
 		return res;
 	}
 
@@ -466,7 +466,7 @@ namespace art{
 			throw InvalidFunction("Function is force unloaded");
 		return ((Environment)&func_->trampoline_code)(args, arguments_size);
 	}
-	ValueItem* FuncEnvironment::asyncWrapper(typed_lgr<FuncEnvironment>* self, ValueItem* arguments, uint32_t arguments_size) {
+	ValueItem* FuncEnvironment::asyncWrapper(art::shared_ptr<FuncEnvironment>* self, ValueItem* arguments, uint32_t arguments_size) {
 		return FuncEnvironment::async_call(*self, arguments, arguments_size);
 	}
 	std::string FuncEnvironment::to_string() const{
@@ -492,7 +492,7 @@ namespace art{
 		{
 			unique_lock guard(environments_lock);
 			for(auto& it : environments)
-				if(it.second.getPtr() == this)
+				if(&*it.second == this)
 					return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)fn_ptr);
 		}
 		if(fn_ptr == nullptr)
@@ -517,7 +517,7 @@ namespace art{
 		for(auto& it : patches)
 			fastHotPatch(it.first, it.second);
 	}
-	typed_lgr<FuncEnvironment> FuncEnvironment::environment(const std::string& func_name) {
+	art::shared_ptr<FuncEnvironment> FuncEnvironment::environment(const std::string& func_name) {
 		return environments[func_name];
 	}
 	ValueItem* FuncEnvironment::callFunc(const std::string& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
@@ -543,7 +543,7 @@ namespace art{
 		art::lock_guard guard(environments_lock);
 		return environments.contains(symbol_name);
 	}
-	void FuncEnvironment::Load(typed_lgr<FuncEnvironment> fn, const std::string& symbol_name) {
+	void FuncEnvironment::Load(art::shared_ptr<FuncEnvironment> fn, const std::string& symbol_name) {
 		art::lock_guard guard(environments_lock);
 		auto found = environments.find(symbol_name);
 		if (found != environments.end()) {
@@ -588,6 +588,60 @@ namespace art{
 	}
 	void FuncEnvironment::clear_environs() {
 		environments.clear();
+	}
+	FuncEnvironment::FuncEnvironment(FuncHandle::inner_handle* env, bool can_be_unloaded){
+		this->can_be_unloaded = can_be_unloaded;
+		func_ = FuncHandle::make_func_handle(env);
+	}
+	FuncEnvironment::FuncEnvironment(Environment env, bool can_be_unloaded, bool is_cheap) : can_be_unloaded(can_be_unloaded){
+		func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(env, is_cheap));
+	}
+	FuncEnvironment::FuncEnvironment(void* func, const DynamicCall::FunctionTemplate& template_func, bool can_be_unloaded, bool is_cheap) : can_be_unloaded(can_be_unloaded){
+		func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(func, template_func, is_cheap));
+	}
+	FuncEnvironment::FuncEnvironment(void* func, FuncHandle::ProxyFunction proxy_func, bool can_be_unloaded, bool is_cheap) : can_be_unloaded(can_be_unloaded){
+		func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(func, proxy_func, is_cheap));
+	}
+	FuncEnvironment::FuncEnvironment(const std::vector<uint8_t>& code, bool can_be_unloaded, bool is_cheap, std::string* cross_code_compiler_name_version) : can_be_unloaded(can_be_unloaded){
+		func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(code, is_cheap, cross_code_compiler_name_version));
+	}
+	FuncEnvironment::FuncEnvironment(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool can_be_unloaded, bool is_cheap, std::string* cross_code_compiler_name_version) : can_be_unloaded(can_be_unloaded) {
+		func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(code, values, is_cheap, cross_code_compiler_name_version));
+	}
+	FuncEnvironment::FuncEnvironment(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<art::shared_ptr<FuncEnvironment>>& local_funcs, bool can_be_unloaded, bool is_cheap, std::string* cross_code_compiler_name_version) : can_be_unloaded(can_be_unloaded){
+		func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(code, values, local_funcs, is_cheap, cross_code_compiler_name_version));
+	}
+	FuncEnvironment::FuncEnvironment(std::vector<uint8_t>&& code, bool can_be_unloaded, bool is_cheap, std::string* cross_code_compiler_name_version) : can_be_unloaded(can_be_unloaded){
+		func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(std::move(code), is_cheap, cross_code_compiler_name_version));
+	}
+	FuncEnvironment::FuncEnvironment(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, bool can_be_unloaded, bool is_cheap, std::string* cross_code_compiler_name_version) : can_be_unloaded(can_be_unloaded){
+		func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(std::move(code), std::move(values), is_cheap, cross_code_compiler_name_version));
+	}
+	FuncEnvironment::FuncEnvironment(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<art::shared_ptr<FuncEnvironment>>&& local_funcs, bool can_be_unloaded, bool is_cheap, std::string* cross_code_compiler_name_version) : can_be_unloaded(can_be_unloaded){
+		func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(std::move(code), std::move(values), std::move(local_funcs), is_cheap, cross_code_compiler_name_version));
+	}
+	FuncEnvironment::FuncEnvironment() {
+		func_ = FuncHandle::make_func_handle();
+	}
+	FuncEnvironment::FuncEnvironment(FuncEnvironment&& move) noexcept {
+		func_ = nullptr;
+		operator=(std::move(move));
+	}
+	FuncEnvironment::~FuncEnvironment(){
+		if (func_)
+			FuncHandle::release_func_handle(func_);
+		func_ = nullptr;
+	}
+	FuncEnvironment& FuncEnvironment::operator=(FuncEnvironment&& move) noexcept {
+		can_be_unloaded = move.can_be_unloaded;
+		if(func_ != nullptr)
+			FuncHandle::release_func_handle(func_);
+		func_ = move.func_;
+		move.func_ = nullptr;
+		return *this;
+	}
+	ValueItem* FuncEnvironment::sync_call(art::shared_ptr<FuncEnvironment> f, ValueItem* args, uint32_t arguments_size) {
+		return f->syncWrapper(args, arguments_size);
 	}
 #pragma endregion
 }

@@ -9,7 +9,12 @@
 #include<tuple>
 namespace art {
 	namespace DynamicCall {
+#ifdef _WIN32
 		typedef size_t(__stdcall* PROC)();
+#else
+		typedef size_t(* PROC)();
+#endif
+
 		class ArgumentsHolder {
 		public:
 			struct ArgumentItem {
@@ -34,12 +39,28 @@ namespace art {
 					delete_type = delete_ty;
 				}
 				ArgumentItem(const ArgumentItem& copy) {
+					*this = copy;
+				}
+				ArgumentItem(ArgumentItem&& copy) {
+					*this = std::move(copy);
+				}
+				ArgumentItem& operator=(const ArgumentItem& copy) {
 					ptr = copy.ptr;
 					value_size = copy.value_size;
 					value_len = copy.value_len;
 					need_delete = copy.need_delete;
 					delete_type = copy.delete_type;
 					is_8bit = copy.is_8bit;
+					return *this;
+				}
+				ArgumentItem& operator=(ArgumentItem&& copy) {
+					ptr = copy.ptr;
+					value_size = copy.value_size;
+					value_len = copy.value_len;
+					need_delete = copy.need_delete;
+					delete_type = copy.delete_type;
+					is_8bit = copy.is_8bit;
+					return *this;
 				}
 			};
 		private:
@@ -94,7 +115,7 @@ namespace art {
 			}
 
 			void clear() {
-				for (ArgumentItem a : arguments)
+				for (ArgumentItem& a : arguments)
 					if (a.need_delete) {
 						if(a.delete_type)
 							delete[] a.ptr;
@@ -173,6 +194,16 @@ namespace art {
 				}
 				bool is_void() const {
 					return ptype == PlaceType::as_ptr && vtype == ValueType::integer && !is_modifiable && !vsize;
+				}
+				ValueT(){}
+				ValueT(PlaceType ptype, ValueType vtype, size_t is_modifiable, size_t vsize) : ptype(ptype), vtype(vtype), is_modifiable(is_modifiable), vsize(vsize) {}
+				ValueT(const ValueT& other) { *this = other; }
+				ValueT& operator=(const ValueT& other) {
+					ptype = other.ptype;
+					vtype = other.vtype;
+					is_modifiable = other.is_modifiable;
+					vsize = other.vsize;
+					return *this;
 				}
 			};
 			list_array<ValueT> arguments;
@@ -336,7 +367,7 @@ namespace art {
 
 			FunctionTemplate::ValueT ToAddArgument() const {
 				if (current_argument >= max_arguments)
-					return { FunctionTemplate::ValueT::PlaceType::as_ptr,FunctionTemplate::ValueT::ValueType::integer,0};
+					return FunctionTemplate::ValueT(FunctionTemplate::ValueT::PlaceType::as_ptr,FunctionTemplate::ValueT::ValueType::integer,0, 0);
 				return templ.arguments[current_argument];
 			}
 			bool is_variadic() const {
@@ -369,34 +400,34 @@ namespace art {
 			StartBuildType(DynamicCall::FunctionTemplate& templ) : StartBuildTemplate<Ret, Args...>(templ){}
 		};
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...), DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...), DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) const, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) const, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) volatile, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) volatile, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) const volatile, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) const volatile, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) const &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) const &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) volatile &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) volatile &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) const volatile &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) const volatile &, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) const &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) const &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) volatile &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) volatile &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 		template<class Class_, class Ret, class... Args>
-		void buildFn(Ret(Class_::*)(Args...) const volatile &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(Class_::*)(Args...) const volatile &&, DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 
 		template<class Ret, class... Args>
-		void buildFn(Ret(*)(Args...), DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...>(templ);}
+		void buildFn(Ret(*)(Args...), DynamicCall::FunctionTemplate& templ) {StartBuildTemplate<Ret, Args...> unused(templ);}
 
 
 		template<class Class_, class Ret>

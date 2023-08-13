@@ -70,7 +70,7 @@ namespace art{
 		std::unordered_map<uint64_t, Label> label_bind_map;
 		std::unordered_map<uint64_t, Label*> label_map;
 		list_array<ValueItem>& values;
-		list_array<typed_lgr<FuncEnvironment>>& used_environs;
+		list_array<art::shared_ptr<FuncEnvironment>>& used_environs;
 		bool in_debug;
 		FuncHandle::inner_handle* build_func;
 
@@ -89,7 +89,7 @@ namespace art{
 			bool in_debug,
 			FuncHandle::inner_handle* build_func,
 			uint16_t static_values,
-			list_array<typed_lgr<FuncEnvironment>>& used_environs
+			list_array<art::shared_ptr<FuncEnvironment>>& used_environs
 		) : a(a), scope(scope), scope_map(scope_map), prolog(prolog), self_function(self_function), data(data), data_len(data_len), i(start_from),skip_count(start_from), values(values), in_debug(in_debug), build_func(build_func), used_environs(used_environs) {
 			label_bind_map.reserve(jump_list.size());
 			label_map.reserve(jump_list.size());

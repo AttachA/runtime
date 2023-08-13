@@ -42,6 +42,7 @@ namespace art{
             //in linux stack can be increased automatically by mmap(null, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN, -1, 0)
             //but we may be cannont deallocate unused stacks
 
+            //TODO: after reading manuals may be better use PROT_NONE instead of guard pages and catch SIGSEGV to increase stack size
             ValueItem* used_size(ValueItem*, uint32_t);
             ValueItem* unused_size(ValueItem*, uint32_t);
             ValueItem* allocated_size(ValueItem*, uint32_t);

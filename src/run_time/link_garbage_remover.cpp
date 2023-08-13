@@ -132,7 +132,7 @@ namespace art{
 		if (total || !in_safe_depth)
 			exit();
 	}
-	lgr& lgr::operator=(nullptr_t) {
+	lgr& lgr::operator=(std::nullptr_t) {
 		if (total || weak)
 			exit();
 		return *this;

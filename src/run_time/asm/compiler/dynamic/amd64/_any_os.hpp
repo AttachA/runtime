@@ -53,8 +53,8 @@ namespace art {
 		}
 	}
 
-	inline void call_fun_string(CASM& a, std::string* fnn, bool is_async, list_array<typed_lgr<FuncEnvironment>>& used_environs) {
-		typed_lgr<FuncEnvironment> fn = FuncEnvironment::environment(*fnn);
+	inline void call_fun_string(CASM& a, std::string* fnn, bool is_async, list_array<art::shared_ptr<FuncEnvironment>>& used_environs) {
+		art::shared_ptr<FuncEnvironment> fn = FuncEnvironment::environment(*fnn);
 		used_environs.push_back(fn);
 		if (is_async) {
 			BuildCall b(a, 4);

@@ -1,11 +1,16 @@
-#ifndef RUN_TIME_CXX_LIBRARY_FILES
-#define RUN_TIME_CXX_LIBRARY_FILES
+#ifndef SRC_RUN_TIME_CXX_LIBRARY_FILES
+#define SRC_RUN_TIME_CXX_LIBRARY_FILES
 #include "../tasks.hpp"
 #include "../util/in_place_optional.hpp"
 #include "../attacha_abi_structs.hpp"
 #include "../../../configuration/compatibility.hpp"
 #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
 #include <fstream>
+#endif
+#if defined(_WIN32) || defined(_WIN64)
+#define FILE_HANDLE void*
+#else
+#define FILE_HANDLE int
 #endif
 namespace art{
     namespace files {
@@ -100,15 +105,18 @@ namespace art{
 
             ValueItem size();
 
-            void* internal_get_handle() const noexcept;
+            FILE_HANDLE internal_get_handle() const noexcept;
         };
         
         class BlockingFileHandle { //block workers threads, one pointer per handle
             TaskMutex mutex;
-            void* handle = nullptr;
+            FILE_HANDLE handle{0};
             bool eof = false;
             _sync_flags flags;
             open_mode open;
+            #if defined(__linux__) || defined(_LINUX_) || defined(__linux) || defined(__gnu_linux__)
+            std::string _path;
+            #endif
         public:
             BlockingFileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _sync_flags flags, share_mode share = {}) noexcept(false);
             ~BlockingFileHandle();
@@ -120,10 +128,10 @@ namespace art{
             uint64_t size();
             bool eof_state() const noexcept;
             bool valid() const noexcept;
-            void* internal_get_handle() const noexcept;
+            FILE_HANDLE internal_get_handle() const noexcept;
 
     #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
-            ::std::fstream get_fstream() const;//not mapped to proxy definition, can be used only in native c++ code
+            ::std::iostream get_iostream() const;//not mapped to proxy definition, can be used only in native c++ code
     #endif
             //require explicit close, destructor will not close it,
             // BlockingFileHandle will be not used when ::std::fstream alive,
@@ -177,4 +185,5 @@ namespace art{
         ValueItem copy(const char* path, size_t length, const char* new_path, size_t new_length);
     }
 }
-#endif /* RUN_TIME_CXX_LIBRARY_FILES */
+#undef FILE_HANDLE
+#endif /* SRC_RUN_TIME_CXX_LIBRARY_FILES */

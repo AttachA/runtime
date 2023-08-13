@@ -7,7 +7,7 @@
 #ifndef SRC_RUN_TIME_FUNC_ENVIRO_BUILDER
 #define SRC_RUN_TIME_FUNC_ENVIRO_BUILDER
 #include "asm/FuncEnvironment.hpp"
-
+#include <forward_list>
 namespace art{
 	struct FuncEnviroBuilder_line_info {
 		uint64_t begin;
@@ -21,7 +21,7 @@ namespace art{
 		std::unordered_map<std::string, size_t> jump_pos_map;
 		list_array<ValueItem> dynamic_values;
 		std::forward_list<ValueItem> all_constants;
-		std::vector<typed_lgr<FuncEnvironment>> local_funs;
+		std::vector<art::shared_ptr<FuncEnvironment>> local_funs;
 		uint64_t cop = 0;
 		uint16_t values = 0;
 		uint16_t static_values = 0;
@@ -120,7 +120,7 @@ namespace art{
 		void call_self(bool is_async = false);
 		void call_self(ValueIndexPos res, bool is_async = false);
 
-		uint64_t add_local_fn(typed_lgr<FuncEnvironment> fn);
+		uint64_t add_local_fn(art::shared_ptr<FuncEnvironment> fn);
 
 		void call_local(ValueIndexPos fn, bool is_async = false);
 		void call_local(ValueIndexPos fn, ValueIndexPos res, bool is_async = false);
@@ -278,7 +278,7 @@ namespace art{
 		FuncEnviroBuilder_line_info O_line_info_begin();
 		void O_line_info_end(FuncEnviroBuilder_line_info line_info);
 
-		typed_lgr<FuncEnvironment> O_prepare_func();
+		art::shared_ptr<FuncEnvironment> O_prepare_func();
 		std::vector<uint8_t> O_build_func();
 		void O_load_func(const std::string& symbol_name);
 		void O_patch_func(const std::string& symbol_name);

@@ -45,7 +45,7 @@ namespace art{
 		return SUCCEEDED(SetThreadDescription(GetCurrentThread(), (wchar_t*)result.c_str()));
 	}
 
-	std::string _get_name_thread_dbg(int thread_id) {
+	std::string _get_name_thread_dbg(unsigned long thread_id) {
 		HANDLE thread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION,false,thread_id);
 		if (!thread)
 			return "";
@@ -61,7 +61,7 @@ namespace art{
 			return "";
 	}
 
-	int _thread_id() {
+	unsigned long _thread_id() {
 		return GetCurrentThreadId();
 	}
 
@@ -350,7 +350,7 @@ namespace art{
 			throw LibraryFunctionNotFoundException();
 		return (CALL_FUNC)tmp;
 	}
-	typed_lgr<FuncEnvironment> NativeLib::get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ) {
+	art::shared_ptr<FuncEnvironment> NativeLib::get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ) {
 		auto& env = envs[func_name];
 		if (!env) {
 			DynamicCall::PROC tmp = (DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
@@ -360,7 +360,7 @@ namespace art{
 		}
 		return env;
 	}
-	typed_lgr<FuncEnvironment> NativeLib::get_own_enviro(const std::string& func_name){
+	art::shared_ptr<FuncEnvironment> NativeLib::get_own_enviro(const std::string& func_name){
 		auto& env = envs[func_name];
 		if (!env) {
 			Environment tmp = (Environment)(DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
@@ -400,22 +400,124 @@ namespace art{
 	bool need_restore_stack_fault() {
 		return need_stack_restore;
 	}
-	#else
-	#include <unistd.h>
+#else
+
+#include <utf8cpp/utf8.h>
+#include "../configuration/run_time.hpp"
+#include "../configuration/tasks.hpp"
+
+#include "run_time.hpp"
+#include "library/string_help.hpp"
+#include "run_time/asm/FuncEnvironment.hpp"
+#include "run_time/tasks.hpp"
+#include "run_time/asm/dynamic_call.hpp"
+#include "run_time/tasks_util/light_stack.hpp"
+#include <unistd.h>
+#include <dlfcn.h>
+
+namespace art {
+	thread_local bool ex_proxy_enabled;
+
+	EventSystem unhandled_exception;
+	EventSystem ex_fault;
+	EventSystem errors;
+	EventSystem warning;
+	EventSystem info;
+
 	size_t page_size = sysconf(_SC_PAGESIZE);
+	unsigned long fault_reserved_stack_size = 0;
+	unsigned long fault_reserved_pages = fault_reserved_stack_size / page_size + (fault_reserved_stack_size % page_size ? 1 : 0);
+	thread_local unsigned long stack_size_tmp = 0;
+	thread_local bool need_stack_restore = false;
+	bool enable_thread_naming = configuration::run_time::enable_thread_naming;
+	bool allow_intern_access = configuration::run_time::allow_intern_access;
+
+
+	FaultAction default_fault_action = (FaultAction)configuration::run_time::default_fault_action;
+	BreakPointAction break_point_action = (BreakPointAction)configuration::run_time::break_point_action;
+	ExceptionOnLanguageRoutineAction exception_on_language_routine_action = (ExceptionOnLanguageRoutineAction)configuration::run_time::exception_on_language_routine_action;
+
+	void invite_to_debugger(const std::string& reason){
+		//TODO
+		std::terminate();
+	}
+	bool _set_name_thread_dbg(const std::string& name) {
+		if(name.size() > 15)
+			return false;
+		return pthread_setname_np(pthread_self(), name.c_str()) == 0;
+	}
+
+	std::string _get_name_thread_dbg(unsigned long thread_id) {
+		char name[16];
+		if(pthread_getname_np(pthread_t(thread_id), name, 16) != 0)
+			return "";
+		return name;
+	}
+
+	unsigned long _thread_id() {
+		return pthread_self();
+	}
+	bool restore_stack_fault(){
+		return false;
+	}
+	bool need_restore_stack_fault(){
+		return false;
+	}
+	void ini_current(){
+		//TODO
+	}
 
 
 
 
-
-
-
-
-
-
-
-
-	#endif
+	NativeLib::NativeLib(const std::string& library_path){
+		std::string res;
+		hGetProcIDDLL = dlopen(res.c_str(), RTLD_LAZY);
+		if (!hGetProcIDDLL)
+			throw LibraryNotFoundException();
+	}
+	CALL_FUNC NativeLib::get_func(const std::string& func_name){
+		auto tmp = dlsym(hGetProcIDDLL, func_name.c_str());
+		if (!tmp)
+			throw LibraryFunctionNotFoundException();
+		return (CALL_FUNC)tmp;
+	}
+	art::shared_ptr<FuncEnvironment> NativeLib::get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ){
+		auto& env = envs[func_name];
+		if (!env) {
+			void* tmp = (void*)(DynamicCall::PROC)dlsym(hGetProcIDDLL, func_name.c_str());
+			if (!tmp)
+				throw LibraryFunctionNotFoundException();
+			return env = new FuncEnvironment(tmp, templ, true, false);
+		}
+		return env;
+	}
+	art::shared_ptr<FuncEnvironment> NativeLib::get_own_enviro(const std::string& func_name){
+		auto& env = envs[func_name];
+		if (!env) {
+			Environment tmp = (Environment)dlsym(hGetProcIDDLL, func_name.c_str());
+			if (!tmp)
+				throw LibraryFunctionNotFoundException();
+			return env = new FuncEnvironment(tmp, true, false);
+		}
+		return env;
+	}
+	size_t NativeLib::get_pure_func(const std::string& func_name){
+		auto tmp = dlsym(hGetProcIDDLL, func_name.c_str());
+		if (!tmp)
+			throw LibraryFunctionNotFoundException();
+		return (size_t)tmp;
+	}
+	NativeLib::~NativeLib(){
+		for (auto&[_, it] : envs)
+			if(it) it->forceUnload();
+		envs = {};
+		if (hGetProcIDDLL){
+			dlclose(hGetProcIDDLL);
+			hGetProcIDDLL = nullptr;
+		}
+	}
+#endif
 
 	std::unordered_map<std::string, std::string> run_time_configuration;
 	void modify_run_time_config(const std::string& name, const std::string& value){
@@ -589,4 +691,5 @@ namespace art{
 			return it->second;
 		}
 	}
+
 }

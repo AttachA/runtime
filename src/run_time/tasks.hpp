@@ -6,6 +6,7 @@
 
 #pragma once
 #ifndef RUN_TIME_TASKS
+#include <forward_list>
 #include "threading.hpp"
 #include <list>
 #include "link_garbage_remover.hpp"
@@ -13,13 +14,14 @@
 #include "attacha_abi_structs.hpp"
 #include <chrono>
 #include "util/enum_helper.hpp"
+#include <forward_list>
 
 #pragma push_macro("min")
 #undef min
 namespace art{
 	namespace __{
 		struct resume_task{
-			typed_lgr<struct Task> task;
+			art::shared_ptr<Task> task;
 			uint16_t awake_check;
 		};
 	}
@@ -53,9 +55,9 @@ namespace art{
 		void unlock();
 		bool is_locked();
 		//put here child task(not started), and it will lock mutex, and unlock it when it will be finished
-		void lifecycle_lock(typed_lgr<struct Task> task);
+		void lifecycle_lock(art::shared_ptr<Task> task);
 		//put here child task(not started), and it will lock mutex and relock it when received value from child task, and unlock it when it will be finished
-		void sequence_lock(typed_lgr<struct Task> task);
+		void sequence_lock(art::shared_ptr<Task> task);
 		bool is_own();
 	};
 	class TaskRecursiveMutex{
@@ -71,9 +73,9 @@ namespace art{
 		void unlock();
 		bool is_locked();
 		//put here child task(not started), and it will lock mutex, and unlock it when it will be finished
-		void lifecycle_lock(typed_lgr<struct Task> task);
+		void lifecycle_lock(art::shared_ptr<Task> task);
 		//put here child task(not started), and it will lock mutex and relock it when received value from child task, and unlock it when it will be finished
-		void sequence_lock(typed_lgr<struct Task> task);
+		void sequence_lock(art::shared_ptr<Task> task);
 		bool is_own();
 	};
 
@@ -145,11 +147,11 @@ namespace art{
 		void notify_one();
 		void notify_all();
 
-		void dummy_wait(typed_lgr<struct Task> task, art::unique_lock<MutexUnify>& lock);
+		void dummy_wait(art::shared_ptr<Task> task, art::unique_lock<MutexUnify>& lock);
 		//set in arguments result of wait_for
-		void dummy_wait_for(typed_lgr<struct Task> task, art::unique_lock<MutexUnify>& lock, size_t milliseconds);
+		void dummy_wait_for(art::shared_ptr<Task> task, art::unique_lock<MutexUnify>& lock, size_t milliseconds);
 		//set in arguments result of wait_until
-		void dummy_wait_until(typed_lgr<struct Task> task, art::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point);
+		void dummy_wait_until(art::shared_ptr<Task> task, art::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point);
 
 		bool has_waiters();
 	};
@@ -174,9 +176,9 @@ namespace art{
 		static bool enable_task_naming;
 
 		TaskResult fres;
-		typed_lgr<class FuncEnvironment> ex_handle;//if ex_handle is nullptr then exception will be stored in fres
-		typed_lgr<class FuncEnvironment> func;
-		std::forward_list<typed_lgr<class TaskEnvironment>> _task_envs;//if _task_envs is empty then task use global task environment
+		art::shared_ptr<FuncEnvironment> ex_handle;//if ex_handle is nullptr then exception will be stored in fres
+		art::shared_ptr<FuncEnvironment> func;
+		std::forward_list<art::shared_ptr<struct TaskEnvironment>> _task_envs;//if _task_envs is empty then task use global task environment
 		ValueItem args;
 		art::mutex no_race;
 		MutexUnify relock_0;
@@ -193,8 +195,8 @@ namespace art{
 		bool end_of_life : 1 = false;
 		bool make_cancel : 1 = false;
 		bool auto_bind_worker : 1 = false;//can be binded to regular worker
-		Task(typed_lgr<class FuncEnvironment> call_func, const ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
-		Task(typed_lgr<class FuncEnvironment> call_func, ValueItem&& arguments, bool used_task_local = false, typed_lgr<class FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+		Task(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_task_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+		Task(art::shared_ptr<FuncEnvironment> call_func, ValueItem&& arguments, bool used_task_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 		Task(Task&& mov) noexcept;
 		~Task();
 		void auto_bind_worker_enable(bool enable = true);
@@ -202,9 +204,9 @@ namespace art{
 
 
 
-		static void start(typed_lgr<Task>&& lgr_task);
-		static void start(list_array<typed_lgr<Task>>& lgr_task);
-		static void start(const typed_lgr<Task>& lgr_task);
+		static void start(art::shared_ptr<Task>&& lgr_task);
+		static void start(list_array<art::shared_ptr<Task>>& lgr_task);
+		static void start(const art::shared_ptr<Task>& lgr_task);
 		
 		//if count zero then threads count will be dynamically calculated
 		static uint16_t create_bind_only_executor(uint16_t fixed_count, bool allow_implicit_start);//return id of executor, this worker can't be used for regular tasks, only for binded tasks
@@ -223,17 +225,17 @@ namespace art{
 		static void yield();
 
 
-		static bool yield_iterate(typed_lgr<Task>& lgr_task);
-		static ValueItem* get_result(typed_lgr<Task>& lgr_task, size_t yield_res = 0);
-		static ValueItem* get_result(typed_lgr<Task>&& lgr_task, size_t yield_res = 0);
-		static bool has_result(typed_lgr<Task>& lgr_task, size_t yield_res = 0);
-		static void await_task(typed_lgr<Task>& lgr_task, bool make_start = true);
-		static void await_multiple(list_array<typed_lgr<Task>>& tasks, bool pre_started = false, bool release = false);
-		static void await_multiple(typed_lgr<Task>* tasks, size_t len, bool pre_started = false, bool release = false);
-		static list_array<ValueItem> await_results(typed_lgr<Task>& task);
-		static list_array<ValueItem> await_results(list_array<typed_lgr<Task>>& tasks);
-		static void notify_cancel(typed_lgr<Task>& task);
-		static void notify_cancel(list_array<typed_lgr<Task>>& tasks);
+		static bool yield_iterate(art::shared_ptr<Task>& lgr_task);
+		static ValueItem* get_result(art::shared_ptr<Task>& lgr_task, size_t yield_res = 0);
+		static ValueItem* get_result(art::shared_ptr<Task>&& lgr_task, size_t yield_res = 0);
+		static bool has_result(art::shared_ptr<Task>& lgr_task, size_t yield_res = 0);
+		static void await_task(art::shared_ptr<Task>& lgr_task, bool make_start = true);
+		static void await_multiple(list_array<art::shared_ptr<Task>>& tasks, bool pre_started = false, bool release = false);
+		static void await_multiple(art::shared_ptr<Task>* tasks, size_t len, bool pre_started = false, bool release = false);
+		static list_array<ValueItem> await_results(art::shared_ptr<Task>& task);
+		static list_array<ValueItem> await_results(list_array<art::shared_ptr<Task>>& tasks);
+		static void notify_cancel(art::shared_ptr<Task>& task);
+		static void notify_cancel(list_array<art::shared_ptr<Task>>& tasks);
 		static class ValueEnvironment* task_local();
 		static size_t task_id();
 		static void check_cancellation();
@@ -245,24 +247,24 @@ namespace art{
 		//not recommended use in production
 		static void clean_up();
 
-		static typed_lgr<Task> dummy_task();
+		static art::shared_ptr<Task> dummy_task();
 
 		//unsafe function, checker and cd must be alive during task bridge lifetime
-		static typed_lgr<Task> cxx_native_bridge(bool& checker, art::condition_variable_any& cd);
+		static art::shared_ptr<Task> cxx_native_bridge(bool& checker, art::condition_variable_any& cd);
 		
-		static typed_lgr<Task> callback_dummy(ValueItem& dummy_data, void(*on_start)(ValueItem&), void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
-		static typed_lgr<Task> callback_dummy(ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&) , std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+		static art::shared_ptr<Task> callback_dummy(ValueItem& dummy_data, void(*on_start)(ValueItem&), void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+		static art::shared_ptr<Task> callback_dummy(ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&) , std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 		
-		static typed_lgr<Task> fullifed_task(const list_array<ValueItem>& results);
-		static typed_lgr<Task> fullifed_task(list_array<ValueItem>&& results);
-		static typed_lgr<Task> fullifed_task(const ValueItem& result);
-		static typed_lgr<Task> fullifed_task(ValueItem&& result);
+		static art::shared_ptr<Task> fullifed_task(const list_array<ValueItem>& results);
+		static art::shared_ptr<Task> fullifed_task(list_array<ValueItem>&& results);
+		static art::shared_ptr<Task> fullifed_task(const ValueItem& result);
+		static art::shared_ptr<Task> fullifed_task(ValueItem&& result);
 
-		static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnvironment> func);
-		static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments);
-		static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments);
-		static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
-		static typed_lgr<Task> create_native_task(typed_lgr<class FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+		static art::shared_ptr<Task> create_native_task(art::shared_ptr<FuncEnvironment> func);
+		static art::shared_ptr<Task> create_native_task(art::shared_ptr<FuncEnvironment> func, const ValueItem& arguments);
+		static art::shared_ptr<Task> create_native_task(art::shared_ptr<FuncEnvironment> func, ValueItem&& arguments);
+		static art::shared_ptr<Task> create_native_task(art::shared_ptr<FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+		static art::shared_ptr<Task> create_native_task(art::shared_ptr<FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void(*on_await)(ValueItem&), void(*on_cancel)(ValueItem&), void(*on_timeout)(ValueItem&), void(*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 
 		static void explicitStartTimer();
 		static void shutDown();
@@ -288,23 +290,23 @@ namespace art{
 	class EventSystem {
 		friend ValueItem* __async_notify(ValueItem* vals, uint32_t);
 		TaskMutex no_race;
-		std::list<typed_lgr<class FuncEnvironment>> heigh_priority;
-		std::list<typed_lgr<class FuncEnvironment>> upper_avg_priority;
-		std::list<typed_lgr<class FuncEnvironment>> avg_priority;
-		std::list<typed_lgr<class FuncEnvironment>> lower_avg_priority;
-		std::list<typed_lgr<class FuncEnvironment>> low_priority;
+		std::list<art::shared_ptr<FuncEnvironment>> heigh_priority;
+		std::list<art::shared_ptr<FuncEnvironment>> upper_avg_priority;
+		std::list<art::shared_ptr<FuncEnvironment>> avg_priority;
+		std::list<art::shared_ptr<FuncEnvironment>> lower_avg_priority;
+		std::list<art::shared_ptr<FuncEnvironment>> low_priority;
 
-		std::list<typed_lgr<class FuncEnvironment>> async_heigh_priority;
-		std::list<typed_lgr<class FuncEnvironment>> async_upper_avg_priority;
-		std::list<typed_lgr<class FuncEnvironment>> async_avg_priority;
-		std::list<typed_lgr<class FuncEnvironment>> async_lower_avg_priority;
-		std::list<typed_lgr<class FuncEnvironment>> async_low_priority;
+		std::list<art::shared_ptr<FuncEnvironment>> async_heigh_priority;
+		std::list<art::shared_ptr<FuncEnvironment>> async_upper_avg_priority;
+		std::list<art::shared_ptr<FuncEnvironment>> async_avg_priority;
+		std::list<art::shared_ptr<FuncEnvironment>> async_lower_avg_priority;
+		std::list<art::shared_ptr<FuncEnvironment>> async_low_priority;
 
-		static bool removeOne(std::list<typed_lgr<class FuncEnvironment>>& list, const typed_lgr<class FuncEnvironment>& func);
-		void async_call(std::list<typed_lgr<class FuncEnvironment>>& list, ValueItem& args);
-		bool awaitCall(std::list<typed_lgr<class FuncEnvironment>>& list, ValueItem& args);
+		static bool removeOne(std::list<art::shared_ptr<FuncEnvironment>>& list, const art::shared_ptr<FuncEnvironment>& func);
+		void async_call(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args);
+		bool awaitCall(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args);
 
-		bool sync_call(std::list<typed_lgr<class FuncEnvironment>>& list, ValueItem& args);
+		bool sync_call(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args);
 	public:
 		enum class Priority {
 			heigh,
@@ -313,14 +315,14 @@ namespace art{
 			lower_avg,
 			low
 		};
-		void operator+=(const typed_lgr<class FuncEnvironment>& func);
-		void join(const typed_lgr<class FuncEnvironment>& func, bool async_mode = false, Priority priority = Priority::avg);
-		bool leave(const typed_lgr<class FuncEnvironment>& func, bool async_mode = false, Priority priority = Priority::avg);
+		void operator+=(const art::shared_ptr<FuncEnvironment>& func);
+		void join(const art::shared_ptr<FuncEnvironment>& func, bool async_mode = false, Priority priority = Priority::avg);
+		bool leave(const art::shared_ptr<FuncEnvironment>& func, bool async_mode = false, Priority priority = Priority::avg);
 
 		bool await_notify(ValueItem& args);
 		bool notify(ValueItem& args);
 		bool sync_notify(ValueItem& args);
-		typed_lgr<Task> async_notify(ValueItem& args);
+		art::shared_ptr<Task> async_notify(ValueItem& args);
 		void clear(){
 			heigh_priority.clear();
 			upper_avg_priority.clear();
@@ -356,7 +358,7 @@ namespace art{
 	};
 	struct TaskEnvironment{
 		art::mutex no_race;
-		std::list<typed_lgr<Task>> awake_list;
+		std::list<art::shared_ptr<Task>> awake_list;
 		class ValueEnvironment* env = nullptr;
 		bool cancellation_token = false;
 		bool disabled = false;
@@ -377,17 +379,17 @@ namespace art{
 	};
 
 	class TaskQuery{
-		std::list<typed_lgr<Task>> tasks;
+		std::list<art::shared_ptr<Task>> tasks;
 		class TaskQueryHandle* handle;
 		bool is_running;
 		friend void __TaskQuery_add_task_leave(class TaskQueryHandle* tqh, TaskQuery* tq);
 	public:
 		TaskQuery(size_t at_execution_max = 0);
 		~TaskQuery();
-		typed_lgr<Task> add_task(typed_lgr<class FuncEnvironment> call_func, ValueItem& arguments, bool used_task_local = false, typed_lgr<class FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+		art::shared_ptr<Task> add_task(art::shared_ptr<FuncEnvironment> call_func, ValueItem& arguments, bool used_task_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
 		void enable();
 		void disable();
-		bool in_query(typed_lgr<Task> task);
+		bool in_query(art::shared_ptr<Task> task);
 		void set_max_at_execution(size_t val);
 		size_t get_max_at_execution();
 		void wait();
@@ -397,26 +399,26 @@ namespace art{
 
 	//task unsafe, TO-DO: compatible with task sync classes
 	class Generator {
-		friend void prepare_generator(ValueItem& args,typed_lgr<FuncEnvironment>& func, typed_lgr<FuncEnvironment>& ex_handler, Generator*& weak_ref);
+		friend void prepare_generator(ValueItem& args,art::shared_ptr<FuncEnvironment>& func, art::shared_ptr<FuncEnvironment>& ex_handler, Generator*& weak_ref);
 		list_array<ValueItem*> results;
-		typed_lgr<class FuncEnvironment> ex_handle;//if ex_handle is nullptr then exception will be unrolled to caller
-		typed_lgr<class FuncEnvironment> func;
+		art::shared_ptr<FuncEnvironment> ex_handle;//if ex_handle is nullptr then exception will be unrolled to caller
+		art::shared_ptr<FuncEnvironment> func;
 		ValueItem args;
 		class ValueEnvironment* _generator_local = nullptr;
 		std::exception_ptr ex_ptr = nullptr;
 		void* context = nullptr;
 		bool end_of_life : 1 = false;
 	public:
-		Generator(typed_lgr<class FuncEnvironment> call_func, const ValueItem& arguments, bool used_generator_local = false, typed_lgr<class FuncEnvironment> exception_handler = nullptr);
-		Generator(typed_lgr<class FuncEnvironment> call_func, ValueItem&& arguments, bool used_generator_local = false, typed_lgr<class FuncEnvironment> exception_handler = nullptr);
+		Generator(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_generator_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr);
+		Generator(art::shared_ptr<FuncEnvironment> call_func, ValueItem&& arguments, bool used_generator_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr);
 		Generator(Generator&& mov) noexcept;
 		~Generator();
 
-		static bool yield_iterate(typed_lgr<Generator>& lgr_task);
-		static ValueItem* get_result(typed_lgr<Generator>& lgr_task);
-		static bool has_result(typed_lgr<Generator>& lgr_task);
-		static list_array<ValueItem*> await_results(typed_lgr<Generator>& task);
-		static list_array<ValueItem*> await_results(list_array<typed_lgr<Generator>>& tasks);
+		static bool yield_iterate(art::shared_ptr<Generator>& lgr_task);
+		static ValueItem* get_result(art::shared_ptr<Generator>& lgr_task);
+		static bool has_result(art::shared_ptr<Generator>& lgr_task);
+		static list_array<ValueItem*> await_results(art::shared_ptr<Generator>& task);
+		static list_array<ValueItem*> await_results(list_array<art::shared_ptr<Generator>>& tasks);
 
 
 		//in generators use
@@ -438,7 +440,7 @@ namespace art{
 		void ctxSwapRelock(const MutexUnify& lock0);
 		void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1);
 		void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1, const MutexUnify& lock2);
-		typed_lgr<Task> get_self();
+		art::shared_ptr<Task> get_self();
 		void become_executor_count_manager(bool leave_after_finish);
 		void start_executor_count_manager();
 		

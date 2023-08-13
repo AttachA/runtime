@@ -271,7 +271,7 @@ void FuncEnviroBuilder::call_self(ValueIndexPos res, bool is_async) {
 }
 
 
-uint64_t FuncEnviroBuilder::add_local_fn(typed_lgr<FuncEnvironment> fn) {
+uint64_t FuncEnviroBuilder::add_local_fn(art::shared_ptr<FuncEnvironment> fn) {
 	uint64_t res = local_funs.size();
 	if(fn->get_cross_code().empty()){
 		if(strict_mode)
@@ -980,7 +980,7 @@ void FuncEnviroBuilder::remove_qualifiers(ValueIndexPos res){
 #pragma endregion
 #pragma endregion
 
-typed_lgr<FuncEnvironment> FuncEnviroBuilder::O_prepare_func() {
+art::shared_ptr<FuncEnvironment> FuncEnviroBuilder::O_prepare_func() {
 	if(!flags.run_time_computable)
 		return new FuncEnvironment(O_build_func(), flags.can_be_unloaded, flags.is_cheap);
 	else{

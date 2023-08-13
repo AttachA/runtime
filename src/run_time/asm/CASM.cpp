@@ -5,17 +5,24 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "CASM.hpp"
+#ifdef _WIN64
 #include <Windows.h>
 #include <DbgHelp.h>
 #include <dbgeng.h>
+namespace art{
+	void _______dbgOut(const char* str) {
+		OutputDebugStringA(str);
+	}
+}
+#elif defined(__linux__) || defined(__APPLE__)
+#include <execinfo.h>
+#include <cxxabi.h>
+#endif
 #include <string>
 #include <unordered_map>
 #include <cassert>
 #include "../threading.hpp"
 namespace art{
-	void _______dbgOut(const char* str) {
-		OutputDebugStringA(str);
-	}
 #define CONV_ASMJIT(to_conv) { if(auto tmp = (to_conv)) throw CompileTimeException("Fail create func asmjit err code: " + std::to_string(tmp)); }
 	//return offset from allocated to additional size or code size
 	size_t CASM::allocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size_end) {
@@ -63,6 +70,11 @@ namespace art{
 			alloc->shrink(rx, additional_size_begin + codeSize + additional_size_end);
 
 #if defined(_M_X64) || defined(__x86_64__)
+#if defined(__GNUC__)
+	uint8_t* start = rx;
+	uint8_t* end = start + codeSize + additional_size_begin + additional_size_end;
+	__builtin___clear_cache(start, end);
+#endif
 #else
 # if defined(_WIN32)
 	// Windows has a built-in support in `kernel32.dll`.
@@ -82,14 +94,14 @@ namespace art{
 		alloc->release(code);
 	}
 
-#ifdef _WIN64
-#pragma comment(lib,"Dbghelp.lib")
 	struct frame_info {
 		std::string name;
 		std::string file;
 		size_t fun_size = 0;
 	};
 	std::unordered_map<uint8_t*, frame_info> frame_symbols;
+#ifdef _WIN64
+#pragma comment(lib,"Dbghelp.lib")
 	mutex DbgHelp_lock;
 
 
@@ -319,6 +331,10 @@ namespace art{
 		return false;
 	};
 #else
+
+	void _______dbgOut(const char*){
+		//TODO
+	}
 	struct NativeSymbolResolver {
 		StackTraceItem GetName(void* frame) {
 			char** strings;
@@ -385,13 +401,40 @@ namespace art{
 	}
 
 
-	void* PrologResult::init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name) {
-		void* res = 0;
-		frame = nullptr;
-		CONV_ASMJIT(runtime._add(&res, code));
-		return res;
+	void* FrameResult::init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name, const char* file_path){
+		//std::vector<uint16_t> unwindInfo = convert(*this);
+		//size_t unwindInfoSize = unwindInfo.size() * sizeof(uint16_t);
+
+		uint8_t* baseaddr;
+		size_t fun_size = CASM::allocate_and_prepare_code(0, baseaddr, code, runtime.allocator(), 0/*unwindInfoSize + sizeof(RUNTIME_FUNCTION)*/);
+		if(!baseaddr){
+			const char* err = asmjit::DebugUtils::errorAsString(asmjit::Error(fun_size));
+			throw CompileTimeException(err);
+		}
+		/*
+		uint8_t* startaddr = baseaddr;
+		uint8_t* unwindptr = baseaddr + (((fun_size + 15) >> 4) << 4);
+		memcpy(unwindptr, unwindInfo.data(), unwindInfoSize);
+
+		RUNTIME_FUNCTION* table = (RUNTIME_FUNCTION*)(unwindptr + unwindInfoSize);
+		frame = (uint8_t*)table;
+		table[0].BeginAddress = (DWORD)(ptrdiff_t)(startaddr - baseaddr);
+		table[0].EndAddress = (DWORD)(ptrdiff_t)(use_handle ? exHandleOff : fun_size);
+		table[0].UnwindData = (DWORD)(ptrdiff_t)(unwindptr - baseaddr);
+		bool result = RtlAddFunctionTable(table, 1, (DWORD64)baseaddr);
+
+		if (result == 0) {
+			runtime.allocator()->release(baseaddr);
+			throw CompileTimeException("RtlAddFunctionTable failed");
+		}
+		auto& tmp = frame_symbols[baseaddr];
+		tmp.fun_size = fun_size;
+		tmp.name = symbol_name;
+		tmp.file = file_path;
+		*/
+		return baseaddr;
 	}
-	bool PrologResult::deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime) {
+	bool FrameResult::deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime) {
 		return !(runtime._release(funct));
 	};
 #endif
@@ -483,8 +526,9 @@ namespace art{
 	}
 	StackTraceItem FrameResult::JitResolveFrame(void* rip, bool include_native){
 		if(include_native){
-				
-			lock_guard lg(DbgHelp_lock);
+			#ifdef _WIN64
+					lock_guard lg(DbgHelp_lock);//in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+			#endif
 			std::unique_ptr<NativeSymbolResolver> nativeSymbols;
 			nativeSymbols.reset(new NativeSymbolResolver());
 			return JitGetStackFrameName(nativeSymbols.get(), rip);

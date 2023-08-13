@@ -61,7 +61,7 @@ namespace art {
 			}
 		}
 
-		//typed_lgr<FuncEnvironment>*, any...
+		//art::shared_ptr<FuncEnvironment>*, any...
 		ValueItem* createThread(ValueItem*, uint32_t);
 
 		//returns function result that what reached by native thread

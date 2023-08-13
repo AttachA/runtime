@@ -5,6 +5,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "cxxException.hpp"
+#ifdef _WIN32
 #include <windows.h>
 #include <string>
 namespace art{
@@ -24,7 +25,7 @@ namespace art{
 				}
 			};
 			struct ExCatchableType {
-				uint32_t properties; // bit field  IsScalar 1; referenceOnly: 2, HasVirtualBases 4; isWinRT: 8, IsStdBadAlloc 16
+				uint32_t properties; // bit field  IsScalar 1; RefrenceOnly: 2, HasVirtualBases 4; isWinRT: 8, IsStdBadAlloc 16
 				int32_t type_info;
 				uint32_t non_virtual_adjustment;
 				uint32_t offset_to_virtual_base_ptr;
@@ -105,3 +106,16 @@ namespace art{
 		return cxx.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.is_bad_alloc; });
 	}
 }
+#else
+namespace art{
+	void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex){}
+	void getCxxExInfoFromNative(CXXExInfo& res, void*){}
+	void getCxxExInfoFromNative1(CXXExInfo& res, void*){}
+	bool hasClassInEx(CXXExInfo& cxx, const char* class_nam){
+		return false;
+	}
+	bool isBadAlloc(CXXExInfo& cxx){
+		return false;
+	}
+}
+#endif

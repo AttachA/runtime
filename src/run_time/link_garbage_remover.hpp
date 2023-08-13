@@ -35,12 +35,12 @@ namespace art{
 		void join(std::atomic_size_t* p_total_links, std::atomic_size_t* tot_weak snap_rec_lgr_arg);
 	public:
 		lgr();
-		lgr(nullptr_t) : lgr(){};
+		lgr(std::nullptr_t) : lgr(){};
 		lgr(void* copy, bool(*clc_depth)(void*) = nullptr, void(*destruct)(void*) = nullptr, bool as_weak = false);
 		lgr(const lgr& copy);
 		lgr(lgr&& mov) can_throw;
 		~lgr();
-		lgr& operator=(nullptr_t);
+		lgr& operator=(std::nullptr_t);
 		lgr& operator=(const lgr& copy);
 		lgr& operator=(lgr&& mov) can_throw;
 		void*& operator*();
@@ -96,7 +96,13 @@ namespace art{
 		typedef decltype(check<C>(nullptr)) type;
 		static constexpr bool value = type::value;
 	};
-
+	template<bool, class T>
+	class gcc_bug_enable_if_t {
+	};
+	template<class T>
+	class gcc_bug_enable_if_t<true, T> {
+		using type = T;
+	};
 
 
 
@@ -104,7 +110,11 @@ namespace art{
 	class typed_lgr {
 		lgr actual_lgr;
 
-		template<typename = std::enable_if_t<has_depth_safety<T, bool()>::value>>
+		template<gcc_bug_enable_if_t<
+				has_depth_safety<T, bool()>::value,
+				int
+			> = 0
+		>
 		static bool depth_calc(void* v) {
 			return ((T*)v)->depth_safety();
 		}
@@ -123,7 +133,7 @@ namespace art{
 				delete (T*)v;
 		}
 		typed_lgr() {}
-		typed_lgr(nullptr_t) {};
+		typed_lgr(std::nullptr_t) {};
 		typed_lgr(T* capture, bool as_weak = false) : actual_lgr(capture, get_depth_calc(), destruct, as_weak) { }
 		typed_lgr(const typed_lgr& mov) noexcept {
 			*this = mov;
@@ -132,7 +142,7 @@ namespace art{
 			*this = std::move(mov);
 		}
 
-		typed_lgr& operator=(nullptr_t) {
+		typed_lgr& operator=(std::nullptr_t) {
 			actual_lgr = nullptr;
 			return *this;
 		}

@@ -37,6 +37,9 @@ namespace art{
         AttachAFun(funs_TcpNetworkServer_server_address, 1,{
             return Ai::getExtractAs<typed_lgr<TcpNetworkServer>>(args[0], define_TcpClientSocket)->server_address();
         })
+        AttachAFun(funs_TcpNetworkServer_accept, 1,{
+            return Ai::getExtractAs<typed_lgr<TcpNetworkServer>>(args[0], define_TcpClientSocket)->accept(len == 2 ? (bool)args[1] : false);
+        })
         AttachAFun(funs_TcpNetworkServer_await, 1,{
             Ai::getExtractAs<typed_lgr<TcpNetworkServer>>(args[0], define_TcpClientSocket)->_await();
         })
@@ -46,15 +49,18 @@ namespace art{
         AttachAFun(funs_TcpNetworkServer_resume, 1,{
             Ai::getExtractAs<typed_lgr<TcpNetworkServer>>(args[0], define_TcpClientSocket)->resume();
         })
-        AttachAFun(funs_TcpNetworkServer_set_default_buffer, 2,{
-            Ai::getExtractAs<typed_lgr<TcpNetworkServer>>(args[0], define_TcpClientSocket)->set_default_buffer_size((int32_t)args[1]);
+        AttachAFun(funs_TcpNetworkServer_set_configuration, 2,{
+            Ai::getExtractAs<typed_lgr<TcpNetworkServer>>(args[0], define_TcpClientSocket)->set_configuration(Ai::getExtractAsStatic<TcpConfiguration>(args[1]));
         })
-        AttachAFun(funs_TcpNetWorkServer_set_accept_filter, 2,{
+        AttachAFun(funs_TcpNetworkServer_set_accept_filter, 2,{
             CXX::excepted(args[1], VType::function);
             Ai::getExtractAs<typed_lgr<TcpNetworkServer>>(args[0], define_TcpClientSocket)->set_accept_filter(*args[1].funPtr());
         })
     #pragma endregion
     #pragma region TcpClientSocket
+        AttachAFun(funs_TcpClientSocket_set_configuration, 2,{
+            Ai::getExtractAs<typed_lgr<TcpClientSocket>>(args[0], define_TcpClientSocket)->set_configuration(Ai::getExtractAsStatic<TcpConfiguration>(args[1]));
+        })
         AttachAFun(funs_TcpClientSocket_recv, 2,{
             if(len == 2){
                 uint32_t buf_len = (int32_t)args[1];
@@ -184,18 +190,14 @@ namespace art{
                 auto ip_port = args[1];
                 TcpNetworkServer::ManageType manage_type = TcpNetworkServer::ManageType::write_delayed;
                 size_t acceptors = 10;
-                int32_t timeout_ms = 0;
-                int32_t default_buffer = 8192;
+                TcpConfiguration config = {};
                 if(len >= 3)
                     if(args[2].meta.vtype != VType::noting) manage_type = (TcpNetworkServer::ManageType)(uint8_t)args[2];
                 if(len >= 4)
                     if(args[3].meta.vtype != VType::noting) acceptors = (size_t)args[3];
                 if(len >= 5)
-                    if(args[4].meta.vtype != VType::noting) timeout_ms = (int32_t)args[4];
-                if(len >= 6)
-                    if(args[5].meta.vtype != VType::noting) default_buffer = (int32_t)args[5];
-                if(default_buffer < 1) default_buffer = 8192;
-                return new ValueItem(Ai::constructStructure<typed_lgr<TcpNetworkServer>>(define_TcpNetworkServer,new TcpNetworkServer(*fun, ip_port,manage_type, acceptors, timeout_ms, default_buffer)));
+                    if(args[4].meta.vtype != VType::noting) config = CXX::Interface::getExtractAsStatic<TcpConfiguration>(args[4]);
+                return new ValueItem(Ai::constructStructure<typed_lgr<TcpNetworkServer>>(define_TcpNetworkServer, new TcpNetworkServer(*fun, ip_port,manage_type, acceptors, config)));
             }
             ValueItem* createProxy_HttpServer(ValueItem*, uint32_t){
                 throw NotImplementedException();
@@ -228,11 +230,11 @@ namespace art{
                     return new ValueItem(Ai::constructStructure<typed_lgr<TcpClientSocket>>(define_TcpClientSocket, TcpClientSocket::connect(ip_port,(char*)data.getSourcePtr(),data.meta.val_len)), no_copy);
                 }
                 else
-                    return new ValueItem(Ai::constructStructure<typed_lgr<TcpClientSocket>>(define_TcpClientSocket, TcpClientSocket::connect(ip_port,(int32_t)data)), no_copy);
+                    return new ValueItem(Ai::constructStructure<typed_lgr<TcpClientSocket>>(define_TcpClientSocket, TcpClientSocket::connect(ip_port, CXX::Interface::getExtractAsStatic<TcpConfiguration>(data))));
             }
             else{
                 auto& data = args[1];
-                return new ValueItem(Ai::constructStructure<typed_lgr<TcpClientSocket>>(define_TcpClientSocket, TcpClientSocket::connect(ip_port,(char*)data.getSourcePtr(),data.meta.val_len,(int32_t)args[2])), no_copy);
+                return new ValueItem(Ai::constructStructure<typed_lgr<TcpClientSocket>>(define_TcpClientSocket, TcpClientSocket::connect(ip_port,(char*)data.getSourcePtr(),data.meta.val_len, CXX::Interface::getExtractAsStatic<TcpConfiguration>(args[2]))), no_copy);
             }
         }
         void init(){
@@ -245,13 +247,15 @@ namespace art{
                 Ai::direct_method("server_port", funs_TcpNetworkServer_server_port),
                 Ai::direct_method("server_ip", funs_TcpNetworkServer_server_ip),
                 Ai::direct_method("server_address", funs_TcpNetworkServer_server_address),
+                Ai::direct_method("accept", funs_TcpNetworkServer_accept),
                 Ai::direct_method("await", funs_TcpNetworkServer_await),
                 Ai::direct_method("pause", funs_TcpNetworkServer_pause),
                 Ai::direct_method("resume", funs_TcpNetworkServer_resume),
-                Ai::direct_method("set_default_buffer", funs_TcpNetworkServer_set_default_buffer),
-                Ai::direct_method("set_accept_filter", funs_TcpNetWorkServer_set_accept_filter)
+                Ai::direct_method("set_configuration", funs_TcpNetworkServer_set_configuration),
+                Ai::direct_method("set_accept_filter", funs_TcpNetworkServer_set_accept_filter)
             );
             define_TcpClientSocket = Ai::createTable<typed_lgr<TcpClientSocket>>("tcp_client",
+                Ai::direct_method("set_configuration", funs_TcpClientSocket_set_configuration),
                 Ai::direct_method("recv", funs_TcpClientSocket_recv),
                 Ai::direct_method("send", funs_TcpClientSocket_send),
                 Ai::direct_method("send_file", funs_TcpClientSocket_send_file),

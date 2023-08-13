@@ -1427,7 +1427,7 @@ namespace art {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(40);
-		handler_data.push_back(0ui8);
+		handler_data.push_back(0);
 		builder::write(handler_data, (uint64_t)catch_names.size());
 		for (std::string name : catch_names) {
 			builder::write(handler_data, name.size());
@@ -1440,7 +1440,7 @@ namespace art {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(40);
-		handler_data.push_back(1ui8);
+		handler_data.push_back(1);
 		builder::write(handler_data, exception_name_env_id);
 		compiler.scope.setExceptionHandle(handle, exception::_attacha_filter, handler_data.data(), handler_data.size());
 	}
@@ -1449,7 +1449,7 @@ namespace art {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(40);
-		handler_data.push_back(2ui8);
+		handler_data.push_back(2);
 		builder::write(handler_data, (uint64_t)exception_name_env_ids.size());
 		for (uint16_t id : exception_name_env_ids)
 			builder::write(handler_data, id);
@@ -1459,15 +1459,15 @@ namespace art {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(40);
-		handler_data.push_back(3ui8);
+		handler_data.push_back(3);
 		builder::write(handler_data, (uint64_t)(catch_names.size() + exception_name_env_ids.size()));
 		for (std::string name : catch_names) {
-			handler_data.push_back(0ui8);
+			handler_data.push_back(0);
 			builder::write(handler_data, name.size());
 			handler_data.insert(handler_data.end(), name.begin(), name.end());
 		}
 		for (uint16_t id : exception_name_env_ids) {
-			handler_data.push_back(1ui8);
+			handler_data.push_back(1);
 			builder::write(handler_data, id);
 		}
 	}
@@ -1475,7 +1475,7 @@ namespace art {
 	void Compiler::DynamicCompiler::handle_catch_4(uint64_t exception_scope) {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		std::vector<uint8_t> handler_data;
-		handler_data.push_back(4ui8);
+		handler_data.push_back(4);
 		compiler.scope.setExceptionHandle(handle, exception::_attacha_filter, handler_data.data(), handler_data.size());
 	}
 
@@ -1483,7 +1483,7 @@ namespace art {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(40);
-		handler_data.push_back(5ui8);
+		handler_data.push_back(5);
 		handler_data.push_back(0);
 		builder::write(handler_data, compiler.build_func->localFn(local_fun_id)->get_func_ptr());
 		builder::write(handler_data, enviro_slice_begin);
@@ -1495,7 +1495,7 @@ namespace art {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(40);
-		handler_data.push_back(5ui8);
+		handler_data.push_back(5);
 		handler_data.push_back(1);
 
 		builder::write(handler_data, FuncEnvironment::environment(function_symbol)->get_func_ptr());
@@ -1510,7 +1510,7 @@ namespace art {
 			throw InvalidArguments("Undefined handle");
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(sizeof(Environment) + sizeof(uint16_t) * 2 + 1);
-		handler_data.push_back(0ui8);
+		handler_data.push_back(0);
 		builder::write(handler_data,compiler.build_func->localFn(local_fun_id)->get_func_ptr());
 		builder::write(handler_data, enviro_slice_begin);
 		builder::write(handler_data, enviro_slice_end);
@@ -1523,7 +1523,7 @@ namespace art {
 			throw InvalidArguments("Undefined handle");
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(sizeof(Environment) + sizeof(uint16_t) * 2 + 1);
-		handler_data.push_back(0ui8);
+		handler_data.push_back(0);
 
 		builder::write(handler_data, FuncEnvironment::environment(function_symbol)->get_func_ptr());
 		builder::write(handler_data, enviro_slice_begin);

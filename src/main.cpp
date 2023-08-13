@@ -23,7 +23,7 @@ void sleep_test() {
 
 
 
-uint8_t operator""ui8(unsigned long long int val);
+
 ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	ValueItem noting;
 
@@ -32,17 +32,17 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	ValueItem msq("test");
 	console::print(&msq, 1);
 
-	
+
 	FuncEnviroBuilder build;
 	auto fn_console_set_text_color = build.create_constant("console set_text_color");
 	auto fn_console_printf = build.create_constant("console printf");
 	auto text = build.create_constant("The test text, Current color: r%d,g%d,b%d\n");
-	auto num12 = build.create_constant(12ui8);
-	auto num128 = build.create_constant(128ui8);
-	auto num0 = build.create_constant(0ui8);
-	auto num1 = build.create_constant(1ui8);
-	auto num2 = build.create_constant(2ui8);
-	auto num3 = build.create_constant(3ui8);
+	auto num12 = build.create_constant((uint8_t)12);
+	auto num128 = build.create_constant((uint8_t)128);
+	auto num0 = build.create_constant((uint8_t)0);
+	auto num1 = build.create_constant((uint8_t)1);
+	auto num2 = build.create_constant((uint8_t)2);
+	auto num3 = build.create_constant((uint8_t)3);
 
 
 	build.set_stack_any_array(0_env, 4);
@@ -77,7 +77,7 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 		build.call_and_ret(fn_Yay);
 		build.O_load_func("Yay");
 	}
-	typed_lgr<FuncEnvironment> env = FuncEnvironment::environment("sleep_test");
+	art::shared_ptr<FuncEnvironment> env = FuncEnvironment::environment("sleep_test");
 	////Task::start(new Task(FuncEnvironment::environment("4"), nullptr));
 	//Task::start(new Task(FuncEnvironment::environment("3"), nullptr));
 	//Task::start(new Task(FuncEnvironment::environment("2"), nullptr));
@@ -105,7 +105,7 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 		Task::await_end_tasks(true);
 	}
 
-	list_array<typed_lgr<Task>> tasks;
+	list_array<art::shared_ptr<Task>> tasks;
 
 	//for (size_t i = 0; i < 10000; i++) {
 	//	tasks.push_back(new Task(FuncEnvironment::environment("start"), noting));
@@ -125,7 +125,7 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	///	tasks.push_back(new Task(env, noting));
 	///Task::await_multiple(tasks);
 	///tasks.clear();
-	for (size_t i = 0; i < 50; i++)
+	for (size_t i = 0; i < 1000000; i++)
 		tasks.push_back(new Task(env, noting));
 	Task::await_multiple(tasks);
 	tasks.clear();
@@ -161,14 +161,14 @@ int main(){
 	errors.join(new FuncEnvironment(logger<_ERROR>, false, false));
 	warning.join(new FuncEnvironment(logger<_WARN>, false, false));
 	info.join(new FuncEnvironment(logger<_INFO>, false, false));
-
+	auto timer_start = std::chrono::high_resolution_clock::now();
 	initStandardLib();
 	FuncEnvironment::AddNative(sleep_test, "sleep_test", false);
 	enable_thread_naming = true;
-	Task::max_running_tasks = 200000;
+	Task::max_running_tasks = 20000;
 	Task::max_planned_tasks = 0;
 
-	typed_lgr<Task> main_task = new Task(new FuncEnvironment(attacha_main, false, false), {});
+	art::shared_ptr<Task> main_task = new Task(new FuncEnvironment(attacha_main, false, false), {});
 	main_task->bind_to_worker_id = Task::create_bind_only_executor(0, true);
 	Task::start(main_task);
 	_Task_unsafe::become_executor_count_manager(true);
@@ -177,6 +177,10 @@ int main(){
 		res->getAsync();
 	Task::shutDown();
 	Task::clean_up();
+	auto timer_end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double, std::milli> elapsed = timer_end - timer_start;
+	ValueItem msq("Time: " + std::to_string(elapsed.count()) + "ms");
+	console::printLine(&msq, 1);
 	if (res != nullptr){
 		try{
 			console::printLine(res, 1);

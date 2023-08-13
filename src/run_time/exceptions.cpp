@@ -8,15 +8,17 @@
 #include "asm/CASM.hpp"
 #include "cxxException.hpp"
 #include "asm/exception.hpp"
+#ifdef _WIN64
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+#endif
 
 namespace art{
     std::string inner_exception_info(const std::exception_ptr& inner_exception) {
         CXXExInfo ex;
         getCxxExInfoFromException(ex, inner_exception);
-    #ifdef _WIN64
         if(ex.ex_ptr == nullptr) {
+    #ifdef _WIN64
             switch (ex.native_id) {
             case EXCEPTION_ACCESS_VIOLATION:
                 return "\nAccessViolation: NATIVE EXCEPTION";
@@ -40,6 +42,7 @@ namespace art{
                 return "\nUnknownNativeException: NATIVE EXCEPTION";
             }
     #else
+            return "\nUnknownNativeException: NATIVE EXCEPTION";
     #endif
         } else {
             try{

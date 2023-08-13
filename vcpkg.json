@@ -8,6 +8,10 @@
         "boost-lockfree",
         "asmjit",
         "utfcpp",
-        "gtest"
+        "gtest",
+        {
+            "name":"liburing",
+            "platform": "linux"
+        }
     ]
 }

@@ -13,6 +13,26 @@ namespace art{
 		class FileHandle;
 		class BlockingFileHandle;
 	}
+	struct TcpConfiguration {
+		uint32_t recv_timeout_ms = 2000;
+		uint32_t send_timeout_ms = 2000;
+		uint32_t buffer_size = 8192;
+		uint32_t fast_open_queue = 5;//0 - disable fast open
+
+		uint32_t connection_timeout_ms = 2000;//set send_timeout_ms to this value when connecting to server, rollback to send_timeout_ms after connection, also start user space timeout when connecting
+		//int32_t max_retransmit_count; is not porrtable across platforms
+
+		bool allow_ip4 : 1 = true;
+		bool enable_delay : 1 = true;//TCP_NODELAY
+		bool enable_timestamps : 1 = true;//TCP_TIMESTAMP, some websites report that enabling this option can cause performance spikes, turn off if you have problems
+		bool enable_keep_alive : 1 = true;
+		struct {
+			uint32_t idle_ms = 5000;
+			uint32_t interval_ms = 3000;
+			uint8_t retry_count = 3;//255 is max,0 - invalid value and will be replaced by 3
+			uint32_t user_timeout_ms = idle_ms + interval_ms * retry_count;//not recomended to decrease this value
+		} keep_alive_settings;
+	};
 	class TcpNetworkServer {
 		struct TcpNetworkManager* handle;
 	public:
@@ -21,12 +41,13 @@ namespace art{
 			write_delayed
 		};
 
-		TcpNetworkServer(typed_lgr<class FuncEnvironment> on_connect, ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10, int32_t timeout_ms = 0, int32_t default_buffer = 8192);
+		TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10, TcpConfiguration config = {});
 		~TcpNetworkServer();
 		void start();
 		void pause();
 		void resume();
 		void stop();
+		ValueItem accept(bool ignore_acceptors = false);
 		void _await();
 
 		bool is_running();
@@ -36,20 +57,19 @@ namespace art{
 		uint16_t server_port();
 		std::string server_ip();
 		ValueItem server_address();
-		void set_default_buffer_size(int32_t size);
-		void set_accept_filter(typed_lgr<class FuncEnvironment> filter);
+		//apply to new connections
+		void set_configuration(TcpConfiguration config);
+		void set_accept_filter(art::shared_ptr<FuncEnvironment> filter);
 	};
 	class TcpClientSocket{
 		class TcpClientManager* handle;
 		TcpClientSocket();
 	public:
 		~TcpClientSocket();
-		static TcpClientSocket* connect(ValueItem& ip_port);
-		static TcpClientSocket* connect(ValueItem& ip_port, int32_t timeout_ms);
-
-		static TcpClientSocket* connect(ValueItem& ip_port, char* data, uint32_t size);
-		static TcpClientSocket* connect(ValueItem& ip_port, char* data, uint32_t size, int32_t timeout_ms);
-
+		static TcpClientSocket* connect(ValueItem& ip_port, TcpConfiguration config = {});
+		static TcpClientSocket* connect(ValueItem& ip_port, char* data, uint32_t size, TcpConfiguration config = {});
+		//apply to current connection
+		void set_configuration(TcpConfiguration config);
 		int32_t recv(uint8_t* data, int32_t size);
 		bool send(uint8_t* data, int32_t size);
 		bool send_file(const char* file_path, size_t file_path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size);
@@ -66,6 +86,9 @@ namespace art{
 
 		uint32_t recv(uint8_t* data, uint32_t size, ValueItem& sender);
 		uint32_t send(uint8_t* data, uint32_t size, ValueItem& to);
+		
+		ValueItem local_address();
+		ValueItem remote_address();
 	};
 
 	uint8_t init_networking();
@@ -78,5 +101,6 @@ namespace art{
 	ValueItem makeIP4_port(const char* ip_port);//ip4:port
 	ValueItem makeIP6_port(const char* ip_port);//ip6:port
 	ValueItem makeIP_port(const char* ip_port);//ip:port
+	ValueItem construct_TcpConfiguration();
 }
 #endif /* RUN_TIME_CXX_LIBRARY_NETWORKING */

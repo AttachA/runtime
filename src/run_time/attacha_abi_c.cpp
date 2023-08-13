@@ -98,7 +98,7 @@ namespace art{
 			delete (std::string*)*value;
 			break;
 		case VType::async_res:
-			delete (typed_lgr<Task>*)* value;
+			delete (art::shared_ptr<Task>*)* value;
 			break;
 		case VType::undefined_ptr:
 			break;
@@ -117,7 +117,7 @@ namespace art{
 			Structure::destruct((Structure*)*value);
 			break;
 		case VType::function:
-			delete (typed_lgr<FuncEnvironment>*)*value;
+			delete (art::shared_ptr<FuncEnvironment>*)*value;
 			break;
 		default:
 			if(needAlloc(meta))
@@ -259,10 +259,10 @@ namespace art{
 				throw InvalidOperation("Fail allocate local stack value");
 				break;
 			case VType::async_res:
-				destructor = defaultDestructor<typed_lgr<Task>>;
+				destructor = defaultDestructor<art::shared_ptr<Task>>;
 				break;
 			case VType::function:
-				destructor = defaultDestructor<typed_lgr<FuncEnvironment>>;
+				destructor = defaultDestructor<art::shared_ptr<FuncEnvironment>>;
 				break;
 			default:
 				break;
@@ -277,7 +277,7 @@ namespace art{
 	ValueItem* getAsyncValueItem(void* val) {
 		if(!val)
 			return nullptr;
-		typed_lgr<Task>& tmp = *(typed_lgr<Task>*)val;
+		art::shared_ptr<Task>& tmp = *(art::shared_ptr<Task>*)val;
 		auto res = Task::await_results(tmp);
 		if(res.size() == 1)
 			return new ValueItem(std::move(res[0]));
@@ -370,7 +370,7 @@ namespace art{
 			case VType::string:
 				return new std::string(*(std::string*)actual_val);
 			case VType::async_res:
-				return new typed_lgr<Task>(*(typed_lgr<Task>*)actual_val);
+				return new art::shared_ptr<Task>(*(art::shared_ptr<Task>*)actual_val);
 			case VType::except_value:
 				return new std::exception_ptr(*(std::exception_ptr*)actual_val);
 			case VType::saarr:
@@ -383,7 +383,7 @@ namespace art{
 			case VType::struct_:
 				return Structure::copy((Structure*)actual_val);
 			case VType::function:
-				return new typed_lgr<FuncEnvironment>(*(typed_lgr<FuncEnvironment>*)actual_val);
+				return new art::shared_ptr<FuncEnvironment>(*(art::shared_ptr<FuncEnvironment>*)actual_val);
 			default:
 				throw NotImplementedException();
 			}
@@ -1084,7 +1084,7 @@ namespace art{
 	namespace ABI_IMPL {
 
 		ValueItem* _Vcast_callFN(const void* ptr) {
-			return FuncEnvironment::sync_call(*(const class typed_lgr<class FuncEnvironment>*)ptr, nullptr, 0);
+			return FuncEnvironment::sync_call(*(const class art::shared_ptr<FuncEnvironment>*)ptr, nullptr, 0);
 		}
 		
 
@@ -1160,7 +1160,7 @@ namespace art{
 			}
 			case VType::undefined_ptr: return "0x" + string_help::hexstr(val);
 			case VType::type_identifier: return (*(ValueMeta*)&val).to_string();
-			case VType::function: return (*reinterpret_cast<typed_lgr<FuncEnvironment>*>(val))->to_string();
+			case VType::function: return (*reinterpret_cast<art::shared_ptr<FuncEnvironment>*>(val))->to_string();
 			case VType::map:{
 				std::string res("{");
 				bool before = false;
@@ -1188,7 +1188,7 @@ namespace art{
 				res += ')';
 				return res;
 			}
-			case VType::time_point: return "t(" + std::to_string(reinterpret_cast<std::chrono::steady_clock::time_point*>(val)->time_since_epoch().count()) + ')';
+			case VType::time_point: return "t(" + std::to_string(reinterpret_cast<std::chrono::high_resolution_clock::time_point*>(val)->time_since_epoch().count()) + ')';
 			case VType::struct_:
 				return (std::string)art::CXX::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<Structure*>(val), symbols::structures::convert::to_string);
 			default:
@@ -1246,7 +1246,7 @@ namespace art{
 			}
 			case VType::undefined_ptr: return "0x" + string_help::hexstr(val);
 			case VType::type_identifier: return enum_to_string(*(VType*)&val);
-			case VType::function: return (*reinterpret_cast<const typed_lgr<FuncEnvironment>*>(val))->to_string();
+			case VType::function: return (*reinterpret_cast<const art::shared_ptr<FuncEnvironment>*>(val))->to_string();
 			case VType::map:{
 				std::string res("{");
 				bool before = false;
@@ -1274,7 +1274,7 @@ namespace art{
 				res += ')';
 				return res;
 			}
-			case VType::time_point: return "t(" + std::to_string(reinterpret_cast<const std::chrono::steady_clock::time_point*>(val)->time_since_epoch().count()) + ')';
+			case VType::time_point: return "t(" + std::to_string(reinterpret_cast<const std::chrono::high_resolution_clock::time_point*>(val)->time_since_epoch().count()) + ')';
 			case VType::struct_:
 				return (std::string)art::CXX::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<const Structure*>(val), symbols::structures::convert::to_string);
 			default:
@@ -1381,7 +1381,7 @@ namespace art{
 						break;
 					tmp += str[i];
 				}
-				auto res = std::chrono::steady_clock::time_point(std::chrono::nanoseconds(std::stoull(tmp)));
+				auto res = std::chrono::high_resolution_clock::time_point(std::chrono::nanoseconds(std::stoull(tmp)));
 				return ValueItem(*(void**)&res, VType::time_point);
 			}
 			else {
@@ -1577,8 +1577,8 @@ namespace art{
 			reinterpret_cast<size_t&>(actual_val0) += (size_t)val1_r;
 			break;
 		case VType::time_point:{
-			auto& val0_time = reinterpret_cast<std::chrono::steady_clock::time_point&>(actual_val0);
-			auto& val1_time = reinterpret_cast<std::chrono::steady_clock::time_point&>(actual_val1);
+			auto& val0_time = reinterpret_cast<std::chrono::high_resolution_clock::time_point&>(actual_val0);
+			auto& val1_time = reinterpret_cast<std::chrono::high_resolution_clock::time_point&>(actual_val1);
 			val0_time = val0_time + (std::chrono::nanoseconds)val1_time.time_since_epoch();
 			break;
 		}
@@ -1642,8 +1642,8 @@ namespace art{
 			reinterpret_cast<size_t&>(actual_val0) -= (size_t)val1_r;
 			break;
 		case VType::time_point:{
-			auto& val0_time = reinterpret_cast<std::chrono::steady_clock::time_point&>(actual_val0);
-			auto& val1_time = reinterpret_cast<std::chrono::steady_clock::time_point&>(actual_val1);
+			auto& val0_time = reinterpret_cast<std::chrono::high_resolution_clock::time_point&>(actual_val0);
+			auto& val1_time = reinterpret_cast<std::chrono::high_resolution_clock::time_point&>(actual_val1);
 			val0_time = val0_time - (std::chrono::nanoseconds)val1_time.time_since_epoch();
 			break;
 		}
@@ -2610,8 +2610,8 @@ namespace art{
 		*this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), as_reference);
 	}
 
-	ValueItem::ValueItem(typed_lgr<struct Task> task) {
-		val = new typed_lgr(task);
+	ValueItem::ValueItem(const art::shared_ptr<Task>& task) {
+		val = new art::shared_ptr<Task>(task);
 		meta = VType::async_res;
 	}
 	ValueItem::ValueItem(const std::initializer_list<ValueItem>& args) : val(0) {
@@ -2631,9 +2631,9 @@ namespace art{
 		val = new std::exception_ptr(ex);
 		meta = VType::except_value;
 	}
-	ValueItem::ValueItem(const std::chrono::steady_clock::time_point& time) {
-		static_assert(sizeof(std::chrono::steady_clock::time_point) <= sizeof(val), "Time point is too large");
-		*reinterpret_cast<std::chrono::steady_clock::time_point*>(&val) = time;
+	ValueItem::ValueItem(const std::chrono::high_resolution_clock::time_point& time) {
+		static_assert(sizeof(std::chrono::high_resolution_clock::time_point) <= sizeof(val), "Time point is too large");
+		*reinterpret_cast<std::chrono::high_resolution_clock::time_point*>(&val) = time;
 		meta = VType::time_point;
 	}
 	ValueItem::ValueItem(const std::unordered_map<ValueItem, ValueItem>& map): val(0){
@@ -2650,8 +2650,8 @@ namespace art{
 	}
 
 
-	ValueItem::ValueItem(const typed_lgr<class FuncEnvironment>& fun){
-		val = new typed_lgr(fun);
+	ValueItem::ValueItem(const art::shared_ptr<FuncEnvironment>& fun){
+		val = new art::shared_ptr<FuncEnvironment>(fun);
 		meta = VType::function;
 	}
 
@@ -2716,7 +2716,7 @@ namespace art{
 			meta.val_len = 1;
 			break;
 		case VType::function:
-			val = new typed_lgr<FuncEnvironment>();
+			val = new art::shared_ptr<FuncEnvironment>();
 			break;
 		default:
 			throw NotImplementedException();
@@ -2817,7 +2817,7 @@ namespace art{
 		meta = VType::except_value;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(std::chrono::steady_clock::time_point&val, as_reference_t){
+	ValueItem::ValueItem(std::chrono::high_resolution_clock::time_point&val, as_reference_t){
 		this->val = &val;
 		meta = VType::time_point;
 		meta.as_ref = true;
@@ -2832,7 +2832,7 @@ namespace art{
 		meta = VType::set;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(typed_lgr<struct Task>& val, as_reference_t){
+	ValueItem::ValueItem(class art::shared_ptr<Task>& val, as_reference_t){
 		this->val = &val;
 		meta = VType::async_res;
 		meta.as_ref = true;
@@ -2842,7 +2842,7 @@ namespace art{
 		meta = VType::type_identifier;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(typed_lgr<class FuncEnvironment>&val, as_reference_t){
+	ValueItem::ValueItem(art::shared_ptr<FuncEnvironment>&val, as_reference_t){
 		this->val = &val;
 		meta = VType::function;
 		meta.as_ref = true;
@@ -2948,7 +2948,7 @@ namespace art{
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const std::chrono::steady_clock::time_point&val, as_reference_t){
+	ValueItem::ValueItem(const std::chrono::high_resolution_clock::time_point&val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::time_point;
 		meta.as_ref = true;
@@ -2966,7 +2966,7 @@ namespace art{
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const typed_lgr<struct Task>& val, as_reference_t){
+	ValueItem::ValueItem(const art::shared_ptr<Task>& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::async_res;
 		meta.as_ref = true;
@@ -2978,7 +2978,7 @@ namespace art{
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const typed_lgr<class FuncEnvironment>&val, as_reference_t){
+	ValueItem::ValueItem(const art::shared_ptr<FuncEnvironment>&val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::function;
 		meta.as_ref = true;
@@ -3993,12 +3993,12 @@ namespace art{
 		else
 			throw InvalidCast("This type is not set");
 	}
-	ValueItem::operator typed_lgr<Task>&(){
+	ValueItem::operator art::shared_ptr<Task>&(){
 		if(meta.vtype == VType::async_res)
-			return *(typed_lgr<Task>*)getSourcePtr();
+			return *(art::shared_ptr<Task>*)getSourcePtr();
 		throw InvalidCast("This type is not async_res");
 	}
-	ValueItem::operator typed_lgr<class FuncEnvironment>&(){
+	ValueItem::operator art::shared_ptr<FuncEnvironment>&(){
 		return *funPtr();
 	}
 	
@@ -4064,9 +4064,9 @@ namespace art{
 			}
 		}
 	}
-	ValueItem::operator std::chrono::steady_clock::time_point() const{
+	ValueItem::operator std::chrono::high_resolution_clock::time_point() const{
 		if (meta.vtype == VType::time_point)
-			return *(std::chrono::steady_clock::time_point*)getSourcePtr();
+			return *(std::chrono::high_resolution_clock::time_point*)getSourcePtr();
 		else
 			throw InvalidCast("This type is not time_point");
 	}
@@ -4088,12 +4088,12 @@ namespace art{
 		else
 			throw InvalidCast("This type is not set");
 	}
-	ValueItem::operator const typed_lgr<struct Task>&() const{
+	ValueItem::operator const class art::shared_ptr<Task>&() const{
 		if (meta.vtype == VType::async_res)
-			return *(const typed_lgr<Task>*)getSourcePtr();
+			return *(const art::shared_ptr<Task>*)getSourcePtr();
 		throw InvalidCast("This type is not async_res");
 	}
-	ValueItem::operator const typed_lgr<class FuncEnvironment>&() const{
+	ValueItem::operator const art::shared_ptr<FuncEnvironment>&() const{
 		return *funPtr();
 	}
 
@@ -4700,6 +4700,7 @@ namespace art{
 		}
 		return array_t<double>(meta.val_len, copy_arr);
 	}
+#ifdef _WIN32
 	ValueItem::operator const array_t<long>() const{
 		if(!meta.val_len)
 			return array_t<long>();
@@ -4756,6 +4757,7 @@ namespace art{
 		}
 		return array_t<long>(meta.val_len, copy_arr);
 	}
+#endif
 	ValueItem::operator const array_t<ValueItem>() const{
 		if(!meta.val_len)
 			return array_t<ValueItem>();
@@ -4867,11 +4869,13 @@ namespace art{
 			throw InvalidCast("This type is not similar to double array");
 		return array_ref_t<double>((double*)getSourcePtr(), meta.val_len);
 	}
+#ifdef _WIN32
 	ValueItem::operator const array_ref_t<long>() const{
 		if(meta.vtype != VType::raw_arr_i64)
 			throw InvalidCast("This type is not similar to long array");
 		return array_ref_t<long>((long*)getSourcePtr(), meta.val_len);
 	}
+#endif
 	ValueItem::operator const array_ref_t<ValueItem>() const{
 		if(meta.vtype != VType::faarr && meta.vtype != VType::saarr)
 			throw InvalidCast("This type is not similar to ValueItem array");
@@ -4932,11 +4936,13 @@ namespace art{
 			throw InvalidCast("This type is not similar to double array");
 		return array_ref_t<double>((double*)getSourcePtr(), meta.val_len);
 	}
+#ifdef _WIN32
 	ValueItem::operator array_ref_t<long>(){
 		if(meta.vtype != VType::raw_arr_i64)
 			throw InvalidCast("This type is not similar to long array");
 		return array_ref_t<long>((long*)getSourcePtr(), meta.val_len);
 	}
+#endif
 	ValueItem::operator array_ref_t<ValueItem>(){
 		if(meta.vtype != VType::faarr && meta.vtype != VType::saarr)
 			throw InvalidCast("This type is not similar to ValueItem array");
@@ -4947,7 +4953,7 @@ namespace art{
 
 	ValueItem* ValueItem::operator()(ValueItem* args,uint32_t len) {
 		if (meta.vtype == VType::function)
-			return FuncEnvironment::sync_call((*(class typed_lgr<class FuncEnvironment>*)getValue(val, meta)),args,len);
+			return FuncEnvironment::sync_call((*(class art::shared_ptr<FuncEnvironment>*)getValue(val, meta)),args,len);
 		else
 			return new ValueItem(*this);
 	}
@@ -4961,7 +4967,7 @@ namespace art{
 	void ValueItem::getGeneratorResult(ValueItem* result, uint64_t index) {
 		if (val)
 			while (meta.vtype == VType::async_res){
-				typed_lgr<Task>& task = *(typed_lgr<Task>*)getSourcePtr();
+				art::shared_ptr<Task>& task = *(art::shared_ptr<Task>*)getSourcePtr();
 				ValueItem* res = Task::get_result(task, index);
 				if (res) {
 					*result = *res;
@@ -4990,14 +4996,14 @@ namespace art{
 		else
 			return meta.as_ref ? *(void**)val : val;
 	}
-	typed_lgr<FuncEnvironment>* ValueItem::funPtr() {
+	art::shared_ptr<FuncEnvironment>* ValueItem::funPtr() {
 		if (meta.vtype == VType::function)
-			return (typed_lgr<FuncEnvironment>*)getValue(val, meta);
+			return (art::shared_ptr<FuncEnvironment>*)getValue(val, meta);
 		return nullptr;
 	}
-	const typed_lgr<FuncEnvironment>* ValueItem::funPtr() const {
+	const art::shared_ptr<FuncEnvironment>* ValueItem::funPtr() const {
 		if (meta.vtype == VType::function)
-			return (const typed_lgr<FuncEnvironment>*)getSourcePtr();
+			return (const art::shared_ptr<FuncEnvironment>*)getSourcePtr();
 		return nullptr;
 	}
 	template<typename T>
@@ -5049,10 +5055,10 @@ namespace art{
 				destructor = (void(*)(void*))Structure::destruct;
 				break;
 			case VType::async_res:
-				destructor = defaultDestructor<typed_lgr<Task>>;
+				destructor = defaultDestructor<art::shared_ptr<Task>>;
 				break;
 			case VType::function:
-				destructor = defaultDestructor<typed_lgr<FuncEnvironment>>;
+				destructor = defaultDestructor<art::shared_ptr<FuncEnvironment>>;
 				break;
 			default:
 				break;
@@ -5700,6 +5706,7 @@ namespace art{
 		ValueItem ValueItemConstIterator::get() const { return iterator.get(); }
 #pragma endregion
 #pragma region MethodInfo
+ 	MethodInfo::MethodInfo(): ref(nullptr), name(), owner_name(), optional(nullptr), access(ClassAccess::pub), deletable(true){}
 	MethodInfo::MethodInfo(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
 		this->name = name;
 		this->ref = new FuncEnvironment(method, false);
@@ -5714,7 +5721,7 @@ namespace art{
 		this->owner_name = owner_name;
 		this->deletable = true;
 	}
-	MethodInfo::MethodInfo(const std::string& name, typed_lgr<class FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	MethodInfo::MethodInfo(const std::string& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
 		this->name = name;
 		this->ref = method;
 		this->access = access;
@@ -5758,7 +5765,7 @@ namespace art{
 	}
 #pragma endregion
 #pragma region AttachAVirtualTable
-	AttachAVirtualTable::AttachAVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move, typed_lgr<class FuncEnvironment> compare){
+	AttachAVirtualTable::AttachAVirtualTable(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare){
 		this->destructor = destructor ? (Environment)destructor->get_func_ptr() : nullptr;
 		this->copy = copy ? (Environment)copy->get_func_ptr() : nullptr;
 		this->move = move ? (Environment)move->get_func_ptr() : nullptr;
@@ -5771,19 +5778,19 @@ namespace art{
 			new(table_additional_info + i)MethodInfo(methods[i]);
 		}
 		auto tmp = getAfterMethods();
-		new(&tmp->destructor) typed_lgr<class FuncEnvironment>(destructor);
-		new(&tmp->copy) typed_lgr<class FuncEnvironment>(copy);
-		new(&tmp->move) typed_lgr<class FuncEnvironment>(move);
-		new(&tmp->compare) typed_lgr<class FuncEnvironment>(compare);
+		new(&tmp->destructor) art::shared_ptr<FuncEnvironment>(destructor);
+		new(&tmp->copy) art::shared_ptr<FuncEnvironment>(copy);
+		new(&tmp->move) art::shared_ptr<FuncEnvironment>(move);
+		new(&tmp->compare) art::shared_ptr<FuncEnvironment>(compare);
 		new(&tmp->name) std::string();
 		tmp->tags = nullptr;
 	}
-	AttachAVirtualTable* AttachAVirtualTable::create(list_array<MethodInfo>& methods,  typed_lgr<class FuncEnvironment> destructor,  typed_lgr<class FuncEnvironment> copy,  typed_lgr<class FuncEnvironment> move,  typed_lgr<class FuncEnvironment> compare){
+	AttachAVirtualTable* AttachAVirtualTable::create(list_array<MethodInfo>& methods,  art::shared_ptr<FuncEnvironment> destructor,  art::shared_ptr<FuncEnvironment> copy,  art::shared_ptr<FuncEnvironment> move,  art::shared_ptr<FuncEnvironment> compare){
 		size_t to_allocate = 
 			sizeof(AttachAVirtualTable) 
 			+ sizeof(Environment) * methods.size() 
 			+ sizeof(MethodInfo) * methods.size() 
-			+ sizeof(typed_lgr<class FuncEnvironment>) * 4 
+			+ sizeof(art::shared_ptr<FuncEnvironment>) * 4 
 			+ sizeof(std::string)
 			+ sizeof(list_array<StructureTag>*);
 		
@@ -5915,7 +5922,7 @@ namespace art{
 #pragma endregion
 
 #pragma region AttachADynamicVirtualTable
-	AttachADynamicVirtualTable::AttachADynamicVirtualTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move, typed_lgr<class FuncEnvironment> compare): destructor(destructor), copy(copy), move(move), methods(methods), compare(compare){
+	AttachADynamicVirtualTable::AttachADynamicVirtualTable(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare): destructor(destructor), copy(copy), move(move), methods(methods), compare(compare){
 		tags = nullptr;
 	}
 	AttachADynamicVirtualTable::~AttachADynamicVirtualTable(){
@@ -6002,7 +6009,7 @@ namespace art{
 	void AttachADynamicVirtualTable::addMethod(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
 		methods.push_back(MethodInfo(name, method, access, return_values, arguments, tags, owner_name));
 	}
-	void AttachADynamicVirtualTable::addMethod(const std::string& name, const typed_lgr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	void AttachADynamicVirtualTable::addMethod(const std::string& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
 		methods.push_back(MethodInfo(name, method, access, return_values, arguments, tags, owner_name));
 	}
 
@@ -6086,7 +6093,7 @@ namespace art{
 		if(access == ClassAccess::priv)if(access_to_check != ClassAccess::pub && access_to_check != ClassAccess::prot) return true;
 		return access == access_to_check;//ClassAccess::intern
 	}
-	AttachAVirtualTable* Structure::createAAVTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move, typed_lgr<class FuncEnvironment> compare,const list_array<std::tuple<void*,VTableMode>>& derive_vtables){
+	AttachAVirtualTable* Structure::createAAVTable(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare,const list_array<std::tuple<void*,VTableMode>>& derive_vtables){
 		list_array<MethodInfo> methods_copy = methods;
 		for (auto& table : derive_vtables) {
 			switch(std::get<1>(table)){
@@ -6108,7 +6115,7 @@ namespace art{
 		}
 		return AttachAVirtualTable::create(methods_copy, destructor, copy, move, compare);
 	}
-	AttachADynamicVirtualTable* Structure::createAADVTable(list_array<MethodInfo>& methods, typed_lgr<class FuncEnvironment> destructor, typed_lgr<class FuncEnvironment> copy, typed_lgr<class FuncEnvironment> move, typed_lgr<class FuncEnvironment> compare,const  list_array<std::tuple<void*,VTableMode>>& derive_vtables){
+	AttachADynamicVirtualTable* Structure::createAADVTable(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare,const  list_array<std::tuple<void*,VTableMode>>& derive_vtables){
 		AttachADynamicVirtualTable* vtable = new AttachADynamicVirtualTable(methods, destructor, copy, move, compare);
 		for (auto& table : derive_vtables) {
 			switch(std::get<1>(table)){
@@ -6223,7 +6230,7 @@ namespace art{
 		case VType::set:
 			return getType<std::unordered_set<ValueItem>>(item);
 		case VType::time_point:
-			return getType<std::chrono::steady_clock::time_point>(item);
+			return getType<std::chrono::high_resolution_clock::time_point>(item);
 		default:
 			throw InvalidArguments("type not supported");
 		}
@@ -6291,7 +6298,7 @@ namespace art{
 		case VType::set:
 			return getTypeRef<std::unordered_set<ValueItem>>(item);
 		case VType::time_point:
-			return getTypeRef<std::chrono::steady_clock::time_point>(item);
+			return getTypeRef<std::chrono::high_resolution_clock::time_point>(item);
 		default:
 			throw InvalidArguments("type not supported");
 		}
@@ -6351,7 +6358,7 @@ namespace art{
 			static_value_set_ref<ValueMeta>(item->offset, item->bit_used, item->bit_offset, (ValueMeta)set);
 			return;
 		case VType::time_point:
-			static_value_set_ref<std::chrono::steady_clock::time_point>(item->offset, item->bit_used, item->bit_offset, (std::chrono::steady_clock::time_point)set);
+			static_value_set_ref<std::chrono::high_resolution_clock::time_point>(item->offset, item->bit_used, item->bit_offset, (std::chrono::high_resolution_clock::time_point)set);
 			return;
 		default:
 			throw InvalidArguments("type not supported");
@@ -6540,7 +6547,7 @@ namespace art{
 			throw InvalidOperation("vtable must be dynamic to add new method");
 		((AttachADynamicVirtualTable*)get_vtable())->addMethod(name, method, access, return_values, arguments, tags, owner_name);
 	}
-	void Structure::add_method(const std::string& name, const typed_lgr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	void Structure::add_method(const std::string& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
 		if(vtable_mode != VTableMode::AttachADynamicVirtualTable)
 			throw InvalidOperation("vtable must be dynamic to add new method");
 		((AttachADynamicVirtualTable*)get_vtable())->addMethod(name, method, access, return_values, arguments, tags, owner_name);
@@ -6558,7 +6565,7 @@ namespace art{
 			throw InvalidOperation("vtable must be dynamic to remove method");
 		((AttachADynamicVirtualTable*)get_vtable())->removeMethod(name, access);
 	}
-	typed_lgr<FuncEnvironment> Structure::get_method(uint64_t fn_id) const {
+	art::shared_ptr<FuncEnvironment> Structure::get_method(uint64_t fn_id) const {
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			throw InvalidArguments("vtable disabled");
@@ -6571,7 +6578,7 @@ namespace art{
 			throw NotImplementedException();
 		}
 	}
-	typed_lgr<FuncEnvironment>  Structure::get_method_dynamic(const std::string& name, ClassAccess access) const {
+	art::shared_ptr<FuncEnvironment>  Structure::get_method_dynamic(const std::string& name, ClassAccess access) const {
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			throw InvalidArguments("vtable disabled");

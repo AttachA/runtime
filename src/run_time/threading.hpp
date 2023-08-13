@@ -81,9 +81,9 @@ namespace art {
         Mutex* mutex() const { return &_mtx; }
     };
     class thread {
-        unsigned int _id;
+        unsigned long _id;
         void* _thread;
-        static void* create(void(*function)(void*), void* arg, unsigned int& id, size_t stack_size, bool stack_reservation, int& error_code);
+        static void* create(void(*function)(void*), void* arg, unsigned long& id, size_t stack_size, bool stack_reservation, int& error_code);
         template<class Tuple, size_t... Indexes>
         static void execute(void* arguments){
             std::unique_ptr<Tuple> stored_args(static_cast<Tuple*>(arguments));
@@ -95,7 +95,7 @@ namespace art {
             return &execute<Tuple, Indexes...>;
         }
         template<class F, class... Args>
-        void start(size_t stack_allocation, bool as_reserved, F&& f, Args&&... args){
+        void start(size_t stack_allocation, bool as_resrved, F&& f, Args&&... args){
             using Tuple = std::tuple<std::decay_t<F>, std::decay_t<Args>...>;
 
             auto stored_args = std::make_unique<Tuple>(std::forward<F>(f), std::forward<Args>(args)...);
@@ -105,7 +105,7 @@ namespace art {
                 stored_args.get(),
                 _id,
                 stack_allocation,
-                as_reserved,
+                as_resrved,
                 error_code
             );
             if(_thread)
@@ -135,6 +135,10 @@ namespace art {
         thread(F&& f, Args&&... args) {
             start(0, false, std::forward<F>(f), std::forward<Args>(args)...);
         }
+        ~thread(){
+            if(_thread)
+                detach();
+        }
         [[nodiscard]] id get_id() const noexcept;
 
         [[nodiscard]] void* native_handle() noexcept {return _thread;}
@@ -163,12 +167,13 @@ namespace art {
         bool operator<=(const id& other) const noexcept;
         bool operator>(const id& other) const noexcept;
         bool operator>=(const id& other) const noexcept;
+        operator size_t() const noexcept;
     public:
         friend class thread;
         friend id art::this_thread::get_id() noexcept;
         friend struct ::std::hash<id>;
-        id(unsigned int id) : _id(id) {}
-        unsigned int _id;
+        id(unsigned long id) : _id(id) {}
+        unsigned long _id;
     };
 
 
@@ -177,7 +182,7 @@ namespace art {
         #ifdef _WIN32
         void* _mutex;
         #else
-        pthread_mutex_t _mutex;
+        pthread_mutex_t* _mutex;
         #endif
     public:
         mutex();
@@ -195,7 +200,7 @@ namespace art {
         #ifdef _WIN32
         void* _mutex;
         #else
-        pthread_mutex_t _mutex;
+        pthread_mutex_t* _mutex;
         #endif
     public:
         rw_mutex();
@@ -217,11 +222,8 @@ namespace art {
     class recursive_mutex {
         friend class condition_variable;
         mutex actual_mutex;
-        #ifdef _WIN32
         size_t count = 0;
         art::thread::id owner;
-        #else
-        #endif
     public:
         recursive_mutex();
         recursive_mutex(const recursive_mutex& other) = delete;
@@ -244,7 +246,7 @@ namespace art {
         #ifdef _WIN32
         void* _cond;
         #else
-        pthread_cond_t _cond;
+        pthread_cond_t* _cond;
         #endif
     public:
         condition_variable();
@@ -291,7 +293,7 @@ namespace art {
         mutex _mutex;
         unsigned int locked = 0;
         #else
-        pthread_mutex_t _mutex;
+        pthread_mutex_t* _mutex;
         #endif
     public:
         timed_mutex();
@@ -306,20 +308,23 @@ namespace art {
         bool try_lock_for(std::chrono::milliseconds ms);
         bool try_lock_until(std::chrono::high_resolution_clock::time_point time);
     };
+    
+    
+    template<class M> struct full_state_relock_guard {
+        M& ref;
+        full_state_relock_guard(M& ref) :ref(ref) { ref.unlock(); }
+        ~full_state_relock_guard() { ref.lock(); }
+    };
+    template<> struct full_state_relock_guard<recursive_mutex> {
+        recursive_mutex& ref;
+        relock_state state;
+        full_state_relock_guard(recursive_mutex& ref) :ref(ref) { state = ref.relock_begin(); ref.unlock(); }
+        ~full_state_relock_guard() { ref.lock(); ref.relock_end(state);}
+    };
+    
     class condition_variable_any {
         condition_variable _cond;
         mutex _mutex;
-        template<class M> struct _Relocker {
-            M& ref;
-            _Relocker(M& ref) :ref(ref) { ref.unlock(); }
-            ~_Relocker() { ref.lock(); }
-        };
-        template<> struct _Relocker<recursive_mutex> {
-            recursive_mutex& ref;
-            relock_state state;
-            _Relocker(recursive_mutex& ref) :ref(ref) { state = ref.relock_begin(); ref.unlock(); }
-            ~_Relocker() { ref.lock(); ref.relock_end(state);}
-        };
     public:
         condition_variable_any() = default;
         void notify_one();
@@ -327,7 +332,7 @@ namespace art {
         template<class mut>
         void wait(mut& mtx){
             art::unique_lock<mutex> lock(_mutex);
-            _Relocker relock(mtx);
+            full_state_relock_guard<mut> relock(mtx);
             _cond.wait(_mutex);
             lock.unlock();
         }
@@ -338,7 +343,7 @@ namespace art {
         template<class mut>
         cv_status wait_until(mut& mtx, std::chrono::high_resolution_clock::time_point time){
             art::unique_lock<mutex> lock(_mutex);
-            _Relocker relock(mtx);
+            full_state_relock_guard<mut> relock(mtx);
             cv_status ret = _cond.wait_until(_mutex, time);
             lock.unlock();
             return ret;
