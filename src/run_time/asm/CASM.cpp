@@ -15,13 +15,20 @@ namespace art{
 	}
 }
 #elif defined(__linux__) || defined(__APPLE__)
+#include <libunwind.h>
+#include "CASM/linux/dwarf_builder.hpp"
 #include <execinfo.h>
 #include <cxxabi.h>
+extern "C" void __register_frame(void *fde);
+extern "C" void __deregister_frame(void *fde);
+
 #endif
 #include <string>
 #include <unordered_map>
 #include <cassert>
 #include "../threading.hpp"
+
+
 namespace art{
 #define CONV_ASMJIT(to_conv) { if(auto tmp = (to_conv)) throw CompileTimeException("Fail create func asmjit err code: " + std::to_string(tmp)); }
 	//return offset from allocated to additional size or code size
@@ -101,6 +108,136 @@ namespace art{
 	};
 	std::unordered_map<uint8_t*, frame_info> frame_symbols;
 #ifdef _WIN64
+	enum UWC {
+		UWOP_PUSH_NONVOL = 0,
+		UWOP_ALLOC_LARGE = 1,
+		UWOP_ALLOC_SMALL = 2,
+		UWOP_SET_FPREG = 3,
+		UWOP_SAVE_NONVOL = 4,
+		UWOP_SAVE_NONVOL_FAR = 5,
+		UWOP_SAVE_XMM128 = 8,
+		UWOP_SAVE_XMM128_FAR = 9,
+		UWOP_PUSH_MACHFRAME = 10,
+	};
+	union UWCODE {
+		struct {
+			uint8_t offset;
+			uint8_t op : 4;
+			uint8_t info : 4;
+		};
+		uint16_t solid = 0;
+		UWCODE() = default;
+		UWCODE(const UWCODE& copy) = default;
+		UWCODE(uint8_t off, uint8_t oper, uint8_t inf) { offset = off; op = oper; info = inf; }
+	};
+	void BuildProlog::pushReg(creg reg) {
+		csm.push(reg.fromTypeAndId(asmjit::RegType::kGp64, reg.id()));
+		if ((uint8_t)csm.offset() != csm.offset())
+			throw CompileTimeException("prolog too large");
+		res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_PUSH_NONVOL, reg.id()).solid);
+		pushes.push_back({ cur_op++,reg });
+		stack_align += 8;
+	}
+	void BuildProlog::stackAlloc(uint32_t size) {
+		if (size == 0)
+			return;
+		//align stack
+		size = (size / 8 + ((size % 8) ? 1 : 0)) * 8;
+		csm.sub(stack_ptr, size);
+		if ((uint8_t)csm.offset() != csm.offset())
+			throw CompileTimeException("prolog too large");
+		if (size <= 128) 
+			res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_SMALL, size / 8 - 1).solid);
+		else if (size <= 524280) {
+			//512K - 8
+			res.prolog.push_back(size / 8);
+			res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_LARGE, 0).solid);
+		}
+		else if(size <= 4294967288) {
+			//4gb - 8
+			res.prolog.push_back((uint16_t)(size >> 16));
+			res.prolog.push_back((uint16_t)size);
+			res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_LARGE, 1).solid);
+		}
+		else 
+			throw CompileTimeException("Invalid unwind code, too large stack allocation");
+		stack_alloc.push_back({ cur_op++, size });
+		stack_align += size;
+	}
+	void BuildProlog::setFrame(uint16_t stack_offset = 0) {
+		if(frame_inited)
+			throw CompileTimeException("Frame already inited");
+		if (stack_offset % 16)
+			throw CompileTimeException("Invalid frame offset, it must be aligned by 16");
+		if(uint8_t(stack_offset / 16) != stack_offset / 16)
+			throw CompileTimeException("Frame offset too large");
+		csm.lea(frame_ptr, stack_ptr, stack_offset);
+		if ((uint8_t)csm.offset() != csm.offset())
+			throw CompileTimeException("prolog too large");
+		res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SET_FPREG, 0).solid);
+		set_frame.push_back({ cur_op++, stack_offset });
+		res.head.FrameOffset = stack_offset / 16;
+		frame_inited = true;
+	}
+	void BuildProlog::saveToStack(creg reg, int32_t stack_back_offset) {
+		if (reg.isVec()) {
+			if (reg.type() == asmjit::RegType::kVec128) {
+				if (INT32_MAX > stack_back_offset)
+					throw CompileTimeException("Overflow, fail convert 64 point to 32 point");
+				if (UINT16_MAX > stack_back_offset || stack_back_offset % 16) {
+					csm.mov(stack_ptr, stack_back_offset, reg.as<creg128>());
+					if ((uint8_t)csm.offset() != csm.offset())
+						throw CompileTimeException("prolog too large");
+					res.prolog.push_back(stack_back_offset & (UINT32_MAX ^ UINT16_MAX));
+					res.prolog.push_back(stack_back_offset & UINT16_MAX);
+					res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_XMM128_FAR, reg.id()).solid);
+				}
+				else {
+					csm.mov(stack_ptr, stack_back_offset, reg.as<creg128>());
+					if ((uint8_t)csm.offset() != csm.offset())
+						throw CompileTimeException("prolog too large");
+					res.prolog.push_back(uint16_t(stack_back_offset / 16));
+					res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_XMM128, reg.id()).solid);
+				}
+			}
+			else
+				throw CompileTimeException("Supported only 128 bit vector register");
+		}
+		else {
+			csm.mov(stack_ptr, stack_back_offset, reg.size(), reg);
+			if ((uint8_t)csm.offset() != csm.offset())
+				throw CompileTimeException("prolog too large");
+			if (stack_back_offset % 8) {
+				res.prolog.push_back(stack_back_offset & (UINT32_MAX ^ UINT16_MAX));
+				res.prolog.push_back(stack_back_offset & UINT16_MAX);
+				res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_NONVOL_FAR, reg.id()).solid);
+			}
+			else {
+				res.prolog.push_back(uint16_t(stack_back_offset / 8));
+				res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_NONVOL, reg.id()).solid);
+			}
+		}
+		save_to_stack.push_back({ cur_op++, {reg,stack_back_offset} });
+	}
+	void BuildProlog::end_prolog() {
+		if (prolog_preEnd)
+			throw CompileTimeException("end_prolog will be used only once");
+		if (stack_align & 0xF)
+			stackAlloc(8);
+		prolog_preEnd = true;
+		if ((uint8_t)csm.offset() != csm.offset())
+			throw CompileTimeException("prolog too large");
+		res.head.SizeOfProlog = (uint8_t)csm.offset();
+		if ((uint8_t)res.prolog.size() != res.prolog.size())
+			throw CompileTimeException("prolog too large");
+		res.head.CountOfUnwindCodes = (uint8_t)res.prolog.size();
+
+		if (res.head.CountOfUnwindCodes & 1)
+			res.prolog.push_back(0);
+	}
+
+
+
 #pragma comment(lib,"Dbghelp.lib")
 	mutex DbgHelp_lock;
 
@@ -331,6 +468,66 @@ namespace art{
 		return false;
 	};
 #else
+	ffi_builder& prolog_ffi_builder(void*& ffi_build) {
+		if (!ffi_build)
+			ffi_build = new ffi_builder();
+		return *(ffi_builder*)ffi_build;
+	}
+	void BuildProlog::pushReg(creg reg){
+		auto& ffi = prolog_ffi_builder(res.prolog_data);
+		csm.push(reg.fromTypeAndId(asmjit::RegType::kGp64, reg.id()));
+		stack_align += 8;
+		ffi.advance_loc(offset());
+		ffi.stack_offset(stack_align);
+		ffi.offset(reg.id(), stack_align);
+		pushes.push_back({ cur_op++,reg });
+	}
+	void BuildProlog::stackAlloc(uint32_t size){
+		if (size == 0)
+			return;
+		auto& ffi = prolog_ffi_builder(res.prolog_data);
+		csm.stackIncrease(size);
+		stack_align += size;
+		ffi.advance_loc(offset());
+		ffi.stack_offset(stack_align);
+		stack_alloc.push_back({ cur_op++, size });
+	}
+	void BuildProlog::setFrame(uint16_t stack_offset){
+		if(frame_inited)
+			throw CompileTimeException("Frame already inited");
+		if(!stack_offset)
+			csm.mov(frame_ptr, stack_ptr);
+		else
+			csm.lea(frame_ptr, stack_ptr, stack_offset);
+		set_frame.push_back({ cur_op++, stack_offset });
+		frame_inited = true;
+	}
+	void BuildProlog::saveToStack(creg reg, int32_t stack_back_offset){
+		auto& ffi = prolog_ffi_builder(res.prolog_data);
+		if (reg.isVec()) {
+			csm.mov(stack_ptr, stack_back_offset, reg.as<creg128>());
+			ffi.advance_loc(offset());
+			ffi.offset(17 + reg.id(), stack_back_offset);
+		}
+		else {
+			csm.mov(stack_ptr, stack_back_offset, reg.size(), reg);
+			ffi.advance_loc(offset());
+			ffi.offset(reg.id(), stack_back_offset);
+		}
+		save_to_stack.push_back({ cur_op++, {reg,stack_back_offset} });
+	}
+	void BuildProlog::end_prolog(){
+		if (prolog_preEnd)
+			throw CompileTimeException("end_prolog will be used only once");
+		if (stack_align & 0xF)
+			stackAlloc(8);
+		prolog_preEnd = true;
+	}
+	
+	void BuildProlog::cleanup_frame(){
+		if(res.prolog_data)
+			delete (ffi_builder*)res.prolog_data;
+	}
 
 	void _______dbgOut(const char*){
 		//TODO
@@ -401,40 +598,66 @@ namespace art{
 	}
 
 
-	void* FrameResult::init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name, const char* file_path){
-		//std::vector<uint16_t> unwindInfo = convert(*this);
-		//size_t unwindInfoSize = unwindInfo.size() * sizeof(uint16_t);
+	DWARF build_dwarf(void*& prolog_data, bool use_handle, uint32_t exHandleOff){
+		auto& ffi = prolog_ffi_builder(prolog_data);
+		cfi_builder cfi;
+		cfi.def_cfa(stack_ptr.id(), 8);
+		cfi.offset(16, 8);
+		CIE_entry cie_entry;
+		cie_entry.id = 0;
+		cie_entry.version = 1;
+		cie_entry.return_address_register = 16;
+		cie_entry.personality.enabled = use_handle;
+		cie_entry.personality.plt_entry = use_handle ? exHandleOff : 0;
+		cie_entry.code_alignment_factor = 1;
+		cie_entry.data_alignment_factor = -1;
+		cie_entry.use_fde.enabled = true;
+		cie_entry.lsda.enabled = false;
+		cie_entry.augmentation_remainder.enabled = true;
 
+		FDE_entry fde_entry;
+		return complete_dwarf(
+			make_CIE(cie_entry, {0}, cfi.data),
+			fde_entry,
+			{},
+			ffi.data
+		);
+	}
+	
+
+	void* FrameResult::init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name, const char* file_path){
 		uint8_t* baseaddr;
-		size_t fun_size = CASM::allocate_and_prepare_code(0, baseaddr, code, runtime.allocator(), 0/*unwindInfoSize + sizeof(RUNTIME_FUNCTION)*/);
+		DWARF unwindInfo = build_dwarf(prolog_data, use_handle, exHandleOff);
+		unwindInfo.data.commit();
+		size_t fun_size = CASM::allocate_and_prepare_code(0, baseaddr, code, runtime.allocator(), unwindInfo.data.size());
 		if(!baseaddr){
 			const char* err = asmjit::DebugUtils::errorAsString(asmjit::Error(fun_size));
 			throw CompileTimeException(err);
 		}
-		/*
-		uint8_t* startaddr = baseaddr;
-		uint8_t* unwindptr = baseaddr + (((fun_size + 15) >> 4) << 4);
-		memcpy(unwindptr, unwindInfo.data(), unwindInfoSize);
+		auto fde = baseaddr + fun_size;
+		unwindInfo.patch_function_address((uint64_t)baseaddr);
+		unwindInfo.patch_function_size(fun_size);
+		memcpy(fde, unwindInfo.data.data(), unwindInfo.data.size());
+		__register_frame(fde + unwindInfo.fde_off);//libgcc
+		//TO-DO register frames for:
+		// libunwind _U_dyn_register							https://www.nongnu.org/libunwind/man/_U_dyn_register(3).html
+		// GDB __jit_debug_register_code 						https://sourceware.org/gdb/onlinedocs/gdb/JIT-Interface.html
+		// oprofile  op_write_native_code    					https://oprofile.sourceforge.io/doc/devel/jit-interface.html
+		// perf /tmp/perf-%d.map  "START SIZE symbolname\n"		https://github.com/torvalds/linux/blob/master/tools/perf/Documentation/jit-interface.txt
 
-		RUNTIME_FUNCTION* table = (RUNTIME_FUNCTION*)(unwindptr + unwindInfoSize);
-		frame = (uint8_t*)table;
-		table[0].BeginAddress = (DWORD)(ptrdiff_t)(startaddr - baseaddr);
-		table[0].EndAddress = (DWORD)(ptrdiff_t)(use_handle ? exHandleOff : fun_size);
-		table[0].UnwindData = (DWORD)(ptrdiff_t)(unwindptr - baseaddr);
-		bool result = RtlAddFunctionTable(table, 1, (DWORD64)baseaddr);
-
-		if (result == 0) {
-			runtime.allocator()->release(baseaddr);
-			throw CompileTimeException("RtlAddFunctionTable failed");
-		}
+		//TO-DO
+		//also support android http://blog.httrack.com/blog/2013/08/23/catching-posix-signals-on-android/
+		
 		auto& tmp = frame_symbols[baseaddr];
 		tmp.fun_size = fun_size;
 		tmp.name = symbol_name;
 		tmp.file = file_path;
-		*/
+		frame = fde;
 		return baseaddr;
 	}
 	bool FrameResult::deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime) {
+		__deregister_frame(get_cie_from_fde(frame));
+		frame_symbols.erase((uint8_t*)funct);
 		return !(runtime._release(funct));
 	};
 #endif

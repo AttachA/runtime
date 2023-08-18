@@ -992,6 +992,11 @@ namespace art{
 				return proxy(cls_fn, args, len);
 			}
 		};
+		
+		template<class _FN>
+		inline art::shared_ptr<FuncEnvironment> MakeNative(_FN env, bool can_be_unloaded = true, bool is_cheap = true){
+			return new FuncEnvironment((void*)env,CXX::Proxy<_FN>::abstract_Proxy, can_be_unloaded, is_cheap);
+		}
 	}
 	template<class _FN>
 	inline void FuncEnvironment::AddNative(_FN env,const std::string& func_name, bool can_be_unloaded, bool is_cheap){

@@ -313,33 +313,36 @@ namespace art {
 	}
 	
 	void Compiler::DynamicCompiler::call_and_ret(const ValueIndexPos& fn_symbol, CallFlags flags) {
+		BuildCall b(compiler.a, 0);
 		if(fn_symbol.pos == ValuePos::in_constants) {
-			uint64_t index = (uint64_t)compiler.values[fn_symbol.index + compiler.static_map.size()];
-			auto& fn = compiler.build_func->localFn(index);
-			if (flags.async_mode) {
-				BuildCall b(compiler.a, 3);
-				b.addArg(&fn);
+			if(flags.always_dynamic) {
+				b.setArguments(5);
+				b.addArg(compiler.get_string_constant(fn_symbol));
 				b.addArg(arg_ptr);
 				b.addArg(arg_len_32);
-				b.finalize(&FuncEnvironment::asyncWrapper);
+				b.addArg(flags.async_mode);
+				b.finalize(&FuncEnvironment::callFunc);
 			}
-			else {
-				BuildCall b(compiler.a, 2);
-				b.addArg(arg_ptr);
-				b.addArg(arg_len_32);
-				b.finalize(fn->get_func_ptr());
+			else{
+				call_fun_string(
+					compiler.a,
+					compiler.get_string_constant(fn_symbol),
+					flags.async_mode,
+					compiler.used_environs
+				);
 			}
-		}else{
-			BuildCall b(compiler.a, 1);
-			b.lea_valindex({compiler.static_map, compiler.values}, fn_symbol);
-			b.finalize(getSize);
+		}
+		else{
+			b.setArguments(2);
+			b.lea_valindex({compiler.static_map, compiler.values},fn_symbol);
+			b.addArg(VType::string);
+			b.finalize(getSpecificValue);
 			b.setArguments(5);
-			b.addArg(compiler.build_func);
 			b.addArg(resr);
 			b.addArg(arg_ptr);
 			b.addArg(arg_len_32);
 			b.addArg(flags.async_mode);
-			b.finalize(&FuncHandle::inner_handle::localWrapper);
+			b.finalize(&FuncEnvironment::callFunc);
 		}
 		compiler.a.jmp(compiler.prolog);
 	}

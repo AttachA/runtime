@@ -12,6 +12,10 @@
         {
             "name":"liburing",
             "platform": "linux"
+        },
+        {
+            "name": "libunwind",
+            "platform": "linux"
         }
     ]
 }

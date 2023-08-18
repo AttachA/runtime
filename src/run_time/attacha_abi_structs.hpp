@@ -15,7 +15,7 @@
 #include <unordered_set>
 #include <chrono>
 #include <exception>
-#include "../library/list_array.hpp"
+#include <list_array.hpp>
 #include "exceptions.hpp"
 #include "link_garbage_remover.hpp"
 #include "util/enum_helper.hpp"

@@ -5,8 +5,10 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
-#include "../../library/list_array.hpp"
-#include<tuple>
+#include <list_array.hpp>
+#include <tuple>
+
+
 namespace art {
 	namespace DynamicCall {
 #ifdef _WIN32

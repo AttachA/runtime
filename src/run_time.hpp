@@ -6,7 +6,7 @@
 
 #pragma once
 #include "run_time/exceptions.hpp"
-#include "library/list_array.hpp"
+#include <list_array.hpp>
 #include "run_time/tasks.hpp"
 #include "run_time/cxxException.hpp"
 #include "run_time/util/enum_helper.hpp"

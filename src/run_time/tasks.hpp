@@ -10,7 +10,7 @@
 #include "threading.hpp"
 #include <list>
 #include "link_garbage_remover.hpp"
-#include "../library/list_array.hpp"
+#include <list_array.hpp>
 #include "attacha_abi_structs.hpp"
 #include <chrono>
 #include "util/enum_helper.hpp"

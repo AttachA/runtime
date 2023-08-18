@@ -7,7 +7,7 @@
 #pragma once
 #include <atomic>
 #include <unordered_set>
-#include "../library/list_array.hpp"
+#include <list_array.hpp>
 namespace art{
 #define ENABLE_SNAPSHOTS_LGR false
 	extern thread_local std::unordered_set<const void*> __lgr_safe_depth;

@@ -465,8 +465,9 @@ namespace art{
         using namespace internal;
         thread_local CXXExInfo current_ex_info;
         void __attacha_handle(
-            
-        ) {}
+        ) {
+            throw 11;
+        }
 
 
 

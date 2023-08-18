@@ -1084,17 +1084,6 @@ namespace art{
 
 
 	namespace {
-		union UWCODE {
-			struct {
-				uint8_t offset;
-				uint8_t op : 4;
-				uint8_t info : 4;
-			};
-			uint16_t solid = 0;
-			UWCODE() = default;
-			UWCODE(const UWCODE& copy) = default;
-			UWCODE(uint8_t off, uint8_t oper, uint8_t inf) { offset = off; op = oper; info = inf; }
-		};
 		struct UWINFO_head {
 			uint8_t Version : 3 = 1;
 			uint8_t Flags : 5 = 0;
@@ -1186,8 +1175,13 @@ namespace art{
 
 
 	};
+
 	struct FrameResult {
+		#ifdef _WIN64
 		std::vector<uint16_t> prolog;
+		#else
+		void* prolog_data = nullptr;
+		#endif
 		list_array<ScopeAction> scope_actions;
 		UWINFO_head head;
 		uint32_t exHandleOff = 0;
@@ -1616,21 +1610,14 @@ namespace art{
 
 
 		CASM& csm;
-		enum UWC {
-			UWOP_PUSH_NONVOL = 0,
-			UWOP_ALLOC_LARGE = 1,
-			UWOP_ALLOC_SMALL = 2,
-			UWOP_SET_FPREG = 3,
-			UWOP_SAVE_NONVOL = 4,
-			UWOP_SAVE_NONVOL_FAR = 5,
-			UWOP_SAVE_XMM128 = 8,
-			UWOP_SAVE_XMM128_FAR = 9,
-			UWOP_PUSH_MACHFRAME = 10,
-		};
-		size_t stack_align = 0;
+		size_t stack_align = 8;
 		uint16_t cur_op = 0;
 		bool frame_inited : 1 = false;
 		bool prolog_preEnd : 1 = false;
+		
+		#ifndef _WIN64
+			void cleanup_frame();
+		#endif
 	public:
 		BuildProlog(CASM& a) : csm(a) {}
 		~BuildProlog() {
@@ -1638,122 +1625,26 @@ namespace art{
 			stack_alloc.clear();
 			set_frame.clear();
 			save_to_stack.clear();
+#ifndef _WIN64
+			cleanup_frame();
+#endif
 			if (frame_inited)
 				return; 
 			_______dbgOut("Frame not initalized!");
 			::abort();
 		}
-		void pushReg(creg reg) {
-			csm.push(reg.fromTypeAndId(asmjit::RegType::kGp64, reg.id()));
-			if ((uint8_t)csm.offset() != csm.offset())
-				throw CompileTimeException("prolog too large");
-			res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_PUSH_NONVOL, reg.id()).solid);
-			pushes.push_back({ cur_op++,reg });
-			stack_align += 8;
-		}
-		void stackAlloc(uint32_t size) {
-			if (size == 0)
-				return;
-			//align stack
-			size = (size / 8 + ((size % 8) ? 1 : 0)) * 8;
-			csm.sub(stack_ptr, size);
-			if ((uint8_t)csm.offset() != csm.offset())
-				throw CompileTimeException("prolog too large");
-			if (size <= 128) 
-				res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_SMALL, size / 8 - 1).solid);
-			else if (size <= 524280) {
-				//512K - 8
-				res.prolog.push_back(size / 8);
-				res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_LARGE, 0).solid);
-			}
-			else if(size <= 4294967288) {
-				//4gb - 8
-				res.prolog.push_back((uint16_t)(size >> 16));
-				res.prolog.push_back((uint16_t)size);
-				res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_LARGE, 1).solid);
-			}
-			else 
-				throw CompileTimeException("Invalid unwind code, too large stack allocation");
-			stack_alloc.push_back({ cur_op++, size });
-			stack_align += size;
-		}
-		void setFrame(uint16_t stack_offset = 0) {
-			if(frame_inited)
-				throw CompileTimeException("Frame already inited");
-			if (stack_offset % 16)
-				throw CompileTimeException("Invalid frame offset, it must be aligned by 16");
-			if(uint8_t(stack_offset / 16) != stack_offset / 16)
-				throw CompileTimeException("Frame offset too large");
-			csm.lea(frame_ptr, stack_ptr, stack_offset);
-			if ((uint8_t)csm.offset() != csm.offset())
-				throw CompileTimeException("prolog too large");
-			res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SET_FPREG, 0).solid);
-			set_frame.push_back({ cur_op++, stack_offset });
-			res.head.FrameOffset = stack_offset / 16;
-			frame_inited = true;
-		}
-		void saveToStack(creg reg, int32_t stack_back_offset) {
-			if (reg.isVec()) {
-				if (reg.type() == asmjit::RegType::kVec128) {
-					if (INT32_MAX > stack_back_offset)
-						throw CompileTimeException("Overflow, fail convert 64 point to 32 point");
-					if (UINT16_MAX > stack_back_offset || stack_back_offset % 16) {
-						csm.mov(stack_ptr, stack_back_offset, reg.as<creg128>());
-						if ((uint8_t)csm.offset() != csm.offset())
-							throw CompileTimeException("prolog too large");
-						res.prolog.push_back(stack_back_offset & (UINT32_MAX ^ UINT16_MAX));
-						res.prolog.push_back(stack_back_offset & UINT16_MAX);
-						res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_XMM128_FAR, reg.id()).solid);
-					}
-					else {
-						csm.mov(stack_ptr, stack_back_offset, reg.as<creg128>());
-						if ((uint8_t)csm.offset() != csm.offset())
-							throw CompileTimeException("prolog too large");
-						res.prolog.push_back(uint16_t(stack_back_offset / 16));
-						res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_XMM128, reg.id()).solid);
-					}
-				}
-				else
-					throw CompileTimeException("Supported only 128 bit vector register");
-			}
-			else {
-				csm.mov(stack_ptr, stack_back_offset, reg.size(), reg);
-				if ((uint8_t)csm.offset() != csm.offset())
-					throw CompileTimeException("prolog too large");
-				if (stack_back_offset % 8) {
-					res.prolog.push_back(stack_back_offset & (UINT32_MAX ^ UINT16_MAX));
-					res.prolog.push_back(stack_back_offset & UINT16_MAX);
-					res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_NONVOL_FAR, reg.id()).solid);
-				}
-				else {
-					res.prolog.push_back(uint16_t(stack_back_offset / 8));
-					res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_NONVOL, reg.id()).solid);
-				}
-			}
-			save_to_stack.push_back({ cur_op++, {reg,stack_back_offset} });
-		}
-		void alignPush() {
-			if (stack_align & 0xF)
+		void pushReg(creg reg);
+		void stackAlloc(uint32_t size);
+		void setFrame(uint16_t stack_offset = 0);
+		void saveToStack(creg reg, int32_t stack_back_offset);
+		void end_prolog();
+		
+		void alignPush(){
+			if ((stack_align - 8) & 0xF)
 				stackAlloc(8);
 		}
 		size_t cur_stack_offset() {
 			return stack_align;
-		}
-		void end_prolog() {
-			if (prolog_preEnd)
-				throw CompileTimeException("end_prolog will be used only once");
-			if (stack_align & 0xF)
-				stackAlloc(8);
-			prolog_preEnd = true;
-			if ((uint8_t)csm.offset() != csm.offset())
-				throw CompileTimeException("prolog too large");
-			res.head.SizeOfProlog = (uint8_t)csm.offset();
-			if ((uint8_t)res.prolog.size() != res.prolog.size())
-				throw CompileTimeException("prolog too large");
-			res.head.CountOfUnwindCodes = (uint8_t)res.prolog.size();
-
-			if (res.head.CountOfUnwindCodes & 1)
-				res.prolog.push_back(0);
 		}
 		inline size_t offset(){
 			return csm.offset();

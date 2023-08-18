@@ -7,7 +7,7 @@
 #pragma once
 #ifndef RUN_TIME_CXX_EXCEPTION
 #define RUN_TIME_CXX_EXCEPTION
-#include "../library/list_array.hpp"
+#include <list_array.hpp>
 #include <typeinfo>
 #include <exception>
 namespace art {

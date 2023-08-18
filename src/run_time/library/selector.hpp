@@ -7,7 +7,9 @@
 #pragma once
 #include <iterator>
 #include <functional>
-#include "../../library/list_array.hpp"
+#include <list_array.hpp>
+
+
 namespace art {
 	namespace selector {
 		template<class T>
