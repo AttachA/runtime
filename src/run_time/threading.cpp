@@ -181,7 +181,7 @@ namespace art {
     }
 
     
-    void* thread::create(void(*function)(void*), void* arg, unsigned int& id, size_t stack_size,bool stack_reservation, int& error_code){
+    void* thread::create(void(*function)(void*), void* arg, unsigned long& id, size_t stack_size,bool stack_reservation, int& error_code){
         error_code = 0;
         void* handle = CreateThread(nullptr, stack_size, (LPTHREAD_START_ROUTINE)function, arg, stack_reservation?STACK_SIZE_PARAM_IS_A_RESERVATION:0 , (LPDWORD)&id);
         if(!handle){

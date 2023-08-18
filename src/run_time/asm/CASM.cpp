@@ -164,7 +164,7 @@ namespace art{
 		stack_alloc.push_back({ cur_op++, size });
 		stack_align += size;
 	}
-	void BuildProlog::setFrame(uint16_t stack_offset = 0) {
+	void BuildProlog::setFrame(uint16_t stack_offset) {
 		if(frame_inited)
 			throw CompileTimeException("Frame already inited");
 		if (stack_offset % 16)

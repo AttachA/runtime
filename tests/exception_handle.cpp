@@ -20,4 +20,6 @@ TEST(EXCEPTION, tunel){
     }catch(int e){
         ASSERT_EQ(e, 123);
     }
+    FuncEnvironment::Unload("exceptionThrower");
+    FuncEnvironment::Unload("exceptionTunel");
 }

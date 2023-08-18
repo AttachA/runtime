@@ -3,15 +3,6 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-
-	#include "../asm/FuncEnvironment.hpp"
-	#include "../../../configuration/agreement/symbols.hpp"
-	#include "../tasks_util/native_workers_singleton.hpp"
-	#include <condition_variable>
-	#include <utf8cpp/utf8.h>
-	#include "../AttachA_CXX.hpp"
-	#include "files.hpp"
-	#include "networking.hpp"
 #if defined(_WIN32) || defined(_WIN64)
 	#define _WINSOCKAPI_
 	#define WIN32_LEAN_AND_MEAN
@@ -26,6 +17,15 @@
 	#include <sys/ioctl.h>
 	#include <netinet/tcp.h>
 #endif
+
+	#include "../asm/FuncEnvironment.hpp"
+	#include "../../../configuration/agreement/symbols.hpp"
+	#include "../tasks_util/native_workers_singleton.hpp"
+	#include <condition_variable>
+	#include <utf8cpp/utf8.h>
+	#include "../AttachA_CXX.hpp"
+	#include "files.hpp"
+	#include "networking.hpp"
 namespace art{
 	AttachAVirtualTable* define_UniversalAddress = nullptr;
 	AttachAVirtualTable* define_TcpConfiguration = nullptr;
