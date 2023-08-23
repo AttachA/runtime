@@ -1,4 +1,4 @@
-#include "../compiler_include.hpp"
+#include <run_time/asm/compiler/compiler_include.hpp>
 
 namespace art {
 	void _inlineReleaseUnused(CASM& a, creg64 reg);
@@ -92,7 +92,7 @@ namespace art {
 			case VType::string:{
 				BuildCall b(compiler.a, 1);
 				b.mov_valindex({ compiler.static_map, compiler.values },value_index);
-				b.finalize(defaultDestructor<std::string>);
+				b.finalize(defaultDestructor<art::ustring>);
 				break;
 			}
 			case VType::async_res:{
@@ -141,7 +141,7 @@ namespace art {
 						BuildCall b(compiler.a, 2);
 						b.mov_valindex({ compiler.static_map, compiler.values },to);
 						b.mov_valindex({ compiler.static_map, compiler.values },from);
-						b.finalize((std::string&(std::string::*)(std::string&&))&std::string::operator=);
+						b.finalize((art::ustring&(art::ustring::*)(art::ustring&&))&art::ustring::operator=);
 						break;
 					}
 					case VType::async_res: {

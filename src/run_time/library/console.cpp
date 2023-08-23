@@ -8,10 +8,10 @@
 #ifdef _WIN64
 #include <Windows.h>
 #endif
-#include "../exceptions.hpp"
+#include <util/exceptions.hpp>
 #include <cstdio>
 #include <string>
-#include "../AttachA_CXX.hpp"
+#include <run_time/AttachA_CXX.hpp>
 #include <utf8cpp/utf8.h>
 namespace art {
 	namespace console {
@@ -82,7 +82,7 @@ namespace art {
 			else {
 				while (len--) {
 					auto& it = *args++;
-					std::string tmp = (std::string)it + '\n';
+					art::ustring tmp = (art::ustring)it + '\n';
 					fwrite(tmp.c_str(), 1, tmp.size(), _stdout);
 					fflush(_stdout);
 				}
@@ -94,7 +94,7 @@ namespace art {
 				was_w_mode();
 				while (len--) {
 					auto& it = *args++;
-					std::string tmp = (std::string)it;
+					art::ustring tmp = (art::ustring)it;
 					fwrite(tmp.c_str(), 1, tmp.size(), _stdout);
 					fflush(_stdout);
 				}
@@ -120,7 +120,7 @@ namespace art {
 			//o - octal
 			AttachAFun(o,1,{
 				if(integer_unsigned(args[0].meta.vtype)){
-					std::string tmp;
+					art::ustring tmp;
 					tmp.reserve(22);
 					tmp += "0o";
 					uint64_t val = (uint64_t)args[0];
@@ -136,7 +136,8 @@ namespace art {
 			//x - hex
 			AttachAFun(x,1,{
 				if(integer_unsigned(args[0].meta.vtype)){
-					std::string tmp;
+					art::ustring tmp;
+					tmp.set_unsafe_state(true, false);
 					tmp.reserve(22);
 					tmp += "0x";
 					uint64_t val = (uint64_t)args[0];
@@ -145,6 +146,7 @@ namespace art {
 						tmp += (char)(c < 10 ? '0' + c : 'a' + c - 10);
 						val >>= 4;
 					} while (val);
+					tmp.set_unsafe_state(false, false);
 					return tmp;
 				}
 				else
@@ -153,7 +155,7 @@ namespace art {
 			//X - HEX
 			AttachAFun(X,1,{
 				if(integer_unsigned(args[0].meta.vtype)){
-					std::string tmp;
+					art::ustring tmp;
 					tmp.reserve(22);
 					tmp += "0x";
 					uint64_t val = (uint64_t)args[0];
@@ -162,6 +164,7 @@ namespace art {
 						tmp += (char)(c < 10 ? '0' + c : 'A' + c - 10);
 						val >>= 4;
 					} while (val);
+					tmp.set_unsafe_state(false, false);
 					return tmp;
 				}
 				else
@@ -177,7 +180,7 @@ namespace art {
 			//F - float
 			AttachAFun(F,1,{
 				if(args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub){
-					std::string tmp = std::to_string((double)args[0]);
+					art::ustring tmp = std::to_string((double)args[0]);
 					for(auto& it : tmp)
 						if(it >= 'a' && it <= 'z')
 							it -= 32;
@@ -189,7 +192,7 @@ namespace art {
 			AttachAFun(e,1,{
 				if(args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub){
 					auto tmp = (double)args[0];
-					std::string res;
+					art::ustring res;
 					res.resize(22);
 					auto len = sprintf(res.data(), "%e", tmp);
 					res.resize(len);
@@ -202,7 +205,7 @@ namespace art {
 			AttachAFun(E,1,{
 				if(args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub){
 					auto tmp = (double)args[0];
-					std::string res;
+					art::ustring res;
 					res.resize(22);
 					auto len = sprintf(res.data(), "%E", tmp);
 					res.resize(len);
@@ -215,7 +218,7 @@ namespace art {
 			AttachAFun(g,1,{
 				if(args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub){
 					auto tmp = (double)args[0];
-					std::string res;
+					art::ustring res;
 					res.resize(22);
 					auto len = sprintf(res.data(), "%g", tmp);
 					res.resize(len);
@@ -228,7 +231,7 @@ namespace art {
 			AttachAFun(G,1,{
 				if(args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub){
 					auto tmp = (double)args[0];
-					std::string res;
+					art::ustring res;
 					res.resize(22);
 					auto len = sprintf(res.data(), "%G", tmp);
 					res.resize(len);
@@ -241,7 +244,7 @@ namespace art {
 			AttachAFun(a,1,{
 				if(args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub){
 					auto tmp = (double)args[0];
-					std::string res;
+					art::ustring res;
 					res.resize(22);
 					auto len = sprintf(res.data(), "%a", tmp);
 					res.resize(len);
@@ -254,7 +257,7 @@ namespace art {
 			AttachAFun(A,1,{
 				if(args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub){
 					auto tmp = (double)args[0];
-					std::string res;
+					art::ustring res;
 					res.resize(22);
 					auto len = sprintf(res.data(), "%A", tmp);
 					res.resize(len);
@@ -266,7 +269,7 @@ namespace art {
 			//c - char
 			AttachAFun(c,1,{
 				if(args[0].meta.vtype == VType::string){
-					auto tmp = (std::string)args[0];
+					auto tmp = (art::ustring)args[0];
 					if(tmp.size() == 1)
 						return tmp[0];
 					else
@@ -278,7 +281,7 @@ namespace art {
 			//s - string
 			AttachAFun(s,1,{
 				if(args[0].meta.vtype == VType::string)
-					return (std::string)args[0];
+					return (art::ustring)args[0];
 				else
 					throw InvalidOperation("operator s can be applied only to string types");
 			})
@@ -301,7 +304,7 @@ namespace art {
 				return "%";
 			})
 		}
-		std::unordered_map<std::string, art::shared_ptr<FuncEnvironment>> printf_operators = {
+		std::unordered_map<art::ustring, art::shared_ptr<FuncEnvironment>, art::hash<art::ustring>> printf_operators = {
 			{"d", new FuncEnvironment(standard_short_operator::d)},
 			{"i", new FuncEnvironment(standard_short_operator::d)},
 			{"u", new FuncEnvironment(standard_short_operator::u)},
@@ -324,7 +327,7 @@ namespace art {
 		};
 		ValueItem* register_format_operator(ValueItem* args, uint32_t len) {
 			if (len >= 2) {
-				std::string _operator = (std::string)args[0];
+				art::ustring _operator = (art::ustring)args[0];
 				auto func = args[1].funPtr();
 				if(func != nullptr)
 					printf_operators[_operator] = *func;
@@ -333,14 +336,14 @@ namespace art {
 			}
 			return nullptr;
 		}
-		std::string printf_operator(const std::string& _operator, ValueItem* args, uint32_t argc){
+		art::ustring printf_operator(const art::ustring& _operator, ValueItem* args, uint32_t argc){
 			auto it = printf_operators.find(_operator);
 			if (it != printf_operators.end()) {
 				auto& func = it->second;
 				if (func) {
 					auto result = func->syncWrapper(args, argc);
 					if (result != nullptr) {
-						std::string tmp = (std::string)*result;
+						art::ustring tmp = (art::ustring)*result;
 						delete result;
 						return tmp;
 					}
@@ -349,10 +352,10 @@ namespace art {
 				throw InvalidOperation("printf operator not registered: " + _operator);
 			return "";
 		}
-		std::string _format(ValueItem* args, uint32_t len){
+		art::ustring _format(ValueItem* args, uint32_t len){
 			if (args != nullptr) {
-				std::string print_string;
-				std::string parse_string = (std::string)args[0];
+				art::ustring print_string;
+				art::ustring parse_string = (art::ustring)args[0];
 				uint32_t argument_index = 1;
 				bool in_scope = false;
 				bool in_scope_index = false;
@@ -361,7 +364,7 @@ namespace art {
 				bool short_operator = false;
 				uint32_t n = 0;
 				uint32_t m = 0;
-				std::string _operator;
+				art::ustring _operator;
 
 				for(char ch : parse_string){
 					// if found [] then get next item from arguments
@@ -376,8 +379,7 @@ namespace art {
 					// if found [any symbols] execute operator and put result to string
 					// if found % then execute short operator and put result to string
 					if(slash){
-						switch (ch)
-						{
+						switch (ch) {
 						case 'n':
 							print_string += '\n';
 							break;
@@ -409,11 +411,10 @@ namespace art {
 					}
 					if(short_operator){
 						if(argument_index >= len)
-							throw OutOfRange(std::string("printf: index out of range, len = ") + std::to_string(len) + std::string(", index = ") + std::to_string(argument_index));
-						print_string += printf_operator(std::string(1,ch), args+argument_index++, 1);
+							throw OutOfRange(art::ustring("printf: index out of range, len = ") + std::to_string(len) + art::ustring(", index = ") + std::to_string(argument_index));
+						print_string += printf_operator(ch, args+argument_index++, 1);
 						_operator.clear();
 						short_operator = false;
-						
 						continue;
 					}
 					if(!_operator.empty()){
@@ -422,7 +423,7 @@ namespace art {
 							continue;
 						}else{
 							if(argument_index >= len)
-								throw OutOfRange(std::string("printf: index out of range, len = ") + std::to_string(len) + std::string(", index = ") + std::to_string(argument_index));
+								throw OutOfRange(art::ustring("printf: index out of range, len = ") + std::to_string(len) + art::ustring(", index = ") + std::to_string(argument_index));
 							print_string += printf_operator(_operator, args+argument_index++, 1);
 							_operator.clear();
 							continue;
@@ -452,18 +453,18 @@ namespace art {
 								end_ = tmp;
 							}
 							if(end_ > len)
-								throw OutOfRange(std::string("printf: index out of range, len = ") + std::to_string(len) + std::string(", index = ") + std::to_string(end_));
+								throw OutOfRange(art::ustring("printf: index out of range, len = ") + std::to_string(len) + art::ustring(", index = ") + std::to_string(end_));
 							print_string += '[';
 							for(uint32_t i = begin_; i < end_; i++)
-								print_string += (std::string)args[i] + (i == end_ - 1 ? "" : ", ");
+								print_string += (art::ustring)args[i] + (i == end_ - 1 ? "" : ", ");
 							print_string += ']';
 							n = 0;
 							m = 0;
 						}
 						else{
 							if(argument_index > len)
-								throw OutOfRange(std::string("printf: index out of range, len = ") + std::to_string(len) + std::string(", index = ") + std::to_string(argument_index));
-							print_string += (std::string)args[argument_index++];
+								throw OutOfRange(art::ustring("printf: index out of range, len = ") + std::to_string(len) + art::ustring(", index = ") + std::to_string(argument_index));
+							print_string += (art::ustring)args[argument_index++];
 						}
 						break;
 					}
@@ -511,6 +512,10 @@ namespace art {
 						break;
 					}
 				}
+				//TODO
+				//check short_operator
+				//check slash
+				//check in_scope and in_scope_*
 				return print_string;
 			}
 			return "";
@@ -593,7 +598,8 @@ namespace art {
 		}
 		ValueItem* readWord(ValueItem* args, uint32_t len) {
 			was_r_mode();
-			std::string str;
+			art::ustring str;
+			str.set_unsafe_state(true, false);
 			char c;
 			while ((c = getchar()) != EOF) {
 				switch (c)
@@ -609,13 +615,13 @@ namespace art {
 				}
 			}
 		end:
-			std::string res;
-			utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(res));
-			return new ValueItem(std::move(res));
+			str.set_unsafe_state(false, false);
+			return new ValueItem(std::move(str));
 		}
 		ValueItem* readLine(ValueItem* args, uint32_t len) {
 			was_r_mode();
-			std::string str;
+			art::ustring str;
+			str.set_unsafe_state(true, false);
 			char c;
 			bool do_continue = true;
 			while (do_continue) {
@@ -625,23 +631,23 @@ namespace art {
 				}
 				str += c;
 			}
-			std::string res;
-			utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(res));
-			return new ValueItem(std::move(res));
+			str.set_unsafe_state(false, false);
+			return new ValueItem(std::move(str));
 		}
 		ValueItem* readInput(ValueItem* args, uint32_t len) {
 			was_r_mode();
-			std::string str;
+			art::ustring str;
+			str.set_unsafe_state(true, false);
 			char c;
 			while ((c = getchar()) != EOF)
 				str += c;
-			std::string res;
-			utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(res));
-			return new ValueItem(std::move(res));
+			str.set_unsafe_state(false, false);
+			return new ValueItem(std::move(str));
 		}
 		ValueItem* readValue(ValueItem* args, uint32_t len) {
 			was_r_mode();
-			std::string str;
+			art::ustring str;
+			str.set_unsafe_state(true, false);
 			char c;
 			while ((c = getchar()) != EOF) {
 				switch (c)
@@ -656,9 +662,8 @@ namespace art {
 					str += c;
 				}
 			}
-			std::string res;
-			utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(res));
-			return new ValueItem(ABI_IMPL::SBcast(res));
+			str.set_unsafe_state(false, false);
+			return new ValueItem(ABI_IMPL::SBcast(str));
 		}
 		ValueItem* readInt(ValueItem* args, uint32_t len){
 			was_r_mode();

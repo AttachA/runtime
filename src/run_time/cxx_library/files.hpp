@@ -1,9 +1,9 @@
 #ifndef SRC_RUN_TIME_CXX_LIBRARY_FILES
 #define SRC_RUN_TIME_CXX_LIBRARY_FILES
-#include "../tasks.hpp"
-#include "../util/in_place_optional.hpp"
-#include "../attacha_abi_structs.hpp"
-#include "../../../configuration/compatibility.hpp"
+#include <run_time/tasks.hpp>
+#include <util/in_place_optional.hpp>
+#include <run_time/attacha_abi_structs.hpp>
+#include <configuration/compatibility.hpp>
 #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
 #include <fstream>
 #endif
@@ -115,7 +115,7 @@ namespace art{
             _sync_flags flags;
             open_mode open;
             #if defined(__linux__) || defined(_LINUX_) || defined(__linux) || defined(__gnu_linux__)
-            std::string _path;
+            art::ustring _path;
             #endif
         public:
             BlockingFileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _sync_flags flags, share_mode share = {}) noexcept(false);
@@ -148,8 +148,8 @@ namespace art{
             FolderBrowser(const FolderBrowser& copy);
             FolderBrowser(FolderBrowser&& move);
             ~FolderBrowser();
-            list_array<std::string> folders();
-            list_array<std::string> files();
+            list_array<art::ustring> folders();
+            list_array<art::ustring> files();
         
             bool is_folder();
             bool is_file();
@@ -172,7 +172,7 @@ namespace art{
 
         
             typed_lgr<FolderBrowser> join_folder(const char* folder_name, size_t length);
-            std::string get_current_path();
+            art::ustring get_current_path();
 
             bool is_corrupted();
         };

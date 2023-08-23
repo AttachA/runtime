@@ -4,7 +4,7 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "CASM.hpp"
+#include <run_time/asm/CASM.hpp>
 #ifdef _WIN64
 #include <Windows.h>
 #include <DbgHelp.h>
@@ -16,7 +16,7 @@ namespace art{
 }
 #elif defined(__linux__) || defined(__APPLE__)
 #include <libunwind.h>
-#include "CASM/linux/dwarf_builder.hpp"
+#include <run_time/asm/CASM/linux/dwarf_builder.hpp>
 #include <execinfo.h>
 #include <cxxabi.h>
 extern "C" void __register_frame(void *fde);
@@ -26,7 +26,7 @@ extern "C" void __deregister_frame(void *fde);
 #include <string>
 #include <unordered_map>
 #include <cassert>
-#include "../threading.hpp"
+#include <util/threading.hpp>
 
 
 namespace art{
@@ -102,11 +102,11 @@ namespace art{
 	}
 
 	struct frame_info {
-		std::string name;
-		std::string file;
+		art::ustring name;
+		art::ustring file;
 		size_t fun_size = 0;
 	};
-	std::unordered_map<uint8_t*, frame_info> frame_symbols;
+	std::unordered_map<uint8_t*, frame_info,art::hash<uint8_t*>> frame_symbols;
 #ifdef _WIN64
 	enum UWC {
 		UWOP_PUSH_NONVOL = 0,
@@ -246,7 +246,7 @@ namespace art{
 
 
 	struct NativeSymbolResolver {
-		std::unordered_map<void*, StackTraceItem> memoized;
+		std::unordered_map<void*, StackTraceItem,art::hash<void*>> memoized;
 		NativeSymbolResolver() {
 			SymInitialize(GetCurrentProcess(), nullptr, true);
 		}
@@ -567,7 +567,7 @@ namespace art{
 				function = new_function;
 			
 
-			std::string s = "Called from " + std::string(function) + " at " + filename + '\n';
+			art::ustring s = "Called from " + art::ustring(function) + " at " + filename + '\n';
 			if (new_function)
 				free(new_function);
 			free(strings);

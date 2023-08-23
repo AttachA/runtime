@@ -4,8 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "../AttachA_CXX.hpp"
-#include "../cxx_library/networking.hpp"
+#include <run_time/AttachA_CXX.hpp>
+#include <run_time/cxx_library/networking.hpp>
 namespace art{
     namespace Ai = CXX::Interface;
     namespace net{
@@ -106,7 +106,7 @@ namespace art{
                 chunks_size = (uint32_t)args[4];
             
             if(args[1].meta.vtype == VType::string){
-                std::string& str = *(std::string*)args[1].getSourcePtr();
+                art::ustring& str = *(art::ustring*)args[1].getSourcePtr();
                 return class_->send_file(str.data(), str.size(), data_len, offset, chunks_size);
             }else if(args[1].meta.vtype == VType::struct_){
                 auto& proxy = (Structure&)args[1];
@@ -162,25 +162,25 @@ namespace art{
             ValueItem* createProxy_IP4(ValueItem* args, uint32_t len){
                 if (len < 1) return nullptr;
                 if (args[0].meta.vtype != VType::string) throw InvalidArguments("Excepted string as first argument");
-                if (len == 1) return new ValueItem(makeIP4(((std::string*)args[0].getSourcePtr())->data()));
-                else return new ValueItem(makeIP4(((std::string*)args[0].getSourcePtr())->data(), (uint16_t)args[1]));
+                if (len == 1) return new ValueItem(makeIP4(((art::ustring*)args[0].getSourcePtr())->data()));
+                else return new ValueItem(makeIP4(((art::ustring*)args[0].getSourcePtr())->data(), (uint16_t)args[1]));
             }
             ValueItem* createProxy_IP6(ValueItem* args, uint32_t len){
                 if (len < 1) return nullptr;
                 if (args[0].meta.vtype != VType::string) throw InvalidArguments("Excepted string as first argument");
-                if (len == 1) return new ValueItem(makeIP6(((std::string*)args[0].getSourcePtr())->data()));
-                else return new ValueItem(makeIP6(((std::string*)args[0].getSourcePtr())->data(), (uint16_t)args[1]));
+                if (len == 1) return new ValueItem(makeIP6(((art::ustring*)args[0].getSourcePtr())->data()));
+                else return new ValueItem(makeIP6(((art::ustring*)args[0].getSourcePtr())->data(), (uint16_t)args[1]));
             }
             ValueItem* createProxy_IP(ValueItem* args, uint32_t len){
                 if (len < 1) return nullptr;
                 if (args[0].meta.vtype != VType::string) throw InvalidArguments("Excepted string as first argument");
-                if (len == 1) return new ValueItem(makeIP(((std::string*)args[0].getSourcePtr())->data()));
-                else return new ValueItem(makeIP(((std::string*)args[0].getSourcePtr())->data(), (uint16_t)args[1]));
+                if (len == 1) return new ValueItem(makeIP(((art::ustring*)args[0].getSourcePtr())->data()));
+                else return new ValueItem(makeIP(((art::ustring*)args[0].getSourcePtr())->data(), (uint16_t)args[1]));
             }
             ValueItem* createProxy_Address(ValueItem* args, uint32_t len){
                 if (len < 1) return nullptr;
                 if (args[0].meta.vtype != VType::string) throw InvalidArguments("Excepted string as first argument");
-                return new ValueItem(makeIP_port(((std::string*)args[0].getSourcePtr())->data()));
+                return new ValueItem(makeIP_port(((art::ustring*)args[0].getSourcePtr())->data()));
             }
 
             ValueItem* createProxy_TcpServer(ValueItem* args, uint32_t len) {

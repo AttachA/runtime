@@ -4,9 +4,9 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "../AttachA_CXX.hpp"
-#include "../threading.hpp"
-#include "../../../configuration/agreement/symbols.hpp"
+#include <run_time/AttachA_CXX.hpp>
+#include <util/threading.hpp>
+#include <configuration/agreement/symbols.hpp>
 namespace art{
 	namespace parallel {
 		AttachAVirtualTable* define_ConditionVariable;
@@ -566,18 +566,18 @@ namespace art{
 			Task::await_task(task);
 			Task& task_ = *task;
 			ValueItem pre_res(task_.fres.results, as_reference);
-			return (std::string)pre_res;
+			return (art::ustring)pre_res;
 		})
 		
-		AttachAFun(funs_Task_to_set, 1, {
+		ValueItem* funs_Task_to_set(ValueItem* args, uint32_t len){
+			CXX::arguments_range(len, 1);
 			auto& task = CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task);
 			Task::await_task(task);
-			std::unordered_set<ValueItem> res;
+			std::unordered_set<ValueItem,art::hash<ValueItem>> res;
 			for(auto& i : task->fres.results)
 				res.insert(i);
-			return res;
-		})
-
+			return new ValueItem(res);
+		}
 		template<typename T>
 		AttachAFun(funs_Task_to_, 1, {
 			auto& task = CXX::Interface::getExtractAs<art::shared_ptr<Task>>(args[0], define_Task);
@@ -641,7 +641,7 @@ namespace art{
 				CXX::Interface::direct_method(symbols::structures::convert::to_timepoint, funs_Task_to_<std::chrono::high_resolution_clock::time_point>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_type_identifier, funs_Task_to_<ValueMeta>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_function, funs_Task_to_<art::shared_ptr<FuncEnvironment>&>),
-				CXX::Interface::direct_method(symbols::structures::convert::to_map, funs_Task_to_<std::unordered_map<ValueItem,ValueItem>&>),
+				CXX::Interface::direct_method(symbols::structures::convert::to_map, funs_Task_to_<std::unordered_map<ValueItem,ValueItem, art::hash<ValueItem>>&>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_set, funs_Task_to_set),
 				CXX::Interface::direct_method(symbols::structures::convert::to_ui8_arr, funs_Task_array_to_<uint8_t>),
 				CXX::Interface::direct_method(symbols::structures::convert::to_ui16_arr, funs_Task_array_to_<uint16_t>),
@@ -705,12 +705,13 @@ namespace art{
 				return ValueItem(res, len, no_copy);
 			}
 		})
-		AttachAFun(funs_TaskGroup_to_set, 1, {
-			std::unordered_set<ValueItem> res;
+		ValueItem* funs_TaskGroup_to_set(ValueItem* args, uint32_t len){
+			CXX::arguments_range(len, 1);
+			std::unordered_set<ValueItem, art::hash<ValueItem>> res;
 			for(auto& i : Task::await_results(CXX::Interface::getExtractAs<list_array<art::shared_ptr<Task>>>(args[0], define_TaskGroup)))
 				res.insert(i);
-			return res;
-		})
+			return new ValueItem(res);
+		}
 		void ___createProxy_TaskGroup__push_item(list_array<art::shared_ptr<Task>>& tasks, ValueItem& item){
 			switch(item.meta.vtype){
 				case VType::async_res:
@@ -743,13 +744,13 @@ namespace art{
 					break;
 				}
 				case VType::set:{
-					std::unordered_set<ValueItem>& set = (std::unordered_set<ValueItem>&)item;
+					std::unordered_set<ValueItem, art::hash<ValueItem>>& set = (std::unordered_set<ValueItem, art::hash<ValueItem>>&)item;
 					for(auto& it : set)
 						___createProxy_TaskGroup__push_item(tasks, const_cast<ValueItem&>(it));
 					break;
 				}
 				case VType::map:{
-					std::unordered_map<ValueItem, ValueItem>& map = (std::unordered_map<ValueItem, ValueItem>&)item;
+					std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& map = (std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&)item;
 					for(auto& it : map)
 						___createProxy_TaskGroup__push_item(tasks, it.second);
 					break;
@@ -1215,7 +1216,7 @@ namespace art{
 				})
 				static AttachAFun(__to_string, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
-					return std::to_string(self.load());
+					return (art::ustring)std::to_string(self.load());
 				})
 				static AttachAFun(__to_ui8, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
@@ -1285,7 +1286,7 @@ namespace art{
 
 				static void init(){
 					if constexpr (std::is_integral_v<T> && !std::is_floating_point_v<T> && !std::is_same_v<T,bool>){
-						std::string type_name;
+						art::ustring type_name;
 						if constexpr (std::is_same_v<T, int8_t>) type_name = "atomic_i8";
 						else if constexpr(std::is_same_v<T,int16_t>) type_name = "atomic_i16";
 						else if constexpr(std::is_same_v<T,int32_t>) type_name = "atomic_i32";
@@ -1656,7 +1657,7 @@ namespace art{
 				static AttachAFun(__to_string, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 					lock_guard<TaskRecursiveMutex> lock(self.mutex);
-					return (std::string)self.value;
+					return (art::ustring)self.value;
 				})
 				static AttachAFun(__to_uarr, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
@@ -1676,12 +1677,12 @@ namespace art{
 				static AttachAFun(__to_map, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 					lock_guard<TaskRecursiveMutex> lock(self.mutex);
-					return (std::unordered_map<ValueItem, ValueItem>&)self.value;
+					return (std::unordered_map<ValueItem, ValueItem,art::hash<ValueItem>>&)self.value;
 				})
 				static AttachAFun(__to_set, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
 					lock_guard<TaskRecursiveMutex> lock(self.mutex);
-					return (std::unordered_set<ValueItem>&)self.value;
+					return (std::unordered_set<ValueItem, art::hash<ValueItem>>&)self.value;
 				})
 				static AttachAFun(__to_function, 1, {
 					auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);

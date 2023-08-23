@@ -1,12 +1,13 @@
 #ifndef SRC_RUN_TIME_ASM_COMPILER
 #define SRC_RUN_TIME_ASM_COMPILER
-#include "CASM.hpp"
-#include "../attacha_abi_structs.hpp"
-#include "FuncEnvironment.hpp"
+#include <run_time/asm/CASM.hpp>
+#include <run_time/attacha_abi_structs.hpp>
+#include <run_time/asm/FuncEnvironment.hpp>
+#include <util/ustring.hpp>
 namespace art{
 	struct ScopeManagerMap{
-		std::unordered_map<uint64_t, size_t> handle_id_map;
-		std::unordered_map<uint64_t, size_t> value_hold_id_map;
+		std::unordered_map<uint64_t, size_t,art::hash<uint64_t>> handle_id_map;
+		std::unordered_map<uint64_t, size_t,art::hash<uint64_t>> value_hold_id_map;
 		ScopeManager& manager;
 		ScopeManagerMap(ScopeManager& manager) :manager(manager) {}
 		size_t mapHandle(uint64_t id){
@@ -67,8 +68,8 @@ namespace art{
 		size_t data_len;
 		size_t i;
 		size_t skip_count;
-		std::unordered_map<uint64_t, Label> label_bind_map;
-		std::unordered_map<uint64_t, Label*> label_map;
+		std::unordered_map<uint64_t, Label,art::hash<uint64_t>> label_bind_map;
+		std::unordered_map<uint64_t, Label*,art::hash<uint64_t>> label_map;
 		list_array<ValueItem>& values;
 		list_array<art::shared_ptr<FuncEnvironment>>& used_environs;
 		bool in_debug;
@@ -127,15 +128,15 @@ namespace art{
 		}
 
 
-		std::string* get_string_constant(const ValueIndexPos& value_index){
+		art::ustring* get_string_constant(const ValueIndexPos& value_index){
 			if(value_index.pos != ValuePos::in_constants)
 				return nullptr;
 			ValueItem& value = values[value_index.index + static_map.size()];
 			if(value.meta.vtype == VType::string)
-				return (std::string*)value.getSourcePtr();
+				return (art::ustring*)value.getSourcePtr();
 			else{
-				values.push_back((std::string)value);
-				return (std::string*)values.back().getSourcePtr();
+				values.push_back((art::ustring)value);
+				return (art::ustring*)values.back().getSourcePtr();
 			}
 		}
 		uint64_t get_size_constant(const ValueIndexPos& value_index) {
@@ -261,16 +262,16 @@ namespace art{
 
 			void handle_begin(uint64_t exception_scope);
 
-			void handle_catch_0(uint64_t exception_scope, const std::vector<std::string>& catch_names);
+			void handle_catch_0(uint64_t exception_scope, const std::vector<art::ustring>& catch_names);
 			void handle_catch_1(uint64_t exception_scope, uint16_t exception_name_env_id);
 			void handle_catch_2(uint64_t exception_scope, const std::vector<uint16_t>& exception_name_env_ids);
-			void handle_catch_3(uint64_t exception_scope, const std::vector<std::string>& catch_names, const std::vector<uint16_t>& exception_name_env_ids);
+			void handle_catch_3(uint64_t exception_scope, const std::vector<art::ustring>& catch_names, const std::vector<uint16_t>& exception_name_env_ids);
 			void handle_catch_4(uint64_t exception_scope);
 			void handle_catch_5(uint64_t exception_scope, uint64_t local_fun_id, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
-			void handle_catch_5(uint64_t exception_scope, const std::string& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
+			void handle_catch_5(uint64_t exception_scope, const art::ustring& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
 
 			void handle_finally(uint64_t exception_scope, uint64_t local_fun_id, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
-			void handle_finally(uint64_t exception_scope, const std::string& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
+			void handle_finally(uint64_t exception_scope, const art::ustring& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
 
 			void handle_end(uint64_t exception_scope);
 

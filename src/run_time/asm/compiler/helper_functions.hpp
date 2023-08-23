@@ -1,7 +1,7 @@
-#include "../../exceptions.hpp"
-#include "../../attacha_abi.hpp"
-#include <list_array.hpp>
-#include "../../AttachA_CXX.hpp"
+#include <util/exceptions.hpp>
+#include <run_time/attacha_abi.hpp>
+#include <library/list_array.hpp>
+#include <run_time/AttachA_CXX.hpp>
 namespace art {
 	namespace helper_functions {
 		inline void setSize(void** value, size_t res) {
@@ -645,47 +645,47 @@ namespace art {
 			if(typ == nullptr)
 				typ = &noting;
 			if(typ->meta.vtype == VType::string && desc->meta.vtype == VType::string)
-				throw AException(*(std::string*)typ->getSourcePtr(),*(std::string*)desc->getSourcePtr());
+				throw AException(*(art::ustring*)typ->getSourcePtr(),*(art::ustring*)desc->getSourcePtr());
 			else if (typ->meta.vtype == VType::string)
-				throw AException(*(std::string*)typ->getSourcePtr(), (std::string)*desc);
+				throw AException(*(art::ustring*)typ->getSourcePtr(), (art::ustring)*desc);
 			else if (desc->meta.vtype == VType::string)
-				throw AException((std::string)*typ, *(std::string*)desc->getSourcePtr());
+				throw AException((art::ustring)*typ, *(art::ustring*)desc->getSourcePtr());
 			else
-				throw AException((std::string)*typ, (std::string)*desc);
+				throw AException((art::ustring)*typ, (art::ustring)*desc);
 		}
 		namespace throwEx_static{
 			inline void throwEx_s_s(ValueItem* typ, ValueItem* desc) {
-				throw AException(*(std::string*)typ->val,*(std::string*)desc->val);
+				throw AException(*(art::ustring*)typ->val,*(art::ustring*)desc->val);
 			}
 			inline void throwEx_gs_gs(ValueItem* typ, ValueItem* desc) {
-				throw AException(*(std::string*)typ->getSourcePtr(),*(std::string*)desc->getSourcePtr());
+				throw AException(*(art::ustring*)typ->getSourcePtr(),*(art::ustring*)desc->getSourcePtr());
 			}
 			inline void throwEx_gs_s(ValueItem* typ, ValueItem* desc) {
-				throw AException(*(std::string*)typ->getSourcePtr(), (std::string)*desc);
+				throw AException(*(art::ustring*)typ->getSourcePtr(), (art::ustring)*desc);
 			}
 			inline void throwEx_s_gs(ValueItem* typ, ValueItem* desc) {
-				throw AException((std::string)*typ, *(std::string*)desc->getSourcePtr());
+				throw AException((art::ustring)*typ, *(art::ustring*)desc->getSourcePtr());
 			}
 			inline void throwEx_s_0(ValueItem* typ) {
-				throw AException(*(std::string*)typ->val, "");
+				throw AException(*(art::ustring*)typ->val, "");
 			}
 			inline void throwEx_0_s(ValueItem* desc) {
-				throw AException("",*(std::string*)desc->val);
+				throw AException("",*(art::ustring*)desc->val);
 			}
 			inline void throwEx_gs_0(ValueItem* typ) {
-				throw AException(*(std::string*)typ->getSourcePtr(), "");
+				throw AException(*(art::ustring*)typ->getSourcePtr(), "");
 			}
 			inline void throwEx_0_gs(ValueItem* desc) {
-				throw AException("",*(std::string*)desc->getSourcePtr());
+				throw AException("",*(art::ustring*)desc->getSourcePtr());
 			}
 			inline void throwEx_a_a(ValueItem* typ, ValueItem* desc) {
-				throw AException((std::string)*typ,(std::string)*desc);
+				throw AException((art::ustring)*typ,(art::ustring)*desc);
 			}
 			inline void throwEx_0_a(ValueItem* desc) {
-				throw AException("",(std::string)*desc);
+				throw AException("",(art::ustring)*desc);
 			}
 			inline void throwEx_a_0(ValueItem* typ) {
-				throw AException((std::string)*typ,"");
+				throw AException((art::ustring)*typ,"");
 			}
 		}
 
@@ -694,7 +694,7 @@ namespace art {
 		inline void setValue(void*& val, void* set, ValueMeta meta) {
 			val = copyValue(set, meta);
 		}
-		inline void getInterfaceValue(ClassAccess access, ValueItem* val, const std::string* val_name, ValueItem* res) {
+		inline void getInterfaceValue(ClassAccess access, ValueItem* val, const art::ustring* val_name, ValueItem* res) {
 			*res = art::CXX::Interface::getValue(access, *val, *val_name);
 		}
 		inline void* prepareStack(void** stack, size_t size) {

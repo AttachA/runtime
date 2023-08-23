@@ -7,27 +7,22 @@
 #pragma once
 #ifndef SRC_RUN_TIME_ATTACHA_ABI_STRUCTS
 #define SRC_RUN_TIME_ATTACHA_ABI_STRUCTS
-
-#include "util/shared_ptr.hpp"
+#include <util/array.hpp>
+#include <util/ustring.hpp>
+#include <util/shared_ptr.hpp>
 #include <cstdint>
 #include <cassert>
 #include <unordered_map>
 #include <unordered_set>
 #include <chrono>
 #include <exception>
-#include <list_array.hpp>
-#include "exceptions.hpp"
-#include "link_garbage_remover.hpp"
-#include "util/enum_helper.hpp"
-namespace art {
-	struct ValueItem;
-}
-namespace std {
-	template<>
-	struct hash<art::ValueItem> {
-		size_t operator()(const art::ValueItem& cit) const;
-	};
-}
+#include <library/list_array.hpp>
+#include <util/exceptions.hpp>
+#include <util/link_garbage_remover.hpp>
+#include <util/enum_helper.hpp>
+#include <util/hash.hpp>
+
+
 namespace art{
 	struct Task;
 	class FuncEnvironment;
@@ -273,6 +268,7 @@ namespace art{
 		(ui64)
 		(flo)
 		(doub)
+		//(character)//char32(utf32)  TO-DO
 		(raw_arr_i8)
 		(raw_arr_i16)
 		(raw_arr_i32)
@@ -284,7 +280,7 @@ namespace art{
 		(raw_arr_flo)
 		(raw_arr_doub)
 		(uarr)
-		(string)
+		(string)//Convert to struct_
 		(async_res)
 		(undefined_ptr)
 		(except_value)//default from except call
@@ -295,7 +291,7 @@ namespace art{
 
 		(type_identifier)
 		(function)
-		(map)//unordered_map<any,any>
+		(map)//unordered_map<any,any,art::hash<any>
 		(set)//unordered_set<any>
 		(time_point)//std::chrono::high_resolution_clock::time_point
 		(generator)
@@ -388,8 +384,8 @@ namespace art{
 		ValueMeta(const ValueMeta& copy) = default;
 		ValueMeta(VType ty, bool gc = false, bool editable = true, uint32_t length = 0, bool as_ref = false):encoded(0){ vtype = ty; use_gc = gc; allow_edit = editable; val_len = length; as_ref = as_ref; }
 		ValueMeta(size_t enc) { encoded = enc; }
-		std::string to_string() const{
-			std::string ret;
+		art::ustring to_string() const{
+			art::ustring ret;
 			if(!allow_edit) ret += "const ";
 			ret += enum_to_string(vtype);
 			if(use_gc) ret += "^";
@@ -445,92 +441,6 @@ namespace art{
 		bool operator==(const ValueItemConstIterator& compare) const{ return iterator.operator==(compare.iterator);}
 		bool operator!=(const ValueItemConstIterator& compare) const{ return iterator.operator!=(compare.iterator);}
 	};
-	namespace __{
-		template<typename T, bool as_reference>
-		class array{
-			T* data;
-			uint32_t length;
-			friend ValueItem;
-		public:
-			array():data(nullptr), length(0){}
-			array(T* data, uint32_t length) : length(length){
-				if constexpr (as_reference){
-					this->data = data;
-				}else{
-					this->data = new T[length];
-					for(uint32_t i = 0; i < length; i++){
-						this->data[i] = data[i];
-					}
-				}
-			}
-			array(uint32_t length, T* data) : data(data), length(length){}
-			array(const array<T,false>& copy) : length(copy.length){
-				if constexpr (as_reference){
-					data = copy.data;
-				}else{
-					data = new T[length];
-					for(uint32_t i = 0; i < length; i++){
-						data[i] = copy.data[i];
-					}
-				}
-			}
-			array(const array<T,true>& copy) : length(copy.length){
-				if constexpr (as_reference){
-					data = copy.data;
-				}else{
-					data = new T[length];
-					for(uint32_t i = 0; i < length; i++){
-						data[i] = copy.data[i];
-					}
-				}
-			}
-			array(array&& move) : data(move.data), length(move.length){
-				move.data = nullptr;
-				move.length = 0;
-			}
-			~array(){
-				if constexpr(!as_reference)
-					if(data) delete[] data;
-			}
-			T& operator[](uint32_t index){
-				if constexpr (as_reference){
-					return data[index];
-				}else{
-					return data[index];
-				}
-			}
-			const T& operator[](uint32_t index) const{
-				if constexpr (as_reference){
-					return data[index];
-				}else{
-					return data[index];
-				}
-			}
-			uint32_t size() const{
-				return length;
-			}
-			T* begin(){
-				return data;
-			}
-			T* end(){
-				return data + length;
-			}
-			const T* begin() const{
-				return data;
-			}
-			const T* end() const{
-				return data + length;
-			}
-			void release(){
-				data = nullptr;
-				length = 0;
-			}
-		};
-	}
-	template<typename T>
-	using array_t = __::array<T,false>;
-	template<typename T>
-	using array_ref_t = __::array<T,true>;
 	
 	struct as_reference_t {};
 	constexpr inline as_reference_t as_reference = {};
@@ -559,8 +469,8 @@ namespace art{
 		ValueItem(long long val):ValueItem(int64_t(val)){}
 		ValueItem(unsigned long long val):ValueItem(uint64_t(val)){}
 #endif
-		ValueItem(const std::string& val);
-		ValueItem(std::string&& val);
+		ValueItem(const art::ustring& val);
+		ValueItem(art::ustring&& val);
 		ValueItem(const char* str);
 		ValueItem(const list_array<ValueItem>& val);
 		ValueItem(list_array<ValueItem>&& val);
@@ -618,10 +528,10 @@ namespace art{
 		ValueItem(const std::initializer_list<ValueItem>& args);
 		ValueItem(const std::exception_ptr&);
 		ValueItem(const std::chrono::high_resolution_clock::time_point&);
-		ValueItem(const std::unordered_map<ValueItem, ValueItem>& map);
-		ValueItem(std::unordered_map<ValueItem, ValueItem>&& map);
-		ValueItem(const std::unordered_set<ValueItem>& set);
-		ValueItem(std::unordered_set<ValueItem>&& set);
+		ValueItem(const std::unordered_map<ValueItem, ValueItem,art::hash<ValueItem>>& map);
+		ValueItem(std::unordered_map<ValueItem, ValueItem,art::hash<ValueItem>>&& map);
+		ValueItem(const std::unordered_set<ValueItem, art::hash<ValueItem>>& set);
+		ValueItem(std::unordered_set<ValueItem, art::hash<ValueItem>>&& set);
 
 
 
@@ -651,13 +561,13 @@ namespace art{
 		ValueItem(float& val, as_reference_t);
 		ValueItem(double& val, as_reference_t);
 		ValueItem(class Structure*, as_reference_t);
-		ValueItem(std::string& val, as_reference_t);
+		ValueItem(art::ustring& val, as_reference_t);
 		ValueItem(list_array<ValueItem>& val, as_reference_t);
 
 		ValueItem(std::exception_ptr&, as_reference_t);
 		ValueItem(std::chrono::high_resolution_clock::time_point&, as_reference_t);
-		ValueItem(std::unordered_map<ValueItem, ValueItem>&, as_reference_t);
-		ValueItem(std::unordered_set<ValueItem>&, as_reference_t);
+		ValueItem(std::unordered_map<ValueItem, ValueItem,art::hash<ValueItem>>&, as_reference_t);
+		ValueItem(std::unordered_set<ValueItem, art::hash<ValueItem>>&, as_reference_t);
 		ValueItem(art::shared_ptr<Task>& task, as_reference_t);
 		ValueItem(ValueMeta&, as_reference_t);
 		ValueItem(art::shared_ptr<FuncEnvironment>&, as_reference_t);
@@ -676,13 +586,13 @@ namespace art{
 		ValueItem(const float& val, as_reference_t);
 		ValueItem(const double& val, as_reference_t);
 		ValueItem(const class Structure*, as_reference_t);
-		ValueItem(const std::string& val, as_reference_t);
+		ValueItem(const art::ustring& val, as_reference_t);
 		ValueItem(const list_array<ValueItem>& val, as_reference_t);
 
 		ValueItem(const std::exception_ptr&, as_reference_t);
 		ValueItem(const std::chrono::high_resolution_clock::time_point&, as_reference_t);
-		ValueItem(const std::unordered_map<ValueItem, ValueItem>&, as_reference_t);
-		ValueItem(const std::unordered_set<ValueItem>&, as_reference_t);
+		ValueItem(const std::unordered_map<ValueItem, ValueItem,art::hash<ValueItem>>&, as_reference_t);
+		ValueItem(const std::unordered_set<ValueItem, art::hash<ValueItem>>&, as_reference_t);
 		ValueItem(const art::shared_ptr<Task>& task, as_reference_t);
 		ValueItem(const ValueMeta&, as_reference_t);
 		ValueItem(const art::shared_ptr<FuncEnvironment>&, as_reference_t);
@@ -763,8 +673,8 @@ namespace art{
 		ValueItem operator |(const ValueItem& op) const;
 
 		explicit operator Structure& ();
-		explicit operator std::unordered_map<ValueItem, ValueItem>&();
-		explicit operator std::unordered_set<ValueItem>&();
+		explicit operator std::unordered_map<ValueItem, ValueItem,art::hash<ValueItem>>&();
+		explicit operator std::unordered_set<ValueItem, art::hash<ValueItem>>&();
 		explicit operator art::shared_ptr<Task>&();
 		explicit operator art::shared_ptr<FuncEnvironment>&();
 
@@ -788,14 +698,14 @@ namespace art{
 		explicit operator unsigned long long() const { return (unsigned long long)(uint64_t)*this;}
 #endif
 		explicit operator void*() const;
-		explicit operator std::string() const;
+		explicit operator art::ustring() const;
 		explicit operator list_array<ValueItem>() const;
 		explicit operator ValueMeta() const;
 		explicit operator std::exception_ptr() const;
 		explicit operator std::chrono::high_resolution_clock::time_point() const;
 		explicit operator const Structure& () const;
-		explicit operator const std::unordered_map<ValueItem, ValueItem>&() const;
-		explicit operator const std::unordered_set<ValueItem>&() const;
+		explicit operator const std::unordered_map<ValueItem, ValueItem,art::hash<ValueItem>>&() const;
+		explicit operator const std::unordered_set<ValueItem, art::hash<ValueItem>>&() const;
 		explicit operator const art::shared_ptr<Task>&() const;
 		explicit operator const art::shared_ptr<FuncEnvironment>&() const;
 		explicit operator const array_t<bool>() const;
@@ -885,7 +795,7 @@ namespace art{
 	)
 
 	struct StructureTag {
-		std::string name;
+		art::ustring name;
 		ValueItem value;
 	};
 
@@ -898,14 +808,14 @@ namespace art{
 			list_array<StructureTag> tags;
 		};
 		art::shared_ptr<FuncEnvironment> ref;
-		std::string name;
-		std::string owner_name;
+		art::ustring name;
+		art::ustring owner_name;
 		Optional* optional;
 		ClassAccess access : 2;
 		bool deletable : 1;
 		MethodInfo();
-		MethodInfo(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
-		MethodInfo(const std::string& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
+		MethodInfo(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
+		MethodInfo(const art::ustring& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
 
 		~MethodInfo();
 		MethodInfo(const MethodInfo& copy);
@@ -929,45 +839,45 @@ namespace art{
 		//	art::shared_ptr<FuncEnvironment> holder_copy;
 		//	art::shared_ptr<FuncEnvironment> holder_move;
 		//	art::shared_ptr<FuncEnvironment> holder_compare;
-		//  std::string name;
+		//  art::ustring name;
 		//	list_array<StructureTag>* tags;//can be null
 		//}
 		list_array<StructureTag>* getStructureTags();
 		list_array<MethodTag>* getMethodTags(uint64_t index);
-		list_array<MethodTag>* getMethodTags(const std::string& name, ClassAccess access);
+		list_array<MethodTag>* getMethodTags(const art::ustring& name, ClassAccess access);
 
 		list_array<list_array<ValueMeta>>* getMethodArguments(uint64_t index);
-		list_array<list_array<ValueMeta>>* getMethodArguments(const std::string& name, ClassAccess access);
+		list_array<list_array<ValueMeta>>* getMethodArguments(const art::ustring& name, ClassAccess access);
 
 		list_array<ValueMeta>* getMethodReturnValues(uint64_t index);
-		list_array<ValueMeta>* getMethodReturnValues(const std::string& name, ClassAccess access);
+		list_array<ValueMeta>* getMethodReturnValues(const art::ustring& name, ClassAccess access);
 
 		MethodInfo* getMethodsInfo(uint64_t& size);
 		const MethodInfo* getMethodsInfo(uint64_t& size) const;
 		MethodInfo& getMethodInfo(uint64_t index);
-		MethodInfo& getMethodInfo(const std::string& name, ClassAccess access);
+		MethodInfo& getMethodInfo(const art::ustring& name, ClassAccess access);
 		const MethodInfo& getMethodInfo(uint64_t index) const;
-		const MethodInfo& getMethodInfo(const std::string& name, ClassAccess access) const;
+		const MethodInfo& getMethodInfo(const art::ustring& name, ClassAccess access) const;
 
 		Environment* getMethods(uint64_t& size);
 		Environment getMethod(uint64_t index) const;
-		Environment getMethod(const std::string& name, ClassAccess access) const;
+		Environment getMethod(const art::ustring& name, ClassAccess access) const;
 
-		uint64_t getMethodIndex(const std::string& name, ClassAccess access) const;
-		bool hasMethod(const std::string& name, ClassAccess access) const;
+		uint64_t getMethodIndex(const art::ustring& name, ClassAccess access) const;
+		bool hasMethod(const art::ustring& name, ClassAccess access) const;
 
 		static AttachAVirtualTable* create(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare);
 		static void destroy(AttachAVirtualTable* table);
 
-		std::string getName() const;
-		void setName(const std::string& name);
+		art::ustring getName() const;
+		void setName(const art::ustring& name);
 	private:
 		struct AfterMethods{
 			art::shared_ptr<FuncEnvironment> destructor;
 			art::shared_ptr<FuncEnvironment> copy;
 			art::shared_ptr<FuncEnvironment> move;
 			art::shared_ptr<FuncEnvironment> compare;
-			std::string name;
+			art::ustring name;
 			list_array<StructureTag>* tags;
 		};
 		AfterMethods* getAfterMethods();
@@ -982,40 +892,40 @@ namespace art{
 		art::shared_ptr<FuncEnvironment> compare;//args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
 		list_array<MethodInfo> methods;
 		list_array<StructureTag>* tags;
-		std::string name;
+		art::ustring name;
 		AttachADynamicVirtualTable(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move,art::shared_ptr<FuncEnvironment> compare);
 		~AttachADynamicVirtualTable();
 		AttachADynamicVirtualTable(const AttachADynamicVirtualTable&);
 		list_array<StructureTag>* getStructureTags();
 		list_array<MethodTag>* getMethodTags(uint64_t index);
-		list_array<MethodTag>* getMethodTags(const std::string& name, ClassAccess access);
+		list_array<MethodTag>* getMethodTags(const art::ustring& name, ClassAccess access);
 
 		list_array<list_array<ValueMeta>>* getMethodArguments(uint64_t index);
-		list_array<list_array<ValueMeta>>* getMethodArguments(const std::string& name, ClassAccess access);
+		list_array<list_array<ValueMeta>>* getMethodArguments(const art::ustring& name, ClassAccess access);
 
 		list_array<ValueMeta>* getMethodReturnValues(uint64_t index);
-		list_array<ValueMeta>* getMethodReturnValues(const std::string& name, ClassAccess access);
+		list_array<ValueMeta>* getMethodReturnValues(const art::ustring& name, ClassAccess access);
 
 		MethodInfo* getMethodsInfo(uint64_t& size);
 		MethodInfo& getMethodInfo(uint64_t index);
-		MethodInfo& getMethodInfo(const std::string& name, ClassAccess access);
+		MethodInfo& getMethodInfo(const art::ustring& name, ClassAccess access);
 		const MethodInfo& getMethodInfo(uint64_t index) const ;
-		const MethodInfo& getMethodInfo(const std::string& name, ClassAccess access) const ;
+		const MethodInfo& getMethodInfo(const art::ustring& name, ClassAccess access) const ;
 
 		Environment getMethod(uint64_t index) const;
-		Environment getMethod(const std::string& name, ClassAccess access) const;
+		Environment getMethod(const art::ustring& name, ClassAccess access) const;
 
-		void addMethod(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
-		void addMethod(const std::string& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);
+		void addMethod(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
+		void addMethod(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
 
-		void removeMethod(const std::string& name, ClassAccess access);
+		void removeMethod(const art::ustring& name, ClassAccess access);
 
-		void addTag(const std::string& name, const ValueItem& value);
-		void addTag(const std::string& name, ValueItem&& value);
-		void removeTag(const std::string& name);
+		void addTag(const art::ustring& name, const ValueItem& value);
+		void addTag(const art::ustring& name, ValueItem&& value);
+		void removeTag(const art::ustring& name);
 
-		uint64_t getMethodIndex(const std::string& name, ClassAccess access) const;
-		bool hasMethod(const std::string& name, ClassAccess access) const;
+		uint64_t getMethodIndex(const art::ustring& name, ClassAccess access) const;
+		bool hasMethod(const art::ustring& name, ClassAccess access) const;
 
 		void derive(AttachADynamicVirtualTable& parent);
 		void derive(AttachAVirtualTable& parent);
@@ -1027,7 +937,7 @@ namespace art{
 		//return true if allowed
 		static bool checkAccess(ClassAccess access, ClassAccess access_to_check);
 		struct Item{
-			std::string name;
+			art::ustring name;
 			size_t offset;
 			ValueMeta type;
 			uint16_t bit_used;
@@ -1055,9 +965,9 @@ namespace art{
 
 
 
-		Item* getPtr(const std::string& name);
+		Item* getPtr(const art::ustring& name);
 		Item* getPtr(size_t index);
-		const Item* getPtr(const std::string& name) const;
+		const Item* getPtr(const art::ustring& name) const;
 		const Item* getPtr(size_t index) const;
 		template<typename T>
 		ValueItem getRawArray(const Item* item) {
@@ -1197,21 +1107,21 @@ namespace art{
 		ValueItem static_value_get(size_t value_data_index) const;
 		ValueItem static_value_get_ref(size_t value_data_index);
 		void static_value_set(size_t value_data_index, ValueItem value);
-		ValueItem dynamic_value_get(const std::string& name) const;
-		ValueItem dynamic_value_get_ref(const std::string& name);
-		void dynamic_value_set(const std::string& name, ValueItem value);
+		ValueItem dynamic_value_get(const art::ustring& name) const;
+		ValueItem dynamic_value_get_ref(const art::ustring& name);
+		void dynamic_value_set(const art::ustring& name, ValueItem value);
 
-		uint64_t table_get_id(const std::string& name, ClassAccess access) const;
+		uint64_t table_get_id(const art::ustring& name, ClassAccess access) const;
 		Environment table_get(uint64_t fn_id) const;
-		Environment table_get_dynamic(const std::string& name, ClassAccess access) const;//table_get(table_get_id(name, access))
+		Environment table_get_dynamic(const art::ustring& name, ClassAccess access) const;//table_get(table_get_id(name, access))
 		
-		void add_method(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
-		void add_method(const std::string& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name);//only for AttachADynamicVirtualTable
+		void add_method(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);//only for AttachADynamicVirtualTable
+		void add_method(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);//only for AttachADynamicVirtualTable
 
-		bool has_method(const std::string& name, ClassAccess access) const;
-		void remove_method(const std::string& name, ClassAccess access);
+		bool has_method(const art::ustring& name, ClassAccess access) const;
+		void remove_method(const art::ustring& name, ClassAccess access);
 		art::shared_ptr<FuncEnvironment> get_method(uint64_t fn_id) const;
-		art::shared_ptr<FuncEnvironment> get_method_dynamic(const std::string& name, ClassAccess access) const;
+		art::shared_ptr<FuncEnvironment> get_method_dynamic(const art::ustring& name, ClassAccess access) const;
 
 		void table_derive(void* vtable, VTableMode vtable_mode);//only for AttachADynamicVirtualTable
 		void change_table(void* vtable, VTableMode vtable_mode);//only for AttachADynamicVirtualTable, destroy old vtable and use new one
@@ -1243,12 +1153,7 @@ namespace art{
 
 		void* get_raw_data();//can be useful for light proxy classes
 
-		std::string get_name() const;
+		art::ustring get_name() const;
 	};
-}
-namespace std {
-	inline size_t hash<art::ValueItem>::operator()(const art::ValueItem& cit) const {
-		return cit.hash();
-	}
 }
 #endif /* SRC_RUN_TIME_ATTACHA_ABI_STRUCTS */

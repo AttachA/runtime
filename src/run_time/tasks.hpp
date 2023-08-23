@@ -7,13 +7,13 @@
 #pragma once
 #ifndef RUN_TIME_TASKS
 #include <forward_list>
-#include "threading.hpp"
+#include <util/threading.hpp>
 #include <list>
-#include "link_garbage_remover.hpp"
-#include <list_array.hpp>
-#include "attacha_abi_structs.hpp"
+#include <util/link_garbage_remover.hpp>
+#include <library/list_array.hpp>
+#include <run_time/attacha_abi_structs.hpp>
 #include <chrono>
-#include "util/enum_helper.hpp"
+#include <util/enum_helper.hpp>
 #include <forward_list>
 
 #pragma push_macro("min")

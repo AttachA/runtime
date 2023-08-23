@@ -9,23 +9,24 @@
 
 #include <string>
 #include <exception>
-#include <list_array.hpp>
-#include "../library/string_help.hpp"
+#include <library/list_array.hpp>
+#include <util/string_help.hpp>
+#include <util/ustring.hpp>
 namespace art {
 #pragma region AnyTimeExceptions
 	class AttachARuntimeException {
-		std::string message;
+		art::ustring message;
 		std::exception_ptr inner_exception;
 	public:
 		AttachARuntimeException() { message = ""; }
 		AttachARuntimeException(std::exception_ptr inner_exception) : inner_exception(inner_exception) { message = ""; }
-		AttachARuntimeException(const std::string& msq) : message(msq) {}
-		AttachARuntimeException(const std::string& msq, std::exception_ptr inner_exception) : inner_exception(inner_exception), message(msq) {}
+		AttachARuntimeException(const art::ustring& msq) : message(msq) {}
+		AttachARuntimeException(const art::ustring& msq, std::exception_ptr inner_exception) : inner_exception(inner_exception), message(msq) {}
 		virtual ~AttachARuntimeException() noexcept(false) {}
-		const std::string& what() const {
+		const art::ustring& what() const {
 			return message;
 		}
-		virtual std::string full_info() const;
+		virtual art::ustring full_info() const;
 		virtual const char* name() const {
 			return "attach_a_runtime_exception";
 		}
@@ -38,8 +39,8 @@ namespace art {
 	};
 	class InvalidCast : public virtual AttachARuntimeException {
 	public:
-		InvalidCast(const std::string& msq) : AttachARuntimeException(msq) {}
-		InvalidCast(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+		InvalidCast(const art::ustring& msq) : AttachARuntimeException(msq) {}
+		InvalidCast(const art::ustring& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "invalid_cast";
 		}
@@ -54,40 +55,40 @@ namespace art {
 	};
 	class InvalidOperation : public virtual AttachARuntimeException {
 	public:
-		InvalidOperation(const std::string& msq) : AttachARuntimeException(msq) {}
-		InvalidOperation(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+		InvalidOperation(const art::ustring& msq) : AttachARuntimeException(msq) {}
+		InvalidOperation(const art::ustring& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "invalid_operation";
 		}
 	};
 	class InvalidArguments : public AttachARuntimeException {
 	public:
-		InvalidArguments(const std::string& msq) : AttachARuntimeException(msq) {}
-		InvalidArguments(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+		InvalidArguments(const art::ustring& msq) : AttachARuntimeException(msq) {}
+		InvalidArguments(const art::ustring& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "invalid_arguments";
 		}
 	};
 	class InvalidLock : public InvalidOperation {
 	public:
-		InvalidLock(const std::string& msq) : InvalidOperation(msq) {}
-		InvalidLock(const std::string& msq, std::exception_ptr inner_exception) : InvalidOperation(msq, inner_exception) {}
+		InvalidLock(const art::ustring& msq) : InvalidOperation(msq) {}
+		InvalidLock(const art::ustring& msq, std::exception_ptr inner_exception) : InvalidOperation(msq, inner_exception) {}
 		const char* name() const override {
 			return "invalid_lock";
 		}
 	};
 	class InvalidUnlock : public InvalidOperation {
 	public:
-		InvalidUnlock(const std::string& msq) : InvalidOperation(msq) {}
-		InvalidUnlock(const std::string& msq, std::exception_ptr inner_exception) : InvalidOperation(msq, inner_exception) {}
+		InvalidUnlock(const art::ustring& msq) : InvalidOperation(msq) {}
+		InvalidUnlock(const art::ustring& msq, std::exception_ptr inner_exception) : InvalidOperation(msq, inner_exception) {}
 		const char* name() const override {
 			return "invalid_unlock";
 		}
 	};
 	class InvalidInput : public AttachARuntimeException {
 	public:
-		InvalidInput(const std::string& msq) : AttachARuntimeException(msq) {}
-		InvalidInput(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+		InvalidInput(const art::ustring& msq) : AttachARuntimeException(msq) {}
+		InvalidInput(const art::ustring& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "invalid_input";
 		}
@@ -104,8 +105,8 @@ namespace art {
 	public:
 		UnsupportedOperation() : InvalidOperation("Caught unsupported Operation") {}
 		UnsupportedOperation(std::exception_ptr inner_exception) : InvalidOperation("Caught unsupported Operation", inner_exception) {}
-		UnsupportedOperation(const std::string& msq) : InvalidOperation(msq) {}
-		UnsupportedOperation(const std::string& msq, std::exception_ptr inner_exception) : InvalidOperation(msq, inner_exception) {}
+		UnsupportedOperation(const art::ustring& msq) : InvalidOperation(msq) {}
+		UnsupportedOperation(const art::ustring& msq, std::exception_ptr inner_exception) : InvalidOperation(msq, inner_exception) {}
 		const char* name() const override {
 			return "unsupported_operation";
 		}
@@ -114,8 +115,8 @@ namespace art {
 	public:
 		OutOfRange() : AttachARuntimeException("Out of range") {}
 		OutOfRange(std::exception_ptr inner_exception) : AttachARuntimeException("Out of range", inner_exception) {}
-		OutOfRange(const std::string& str) : AttachARuntimeException(str) {}
-		OutOfRange(const std::string& str, std::exception_ptr inner_exception) : AttachARuntimeException(str, inner_exception) {}
+		OutOfRange(const art::ustring& str) : AttachARuntimeException(str) {}
+		OutOfRange(const art::ustring& str, std::exception_ptr inner_exception) : AttachARuntimeException(str, inner_exception) {}
 		const char* name() const override {
 			return "out_of_range";
 		}
@@ -123,7 +124,7 @@ namespace art {
 	class InvalidClassDeclarationException : public AttachARuntimeException {
 	public:
 		InvalidClassDeclarationException() : AttachARuntimeException("Invalid Class Declaration Exception") {}
-		InvalidClassDeclarationException(const std::string& desc) : AttachARuntimeException("Invalid Class Declaration Exception: " + desc) {}
+		InvalidClassDeclarationException(const art::ustring& desc) : AttachARuntimeException("Invalid Class Declaration Exception: " + desc) {}
 		const char* name() const override {
 			return "invalid_class_declaration_exception";
 		}
@@ -132,8 +133,8 @@ namespace art {
 	public:
 		LibraryNotFoundException() : AttachARuntimeException("library not found") {}
 		LibraryNotFoundException(std::exception_ptr inner_exception) : AttachARuntimeException("library not found", inner_exception) {}
-		LibraryNotFoundException(const std::string& desc) : AttachARuntimeException(desc) {}
-		LibraryNotFoundException(const std::string& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
+		LibraryNotFoundException(const art::ustring& desc) : AttachARuntimeException(desc) {}
+		LibraryNotFoundException(const art::ustring& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
 		const char* name() const override {
 			return "library_not_found_exception";
 		}
@@ -142,8 +143,8 @@ namespace art {
 	public:
 		LibraryFunctionNotFoundException() : AttachARuntimeException("library function not found") {}
 		LibraryFunctionNotFoundException(std::exception_ptr inner_exception) : AttachARuntimeException("library function not found", inner_exception) {}
-		LibraryFunctionNotFoundException(const std::string& desc) : AttachARuntimeException(desc) {}
-		LibraryFunctionNotFoundException(const std::string& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
+		LibraryFunctionNotFoundException(const art::ustring& desc) : AttachARuntimeException(desc) {}
+		LibraryFunctionNotFoundException(const art::ustring& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
 		const char* name() const override {
 			return "library_function_not_found_exception";
 		}
@@ -152,8 +153,8 @@ namespace art {
 	public:
 		EnvironmentRuinException() : AttachARuntimeException("Environment ruin exception") {}
 		EnvironmentRuinException(std::exception_ptr inner_exception) : AttachARuntimeException("Environment ruin exception", inner_exception) {}
-		EnvironmentRuinException(const std::string& desc) : AttachARuntimeException("EnvironmentRuinException: " + desc) {}
-		EnvironmentRuinException(const std::string& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
+		EnvironmentRuinException(const art::ustring& desc) : AttachARuntimeException("EnvironmentRuinException: " + desc) {}
+		EnvironmentRuinException(const art::ustring& desc, std::exception_ptr inner_exception) : AttachARuntimeException(desc, inner_exception) {}
 		const char* name() const override {
 			return "environment_ruin_exception";
 		}
@@ -194,8 +195,8 @@ namespace art {
 	public:
 		BadInstructionException() : AttachARuntimeException("This instruction undefined") {}
 		BadInstructionException(std::exception_ptr inner_exception) : AttachARuntimeException("This instruction undefined", inner_exception) {}
-		BadInstructionException(const std::string& msq) : AttachARuntimeException(msq) {}
-		BadInstructionException(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+		BadInstructionException(const art::ustring& msq) : AttachARuntimeException(msq) {}
+		BadInstructionException(const art::ustring& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "bad_instruction_exception";
 		}
@@ -220,8 +221,8 @@ namespace art {
 	public:
 		SegmentationFaultException() : AttachARuntimeException("Thread try get access to non mapped region") {}
 		SegmentationFaultException(std::exception_ptr inner_exception) : AttachARuntimeException("Thread try get access to non mapped region", inner_exception) {}
-		SegmentationFaultException(const std::string& text) : AttachARuntimeException(text) {}
-		SegmentationFaultException(const std::string& text, std::exception_ptr inner_exception) : AttachARuntimeException(text, inner_exception) {}
+		SegmentationFaultException(const art::ustring& text) : AttachARuntimeException(text) {}
+		SegmentationFaultException(const art::ustring& text, std::exception_ptr inner_exception) : AttachARuntimeException(text, inner_exception) {}
 		const char* name() const override {
 			return "segmentation_fault_exception";
 		}
@@ -230,8 +231,8 @@ namespace art {
 	public:
 		NullPointerException() : SegmentationFaultException("Thread try get access to null pointer region") {}
 		NullPointerException(std::exception_ptr inner_exception) : SegmentationFaultException("Thread try get access to null pointer region", inner_exception) {}
-		NullPointerException(const std::string& text) : SegmentationFaultException(text) {}
-		NullPointerException(const std::string& text, std::exception_ptr inner_exception) : SegmentationFaultException(text, inner_exception) {}
+		NullPointerException(const art::ustring& text) : SegmentationFaultException(text) {}
+		NullPointerException(const art::ustring& text, std::exception_ptr inner_exception) : SegmentationFaultException(text, inner_exception) {}
 		const char* name() const override {
 			return "null_pointer_exception";
 		}
@@ -271,8 +272,8 @@ namespace art {
 	};
 	class AllocationException : public AttachARuntimeException {
 	public:
-		AllocationException(const std::string& msq) : AttachARuntimeException(msq) {}
-		AllocationException(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+		AllocationException(const art::ustring& msq) : AttachARuntimeException(msq) {}
+		AllocationException(const art::ustring& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "allocation_exception";
 		}
@@ -281,12 +282,12 @@ namespace art {
 	class InternalException : public AttachARuntimeException {
 		list_array<void*> stack_trace;
 	public:
-		InternalException(const std::string& msq);
-		InternalException(const std::string& msq, std::exception_ptr inner_exception);
+		InternalException(const art::ustring& msq);
+		InternalException(const art::ustring& msq, std::exception_ptr inner_exception);
 		const char* name() const override {
 			return "internal_exception";
 		}
-		std::string full_info() const override;
+		art::ustring full_info() const override;
 	};
 	class RoutineHandleExceptions : public AttachARuntimeException {
 		std::exception_ptr second_exception;
@@ -295,15 +296,24 @@ namespace art {
 		const char* name() const override {
 			return "multiple_exceptions";
 		}
-		std::string full_info() const override;
+		art::ustring full_info() const override;
 	};
 
 	class MissingDependencyException : public AttachARuntimeException {
 	public:
-		MissingDependencyException(const std::string& msq) : AttachARuntimeException(msq) {}
-		MissingDependencyException(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+		MissingDependencyException(const art::ustring& msq) : AttachARuntimeException(msq) {}
+		MissingDependencyException(const art::ustring& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "missing_dependency_exception";
+		}
+	};
+
+	class InvalidEncodingException : public AttachARuntimeException {
+	public:
+		InvalidEncodingException(const art::ustring& msq) : AttachARuntimeException(msq) {}
+		InvalidEncodingException(const art::ustring& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+		const char* name() const override {
+			return "invalid_encoding_exception";
 		}
 	};
 #pragma endregion
@@ -314,48 +324,48 @@ namespace art {
 #pragma region CompileTimeExceptions
 	class CompileTimeException : public AttachARuntimeException {
 	public:
-		CompileTimeException(const std::string& msq) : AttachARuntimeException(msq) {}
-		CompileTimeException(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
+		CompileTimeException(const art::ustring& msq) : AttachARuntimeException(msq) {}
+		CompileTimeException(const art::ustring& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "compile_time_exception";
 		}
 	};
 	class HotPathException : public CompileTimeException {
 	public:
-		HotPathException(const std::string& msq) : CompileTimeException(msq) {}
-		HotPathException(const std::string& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
+		HotPathException(const art::ustring& msq) : CompileTimeException(msq) {}
+		HotPathException(const art::ustring& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "hot_path_exception";
 		}
 	};
 	class SymbolException : public CompileTimeException {
 	public:
-		SymbolException(const std::string& msq) : CompileTimeException(msq) {}
-		SymbolException(const std::string& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
+		SymbolException(const art::ustring& msq) : CompileTimeException(msq) {}
+		SymbolException(const art::ustring& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "symbol_exception";
 		}
 	};
 	class InvalidFunction : public CompileTimeException {
 	public:
-		InvalidFunction(const std::string& msq) : CompileTimeException(msq) {}
-		InvalidFunction(const std::string& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
+		InvalidFunction(const art::ustring& msq) : CompileTimeException(msq) {}
+		InvalidFunction(const art::ustring& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "invalid_function";
 		}
 	};
 	class InvalidIL : public InvalidFunction {
 	public:
-		InvalidIL(const std::string& msq) : InvalidFunction(msq) {}
-		InvalidIL(const std::string& msq, std::exception_ptr inner_exception) : InvalidFunction(msq, inner_exception) {}
+		InvalidIL(const art::ustring& msq) : InvalidFunction(msq) {}
+		InvalidIL(const art::ustring& msq, std::exception_ptr inner_exception) : InvalidFunction(msq, inner_exception) {}
 		const char* name() const override {
 			return "invalid_il";
 		}
 	};
 	class InvalidType : public CompileTimeException {
 	public:
-		InvalidType(const std::string& msq) : CompileTimeException(msq) {}
-		InvalidType(const std::string& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
+		InvalidType(const art::ustring& msq) : CompileTimeException(msq) {}
+		InvalidType(const art::ustring& msq, std::exception_ptr inner_exception) : CompileTimeException(msq, inner_exception) {}
 		const char* name() const override {
 			return "invalid_type";
 		}
@@ -373,9 +383,9 @@ namespace art {
 
 	//this exception can be throw from attacha runtime
 	class AException : public AttachARuntimeException {
-		std::string _name;
+		art::ustring _name;
 	public:
-		AException(const std::string& ex_name, const std::string& description, void* va = nullptr, size_t ty = 0) : _name(string_help::replace_space(ex_name)), AttachARuntimeException(description), v(va), t(ty) {}
+		AException(const art::ustring& ex_name, const art::ustring& description, void* va = nullptr, size_t ty = 0) : _name(string_help::replace_space(ex_name)), AttachARuntimeException(description), v(va), t(ty) {}
 		const char* name() const override {
 			return _name.c_str();
 		}

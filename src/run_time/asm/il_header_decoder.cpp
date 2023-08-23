@@ -1,5 +1,5 @@
-#include "il_header_decoder.hpp"
-#include "../util/tools.hpp"
+#include <run_time/asm/il_header_decoder.hpp>
+#include <run_time/util/tools.hpp>
 namespace art{
     size_t il_header::decoded::decode(
         CASM& casm_assembler,//for labels
@@ -7,7 +7,7 @@ namespace art{
         size_t start,
         size_t end_offset
     ){
-        std::string version = reader::readString(data, end_offset, start);
+        art::ustring version = reader::readString(data, end_offset, start);
         return decode(
             version,
             casm_assembler,
@@ -18,7 +18,7 @@ namespace art{
     }
 
     size_t il_header::decoded::decode(
-        const std::string& header_compiler_name_version,
+        const art::ustring& header_compiler_name_version,
         CASM& a,
         const std::vector<uint8_t>& data,
         size_t to_be_skiped,

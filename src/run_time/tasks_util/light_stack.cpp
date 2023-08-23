@@ -3,11 +3,11 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-#include "light_stack.hpp"
-#include "../../run_time.hpp"
-#include "../library/console.hpp"
-#include "../exceptions.hpp"
-#include "../../../configuration/tasks.hpp"
+#include <run_time/tasks_util/light_stack.hpp>
+#include <base/run_time.hpp>
+#include <run_time/library/console.hpp>
+#include <util/exceptions.hpp>
+#include <configuration/tasks.hpp>
 #include <cassert>
 #include <boost/lockfree/queue.hpp>
 #include <atomic>
@@ -149,8 +149,8 @@ namespace art{
         }
     }
 
-    std::string fmt_protect(DWORD prot) {
-        std::string res;
+    art::ustring fmt_protect(DWORD prot) {
+        art::ustring res;
         if (prot & PAGE_NOACCESS)
             res += "NOACCESS";
         if (prot & PAGE_READONLY)
@@ -180,8 +180,8 @@ namespace art{
     }
 
 
-    std::string dump_stack(bool* pPtr) {
-        std::string res;
+    art::ustring dump_stack(bool* pPtr) {
+        art::ustring res;
         // Get the stack last page.
         MEMORY_BASIC_INFORMATION stMemBasicInfo;
         BOOST_VERIFY(VirtualQuery(pPtr, &stMemBasicInfo, sizeof(stMemBasicInfo)));
@@ -291,7 +291,7 @@ namespace art{
         }
         return allocation_details(0,0,0,0,0);
     }
-    std::string dump_stack() {
+    art::ustring dump_stack() {
         return dump_stack(GetStackPointer());
     }
 
@@ -437,7 +437,7 @@ namespace art{
     ValueItem* light_stack::dump_current(){
         return dump(GetStackPointer());
     }
-    std::string light_stack::dump_current_str(){
+    art::ustring light_stack::dump_current_str(){
         return dump_stack();
     }
     void light_stack::dump_current_out(){
@@ -460,7 +460,7 @@ namespace art{
         return new ValueItem(std::move(stack));
     }
     //default formatted string
-    std::string light_stack::dump_str(void*){
+    art::ustring light_stack::dump_str(void*){
         return "";
     }
     //console
@@ -573,8 +573,8 @@ namespace art{
     }
 
 
-    std::string fmt_protect(int prot) {
-        std::string res;
+    art::ustring fmt_protect(int prot) {
+        art::ustring res;
         if (prot & PROT_NONE)
             res += "NOACCESS";
         if (prot & PROT_READ)
@@ -602,7 +602,7 @@ namespace art{
         return res;
     }
 
-    std::string dump_stack(bool* pPtr) {return "";}
+    art::ustring dump_stack(bool* pPtr) {return "";}
 
 
 
@@ -634,7 +634,7 @@ namespace art{
     };
     template<stack_item item>
     allocation_details get_stack_detail(bool* pPtr){return allocation_details();}
-    std::string dump_stack() {return "";}
+    art::ustring dump_stack() {return "";}
 
     //shit code, TO-DO fix it
     bool light_stack::shrink_current(size_t bytes_threshold){return false;}
@@ -645,12 +645,12 @@ namespace art{
 
 
     ValueItem* light_stack::dump_current(){return nullptr;}
-    std::string light_stack::dump_current_str(){return "";}
+    art::ustring light_stack::dump_current_str(){return "";}
     void light_stack::dump_current_out(){}
 
     ValueItem* light_stack::dump(void* ptr){return nullptr;}
     //default formatted string
-    std::string light_stack::dump_str(void*){return "";}
+    art::ustring light_stack::dump_str(void*){return "";}
     //console
     void light_stack::dump_out(void* ptr){}
     size_t light_stack::allocated_size(){return (size_t)-1;}

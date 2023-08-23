@@ -4,17 +4,18 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "exceptions.hpp"
-#include "asm/CASM.hpp"
-#include "cxxException.hpp"
-#include "asm/exception.hpp"
+#include <util/enum_class.hpp>
+#include <run_time/asm/CASM.hpp>
+#include <run_time/cxxException.hpp>
+#include <run_time/asm/exception.hpp>
+#include <util/ustring.hpp>
 #ifdef _WIN64
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #endif
 
 namespace art{
-    std::string inner_exception_info(const std::exception_ptr& inner_exception) {
+    art::ustring inner_exception_info(const std::exception_ptr& inner_exception) {
         CXXExInfo ex;
         getCxxExInfoFromException(ex, inner_exception);
         if(ex.ex_ptr == nullptr) {
@@ -50,7 +51,7 @@ namespace art{
             }catch(const AttachARuntimeException& e) {
                 return "\n" + e.full_info();
             }catch(const std::exception& e) {
-                return "\nC++Exception: " + std::string(e.what());
+                return "\nC++Exception: " + art::ustring(e.what());
             }catch(...) {
                 return "\nC++Exception: UNKNOWN";
             }
@@ -58,23 +59,23 @@ namespace art{
     }
         
 
-    std::string AttachARuntimeException::full_info() const {
-        std::string result = name() + std::string(": ") + what();
+    art::ustring AttachARuntimeException::full_info() const {
+        art::ustring result = name() + art::ustring(": ") + what();
         if (inner_exception) 
             result += inner_exception_info(inner_exception);
         return result;
     }
 
-    InternalException::InternalException(const std::string& msq) : AttachARuntimeException(msq) {
+    InternalException::InternalException(const art::ustring& msq) : AttachARuntimeException(msq) {
         auto tmp_trace = FrameResult::JitCaptureStackChainTrace();
         stack_trace = {tmp_trace.begin(), tmp_trace.end()};
     }
-    InternalException::InternalException(const std::string& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {
+    InternalException::InternalException(const art::ustring& msq, std::exception_ptr inner_exception) : AttachARuntimeException(msq, inner_exception) {
         auto tmp_trace = FrameResult::JitCaptureStackChainTrace();
         stack_trace = {tmp_trace.begin(), tmp_trace.end()};
     }
-    std::string InternalException::full_info()  const {
-        std::string result = AttachARuntimeException::full_info();
+    art::ustring InternalException::full_info()  const {
+        art::ustring result = AttachARuntimeException::full_info();
         result += "\nStackTrace:";
         for (auto& frame : stack_trace) {
             auto r_frame = FrameResult::JitResolveFrame(frame);
@@ -83,8 +84,8 @@ namespace art{
         return result;
     }
         
-    std::string RoutineHandleExceptions::full_info() const {
-        std::string res = name() + std::string(": caught two exceptions in routine: ");
+    art::ustring RoutineHandleExceptions::full_info() const {
+        art::ustring res = name() + art::ustring(": caught two exceptions in routine: ");
         res += inner_exception_info(get_inner_exception());
         res += inner_exception_info(second_exception);
         return res;

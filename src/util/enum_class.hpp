@@ -1,5 +1,5 @@
-#ifndef SRC_RUN_TIME_UTIL_ENUM_CLASS
-#define SRC_RUN_TIME_UTIL_ENUM_CLASS
+#ifndef SRC_GLOBAL_UTIL_UTIL_ENUM_CLASS
+#define SRC_GLOBAL_UTIL_UTIL_ENUM_CLASS
 #include <boost/preprocessor.hpp>
 #include <string>
 #define X_DEFINE_ENUM_WITH_STRING_CONVERSIONS_TOSTRING_CASE(r, data, elem)    \
@@ -22,7 +22,7 @@ class name{\
         BOOST_PP_SEQ_ENUM(enumerators)\
         BOOST_PP_SEQ_ENUM(aliases)\
     };\
-    std::string to_string()\
+    art::ustring to_string()\
     {\
         switch (v)\
         {\
@@ -53,7 +53,7 @@ namespace __internal{\
             BOOST_PP_SEQ_ENUM(enumerators)\
             BOOST_PP_SEQ_ENUM(aliases)\
         };\
-        std::string to_string() {\
+        art::ustring to_string() {\
             switch (value) {\
                 BOOST_PP_SEQ_FOR_EACH(\
                     X_DEFINE_ENUM_WITH_STRING_CONVERSIONS_TOSTRING_CASE,\
@@ -97,12 +97,12 @@ namespace __internal{\
             if(!found) throw std::runtime_error("invalid index for " BOOST_PP_STRINGIZE(name));\
             return res;\
         }\
-        static _##name from_string(const std::string& str){\
+        static _##name from_string(const art::ustring& str){\
             return name(str).value;\
         }\
         name(_##name v):value(v){}\
-        name(const std::string& str){\
-            std::string lower_str;\
+        name(const art::ustring& str){\
+            art::ustring lower_str;\
             lower_str.reserve(str.size());\
             for(auto c:str)\
                 lower_str.push_back(::tolower(c));\
@@ -134,7 +134,7 @@ namespace __internal{\
             BOOST_PP_SEQ_ENUM(enumerators)\
             BOOST_PP_SEQ_ENUM(aliases)\
         };\
-        std::string to_string() {\
+        art::ustring to_string() {\
             switch (value) {\
                 BOOST_PP_SEQ_FOR_EACH(\
                     X_DEFINE_ENUM_WITH_STRING_CONVERSIONS_TOSTRING_CASE,\
@@ -178,12 +178,12 @@ namespace __internal{\
             if(!found) throw std::runtime_error("invalid index for " BOOST_PP_STRINGIZE(name));\
             return res;\
         }\
-        static _##name from_string(const std::string& str){\
+        static _##name from_string(const art::ustring& str){\
             return name(str).value;\
         }\
         name(_##name v):value(v){}\
-        name(const std::string& str){\
-            std::string lower_str;\
+        name(const art::ustring& str){\
+            art::ustring lower_str;\
             lower_str.reserve(str.size());\
             for(auto c:str)\
                 lower_str.push_back(::tolower(c));\
@@ -206,4 +206,4 @@ namespace __internal{\
 }\
 class name:public __internal::name
 
-#endif /* SRC_RUN_TIME_UTIL_ENUM_CLASS */
+#endif /* SRC_GLOBAL_UTIL_UTIL_ENUM_CLASS */

@@ -1,4 +1,4 @@
-#include "../../compiler_include.hpp"
+#include <run_time/asm/compiler/compiler_include.hpp>
 namespace art {
 	inline void _inlineReleaseUnused(CASM& a, creg64 reg) {
 		auto lab = a.newLabel();
@@ -53,7 +53,7 @@ namespace art {
 		}
 	}
 
-	inline void call_fun_string(CASM& a, std::string* fnn, bool is_async, list_array<art::shared_ptr<FuncEnvironment>>& used_environs) {
+	inline void call_fun_string(CASM& a, art::ustring* fnn, bool is_async, list_array<art::shared_ptr<FuncEnvironment>>& used_environs) {
 		art::shared_ptr<FuncEnvironment> fn = FuncEnvironment::environment(*fnn);
 		used_environs.push_back(fn);
 		if (is_async) {
@@ -184,7 +184,7 @@ namespace art {
 		case TableJumpCheckFailAction::unchecked:
 			return;
 		default:
-			throw InvalidArguments(std::string("Unsupported table jump check fail action for ") + action_name + ": " + enum_to_string(action));
+			throw InvalidArguments(art::ustring("Unsupported table jump check fail action for ") + action_name + ": " + enum_to_string(action));
 		}
 	}
 

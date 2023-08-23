@@ -1,6 +1,6 @@
-#ifndef SRC_RUN_TIME_ASM_CASM_DWARF_BUILDER
+#if !defined(SRC_RUN_TIME_ASM_CASM_DWARF_BUILDER) && defined(__linux__)
 #define SRC_RUN_TIME_ASM_CASM_DWARF_BUILDER
-#include <list_array.hpp>
+#include <library/list_array.hpp>
 #include <string>
 #include <cstddef>
 
@@ -133,7 +133,7 @@ struct ffi_builder {
 #pragma pack(push,1)
 inline list_array<uint8_t> make_CIE(const CIE_entry& entry, const list_array<uint8_t>& augmentation_data, const list_array<uint8_t>& instructions){
     list_array<uint8_t> data;
-    std::string augmentation_config;
+    art::ustring augmentation_config;
     if(entry.augmentation_remainder.enabled)
         augmentation_config += "z";
     size_t personality_offset_set = data.size();

@@ -6,7 +6,7 @@
 
 #ifndef RUN_TIME_LIBRARY_INTERNAL
 #define RUN_TIME_LIBRARY_INTERNAL
-#include "../attacha_abi_structs.hpp"
+#include <run_time/attacha_abi_structs.hpp>
 
 
 namespace art{

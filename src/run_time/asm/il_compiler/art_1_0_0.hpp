@@ -1,7 +1,7 @@
-#ifndef SRC_RUN_TIME_ASM_IL_COMPILER_COMPILER_1_0_0
-#define SRC_RUN_TIME_ASM_IL_COMPILER_COMPILER_1_0_0
-#include "basic.hpp"
-#include "../../util/enum_helper.hpp"
+#ifndef SRC_RUN_TIME_ASM_IL_COMPILER_ART_1_0_0
+#define SRC_RUN_TIME_ASM_IL_COMPILER_ART_1_0_0
+#include <run_time/asm/il_compiler/basic.hpp>
+#include <util/enum_helper.hpp>
 namespace art{
     namespace il_compiler{
         namespace art_1_0_0{
@@ -216,4 +216,4 @@ namespace art{
     }
 }
 
-#endif /* SRC_RUN_TIME_ASM_IL_COMPILER_COMPILER_1_0_0 */
+#endif /* SRC_RUN_TIME_ASM_IL_COMPILER_ART_1_0_0 */

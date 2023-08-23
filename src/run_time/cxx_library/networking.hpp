@@ -6,8 +6,9 @@
 
 #ifndef RUN_TIME_CXX_LIBRARY_NETWORKING
 #define RUN_TIME_CXX_LIBRARY_NETWORKING
-#include "../link_garbage_remover.hpp"
-#include "../attacha_abi_structs.hpp"
+#include <util/link_garbage_remover.hpp>
+#include <run_time/attacha_abi_structs.hpp>
+#include <util/ustring.hpp>
 namespace art{
 	namespace files{
 		class FileHandle;
@@ -55,7 +56,7 @@ namespace art{
 		bool is_corrupted();
 
 		uint16_t server_port();
-		std::string server_ip();
+		art::ustring server_ip();
 		ValueItem server_address();
 		//apply to new connections
 		void set_configuration(TcpConfiguration config);

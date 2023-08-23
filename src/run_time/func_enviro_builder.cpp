@@ -5,9 +5,9 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <stdint.h>
-#include "util/tools.hpp"
-#include "func_enviro_builder.hpp"
-#include "attacha_abi.hpp"
+#include <run_time/util/tools.hpp>
+#include <run_time/func_enviro_builder.hpp>
+#include <run_time/attacha_abi.hpp>
 using namespace art;
 #pragma region FuncEnviroBuilder
 
@@ -220,7 +220,7 @@ void FuncEnviroBuilder::compare(ValueIndexPos val0, ValueIndexPos val1, ValueMet
 	useVal(val1);
 }
 
-void FuncEnviroBuilder::jump(JumpCondition cd, const std::string& label_name) {
+void FuncEnviroBuilder::jump(JumpCondition cd, const art::ustring& label_name) {
 	builder::write(code, Command(Opcode::jump));
 	builder::write(code, jumpMap(label_name));
 	builder::write(code, cd);
@@ -421,7 +421,7 @@ void FuncEnviroBuilder::inline_native_opcode(uint8_t* opcode, uint32_t len){
 	code.insert(code.end(), opcode, opcode + len);
 }
 
-void FuncEnviroBuilder::bind_pos(const std::string& name) {
+void FuncEnviroBuilder::bind_pos(const art::ustring& name) {
 	jump_pos[jumpMap(name)] = code.size();
 }
 #pragma region arr_op
@@ -919,13 +919,13 @@ void FuncEnviroBuilder::xarray_slice(ValueIndexPos result,ValueIndexPos val, Val
 }
 
 void FuncEnviroBuilder::table_jump(
-	std::vector<std::string> table, 
+	std::vector<art::ustring> table, 
 	ValueIndexPos index,
 	bool is_signed,
 	TableJumpCheckFailAction too_large,
-	const std::string& too_large_label,
+	const art::ustring& too_large_label,
 	TableJumpCheckFailAction too_small,
-	const std::string& too_small_label
+	const art::ustring& too_small_label
 ){
 	if((uint32_t)table.size() != table.size())
 		throw CompileTimeException("table size is too big");
@@ -1095,9 +1095,9 @@ std::vector<uint8_t> FuncEnviroBuilder::O_build_func() {
 	*(uint64_t*)(fn.data() + skip) = fn.size();
 	return fn;
 }
-void FuncEnviroBuilder::O_load_func(const std::string& str) {
+void FuncEnviroBuilder::O_load_func(const art::ustring& str) {
 	FuncEnvironment::Load(O_prepare_func(), str);
 }
-void FuncEnviroBuilder::O_patch_func(const std::string& symbol_name){
+void FuncEnviroBuilder::O_patch_func(const art::ustring& symbol_name){
 	FuncEnvironment::fastHotPatch(symbol_name, new FuncHandle::inner_handle(O_build_func(),flags.is_cheap, nullptr));
 }

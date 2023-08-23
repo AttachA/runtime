@@ -7,11 +7,12 @@
 #pragma once
 #ifndef SRC_RUN_TIME_ATTACHA_ABI
 #define SRC_RUN_TIME_ATTACHA_ABI
-#include "../run_time.hpp"
-#include "../library/string_help.hpp"
-#include "link_garbage_remover.hpp"
-#include "attacha_abi_structs.hpp"
-#include "cxxException.hpp"
+#include <base/run_time.hpp>
+#include <util/string_help.hpp>
+#include <util/link_garbage_remover.hpp>
+#include <run_time/attacha_abi_structs.hpp>
+#include <run_time/cxxException.hpp>
+#include <util/ustring.hpp>
 namespace art{
 	bool needAlloc(ValueMeta type);
 	bool needAllocType(VType type);
@@ -66,7 +67,7 @@ namespace art{
 			else if constexpr (std::is_same_v<T, float*>) return VType::raw_arr_flo;
 			else if constexpr (std::is_same_v<T, double*>) return VType::raw_arr_doub;
 			else if constexpr (std::is_same_v<T, list_array<ValueItem>>) return VType::uarr;
-			else if constexpr (std::is_same_v<T, std::string>) return VType::string;
+			else if constexpr (std::is_same_v<T, art::ustring>) return VType::string;
 			else if constexpr (std::is_same_v<T, art::shared_ptr<Task>>) return VType::async_res;
 			else if constexpr (std::is_same_v<T, void*>) return VType::undefined_ptr;
 			else if constexpr (std::is_same_v<T, std::exception_ptr*>) return VType::except_value;
@@ -211,9 +212,9 @@ namespace art{
 		}
 
 
-		std::string Scast(void*& val, ValueMeta& meta);
-		std::string Scast(const void*const & val, const ValueMeta& meta);
-		ValueItem SBcast(const std::string& str);
+		art::ustring Scast(void*& val, ValueMeta& meta);
+		art::ustring Scast(const void*const & val, const ValueMeta& meta);
+		ValueItem SBcast(const art::ustring& str);
 		template<class T>
 		ValueItem BVcast(const T& val) {
 			if constexpr (std::is_same_v<std::remove_cvref_t<T>, std::nullptr_t>)
@@ -240,8 +241,8 @@ namespace art{
 				return ValueItem(*(void**)&val, VType::flo);
 			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, double>)
 				return ValueItem(*(void**)&val, VType::doub);
-			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, std::string> || std::is_same_v<T, const char*>)
-				return ValueItem(new std::string(val), VType::string, no_copy);
+			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, art::ustring> || std::is_same_v<T, const char*>)
+				return ValueItem(new art::ustring(val), VType::string, no_copy);
 			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>>)
 				return ValueItem(new list_array<ValueItem>(val), VType::uarr, no_copy);
 			else if constexpr (std::is_same_v<std::remove_cvref_t<T>, ValueMeta>)
@@ -261,7 +262,7 @@ namespace art{
 					(
 						std::is_arithmetic_v<std::remove_cvref_t<T>> ||
 						std::is_same_v<std::remove_cv_t<T>, char*> ||
-						std::is_same_v<std::remove_cvref_t<T>, std::string> ||
+						std::is_same_v<std::remove_cvref_t<T>, art::ustring> ||
 						std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
 						std::is_same_v<std::remove_cvref_t<T>, ValueMeta> ||
 						std::is_same_v<std::remove_cvref_t<T>, Structure> ||
@@ -280,13 +281,13 @@ namespace art{
 		}
 		template<size_t N>
 		ValueItem BVcast(const char(&str)[N]){
-			return std::string(str);
+			return art::ustring(str);
 		}
 		
 		template <class T>
 		T Vcast(const void* const& ref_val, const ValueMeta& meta){
 			const void* val = getValue(ref_val, meta);
-			if constexpr (std::is_same_v<T, std::string>) {
+			if constexpr (std::is_same_v<T, art::ustring>) {
 				return Scast(val, meta);
 			}
 			else {
@@ -728,10 +729,10 @@ namespace art{
 				case VType::string: {
 					if constexpr (std::is_same_v<T, void*>)
 						return const_cast<void*>(val);
-					else if constexpr (std::is_same_v<T, std::string>) 
-						return reinterpret_cast<const std::string&>(val);
+					else if constexpr (std::is_same_v<T, art::ustring>) 
+						return reinterpret_cast<const art::ustring&>(val);
 					else if constexpr (!std::is_pointer_v<T>) {
-						return (T)SBcast(reinterpret_cast<const std::string&>(val));
+						return (T)SBcast(reinterpret_cast<const art::ustring&>(val));
 					}
 					else throw InvalidCast("Fail cast string");
 					break;

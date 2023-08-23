@@ -1,6 +1,6 @@
 #ifndef SRC_RUN_TIME_LIBRARY_LANGUAGE
 #define SRC_RUN_TIME_LIBRARY_LANGUAGE
-#include "../attacha_abi_structs.hpp"
+#include <run_time/attacha_abi_structs.hpp>
 namespace art{
     namespace optimizers{
         ValueItem* createProxy_opcode_optimizer(ValueItem*, uint32_t);
@@ -30,8 +30,8 @@ namespace art{
         //patch_list{
         //   void add_patches(patch_list);
         //   void add_patch(patch);
-        //   void remove_patch(std::string name);
-        //   patch get_patch(std::string name);
+        //   void remove_patch(art::ustring name);
+        //   patch get_patch(art::ustring name);
         //   iterator iterate();
         //}
     }

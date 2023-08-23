@@ -11,9 +11,9 @@
 #include <vector>
 #include <cassert>
 #include <unordered_map>
-#include "../exceptions.hpp"
-#include "../cxxException.hpp"
-#include "../attacha_abi_structs.hpp"
+#include <util/exceptions.hpp>
+#include <run_time/cxxException.hpp>
+#include <run_time/attacha_abi_structs.hpp>
 namespace art{
 	using asmjit::CodeHolder;
 	using asmjit::Error;
@@ -200,7 +200,7 @@ namespace art{
 			text = holder.textSection();
 			Error err = holder.newSection(&data, ".data",SIZE_MAX, asmjit::SectionFlags::kNone, 8);
 			if (err)
-				throw CompileTimeException("Failed to create data section due: " + std::string(asmjit::DebugUtils::errorAsString(err)));
+				throw CompileTimeException("Failed to create data section due: " + art::ustring(asmjit::DebugUtils::errorAsString(err)));
 		}
 
 		static uint32_t enviroValueOffset(uint16_t off) {
@@ -1094,8 +1094,8 @@ namespace art{
 		};
 	}
 	struct StackTraceItem {
-		std::string fn_name;
-		std::string file_path;
+		art::ustring fn_name;
+		art::ustring file_path;
 		size_t line;
 		constexpr static size_t nline = -1;
 	};
@@ -1743,8 +1743,8 @@ namespace art{
 			std::vector<ScopeAction*> actions;
 			size_t begin_off;
 		};
-		std::unordered_map<size_t, ExceptionScopes> scope_actions;
-		std::unordered_map<size_t, ScopeAction*> value_lifetime;
+		std::unordered_map<size_t, ExceptionScopes,art::hash<size_t>> scope_actions;
+		std::unordered_map<size_t, ScopeAction*,art::hash<size_t>> value_lifetime;
 
 		size_t ex_scopes=0;
 		size_t value_lifetime_scopes=0;

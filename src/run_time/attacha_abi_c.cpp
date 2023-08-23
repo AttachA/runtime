@@ -3,9 +3,10 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-#include "AttachA_CXX.hpp"
-#include "../../configuration/agreement/symbols.hpp"
+#include <run_time/AttachA_CXX.hpp>
+#include <configuration/agreement/symbols.hpp>
 #include <string>
+#include <util/hash.hpp>
 namespace art{
 
 
@@ -95,7 +96,7 @@ namespace art{
 			delete (list_array<ValueItem>*)* value;
 			break;
 		case VType::string:
-			delete (std::string*)*value;
+			delete (art::ustring*)*value;
 			break;
 		case VType::async_res:
 			delete (art::shared_ptr<Task>*)* value;
@@ -175,7 +176,7 @@ namespace art{
 				*value = new list_array<ValueItem>();
 				break;
 			case VType::string:
-				*value = new std::string();
+				*value = new art::ustring();
 				break;
 			case VType::except_value:
 				try {
@@ -247,7 +248,7 @@ namespace art{
 				depth = calc_safe_depth_arr;
 				break;
 			case VType::string:
-				destructor = defaultDestructor<std::string>;
+				destructor = defaultDestructor<art::ustring>;
 				break;
 			case VType::except_value:
 				destructor = defaultDestructor<std::exception_ptr>;
@@ -368,7 +369,7 @@ namespace art{
 			case VType::uarr:
 				return new list_array<ValueItem>(*(list_array<ValueItem>*)actual_val);
 			case VType::string:
-				return new std::string(*(std::string*)actual_val);
+				return new art::ustring(*(art::ustring*)actual_val);
 			case VType::async_res:
 				return new art::shared_ptr<Task>(*(art::shared_ptr<Task>*)actual_val);
 			case VType::except_value:
@@ -1030,10 +1031,10 @@ namespace art{
 			return { false, false };
 		}
 		else if (cmp1.vtype == VType::string && cmp2.vtype == VType::string) {
-			if (*(std::string*)val1 == *(std::string*)val2)
+			if (*(art::ustring*)val1 == *(art::ustring*)val2)
 				return { true, false };
 			else
-				return { false, *(std::string*)val1 < *(std::string*)val2 };
+				return { false, *(art::ustring*)val1 < *(art::ustring*)val2 };
 		}
 		else if (cmp1.vtype == VType::uarr && cmp2.vtype == VType::uarr) return compareArrays(cmp1, cmp2, val1, val2);
 		else if (cmp1.vtype == VType::uarr && is_raw_array(cmp2.vtype)) return compareUarrARawArr(cmp1, cmp2, val1, val2);
@@ -1089,8 +1090,8 @@ namespace art{
 		
 
 		template<class T>
-		std::string raw_arr_to_string(void* arr, size_t size) {
-			std::string res = "*[";
+		art::ustring raw_arr_to_string(void* arr, size_t size) {
+			art::ustring res = "*[";
 			for (size_t i = 0; i < size; i++) {
 				res += std::to_string(reinterpret_cast<T*>(arr)[i]);
 				if (i != size - 1) res += ", ";
@@ -1099,8 +1100,8 @@ namespace art{
 			return res;
 		}
 		template<class T>
-		std::string raw_arr_to_string(const void* arr, size_t size) {
-			std::string res = "*[";
+		art::ustring raw_arr_to_string(const void* arr, size_t size) {
+			art::ustring res = "*[";
 			for (size_t i = 0; i < size; i++) {
 				res += std::to_string(reinterpret_cast<const T*>(arr)[i]);
 				if (i != size - 1) res += ", ";
@@ -1109,7 +1110,7 @@ namespace art{
 			return res;
 		}
 		
-		std::string Scast(void*& ref_val, ValueMeta& meta) {
+		art::ustring Scast(void*& ref_val, ValueMeta& meta) {
 			void* val = getValue(ref_val, meta);
 			switch (meta.vtype) {
 			case VType::noting: return "noting";
@@ -1136,7 +1137,7 @@ namespace art{
 			case VType::raw_arr_doub: return raw_arr_to_string<double>(val, meta.val_len);
 			case VType::faarr:
 			case VType::saarr:{
-				std::string res = "*[";
+				art::ustring res = "*[";
 				for (uint32_t i = 0; i < meta.val_len; i++){
 					ValueItem& it = reinterpret_cast<ValueItem*>(val)[i];
 					res += Scast(it.val, it.meta) + (i + 1 < meta.val_len ? ',' : ']');
@@ -1145,9 +1146,9 @@ namespace art{
 					res += ']';
 				return res;
 			}
-			case VType::string: return *reinterpret_cast<std::string*>(val);
+			case VType::string: return *reinterpret_cast<art::ustring*>(val);
 			case VType::uarr: {
-				std::string res("[");
+				art::ustring res("[");
 				bool before = false;
 				for (auto& it : *reinterpret_cast<list_array<ValueItem>*>(val)) {
 					if (before)
@@ -1162,9 +1163,9 @@ namespace art{
 			case VType::type_identifier: return (*(ValueMeta*)&val).to_string();
 			case VType::function: return (*reinterpret_cast<art::shared_ptr<FuncEnvironment>*>(val))->to_string();
 			case VType::map:{
-				std::string res("{");
+				art::ustring res("{");
 				bool before = false;
-				for (auto& it : *reinterpret_cast<std::unordered_map<ValueItem, ValueItem>*>(val)) {
+				for (auto& it : *reinterpret_cast<std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*>(val)) {
 					if (before)
 						res += ',';
 					ValueItem& key = const_cast<ValueItem&>(it.first);
@@ -1176,9 +1177,9 @@ namespace art{
 				return res;
 			}
 			case VType::set:{
-				std::string res("(");
+				art::ustring res("(");
 				bool before = false;
-				for (auto& it : *reinterpret_cast<std::unordered_set<ValueItem>*>(val)) {
+				for (auto& it : *reinterpret_cast<std::unordered_set<ValueItem, art::hash<ValueItem>>*>(val)) {
 					if (before)
 						res += ',';
 					ValueItem& item = const_cast<ValueItem&>(it);
@@ -1190,12 +1191,12 @@ namespace art{
 			}
 			case VType::time_point: return "t(" + std::to_string(reinterpret_cast<std::chrono::high_resolution_clock::time_point*>(val)->time_since_epoch().count()) + ')';
 			case VType::struct_:
-				return (std::string)art::CXX::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<Structure*>(val), symbols::structures::convert::to_string);
+				return (art::ustring)art::CXX::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<Structure*>(val), symbols::structures::convert::to_string);
 			default:
 				throw InvalidCast("Fail cast undefined type");
 			}
 		}
-		std::string Scast(const void*const & ref_val, const ValueMeta& meta) {
+		art::ustring Scast(const void*const & ref_val, const ValueMeta& meta) {
 			const void* val = getValue(ref_val, meta);
 			switch (meta.vtype) {
 			case VType::noting: return "noting";
@@ -1222,7 +1223,7 @@ namespace art{
 			case VType::raw_arr_doub: return raw_arr_to_string<double>(val, meta.val_len);
 			case VType::faarr:
 			case VType::saarr:{
-				std::string res = "*[";
+				art::ustring res = "*[";
 				for (uint32_t i = 0; i < meta.val_len; i++){
 					const ValueItem& it = reinterpret_cast<const ValueItem*>(val)[i];
 					res += Scast(it.val, it.meta) + (i + 1 < meta.val_len ? ',' : ']');
@@ -1231,9 +1232,9 @@ namespace art{
 					res += ']';
 				return res;
 			}
-			case VType::string: return *reinterpret_cast<const std::string*>(val);
+			case VType::string: return *reinterpret_cast<const art::ustring*>(val);
 			case VType::uarr: {
-				std::string res("[");
+				art::ustring res("[");
 				bool before = false;
 				for (auto& it : *reinterpret_cast<const list_array<ValueItem>*>(val)) {
 					if (before)
@@ -1248,9 +1249,9 @@ namespace art{
 			case VType::type_identifier: return enum_to_string(*(VType*)&val);
 			case VType::function: return (*reinterpret_cast<const art::shared_ptr<FuncEnvironment>*>(val))->to_string();
 			case VType::map:{
-				std::string res("{");
+				art::ustring res("{");
 				bool before = false;
-				for (auto& it : *reinterpret_cast<const std::unordered_map<ValueItem, ValueItem>*>(val)) {
+				for (auto& it : *reinterpret_cast<const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*>(val)) {
 					if (before)
 						res += ',';
 					const ValueItem& key = it.first;
@@ -1262,9 +1263,9 @@ namespace art{
 				return res;
 			}
 			case VType::set:{
-				std::string res("(");
+				art::ustring res("(");
 				bool before = false;
-				for (auto& it : *reinterpret_cast<const std::unordered_set<ValueItem>*>(val)) {
+				for (auto& it : *reinterpret_cast<const std::unordered_set<ValueItem, art::hash<ValueItem>>*>(val)) {
 					if (before)
 						res += ',';
 					ValueItem& item = const_cast<ValueItem&>(it);
@@ -1276,15 +1277,15 @@ namespace art{
 			}
 			case VType::time_point: return "t(" + std::to_string(reinterpret_cast<const std::chrono::high_resolution_clock::time_point*>(val)->time_since_epoch().count()) + ')';
 			case VType::struct_:
-				return (std::string)art::CXX::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<const Structure*>(val), symbols::structures::convert::to_string);
+				return (art::ustring)art::CXX::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<const Structure*>(val), symbols::structures::convert::to_string);
 			default:
 				throw InvalidCast("Fail cast undefined type");
 			}
 		}
 
-		list_array<ValueItem> string_to_array(const std::string& str, uint32_t start){
+		list_array<ValueItem> string_to_array(const art::ustring& str, uint32_t start){
 			list_array<ValueItem> res;
-			std::string tmp;
+			art::ustring tmp;
 			bool in_str = false;
 			for (uint32_t i = start; i < str.size(); i++) {
 				if (str[i] == '"' && str[i - 1] != '\\')
@@ -1300,7 +1301,7 @@ namespace art{
 				res.push_back(SBcast(tmp));
 			return res;	
 		}
-		ValueItem SBcast(const std::string& str) {
+		ValueItem SBcast(const art::ustring& str) {
 			if (str == "noting" || str == "null" || str == "undefined")
 				return nullptr;
 			else if (str == "true")
@@ -1328,9 +1329,9 @@ namespace art{
 				return res;
 			}
 			else if(str.starts_with('{')){
-				std::unordered_map<ValueItem, ValueItem> res;
-				std::string key;
-				std::string value;
+				std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>> res;
+				art::ustring key;
+				art::ustring value;
 				bool in_str = false;
 				bool is_key = true;
 				for (uint32_t i = 1; i < str.size(); i++) {
@@ -1357,8 +1358,8 @@ namespace art{
 				return ValueItem(std::move(res));
 			}
 			else if (str.starts_with('(')) {
-				std::unordered_set<ValueItem> res;
-				std::string tmp;
+				std::unordered_set<ValueItem,art::hash<ValueItem>> res;
+				art::ustring tmp;
 				bool in_str = false;
 				for (uint32_t i = 1; i < str.size(); i++) {
 					if (str[i] == '"' && str[i - 1] != '\\')
@@ -1375,7 +1376,7 @@ namespace art{
 				return ValueItem(std::move(res));
 			}
 			else if (str.starts_with("t(")) {
-				std::string tmp;
+				art::ustring tmp;
 				for (uint32_t i = 11; i < str.size(); i++) {
 					if(str[i] == ')')
 						break;
@@ -1420,7 +1421,7 @@ namespace art{
 					}
 				}
 				catch (...) {
-					return ValueItem(new std::string(str), VType::string);
+					return ValueItem(new art::ustring(str), VType::string);
 				}
 			}
 		}
@@ -1503,8 +1504,8 @@ namespace art{
 				*reinterpret_cast<double*>(set_val) = val;
 				*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::doub;
 			}
-			else if constexpr (std::is_same_v<T, std::string>) {
-				*reinterpret_cast<std::string**>(set_val) = new std::string(val);
+			else if constexpr (std::is_same_v<T, art::ustring>) {
+				*reinterpret_cast<art::ustring**>(set_val) = new art::ustring(val);
 				*reinterpret_cast<ValueMeta*>(set_val + 1) = VType::string;
 			}
 			else if constexpr (std::is_same_v<T, list_array<ValueItem>>) {
@@ -1571,7 +1572,7 @@ namespace art{
 			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(val1_r);
 			break;
 		case VType::string:
-			reinterpret_cast<std::string&>(actual_val0) += (std::string)val1_r;
+			reinterpret_cast<art::ustring&>(actual_val0) += (art::ustring)val1_r;
 			break;
 		case VType::undefined_ptr:
 			reinterpret_cast<size_t&>(actual_val0) += (size_t)val1_r;
@@ -1636,7 +1637,7 @@ namespace art{
 			reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(val1_r);
 			break;
 		case VType::string:
-			reinterpret_cast<std::string&>(actual_val0) = (std::string)val1_r + reinterpret_cast<std::string&>(actual_val0);
+			reinterpret_cast<art::ustring&>(actual_val0) = (art::ustring)val1_r + reinterpret_cast<art::ustring&>(actual_val0);
 			break;
 		case VType::undefined_ptr:
 			reinterpret_cast<size_t&>(actual_val0) -= (size_t)val1_r;
@@ -2322,7 +2323,7 @@ namespace art{
 		case VType::uarr:
 			return ((list_array<ValueItem>*)value)->size();
 		case VType::string:
-			return ((std::string*)value)->size();
+			return ((art::ustring*)value)->size();
 		case VType::undefined_ptr:
 			return *value;
 		case VType::except_value:
@@ -2484,17 +2485,17 @@ namespace art{
 	ValueItem::ValueItem(double val) : val(0) {
 		*this = ABI_IMPL::BVcast(val);
 	}
-	ValueItem::ValueItem(const std::string& set) {
-		val = new std::string(set);
+	ValueItem::ValueItem(const art::ustring& set) {
+		val = new art::ustring(set);
 		meta = VType::string;
 	}
-	ValueItem::ValueItem(std::string&& set){
-		val = new std::string(std::move(set));
+	ValueItem::ValueItem(art::ustring&& set){
+		val = new art::ustring(std::move(set));
 		meta = VType::string;
 	}
 
 	ValueItem::ValueItem(const char* str) : val(0) {
-		val = new std::string(str);
+		val = new art::ustring(str);
 		meta = VType::string;
 	}
 	ValueItem::ValueItem(const list_array<ValueItem>& val) : val(0) {
@@ -2636,17 +2637,17 @@ namespace art{
 		*reinterpret_cast<std::chrono::high_resolution_clock::time_point*>(&val) = time;
 		meta = VType::time_point;
 	}
-	ValueItem::ValueItem(const std::unordered_map<ValueItem, ValueItem>& map): val(0){
-		*this = ValueItem(new std::unordered_map<ValueItem, ValueItem>(map), VType::map);
+	ValueItem::ValueItem(const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& map): val(0){
+		*this = ValueItem(new std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>(map), VType::map);
 	}
-	ValueItem::ValueItem(std::unordered_map<ValueItem, ValueItem>&& map): val(0){
-		*this = ValueItem(new std::unordered_map<ValueItem, ValueItem>(std::move(map)), VType::map);
+	ValueItem::ValueItem(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&& map): val(0){
+		*this = ValueItem(new std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>(std::move(map)), VType::map);
 	}
-	ValueItem::ValueItem(const std::unordered_set<ValueItem>& set): val(0){
-		*this = ValueItem(new std::unordered_set<ValueItem>(set), VType::set);
+	ValueItem::ValueItem(const std::unordered_set<ValueItem,art::hash<ValueItem>>& set): val(0){
+		*this = ValueItem(new std::unordered_set<ValueItem, art::hash<ValueItem>>(set), VType::set);
 	}
-	ValueItem::ValueItem(std::unordered_set<ValueItem>&& set): val(0){
-		*this = ValueItem(new std::unordered_set<ValueItem>(std::move(set)), VType::set);
+	ValueItem::ValueItem(std::unordered_set<ValueItem, art::hash<ValueItem>>&& set): val(0){
+		*this = ValueItem(new std::unordered_set<ValueItem, art::hash<ValueItem>>(std::move(set)), VType::set);
 	}
 
 
@@ -2701,7 +2702,7 @@ namespace art{
 			val = new list_array<ValueItem>();
 			break;
 		case VType::string:
-			val = new std::string();
+			val = new art::ustring();
 			break;
 		case VType::except_value:
 			try {
@@ -2802,7 +2803,7 @@ namespace art{
 		meta = VType::doub;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(std::string& val, as_reference_t){
+	ValueItem::ValueItem(art::ustring& val, as_reference_t){
 		this->val = &val;
 		meta = VType::string;
 		meta.as_ref = true;
@@ -2822,12 +2823,12 @@ namespace art{
 		meta = VType::time_point;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(std::unordered_map<ValueItem, ValueItem>&val, as_reference_t){
+	ValueItem::ValueItem(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&val, as_reference_t){
 		this->val = &val;
 		meta = VType::map;
 		meta.as_ref = true;
 	}
-	ValueItem::ValueItem(std::unordered_set<ValueItem>&val, as_reference_t){
+	ValueItem::ValueItem(std::unordered_set<ValueItem, art::hash<ValueItem>>&val, as_reference_t){
 		this->val = &val;
 		meta = VType::set;
 		meta.as_ref = true;
@@ -2930,7 +2931,7 @@ namespace art{
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const std::string& val, as_reference_t){
+	ValueItem::ValueItem(const art::ustring& val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::string;
 		meta.as_ref = true;
@@ -2954,13 +2955,13 @@ namespace art{
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const std::unordered_map<ValueItem, ValueItem>&val, as_reference_t){
+	ValueItem::ValueItem(const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::map;
 		meta.as_ref = true;
 		meta.allow_edit = false;
 	}
-	ValueItem::ValueItem(const std::unordered_set<ValueItem>&val, as_reference_t){
+	ValueItem::ValueItem(const std::unordered_set<ValueItem, art::hash<ValueItem>>&val, as_reference_t){
 		this->val = (void*)&val;
 		meta = VType::set;
 		meta.as_ref = true;
@@ -3868,11 +3869,11 @@ namespace art{
 			}
 		}
 		else if (meta.vtype == VType::string && cmp.meta.vtype == VType::string) {
-			auto cmp = *(std::string*)self <=> *(std::string*)other;
+			auto cmp = *(art::ustring*)self <=> *(art::ustring*)other;
 			return cmp < 0 ? -1 : cmp > 0 ? 1 : 0;
 		}
-		else if (meta.vtype == VType::string)		  return compare((std::string)cmp);
-		else if (cmp.meta.vtype == VType::string) return cmp.compare((std::string)*this);
+		else if (meta.vtype == VType::string)		  return compare((art::ustring)cmp);
+		else if (cmp.meta.vtype == VType::string) return cmp.compare((art::ustring)*this);
 		else if (has_interface(meta.vtype) && has_interface(cmp.meta.vtype))return Structure::compare((Structure*)self, (Structure*)other);
 		else if (meta.vtype == VType::uarr || is_raw_array(meta.vtype) || has_interface(meta.vtype)){
 			if(cmp.meta.vtype == VType::uarr || is_raw_array(cmp.meta.vtype) || has_interface(cmp.meta.vtype)){
@@ -3981,15 +3982,15 @@ namespace art{
 		else
 			throw InvalidCast("This type is not structure");
 	}
-	ValueItem::operator std::unordered_map<ValueItem, ValueItem>&(){
+	ValueItem::operator std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&(){
 		if (meta.vtype == VType::map)
-			return *(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr();
+			return *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getSourcePtr();
 		else
 			throw InvalidCast("This type is not map");
 	}
-	ValueItem::operator std::unordered_set<ValueItem>&(){
+	ValueItem::operator std::unordered_set<ValueItem, art::hash<ValueItem>>&(){
 		if (meta.vtype == VType::set)
-			return *(std::unordered_set<ValueItem>*)getSourcePtr();
+			return *(std::unordered_set<ValueItem, art::hash<ValueItem>>*)getSourcePtr();
 		else
 			throw InvalidCast("This type is not set");
 	}
@@ -4038,9 +4039,9 @@ namespace art{
 	ValueItem::operator void*() const{
 		return ABI_IMPL::Vcast<void*>(val, meta);
 	}
-	ValueItem::operator std::string() const{
+	ValueItem::operator art::ustring() const{
 		if(meta.vtype == VType::string)
-			return *(std::string*)getSourcePtr();
+			return *(art::ustring*)getSourcePtr();
 		else
 			return ABI_IMPL::Scast(val, meta);
 	}
@@ -4076,15 +4077,15 @@ namespace art{
 		else
 			throw InvalidCast("This type is not structure");
 	}
-	ValueItem::operator const std::unordered_map<ValueItem, ValueItem>&() const{
+	ValueItem::operator const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&() const{
 		if (meta.vtype == VType::map)
-			return *(const std::unordered_map<ValueItem, ValueItem>*)getSourcePtr();
+			return *(const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getSourcePtr();
 		else
 			throw InvalidCast("This type is not map");
 	}
-	ValueItem::operator const std::unordered_set<ValueItem>&() const{
+	ValueItem::operator const std::unordered_set<ValueItem, art::hash<ValueItem>>&() const{
 		if (meta.vtype == VType::set)
-			return *(const std::unordered_set<ValueItem>*)getSourcePtr();
+			return *(const std::unordered_set<ValueItem, art::hash<ValueItem>>*)getSourcePtr();
 		else
 			throw InvalidCast("This type is not set");
 	}
@@ -5008,10 +5009,7 @@ namespace art{
 	}
 	template<typename T>
 	size_t array_hash(T* arr, size_t len) {
-		size_t hash = 0;
-		for (size_t i = 0; i < len; i++)
-			hash ^= std::hash<T>()(arr[i]) + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-		return hash;
+		return art::hash<T>()(arr, len);
 	}
 	void ValueItem::make_gc(){
 		if(meta.use_gc)
@@ -5043,7 +5041,7 @@ namespace art{
 				depth = calc_safe_depth_arr;
 				break;
 			case VType::string:
-				destructor = defaultDestructor<std::string>;
+				destructor = defaultDestructor<art::ustring>;
 				break;
 			case VType::except_value:
 				destructor = defaultDestructor<std::exception_ptr>;
@@ -5193,19 +5191,19 @@ namespace art{
 		case VType::noting:return 0;
 		case VType::type_identifier:
 		case VType::boolean:
-		case VType::i8:return std::hash<int8_t>()((int8_t)*this);
-		case VType::i16:return std::hash<int16_t>()((int16_t)*this);
-		case VType::i32:return std::hash<int32_t>()((int32_t)*this);
-		case VType::i64:return std::hash<int64_t>()((int64_t)*this);
-		case VType::ui8:return std::hash<uint8_t>()((uint8_t)*this);
-		case VType::ui16:return std::hash<uint16_t>()((uint16_t)*this);
-		case VType::ui32:return std::hash<uint32_t>()((uint32_t)*this);
-		case VType::undefined_ptr: return std::hash<size_t>()((size_t)*this);
-		case VType::ui64: return std::hash<uint64_t>()((uint64_t)*this);
-		case VType::flo: return std::hash<float>()((float)*this);
-		case VType::doub: return std::hash<double>()((double)*this);
-		case VType::string: return std::hash<std::string>()(*(std::string*)getSourcePtr());
-		case VType::uarr: return std::hash<list_array<ValueItem>>()(*(list_array<ValueItem>*)getSourcePtr());
+		case VType::i8:return art::hash<int8_t>()((int8_t)*this);
+		case VType::i16:return art::hash<int16_t>()((int16_t)*this);
+		case VType::i32:return art::hash<int32_t>()((int32_t)*this);
+		case VType::i64:return art::hash<int64_t>()((int64_t)*this);
+		case VType::ui8:return art::hash<uint8_t>()((uint8_t)*this);
+		case VType::ui16:return art::hash<uint16_t>()((uint16_t)*this);
+		case VType::ui32:return art::hash<uint32_t>()((uint32_t)*this);
+		case VType::undefined_ptr: return art::hash<size_t>()((size_t)*this);
+		case VType::ui64: return art::hash<uint64_t>()((uint64_t)*this);
+		case VType::flo: return art::hash<float>()((float)*this);
+		case VType::doub: return art::hash<double>()((double)*this);
+		case VType::string: return art::hash<art::ustring>()(*(art::ustring*)getSourcePtr());
+		case VType::uarr: return art::hash<list_array<ValueItem>>()(*(list_array<ValueItem>*)getSourcePtr());
 		case VType::raw_arr_i8: return array_hash((int8_t*)getSourcePtr(), meta.val_len);
 		case VType::raw_arr_i16: return array_hash((int16_t*)getSourcePtr(), meta.val_len);
 		case VType::raw_arr_i32: return array_hash((int32_t*)getSourcePtr(), meta.val_len);
@@ -5224,24 +5222,24 @@ namespace art{
 			if(art::CXX::Interface::hasImplement(*this, "hash"))
 				return (size_t)art::CXX::Interface::makeCall(ClassAccess::pub, *this, "hash");
 			else
-				return std::hash<const void*>()(getSourcePtr());
+				return art::hash<const void*>()(getSourcePtr());
 		}
 		case VType::set: {
 			size_t hash = 0;
-			for (auto& i : operator const std::unordered_set<ValueItem>&())
+			for (auto& i : operator const std::unordered_set<ValueItem, art::hash<ValueItem>>&())
 				hash ^= const_cast<ValueItem&>(i).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2);
 			return hash;
 		}
 		case VType::map:{
 			size_t hash = 0;
-			for (auto& i : operator const std::unordered_map<ValueItem, ValueItem>&())
+			for (auto& i : operator const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&())
 				hash ^= const_cast<ValueItem&>(i.first).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2) + const_cast<ValueItem&>(i.second).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2);
 			return hash;
 		}
 		case VType::function: {
 			auto fn = funPtr();
 			if (fn)
-				return std::hash<const void*>()((*fn)->get_func_ptr());
+				return art::hash<const void*>()((*fn)->get_func_ptr());
 			else
 				return 0;
 		}
@@ -5262,7 +5260,7 @@ namespace art{
 				throw OutOfRange();
 			return ((ValueItem*)getSourcePtr())[i];
 		}else if(meta.vtype == VType::map){
-			return (*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr())[index];
+			return (*(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getSourcePtr())[index];
 		}else
 			throw InvalidOperation("operator[]& not available for that type: " + enum_to_string(meta.vtype));
 	}
@@ -5275,7 +5273,7 @@ namespace art{
 				throw OutOfRange();
 			return ((ValueItem*)getSourcePtr())[i];
 		}else if (meta.vtype == VType::map){
-			return (*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr())[index];
+			return (*(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getSourcePtr())[index];
 		}else
 			throw InvalidOperation("operator[]& not available for that type: " + enum_to_string(meta.vtype));
 	}
@@ -5293,7 +5291,7 @@ namespace art{
 		case VType::saarr:
 			return ((ValueItem*)getSourcePtr())[(size_t)index];
 		case VType::map:
-			return (*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr())[index];
+			return (*(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getSourcePtr())[index];
 		case VType::struct_:{
 			Structure& st = (Structure&)*this;
 			if(st.has_method(symbols::structures::index_operator, ClassAccess::pub))
@@ -5302,7 +5300,7 @@ namespace art{
 				throw InvalidOperation("operator[] not available for that type: " + enum_to_string(meta.vtype));
 		}
 		case VType::set:
-			return (*(std::unordered_set<ValueItem>*)getSourcePtr()).find(index) != (*(std::unordered_set<ValueItem>*)getSourcePtr()).end();
+			return (*(std::unordered_set<ValueItem, art::hash<ValueItem>>*)getSourcePtr()).find(index) != (*(std::unordered_set<ValueItem, art::hash<ValueItem>>*)getSourcePtr()).end();
 		case VType::raw_arr_i8:
 			return ((int8_t*)getSourcePtr())[(size_t)index];
 		case VType::raw_arr_i16:
@@ -5342,7 +5340,7 @@ namespace art{
 			((ValueItem*)getSourcePtr())[(size_t)index] = value;
 			break;
 		case VType::map:
-			(*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr())[index] = value;
+			(*(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getSourcePtr())[index] = value;
 			break;
 		case VType::struct_:{
 			Structure& st = (Structure&)*this;
@@ -5354,9 +5352,9 @@ namespace art{
 		}
 		case VType::set:
 			if(value != nullptr)
-				(*(std::unordered_set<ValueItem>*)getSourcePtr()).insert(index);
+				(*(std::unordered_set<ValueItem, art::hash<ValueItem>>*)getSourcePtr()).insert(index);
 			else
-				(*(std::unordered_set<ValueItem>*)getSourcePtr()).erase(index);
+				(*(std::unordered_set<ValueItem, art::hash<ValueItem>>*)getSourcePtr()).erase(index);
 			break;
 		case VType::raw_arr_i8:
 			((int8_t*)getSourcePtr())[(size_t)index] = (int8_t)value;
@@ -5401,7 +5399,7 @@ namespace art{
 		case VType::uarr:
 			return (*(list_array<ValueItem>*)getSourcePtr()).size() > (size_t)index;
 		case VType::map:
-			return (*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr()).find(index) != (*(std::unordered_map<ValueItem, ValueItem>*)getSourcePtr()).end();
+			return (*(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getSourcePtr()).find(index) != (*(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getSourcePtr()).end();
 		case VType::struct_:{
 			Structure& st = (Structure&)*this;
 			if(st.has_method(symbols::structures::size, ClassAccess::pub))
@@ -5410,7 +5408,7 @@ namespace art{
 				throw InvalidOperation("symbols::structures::size not available for that type: " + enum_to_string(meta.vtype));
 		}
 		case VType::set:
-			return (*(std::unordered_set<ValueItem>*)getSourcePtr()).find(index) != (*(std::unordered_set<ValueItem>*)getSourcePtr()).end();
+			return (*(std::unordered_set<ValueItem, art::hash<ValueItem>>*)getSourcePtr()).find(index) != (*(std::unordered_set<ValueItem, art::hash<ValueItem>>*)getSourcePtr()).end();
 		default:
 			throw InvalidOperation("Cannot measure, this type has value: " + enum_to_string(meta.vtype));
 		}
@@ -5433,9 +5431,9 @@ namespace art{
 		else if(meta.vtype == VType::uarr)
 			return ((list_array<ValueItem>*)getSourcePtr())->size();
 		else if(meta.vtype == VType::map)
-			return ((std::unordered_map<ValueItem, ValueItem>*)getSourcePtr())->size();
+			return ((std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getSourcePtr())->size();
 		else if(meta.vtype == VType::set)
-			return ((std::unordered_set<ValueItem>*)getSourcePtr())->size();
+			return ((std::unordered_set<ValueItem, art::hash<ValueItem>>*)getSourcePtr())->size();
 		else if(meta.vtype == VType::struct_){
 			Structure& st = (Structure&)*this;
 			if(st.has_method(symbols::structures::size, ClassAccess::pub))
@@ -5452,18 +5450,18 @@ namespace art{
 			else if(item.meta.vtype == VType::uarr)
 				this->iterator_data = new list_array<ValueItem>::iterator(end ? ((list_array<ValueItem>*)item.getSourcePtr())->end() : ((list_array<ValueItem>*)item.getSourcePtr())->begin());
 			else if(item.meta.vtype == VType::map){
-				std::unordered_map<ValueItem, ValueItem>& map = (std::unordered_map<ValueItem, ValueItem>&)item;
+				std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& map = (std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&)item;
 				if(end)
-					this->iterator_data = new std::unordered_map<ValueItem, ValueItem>::iterator(map.end());
+					this->iterator_data = new std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator(map.end());
 				else
-					this->iterator_data = new std::unordered_map<ValueItem, ValueItem>::iterator(map.begin());
+					this->iterator_data = new std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator(map.begin());
 			}
 			else if(item.meta.vtype == VType::set){
-				std::unordered_set<ValueItem>& set = (std::unordered_set<ValueItem>&)item;
+				std::unordered_set<ValueItem, art::hash<ValueItem>>& set = (std::unordered_set<ValueItem, art::hash<ValueItem>>&)item;
 				if(end)
-					this->iterator_data = new std::unordered_set<ValueItem>::iterator(set.end());
+					this->iterator_data = new std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator(set.end());
 				else
-					this->iterator_data = new std::unordered_set<ValueItem>::iterator(set.begin());
+					this->iterator_data = new std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator(set.begin());
 			}
 			else if(item.meta.vtype == VType::struct_){
 				Structure& st = (Structure&)item;
@@ -5486,18 +5484,18 @@ namespace art{
 			else if(item.meta.vtype == VType::uarr)
 				this->iterator_data = new list_array<ValueItem>::iterator(*(list_array<ValueItem>::iterator*)copy.iterator_data);
 			else if(item.meta.vtype == VType::map)
-				this->iterator_data = new std::unordered_map<ValueItem, ValueItem>::iterator(*(std::unordered_map<ValueItem, ValueItem>::iterator*)copy.iterator_data);
+				this->iterator_data = new std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator(*(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)copy.iterator_data);
 			else if(item.meta.vtype == VType::set)
-				this->iterator_data = new std::unordered_set<ValueItem>::iterator(*(std::unordered_set<ValueItem>::iterator*)copy.iterator_data);
+				this->iterator_data = new std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator(*(std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator*)copy.iterator_data);
 			else if(item.meta.vtype == VType::struct_)
 				this->iterator_data = new ValueItem(*(ValueItem*)copy.iterator_data);
 		}
 		
 		ValueItemIterator::~ValueItemIterator(){
 			if(item.meta.vtype == VType::map)
-				delete (std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				delete (std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
 			else if(item.meta.vtype == VType::set)
-				delete (std::unordered_set<ValueItem>::iterator*)iterator_data;
+				delete (std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
 			else if(item.meta.vtype == VType::struct_)
 				delete (ValueItem*)iterator_data;
 			else if(item.meta.vtype == VType::uarr)
@@ -5513,11 +5511,11 @@ namespace art{
 				i++;
 			}
 			else if(item.meta.vtype == VType::map){
-				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
 				i++;
 			}
 			else if(item.meta.vtype == VType::set){
-				std::unordered_set<ValueItem>::iterator& i = *(std::unordered_set<ValueItem>::iterator*)iterator_data;
+				std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
 				i++;
 			}
 			else if(item.meta.vtype == VType::struct_){
@@ -5547,14 +5545,14 @@ namespace art{
 				return copy;
 			}
 			else if(item.meta.vtype == VType::map){
-				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
-				ValueItemIterator copy(item, new std::unordered_map<ValueItem, ValueItem>::iterator(i));
+				std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
+				ValueItemIterator copy(item, new std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator(i));
 				i++;
 				return copy;
 			}
 			else if(item.meta.vtype == VType::set){
-				std::unordered_set<ValueItem>::iterator& i = *(std::unordered_set<ValueItem>::iterator*)iterator_data;
-				ValueItemIterator copy(item, new std::unordered_set<ValueItem>::iterator(i));
+				std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
+				ValueItemIterator copy(item, new std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator(i));
 				i++;
 				return copy;
 			}
@@ -5579,7 +5577,7 @@ namespace art{
 				return *i;
 			}
 			else if(item.meta.vtype == VType::map){
-				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
 				return i->second;
 			}
 			else if(item.meta.vtype == VType::set)
@@ -5597,7 +5595,7 @@ namespace art{
 				return &*i;
 			}
 			else if(item.meta.vtype == VType::map){
-				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
 				return &i->second;
 			}
 			else if(item.meta.vtype == VType::set)
@@ -5617,11 +5615,11 @@ namespace art{
 				return *i;
 			}
 			else if(item.meta.vtype == VType::map){
-				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
 				return i->second;
 			}
 			else if(item.meta.vtype == VType::set){
-				std::unordered_set<ValueItem>::iterator& i = *(std::unordered_set<ValueItem>::iterator*)iterator_data;
+				std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
 				return *i;
 			}
 			else if(item.meta.vtype == VType::struct_){
@@ -5647,7 +5645,7 @@ namespace art{
 				*i = item;
 			}
 			else if(item.meta.vtype == VType::map){
-				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
+				std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
 				i->second = item;
 			}
 			else if(item.meta.vtype == VType::set)
@@ -5677,13 +5675,13 @@ namespace art{
 				return i == j;
 			}
 			else if(item.meta.vtype == VType::map){
-				std::unordered_map<ValueItem, ValueItem>::iterator& i = *(std::unordered_map<ValueItem, ValueItem>::iterator*)iterator_data;
-				std::unordered_map<ValueItem, ValueItem>::iterator& j = *(std::unordered_map<ValueItem, ValueItem>::iterator*)compare.iterator_data;
+				std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
+				std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator& j = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)compare.iterator_data;
 				return i == j;
 			}
 			else if(item.meta.vtype == VType::set){
-				std::unordered_set<ValueItem>::iterator& i = *(std::unordered_set<ValueItem>::iterator*)iterator_data;
-				std::unordered_set<ValueItem>::iterator& j = *(std::unordered_set<ValueItem>::iterator*)compare.iterator_data;
+				std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
+				std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator& j = *(std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator*)compare.iterator_data;
 				return i == j;
 			}
 			else if(item.meta.vtype == VType::struct_){
@@ -5707,7 +5705,7 @@ namespace art{
 #pragma endregion
 #pragma region MethodInfo
  	MethodInfo::MethodInfo(): ref(nullptr), name(), owner_name(), optional(nullptr), access(ClassAccess::pub), deletable(true){}
-	MethodInfo::MethodInfo(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	MethodInfo::MethodInfo(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name){
 		this->name = name;
 		this->ref = new FuncEnvironment(method, false);
 		this->access = access;
@@ -5721,7 +5719,7 @@ namespace art{
 		this->owner_name = owner_name;
 		this->deletable = true;
 	}
-	MethodInfo::MethodInfo(const std::string& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	MethodInfo::MethodInfo(const art::ustring& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name){
 		this->name = name;
 		this->ref = method;
 		this->access = access;
@@ -5782,7 +5780,7 @@ namespace art{
 		new(&tmp->copy) art::shared_ptr<FuncEnvironment>(copy);
 		new(&tmp->move) art::shared_ptr<FuncEnvironment>(move);
 		new(&tmp->compare) art::shared_ptr<FuncEnvironment>(compare);
-		new(&tmp->name) std::string();
+		new(&tmp->name) art::ustring();
 		tmp->tags = nullptr;
 	}
 	AttachAVirtualTable* AttachAVirtualTable::create(list_array<MethodInfo>& methods,  art::shared_ptr<FuncEnvironment> destructor,  art::shared_ptr<FuncEnvironment> copy,  art::shared_ptr<FuncEnvironment> move,  art::shared_ptr<FuncEnvironment> compare){
@@ -5791,7 +5789,7 @@ namespace art{
 			+ sizeof(Environment) * methods.size() 
 			+ sizeof(MethodInfo) * methods.size() 
 			+ sizeof(art::shared_ptr<FuncEnvironment>) * 4 
-			+ sizeof(std::string)
+			+ sizeof(art::ustring)
 			+ sizeof(list_array<StructureTag>*);
 		
 		AttachAVirtualTable* table = (AttachAVirtualTable*)malloc(to_allocate);
@@ -5819,7 +5817,7 @@ namespace art{
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->tags;
 	}
-	list_array<MethodTag>* AttachAVirtualTable::getMethodTags(const std::string& name, ClassAccess access){
+	list_array<MethodTag>* AttachAVirtualTable::getMethodTags(const art::ustring& name, ClassAccess access){
 		MethodInfo& info = getMethodInfo(name,access);
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->tags;
@@ -5829,7 +5827,7 @@ namespace art{
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->arguments;
 	}
-	list_array<list_array<ValueMeta>>* AttachAVirtualTable::getMethodArguments(const std::string& name, ClassAccess access){
+	list_array<list_array<ValueMeta>>* AttachAVirtualTable::getMethodArguments(const art::ustring& name, ClassAccess access){
 		MethodInfo& info = getMethodInfo(name,access);
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->arguments;
@@ -5839,7 +5837,7 @@ namespace art{
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->return_values;
 	}
-	list_array<ValueMeta>* AttachAVirtualTable::getMethodReturnValues(const std::string& name, ClassAccess access){
+	list_array<ValueMeta>* AttachAVirtualTable::getMethodReturnValues(const art::ustring& name, ClassAccess access){
 		MethodInfo& info = getMethodInfo(name,access);
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->return_values;
@@ -5856,7 +5854,7 @@ namespace art{
 		if(index >= table_size) throw InvalidOperation("Index out of range");
 		return getMethodsInfo(table_size)[index];
 	}
-	MethodInfo& AttachAVirtualTable::getMethodInfo(const std::string& name, ClassAccess access){
+	MethodInfo& AttachAVirtualTable::getMethodInfo(const art::ustring& name, ClassAccess access){
 		MethodInfo* table_additional_info = getMethodsInfo(table_size);
 		for (uint64_t i = 0; i < table_size; i++) {
 			if(table_additional_info[i].name == name && Structure::checkAccess(table_additional_info[i].access,access))
@@ -5869,7 +5867,7 @@ namespace art{
 		uint64_t size;
 		return getMethodsInfo(size)[index];
 	}
-	const MethodInfo& AttachAVirtualTable::getMethodInfo(const std::string& name, ClassAccess access) const{
+	const MethodInfo& AttachAVirtualTable::getMethodInfo(const art::ustring& name, ClassAccess access) const{
 		uint64_t size;
 		const MethodInfo* table_additional_info = getMethodsInfo(size);
 		for (uint64_t i = 0; i < size; i++) {
@@ -5887,11 +5885,11 @@ namespace art{
 		Environment* table = (Environment*)data;
 		return table[index];
 	}
-	Environment AttachAVirtualTable::getMethod(const std::string& name, ClassAccess access) const {
+	Environment AttachAVirtualTable::getMethod(const art::ustring& name, ClassAccess access) const {
 		return (Environment)getMethodInfo(name,access).ref->get_func_ptr();
 	}
 
-	uint64_t AttachAVirtualTable::getMethodIndex(const std::string& name, ClassAccess access) const {
+	uint64_t AttachAVirtualTable::getMethodIndex(const art::ustring& name, ClassAccess access) const {
 		uint64_t size;
 		const MethodInfo* table_additional_info = getMethodsInfo(size);
 		for (uint64_t i = 0; i < size; i++) 
@@ -5899,7 +5897,7 @@ namespace art{
 				return i;
 		throw InvalidOperation("Method not found");
 	}
-	bool AttachAVirtualTable::hasMethod(const std::string& name, ClassAccess access) const{
+	bool AttachAVirtualTable::hasMethod(const art::ustring& name, ClassAccess access) const{
 		uint64_t size;
 		const MethodInfo* table_additional_info = getMethodsInfo(size);
 		for (uint64_t i = 0; i < size; i++) 
@@ -5907,10 +5905,10 @@ namespace art{
 				return true;
 		return false;
 	}
-	std::string AttachAVirtualTable::getName() const{
+	art::ustring AttachAVirtualTable::getName() const{
 		return getAfterMethods()->name;
 	}
-	void AttachAVirtualTable::setName(const std::string& name){
+	void AttachAVirtualTable::setName(const art::ustring& name){
 		getAfterMethods()->name = name;
 	}
 	AttachAVirtualTable::AfterMethods* AttachAVirtualTable::getAfterMethods(){
@@ -5943,7 +5941,7 @@ namespace art{
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->tags;
 	}
-	list_array<MethodTag>* AttachADynamicVirtualTable::getMethodTags(const std::string& name, ClassAccess access){
+	list_array<MethodTag>* AttachADynamicVirtualTable::getMethodTags(const art::ustring& name, ClassAccess access){
 		MethodInfo& info = getMethodInfo(name, access);
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->tags;
@@ -5954,7 +5952,7 @@ namespace art{
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->arguments;
 	}
-	list_array<list_array<ValueMeta>>* AttachADynamicVirtualTable::getMethodArguments(const std::string& name, ClassAccess access){
+	list_array<list_array<ValueMeta>>* AttachADynamicVirtualTable::getMethodArguments(const art::ustring& name, ClassAccess access){
 		MethodInfo& info = getMethodInfo(name, access);
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->arguments;
@@ -5965,7 +5963,7 @@ namespace art{
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->return_values;
 	}
-	list_array<ValueMeta>* AttachADynamicVirtualTable::getMethodReturnValues(const std::string& name, ClassAccess access){
+	list_array<ValueMeta>* AttachADynamicVirtualTable::getMethodReturnValues(const art::ustring& name, ClassAccess access){
 		MethodInfo& info = getMethodInfo(name, access);
 		if(info.optional == nullptr) return nullptr;
 		return &info.optional->return_values;
@@ -5979,7 +5977,7 @@ namespace art{
 		if(index >= methods.size()) throw InvalidOperation("Index out of range");
 		return methods[index];
 	}
-	MethodInfo& AttachADynamicVirtualTable::getMethodInfo(const std::string& name, ClassAccess access){
+	MethodInfo& AttachADynamicVirtualTable::getMethodInfo(const art::ustring& name, ClassAccess access){
 		for (uint64_t i = 0; i < methods.size(); i++) {
 			if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
 				return methods[i];
@@ -5990,7 +5988,7 @@ namespace art{
 		if(index >= methods.size()) throw InvalidOperation("Index out of range");
 		return methods[index];
 	}
-	const MethodInfo& AttachADynamicVirtualTable::getMethodInfo(const std::string& name, ClassAccess access) const {
+	const MethodInfo& AttachADynamicVirtualTable::getMethodInfo(const art::ustring& name, ClassAccess access) const {
 		for (uint64_t i = 0; i < methods.size(); i++) {
 			if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
 				return methods[i];
@@ -6002,18 +6000,18 @@ namespace art{
 		if(index >= methods.size()) throw InvalidOperation("Index out of range");
 		return (Environment)methods[index].ref->get_func_ptr();
 	}
-	Environment AttachADynamicVirtualTable::getMethod(const std::string& name, ClassAccess access) const {
+	Environment AttachADynamicVirtualTable::getMethod(const art::ustring& name, ClassAccess access) const {
 		return (Environment)getMethodInfo(name, access).ref->get_func_ptr();
 	}
 
-	void AttachADynamicVirtualTable::addMethod(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	void AttachADynamicVirtualTable::addMethod(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name){
 		methods.push_back(MethodInfo(name, method, access, return_values, arguments, tags, owner_name));
 	}
-	void AttachADynamicVirtualTable::addMethod(const std::string& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	void AttachADynamicVirtualTable::addMethod(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name){
 		methods.push_back(MethodInfo(name, method, access, return_values, arguments, tags, owner_name));
 	}
 
-	void AttachADynamicVirtualTable::removeMethod(const std::string& name, ClassAccess access){
+	void AttachADynamicVirtualTable::removeMethod(const art::ustring& name, ClassAccess access){
 		for (uint64_t i = 0; i < methods.size(); i++) 
 			if(methods[i].deletable)
 				if(methods[i].name == name && Structure::checkAccess(methods[i].access,access)){
@@ -6022,21 +6020,21 @@ namespace art{
 				}
 	}
 
-	void AttachADynamicVirtualTable::addTag(const std::string& name, const ValueItem& value){
+	void AttachADynamicVirtualTable::addTag(const art::ustring& name, const ValueItem& value){
 		if(tags == nullptr) tags = new list_array<StructureTag>();
 		StructureTag tag;
 		tag.name = name;
 		tag.value = value;
 		tags->push_back(tag);
 	}
-	void AttachADynamicVirtualTable::addTag(const std::string& name, ValueItem&& value){
+	void AttachADynamicVirtualTable::addTag(const art::ustring& name, ValueItem&& value){
 		if(tags == nullptr) tags = new list_array<StructureTag>(1);
 		StructureTag tag;
 		tag.name = name;
 		tag.value = std::move(value);
 		tags->push_back(tag);
 	}
-	void AttachADynamicVirtualTable::removeTag(const std::string& name){
+	void AttachADynamicVirtualTable::removeTag(const art::ustring& name){
 		if(tags == nullptr) return;
 		for (uint64_t i = 0; i < tags->size(); i++) 
 			if((*tags)[i].name == name){
@@ -6045,13 +6043,13 @@ namespace art{
 			}
 	}
 
-	uint64_t AttachADynamicVirtualTable::getMethodIndex(const std::string& name, ClassAccess access) const {
+	uint64_t AttachADynamicVirtualTable::getMethodIndex(const art::ustring& name, ClassAccess access) const {
 		for (uint64_t i = 0; i < methods.size(); i++) 
 			if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
 				return i;
 		throw InvalidOperation("Method not found");
 	}
-	bool AttachADynamicVirtualTable::hasMethod(const std::string& name, ClassAccess access) const {
+	bool AttachADynamicVirtualTable::hasMethod(const art::ustring& name, ClassAccess access) const {
 		for (uint64_t i = 0; i < methods.size(); i++) 
 			if(methods[i].name == name && Structure::checkAccess(methods[i].access,access))
 				return true;
@@ -6149,7 +6147,7 @@ namespace art{
 				throw NotImplementedException();
 		}
 	}
-	Structure::Item* Structure::getPtr(const std::string& name) {
+	Structure::Item* Structure::getPtr(const art::ustring& name) {
 		for (size_t i = 0; i < count; i++)
 			if (reinterpret_cast<Item*>(raw_data)[i].name == name) 
 				return &reinterpret_cast<Item*>(raw_data)[i];
@@ -6158,7 +6156,7 @@ namespace art{
 	Structure::Item* Structure::getPtr(size_t index) {
 		return index < count ? &reinterpret_cast<Item*>(raw_data)[index] : nullptr;
 	}
-	const Structure::Item* Structure::getPtr(const std::string& name) const {
+	const Structure::Item* Structure::getPtr(const art::ustring& name) const {
 		for (size_t i = 0; i < count; i++)
 			if (reinterpret_cast<const Item*>(raw_data)[i].name == name) 
 				return &reinterpret_cast<const Item*>(raw_data)[i];
@@ -6220,15 +6218,15 @@ namespace art{
 		case VType::uarr:
 			return getType<list_array<ValueItem>>(item);
 		case VType::string:
-			return getType<std::string>(item);
+			return getType<art::ustring>(item);
 		case VType::undefined_ptr:
 			return ValueItem(static_value_get_ref<void*>(item->offset, item->bit_used, item->bit_offset));
 		case VType::type_identifier:
 			return ValueItem(static_value_get_ref<ValueMeta>(item->offset, item->bit_used, item->bit_offset));
 		case VType::map:
-			return getType<std::unordered_map<ValueItem, ValueItem>>(item);
+			return getType<std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>>(item);
 		case VType::set:
-			return getType<std::unordered_set<ValueItem>>(item);
+			return getType<std::unordered_set<ValueItem, art::hash<ValueItem>>>(item);
 		case VType::time_point:
 			return getType<std::chrono::high_resolution_clock::time_point>(item);
 		default:
@@ -6288,15 +6286,15 @@ namespace art{
 		case VType::uarr:
 			return getTypeRef<list_array<ValueItem>>(item);
 		case VType::string:
-			return getTypeRef<std::string>(item);
+			return getTypeRef<art::ustring>(item);
 		case VType::undefined_ptr:
 			return ValueItem(static_value_get_ref<void*>(item->offset, item->bit_used, item->bit_offset));
 		case VType::type_identifier:
 			return ValueItem(static_value_get_ref<ValueMeta>(item->offset, item->bit_used, item->bit_offset));
 		case VType::map:
-			return getTypeRef<std::unordered_map<ValueItem, ValueItem>>(item);
+			return getTypeRef<std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>>(item);
 		case VType::set:
-			return getTypeRef<std::unordered_set<ValueItem>>(item);
+			return getTypeRef<std::unordered_set<ValueItem, art::hash<ValueItem>>>(item);
 		case VType::time_point:
 			return getTypeRef<std::chrono::high_resolution_clock::time_point>(item);
 		default:
@@ -6383,9 +6381,9 @@ namespace art{
 				}
 				switch (items[i].type.vtype) {
 				case VType::string:
-					if(items[i].bit_used || items[i].bit_used != sizeof(std::string) * 8 || items[i].bit_offset % sizeof(std::string) != 0)
+					if(items[i].bit_used || items[i].bit_used != sizeof(art::ustring) * 8 || items[i].bit_offset % sizeof(art::ustring) != 0)
 						throw InvalidArguments("this type not support bit_used or bit_offset");
-					new(ptr) std::string();
+					new(ptr) art::ustring();
 					break;
 				case VType::uarr:
 					if(items[i].bit_used || items[i].bit_used != sizeof(list_array<ValueItem>) * 8 || items[i].bit_offset % sizeof(list_array<ValueItem>) != 0)
@@ -6393,14 +6391,14 @@ namespace art{
 					new(ptr) list_array<ValueItem>();
 					break;
 				case VType::map:
-					if(items[i].bit_used || items[i].bit_used != sizeof(std::unordered_map<ValueItem, ValueItem>) * 8 || items[i].bit_offset % sizeof(std::unordered_map<ValueItem, ValueItem>) != 0)
+					if(items[i].bit_used || items[i].bit_used != sizeof(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>) * 8 || items[i].bit_offset % sizeof(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>) != 0)
 						throw InvalidArguments("this type not support bit_used or bit_offset");
-					new(ptr) std::unordered_map<ValueItem, ValueItem>();
+					new(ptr) std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>();
 					break;
 				case VType::set:
-					if(items[i].bit_used || items[i].bit_used != sizeof(std::unordered_set<ValueItem>) * 8 || items[i].bit_offset % sizeof(std::unordered_set<ValueItem>) != 0)
+					if(items[i].bit_used || items[i].bit_used != sizeof(std::unordered_set<ValueItem, art::hash<ValueItem>>) * 8 || items[i].bit_offset % sizeof(std::unordered_set<ValueItem, art::hash<ValueItem>>) != 0)
 						throw InvalidArguments("this type not support bit_used or bit_offset");
-					new(ptr) std::unordered_set<ValueItem>();
+					new(ptr) std::unordered_set<ValueItem, art::hash<ValueItem>>();
 					break;
 				default:
 					throw InvalidArguments("type not supported");
@@ -6463,16 +6461,16 @@ namespace art{
 						delete[] ((ValueItem*)ptr);
 				}
 				case VType::string:
-					((std::string*)ptr)->~basic_string();
+					((art::ustring*)ptr)->~ustring();
 					break;
 				case VType::uarr:
 					((list_array<ValueItem>*)ptr)->~list_array();
 					break;
 				case VType::map:
-					((std::unordered_map<ValueItem, ValueItem>*)ptr)->~unordered_map();
+					((std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)ptr)->~unordered_map();
 					break;
 				case VType::set:
-					((std::unordered_set<ValueItem>*)ptr)->~unordered_set();
+					((std::unordered_set<ValueItem, art::hash<ValueItem>>*)ptr)->~unordered_set();
 					break;
 				default:
 					throw InvalidArguments("type not supported");
@@ -6491,18 +6489,18 @@ namespace art{
 		_static_value_set(getPtr(value_data_index), value);
 	}
 
-	ValueItem Structure::dynamic_value_get(const std::string& name) const {
+	ValueItem Structure::dynamic_value_get(const art::ustring& name) const {
 		return _static_value_get(getPtr(name));
 	}
-	ValueItem Structure::dynamic_value_get_ref(const std::string& name) {
+	ValueItem Structure::dynamic_value_get_ref(const art::ustring& name) {
 		return _static_value_get_ref(getPtr(name));
 	}
-	void Structure::dynamic_value_set(const std::string& name, ValueItem value){
+	void Structure::dynamic_value_set(const art::ustring& name, ValueItem value){
 		_static_value_set(getPtr(name), value);
 	}
 
 
-	uint64_t Structure::table_get_id(const std::string& name, ClassAccess access) const {
+	uint64_t Structure::table_get_id(const art::ustring& name, ClassAccess access) const {
 		const char* data = raw_data + count * sizeof(Item);
 		switch (vtable_mode) {
 		case VTableMode::disabled:
@@ -6529,7 +6527,7 @@ namespace art{
 			throw NotImplementedException();
 		}
 	}
-	Environment Structure::table_get_dynamic(const std::string& name, ClassAccess access) const {
+	Environment Structure::table_get_dynamic(const art::ustring& name, ClassAccess access) const {
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			throw InvalidArguments("vtable disabled");
@@ -6542,17 +6540,17 @@ namespace art{
 			throw NotImplementedException();
 		}
 	}
-	void Structure::add_method(const std::string& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	void Structure::add_method(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name){
 		if(vtable_mode != VTableMode::AttachADynamicVirtualTable)
 			throw InvalidOperation("vtable must be dynamic to add new method");
 		((AttachADynamicVirtualTable*)get_vtable())->addMethod(name, method, access, return_values, arguments, tags, owner_name);
 	}
-	void Structure::add_method(const std::string& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const std::string& owner_name){
+	void Structure::add_method(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name){
 		if(vtable_mode != VTableMode::AttachADynamicVirtualTable)
 			throw InvalidOperation("vtable must be dynamic to add new method");
 		((AttachADynamicVirtualTable*)get_vtable())->addMethod(name, method, access, return_values, arguments, tags, owner_name);
 	}
-	bool Structure::has_method(const std::string& name, ClassAccess access) const {
+	bool Structure::has_method(const art::ustring& name, ClassAccess access) const {
 		if(vtable_mode == VTableMode::AttachAVirtualTable)
 			return ((AttachAVirtualTable*)get_vtable())->hasMethod(name, access);
 		else if(vtable_mode == VTableMode::AttachADynamicVirtualTable)
@@ -6560,7 +6558,7 @@ namespace art{
 		else
 			throw NotImplementedException();
 	}
-	void Structure::remove_method(const std::string& name, ClassAccess access){
+	void Structure::remove_method(const art::ustring& name, ClassAccess access){
 		if(vtable_mode != VTableMode::AttachADynamicVirtualTable)
 			throw InvalidOperation("vtable must be dynamic to remove method");
 		((AttachADynamicVirtualTable*)get_vtable())->removeMethod(name, access);
@@ -6578,7 +6576,7 @@ namespace art{
 			throw NotImplementedException();
 		}
 	}
-	art::shared_ptr<FuncEnvironment>  Structure::get_method_dynamic(const std::string& name, ClassAccess access) const {
+	art::shared_ptr<FuncEnvironment>  Structure::get_method_dynamic(const art::ustring& name, ClassAccess access) const {
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			throw InvalidArguments("vtable disabled");
@@ -6925,7 +6923,7 @@ namespace art{
 	void* Structure::get_raw_data(){
 		return raw_data;
 	}
-	std::string Structure::get_name() const{
+	art::ustring Structure::get_name() const{
 		switch (vtable_mode) {
 		case VTableMode::disabled:
 			return "";

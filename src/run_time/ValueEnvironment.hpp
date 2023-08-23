@@ -6,19 +6,19 @@
 
 #pragma once
 #include <unordered_map>
-#include "attacha_abi_structs.hpp"
+#include <run_time/attacha_abi_structs.hpp>
 namespace art{
 	class ValueEnvironment {
-		std::unordered_map<std::string, ValueEnvironment*> environments;
+		std::unordered_map<art::ustring, ValueEnvironment*,art::hash<art::ustring>> environments;
 	public:
 		ValueItem value;
-		ValueEnvironment*& joinEnvironment(const std::string& str) {
+		ValueEnvironment*& joinEnvironment(const art::ustring& str) {
 			return environments[str];
 		}
-		bool hasEnvironment(const std::string& str) {
+		bool hasEnvironment(const art::ustring& str) {
 			return environments.contains(str);
 		}
-		void removeEnvironment(const std::string& str) {
+		void removeEnvironment(const art::ustring& str) {
 			delete environments[str];
 			environments.erase(str);
 		}

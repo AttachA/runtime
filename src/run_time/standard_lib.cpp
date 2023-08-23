@@ -4,17 +4,17 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "library/bytes.hpp"
-#include "library/console.hpp"
-#include "library/parallel.hpp"
-#include "library/chanel.hpp"
-#include "library/internal.hpp"
-#include "library/net.hpp"
-#include "library/file.hpp"
-#include "library/exceptions.hpp"
-#include "AttachA_CXX.hpp"
-#include "attacha_abi_structs.hpp"
-#include "exceptions.hpp"
+#include <run_time/library/bytes.hpp>
+#include <run_time/library/console.hpp>
+#include <run_time/library/parallel.hpp>
+#include <run_time/library/chanel.hpp>
+#include <run_time/library/internal.hpp>
+#include <run_time/library/net.hpp>
+#include <run_time/library/file.hpp>
+#include <run_time/library/exceptions.hpp>
+#include <run_time/AttachA_CXX.hpp>
+#include <run_time/attacha_abi_structs.hpp>
+#include <util/exceptions.hpp>
 #include <cmath>
 #include <math.h>
 namespace art{
@@ -1107,16 +1107,16 @@ namespace art{
 				throw InvalidArguments("configuration modify_configuration: invalid arguments count, expected 2");
 			if(args[0].meta.vtype == VType::string){
 				if(args[1].meta.vtype == VType::string)
-					modify_run_time_config((const std::string&)args[0].getSourcePtr(), (const std::string&)args[1].getSourcePtr());
+					modify_run_time_config((const art::ustring&)args[0].getSourcePtr(), (const art::ustring&)args[1].getSourcePtr());
 				else 
-					modify_run_time_config((const std::string&)args[0].getSourcePtr(), (std::string)args[1]);
+					modify_run_time_config((const art::ustring&)args[0].getSourcePtr(), (art::ustring)args[1]);
 			}
 			else{
-				std::string key = (std::string)args[0];
+				art::ustring key = (art::ustring)args[0];
 				if(args[1].meta.vtype == VType::string)
-					modify_run_time_config(key, (const std::string&)args[1].getSourcePtr());
+					modify_run_time_config(key, (const art::ustring&)args[1].getSourcePtr());
 				else 
-					modify_run_time_config(key, (std::string)args[1]);
+					modify_run_time_config(key, (art::ustring)args[1]);
 			}
 			return nullptr;
 		}
@@ -1124,9 +1124,9 @@ namespace art{
 			if(len < 1)
 				throw InvalidArguments("configuration get_configuration: invalid arguments count, expected 1");
 			if(args[0].meta.vtype == VType::string)
-				return new ValueItem(get_run_time_config((const std::string&)args[0].getSourcePtr()));
+				return new ValueItem(get_run_time_config((const art::ustring&)args[0].getSourcePtr()));
 			else 
-				return new ValueItem(get_run_time_config((std::string)args[0]));
+				return new ValueItem(get_run_time_config((art::ustring)args[0]));
 		}
 	}
 	void initStandardLib_configuration(){
@@ -1143,9 +1143,9 @@ namespace art{
 			if(len >= 1)
 				throw InvalidArguments("debug set_thread_name: invalid arguments count, expected 1");
 			if(args[0].meta.vtype == VType::string)
-				_set_name_thread_dbg((const std::string&)args[0].getSourcePtr());
+				_set_name_thread_dbg((const art::ustring&)args[0].getSourcePtr());
 			else 
-				_set_name_thread_dbg((std::string)args[0]);
+				_set_name_thread_dbg((art::ustring)args[0]);
 			return nullptr;
 		}
 		ValueItem* get_thread_name(ValueItem* args, uint32_t len){
@@ -1157,9 +1157,9 @@ namespace art{
 
 		ValueItem* invite(ValueItem* args, uint32_t len){
 			if(args[0].meta.vtype == VType::string)
-				invite_to_debugger((const std::string&)args[0].getSourcePtr());
+				invite_to_debugger((const art::ustring&)args[0].getSourcePtr());
 			else 
-				invite_to_debugger((std::string)args[0]);
+				invite_to_debugger((art::ustring)args[0]);
 			return nullptr;
 		}
 	}

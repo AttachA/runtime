@@ -6,8 +6,8 @@
 
 #ifndef RUN_TIME_LIBRARY_BYTES
 #define RUN_TIME_LIBRARY_BYTES
-#include "../attacha_abi_structs.hpp"
-#include "stdint.h"
+#include <run_time/attacha_abi_structs.hpp>
+#include <stdint.h>
 namespace art {
 	namespace bytes{
 		enum class Endian : uint8_t {

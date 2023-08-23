@@ -20,7 +20,7 @@
 		<DisplayString Condition="meta.vtype == VType::flo &amp;&amp; !meta.use_gc">{{ type=flo, value={*(float*)&amp;val} }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::doub &amp;&amp; !meta.use_gc">{{ type=doub, value={*(double*)&amp;val} }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::uarr &amp;&amp; !meta.use_gc">{{ type=uarr, size={((list_array&lt;art::ValueItem&gt;*)val)->_size} }}</DisplayString>
-		<DisplayString Condition="meta.vtype == VType::string &amp;&amp; !meta.use_gc">{{ type=string, value={*(std::string*)val} }}</DisplayString>
+		<DisplayString Condition="meta.vtype == VType::string &amp;&amp; !meta.use_gc">{{ type=string, value={*(art::ustring*)val} }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::async_res &amp;&amp; !meta.use_gc">{{ type=async_res }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::except_value &amp;&amp; !meta.use_gc">{{ type=except_value }}</DisplayString>
 		<DisplayString Condition="meta.vtype == VType::undefined_ptr &amp;&amp; !meta.use_gc">{{ type=undefined_ptr }}</DisplayString>
@@ -59,7 +59,7 @@
 			<Item Name="[value]" Condition="meta.vtype == VType::flo &amp;&amp; !meta.use_gc">*(float*)&amp;val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::doub &amp;&amp; !meta.use_gc">*(double*)&amp;val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::uarr &amp;&amp; !meta.use_gc">*(list_array&lt;art::ValueItem&gt;*)val</Item>
-			<Item Name="[value]" Condition="meta.vtype == VType::string &amp;&amp; !meta.use_gc">*(std::string*)val</Item>
+			<Item Name="[value]" Condition="meta.vtype == VType::string &amp;&amp; !meta.use_gc">*(art::ustring*)val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::async_res &amp;&amp; !meta.use_gc">*(Task*)val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::except_value &amp;&amp; !meta.use_gc">*(std::exception_ptr*)val</Item>
 			<Item Name="[value]" Condition="meta.vtype == VType::undefined_ptr &amp;&amp; !meta.use_gc">(void*)val</Item>

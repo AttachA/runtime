@@ -5,9 +5,9 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
-#ifndef RUN_TIME_CXX_EXCEPTION
-#define RUN_TIME_CXX_EXCEPTION
-#include <list_array.hpp>
+#ifndef SRC_RUN_TIME_CXXEXCEPTION
+#define SRC_RUN_TIME_CXXEXCEPTION
+#include <library/list_array.hpp>
 #include <typeinfo>
 #include <exception>
 namespace art {
@@ -32,4 +32,4 @@ namespace art {
 	bool hasClassInEx(CXXExInfo& cxx, const char* class_nam);
 	bool isBadAlloc(CXXExInfo& cxx);
 }
-#endif
+#endif /* SRC_RUN_TIME_CXXEXCEPTION */

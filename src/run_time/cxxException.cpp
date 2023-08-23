@@ -4,7 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "cxxException.hpp"
+#include <run_time/cxxException.hpp>
+#include <util/ustring.hpp>
 #ifdef _WIN32
 #include <windows.h>
 #include <string>
@@ -94,7 +95,7 @@ namespace art{
 		res = except_abi::exceptCXXDetails((LPEXCEPTION_RECORD)ex_ptr);
 	}
 	bool hasClassInEx(CXXExInfo& cxx, const char* class_nam) {
-		std::string str = std::string("class ") + class_nam;
+		art::ustring str = art::ustring("class ") + class_nam;
 		return cxx.ty_arr.contains_one([&str, class_nam](const CXXExInfo::Tys& ty) { 
 			if(ty.is_bad_alloc)
 				if(strcmp(class_nam, "bad_alloc")==0)

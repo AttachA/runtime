@@ -4,11 +4,11 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "../asm/dynamic_call.hpp"
-#include "../tasks_util/light_stack.hpp"
-#include "../asm/CASM.hpp"
-#include "../AttachA_CXX.hpp"
-#include "../func_enviro_builder.hpp"
+#include <run_time/asm/dynamic_call.hpp>
+#include <run_time/tasks_util/light_stack.hpp>
+#include <run_time/asm/CASM.hpp>
+#include <run_time/AttachA_CXX.hpp>
+#include <run_time/func_enviro_builder.hpp>
 namespace art{
     namespace internal {
         namespace memory{
@@ -142,18 +142,18 @@ namespace art{
                         return new ValueItem(CXX::Interface::constructStructure<typed_lgr<DynamicCall::FunctionTemplate>>(define_NativeTemplate, new DynamicCall::FunctionTemplate()), no_copy);
                     }
                     AttachAFun(createProxy_NativeLib, 1, {
-                        return ValueItem(CXX::Interface::constructStructure<typed_lgr<NativeLib>>(define_NativeLib, new NativeLib(((std::string)args[0]).c_str())), no_copy);
+                        return ValueItem(CXX::Interface::constructStructure<typed_lgr<NativeLib>>(define_NativeLib, new NativeLib(((art::ustring)args[0]).c_str())), no_copy);
                     })
                 }
                 AttachAFun(funs_NativeLib_get_function, 3, {
                     auto& class_ = CXX::Interface::getExtractAs<typed_lgr<NativeLib>>(args[0], define_NativeLib);
-                    auto fun_name = (std::string)args[1];
+                    auto fun_name = (art::ustring)args[1];
                     auto& template_ = *CXX::Interface::getExtractAs<typed_lgr<DynamicCall::FunctionTemplate>>(args[2], define_NativeTemplate);
                     return ValueItem(class_->get_func_enviro(fun_name, template_));
                 })
                 AttachAFun(funs_NativeLib_get_own_function, 2, {
                     auto& class_ = CXX::Interface::getExtractAs<typed_lgr<NativeLib>>(args[0], define_NativeLib);
-                    auto fun_name = (std::string)args[1];
+                    auto fun_name = (art::ustring)args[1];
                     return ValueItem(class_->get_own_enviro(fun_name));
                 })
                 
@@ -314,7 +314,7 @@ namespace art{
                 else CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder)->compare(getVIP(args[1]), getVIP(args[2]));
             })
             AttachAFun(funs_FuncBuilder_jump,2,{
-                CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder)->jump((JumpCondition)(uint8_t)args[1], (std::string)args[2]);
+                CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder)->jump((JumpCondition)(uint8_t)args[1], (art::ustring)args[2]);
             })
             AttachAFun(funs_FuncBuilder_arg_set,2,{
                 CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder)->arg_set(getVIP(args[1]));
@@ -427,7 +427,7 @@ namespace art{
                     CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder)->inline_native_opcode((uint8_t*)args[1].getSourcePtr(), args[1].meta.val_len);
             })
             AttachAFun(funs_FuncBuilder_bind_pos, 2,{
-                CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder)->bind_pos((std::string)args[1]);
+                CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder)->bind_pos((art::ustring)args[1]);
             })
 
             AttachAFun(funs_FuncBuilder_static_arr_set, 5,{
@@ -707,21 +707,21 @@ namespace art{
             })
             AttachAFun(funs_FuncBuilder_table_jump, 2,{
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder);
-                std::vector<std::string> table;
+                std::vector<art::ustring> table;
                 switch (args[1].meta.vtype) {
                     case VType::uarr:
                         for(ValueItem& it : (list_array<ValueItem>&)args[1])
-                            table.push_back((std::string)it);
+                            table.push_back((art::ustring)it);
                         break;
                     case VType::string:
-                        table.push_back((std::string)args[1]);
+                        table.push_back((art::ustring)args[1]);
                         break;
                     case VType::saarr:
                     case VType::faarr: {
                             ValueItem* it = (ValueItem*)args[1].getSourcePtr();
                             uint32_t len = args[1].meta.val_len;
                             for(uint32_t i = 0; i < len; i++)
-                                table.push_back((std::string)it[i]);
+                                table.push_back((art::ustring)it[i]);
                             break;
                         }
                     default:
@@ -731,9 +731,9 @@ namespace art{
                 ValueIndexPos check_val = getVIP(args[2]);
                 bool is_signed = len > 3 ? (bool)args[3] : false;
                 TableJumpCheckFailAction too_large = len > 4 ? (TableJumpCheckFailAction)(uint8_t)args[4] : TableJumpCheckFailAction::throw_exception;
-                std::string too_large_label = len > 5 ? (std::string)args[5] : "";
+                art::ustring too_large_label = len > 5 ? (art::ustring)args[5] : "";
                 TableJumpCheckFailAction too_small = len > 6 ? (TableJumpCheckFailAction)(uint8_t)args[6] : TableJumpCheckFailAction::throw_exception;
-                std::string too_small_label = len > 7 ? (std::string)args[7] : "";
+                art::ustring too_small_label = len > 7 ? (art::ustring)args[7] : "";
                 builder->table_jump(table, check_val, is_signed, too_large, too_large_label, too_small, too_small_label);
             })
             
@@ -785,11 +785,11 @@ namespace art{
             })
             AttachAFun(funs_FuncBuilder_O_load_func, 2, {
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder);
-                builder->O_load_func((std::string)args[1]);
+                builder->O_load_func((art::ustring)args[1]);
             })
             AttachAFun(funs_FuncBuilder_O_patch_func, 2, {
                 auto& builder = CXX::Interface::getExtractAs<typed_lgr<FuncEnviroBuilder>>(args[0], define_FuncBuilder);
-                builder->O_patch_func((std::string)args[1]);
+                builder->O_patch_func((art::ustring)args[1]);
             })
 
 

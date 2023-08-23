@@ -5,11 +5,11 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 
-#include "../src/run_time.hpp"
-#include "run_time/AttachA_CXX.hpp"
-#include "run_time/standard_lib.hpp"
+#include <base/run_time.hpp>
+#include <run_time/AttachA_CXX.hpp>
+#include <run_time/standard_lib.hpp>
 
-#include "run_time/library/console.hpp"
+#include <run_time/library/console.hpp>
 using namespace art;
 
 void sleep_test() {
@@ -139,10 +139,10 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 
 template<const char* prefix>
 ValueItem* logger(ValueItem* args, uint32_t argc) {
-	std::string output(prefix);
+	art::ustring output(prefix);
 	output += ": [";
 	for(uint32_t i = 0; i < argc; i++){
-		output += (std::string)args[i];
+		output += (art::ustring)args[i];
 		if(i != argc - 1)
 			output += ", ";
 	}
@@ -155,7 +155,7 @@ const char _FATAL[] = "FATAL";
 const char _ERROR[] = "ERROR";
 const char _WARN[] = "WARN";
 const char _INFO[] = "INFO";
-#include "run_time/ValueEnvironment.hpp"
+#include <run_time/ValueEnvironment.hpp>
 int main(){
 	unhandled_exception.join(new FuncEnvironment(logger<_FATAL>, false, false));
 	errors.join(new FuncEnvironment(logger<_ERROR>, false, false));

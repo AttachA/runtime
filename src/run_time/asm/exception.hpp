@@ -1,6 +1,6 @@
 #ifndef SRC_RUN_TIME_ASM_EXCEPTION
 #define SRC_RUN_TIME_ASM_EXCEPTION
-#include "../attacha_abi_structs.hpp"
+#include <run_time/attacha_abi_structs.hpp>
 namespace art{
     struct CXXExInfo;
     namespace exception{
@@ -16,7 +16,7 @@ namespace art{
         void load_current_exception(CXXExInfo& cxx);
         bool try_catch_all(CXXExInfo& cxx);
         bool has_exception();
-        list_array<std::string> map_native_exception_names(CXXExInfo& cxx);
+        list_array<art::ustring> map_native_exception_names(CXXExInfo& cxx);
 
         bool _attacha_filter(CXXExInfo &info, void **continue_from, void *data, size_t size, void *enviro);
         void _attacha_finally(void *data, size_t size, void *enviro);

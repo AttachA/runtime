@@ -4,7 +4,7 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "dynamic_call.hpp"
+#include <run_time/asm/dynamic_call.hpp>
 #ifdef _WIN64
 //https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention?view=msvc-160
 //fastcall x64

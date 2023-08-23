@@ -4,9 +4,9 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-#include "bytes.hpp"
-#include "../../library/string_help.hpp"
-#include "../attacha_abi.hpp"
+#include <run_time/library/bytes.hpp>
+#include <util/string_help.hpp>
+#include <run_time/attacha_abi.hpp>
 #include <utf8cpp/utf8.h>
 namespace art {
     namespace bytes{
@@ -87,10 +87,10 @@ namespace art {
             if(is_integer(args[1].meta.vtype))
                 endian = (Endian)(uint8_t)args[1];
             else if (args[1].meta.vtype == VType::string){
-                auto& str = *(std::string*)args[1].getSourcePtr();
-                static const std::string big = "big";
-                static const std::string little = "little";
-                static const std::string native = "native";
+                auto& str = *(art::ustring*)args[1].getSourcePtr();
+                static const art::ustring big = "big";
+                static const art::ustring little = "little";
+                static const art::ustring native = "native";
                 if(string_help::iequals(str, big))
                     endian = Endian::big;
                 else if(string_help::iequals(str, little))
@@ -101,10 +101,10 @@ namespace art {
                     throw InvalidArguments("Invalid endian type: " + str);
             }
             else{
-                auto str = (std::string)args[1];
-                static const std::string big = "big";
-                static const std::string little = "little";
-                static const std::string native = "native";
+                auto str = (art::ustring)args[1];
+                static const art::ustring big = "big";
+                static const art::ustring little = "little";
+                static const art::ustring native = "native";
                 if(string_help::iequals(str, big))
                     endian = Endian::big;
                 else if(string_help::iequals(str, little))
@@ -251,17 +251,10 @@ namespace art {
                 break;
             case VType::string: {
                     if(bytes_len == 0){
-                        result = std::string();
+                        result = art::ustring();
                         break;
                     }
-                    std::string str((char*)bytes, bytes_len);
-                    if(str.back() != '\0')
-                        str.push_back('\0');
-                    std::string filtered;
-                    filtered.reserve(str.size());
-                    utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(filtered));
-                    filtered.shrink_to_fit();
-                    result = filtered;
+                    result = art::ustring((char*)bytes, bytes_len);
                     break;
                 }
             case VType::raw_arr_i8:
@@ -377,7 +370,7 @@ namespace art {
             case VType::raw_arr_doub:
                 return new ValueItem((uint8_t*)source, value.meta.val_len * 8);
             case VType::string: {
-                std::string* str = (std::string*)source;
+                art::ustring* str = (art::ustring*)source;
                 return new ValueItem((uint8_t*)str->c_str(), str->size());
             }
             default:
@@ -457,7 +450,7 @@ namespace art {
                 memcpy(bytes, source, value.meta.val_len * 8);
                 break;
             case VType::string: {
-                std::string& str = *(std::string*)source;
+                art::ustring& str = *(art::ustring*)source;
                 if(bytes_len < str.size())
                     throw OutOfRange("Invalid number of bytes for to_bytes, " + std::to_string(bytes_len) + " < " + std::to_string(str.size()));
                 memcpy(bytes, str.data(), str.size());

@@ -1,7 +1,7 @@
 #ifndef SRC_RUN_TIME_ASM_DYNAMIC_CALL_PROXY
 #define SRC_RUN_TIME_ASM_DYNAMIC_CALL_PROXY
-#include "dynamic_call.hpp"
-#include "../attacha_abi_structs.hpp"
+#include <run_time/asm/dynamic_call.hpp>
+#include <run_time/attacha_abi_structs.hpp>
 namespace art{
     namespace __attacha___ {
         void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, ValueMeta meta, void*& arg);

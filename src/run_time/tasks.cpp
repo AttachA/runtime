@@ -7,19 +7,19 @@
 #include <list>
 #include <boost/context/continuation.hpp>
 
-#include "AttachA_CXX.hpp"
-#include "tasks.hpp"
-#include "exceptions.hpp"
-#include "../library/string_help.hpp"
-#include "ValueEnvironment.hpp"
+#include <run_time/AttachA_CXX.hpp>
+#include <run_time/tasks.hpp>
+#include <util/exceptions.hpp>
+#include <util/string_help.hpp>
+#include <run_time/ValueEnvironment.hpp>
 #include <queue>
 #include <deque>
-#include "tasks_util/light_stack.hpp"
-#include "tasks_util/hill_climbing.hpp"
-#include "library/parallel.hpp"
-#include "tasks_util/native_workers_singleton.hpp"
-#include "../../configuration/tasks.hpp"
-#include "asm/exception.hpp"
+#include <run_time/tasks_util/light_stack.hpp>
+#include <run_time/tasks_util/hill_climbing.hpp>
+#include <run_time/library/parallel.hpp>
+#include <run_time/tasks_util/native_workers_singleton.hpp>
+#include <configuration/tasks.hpp>
+#include <run_time/asm/exception.hpp>
 namespace art{
 
 
@@ -416,7 +416,7 @@ namespace art{
 		TaskConditionVariable can_planned_new_notifier;
 		
 		art::mutex binded_workers_safety;
-		std::unordered_map<uint16_t, binded_context> binded_workers;
+		std::unordered_map<uint16_t, binded_context,art::hash<uint16_t>> binded_workers;
 
 		bool executor_manager_in_work = false;
 		art::condition_variable_any executor_manager_task_taken;
@@ -730,13 +730,13 @@ namespace art{
 		return false;
 	}
 #define worker_mode_desk(old_name, mode) if(Task::enable_task_naming)worker_mode_desk_(old_name, mode);
-	void worker_mode_desk_(const std::string& old_name, const std::string& mode) {
+	void worker_mode_desk_(const art::ustring& old_name, const art::ustring& mode) {
 		if(old_name.empty())
 			_set_name_thread_dbg("Worker " + std::to_string(_thread_id()) + ": " + mode);
 		else
 			_set_name_thread_dbg(old_name + " | (Temporal worker) " + std::to_string(_thread_id()) + ": " + mode);
 	}
-	void pseudo_task_handle(const std::string& old_name, bool &caught_ex){
+	void pseudo_task_handle(const art::ustring& old_name, bool &caught_ex){
 		loc.is_task_thread = false;
 		caught_ex = false;
 		try{
@@ -766,7 +766,7 @@ namespace art{
 		loc.is_task_thread = true;
 	}
 
-	bool execute_task(const std::string& old_name){
+	bool execute_task(const art::ustring& old_name){
 		bool pseudo_handle_caught_ex = false;
 		if (!loc.curr_task->func)
 			return true;
@@ -812,7 +812,7 @@ namespace art{
 		return false;
 	}
 	void taskExecutor(bool end_in_task_out = false) {
-		std::string old_name = end_in_task_out ? _get_name_thread_dbg(_thread_id()) : "";
+		art::ustring old_name = end_in_task_out ? _get_name_thread_dbg(_thread_id()) : "";
 
 		if(old_name.empty())
 			_set_name_thread_dbg("Worker " + std::to_string(_thread_id()));
@@ -887,7 +887,7 @@ namespace art{
 	}
 
 	void bindedTaskExecutor(uint16_t id){
-		std::string old_name = "Binded";
+		art::ustring old_name = "Binded";
 		art::unique_lock initializer_guard(glob.binded_workers_safety);
 		if(!glob.binded_workers.contains(id)){
 			invite_to_debugger("Binded worker context " + std::to_string(id) + " not found");
@@ -1414,7 +1414,7 @@ namespace art{
 		if (!loc.is_task_thread)
 			return 0;
 		else
-			return std::hash<size_t>()(reinterpret_cast<size_t>(&*loc.curr_task));
+			return art::hash<size_t>()(reinterpret_cast<size_t>(&*loc.curr_task));
 	}
 
 	bool Task::is_task(){

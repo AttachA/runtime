@@ -8,7 +8,7 @@
 #include <type_traits>
 #include <chrono>
 #include <tuple>
-#include "exceptions.hpp"
+#include <util/exceptions.hpp>
 //created to avoid back compatibility problems, ex: big size of std::mutex, slow critical section in windows, etc
 
 namespace art {
@@ -171,7 +171,7 @@ namespace art {
     public:
         friend class thread;
         friend id art::this_thread::get_id() noexcept;
-        friend struct ::std::hash<id>;
+        friend struct ::art::hash<id>;
         id(unsigned long id) : _id(id) {}
         unsigned long _id;
     };
@@ -354,7 +354,7 @@ namespace std{
     template<>
     struct hash<art::thread::id>{
         size_t operator()(const art::thread::id& id) const noexcept{
-            return std::hash<unsigned int>()(id._id);
+            return art::hash<unsigned int>()(id._id);
         }
     };
 }

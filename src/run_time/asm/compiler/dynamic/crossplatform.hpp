@@ -1,4 +1,4 @@
-#include "../compiler_include.hpp"
+#include <run_time/asm/compiler/compiler_include.hpp>
 
 namespace art {
 	void _inlineReleaseUnused(CASM& a, creg64 reg);
@@ -1040,7 +1040,7 @@ namespace art {
 	}
 
 	template <bool async_call>
-	ValueItem *_valueItemDynamicCall(const std::string &name, ValueItem *class_ptr, ClassAccess access, ValueItem *args, uint32_t len)
+	ValueItem *_valueItemDynamicCall(const art::ustring &name, ValueItem *class_ptr, ClassAccess access, ValueItem *args, uint32_t len)
 	{
 		switch (class_ptr->meta.vtype)
 		{
@@ -1068,7 +1068,7 @@ namespace art {
 		}
 	}
 	template<bool async_mode>
-	ValueItem* valueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueItem* args, uint32_t len, ClassAccess access) {
+	ValueItem* valueItemDynamicCall(const art::ustring& name, ValueItem* class_ptr, ValueItem* args, uint32_t len, ClassAccess access) {
 		if (!class_ptr)
 			throw NullPointerException();
 		class_ptr->getAsync();
@@ -1095,7 +1095,7 @@ namespace art {
 	}
 	
 	template<bool async_mode>
-	void* staticValueItemDynamicCall(const std::string& name, ValueItem* class_ptr, ValueItem* args, uint32_t len, ClassAccess access) {
+	void* staticValueItemDynamicCall(const art::ustring& name, ValueItem* class_ptr, ValueItem* args, uint32_t len, ClassAccess access) {
 		if (!class_ptr)
 			throw NullPointerException();
 		class_ptr->getAsync();
@@ -1368,7 +1368,7 @@ namespace art {
 			b.addArg(resr);
 		}
 		b.lea_valindex({compiler.static_map, compiler.values}, value);
-		b.finalize((void(*)(ClassAccess, ValueItem&, const std::string&, const ValueItem&))art::CXX::Interface::setValue);
+		b.finalize((void(*)(ClassAccess, ValueItem&, const art::ustring&, const ValueItem&))art::CXX::Interface::setValue);
 	}
 
 	void Compiler::DynamicCompiler::get_structure_value(const ValueIndexPos &value_name, ClassAccess access, const ValueIndexPos &structure_, const ValueIndexPos &to) {
@@ -1426,13 +1426,13 @@ namespace art {
 		compiler.scope_map.mapHandle(exception_scope);
 	}
 
-	void Compiler::DynamicCompiler::handle_catch_0(uint64_t exception_scope, const std::vector<std::string> &catch_names) {
+	void Compiler::DynamicCompiler::handle_catch_0(uint64_t exception_scope, const std::vector<art::ustring> &catch_names) {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(40);
 		handler_data.push_back(0);
 		builder::write(handler_data, (uint64_t)catch_names.size());
-		for (std::string name : catch_names) {
+		for (art::ustring name : catch_names) {
 			builder::write(handler_data, name.size());
 			handler_data.insert(handler_data.end(), name.begin(), name.end());
 		}
@@ -1458,13 +1458,13 @@ namespace art {
 			builder::write(handler_data, id);
 	}
 
-	void Compiler::DynamicCompiler::handle_catch_3(uint64_t exception_scope, const std::vector<std::string> &catch_names, const std::vector<uint16_t> &exception_name_env_ids) {
+	void Compiler::DynamicCompiler::handle_catch_3(uint64_t exception_scope, const std::vector<art::ustring> &catch_names, const std::vector<uint16_t> &exception_name_env_ids) {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(40);
 		handler_data.push_back(3);
 		builder::write(handler_data, (uint64_t)(catch_names.size() + exception_name_env_ids.size()));
-		for (std::string name : catch_names) {
+		for (art::ustring name : catch_names) {
 			handler_data.push_back(0);
 			builder::write(handler_data, name.size());
 			handler_data.insert(handler_data.end(), name.begin(), name.end());
@@ -1494,7 +1494,7 @@ namespace art {
 		compiler.scope.setExceptionHandle(handle, exception::_attacha_filter, handler_data.data(), handler_data.size());
 	}
 
-	void Compiler::DynamicCompiler::handle_catch_5(uint64_t exception_scope, const std::string &function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end) {
+	void Compiler::DynamicCompiler::handle_catch_5(uint64_t exception_scope, const art::ustring &function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end) {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		std::vector<uint8_t> handler_data;
 		handler_data.reserve(40);
@@ -1520,7 +1520,7 @@ namespace art {
 		compiler.scope.setExceptionFinal(handle, exception::_attacha_finally, handler_data.data(), handler_data.size());
 	}
 
-	void Compiler::DynamicCompiler::handle_finally(uint64_t exception_scope, const std::string &function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end) {
+	void Compiler::DynamicCompiler::handle_finally(uint64_t exception_scope, const art::ustring &function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end) {
 		size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
 		if (handle == -1)
 			throw InvalidArguments("Undefined handle");

@@ -9,8 +9,8 @@
 #define SRC_RUN_TIME_UTIL_TOOLS
 #include <vector>
 #include <string>
-#include "../exceptions.hpp"
-#include "../attacha_abi_structs.hpp"
+#include <util/exceptions.hpp>
+#include <run_time/attacha_abi_structs.hpp>
 namespace art {
 	namespace reader{
 		template<class T>
@@ -22,9 +22,9 @@ namespace art {
 				res[j] = data[i++];
 			return *(T*)res;
 		}
-		inline std::string readString(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {
+		inline art::ustring readString(const std::vector<uint8_t>& data, size_t data_len, size_t& i) {
 			uint32_t value_len = readData<uint32_t>(data, data_len, i);
-			std::string res;
+			art::ustring res;
 			for (uint32_t j = 0; j < value_len; j++)
 				res += readData<char>(data, data_len, i);
 			return res;
@@ -144,7 +144,7 @@ namespace art {
 				res.val = new list_array<ValueItem>(readAnyUarr(data, data_len, i));
 				break;
 			case VType::string:
-				res.val = new std::string(readString(data, data_len, i));
+				res.val = new art::ustring(readString(data, data_len, i));
 				break;
 			case VType::faarr:
 				res.val = readRawAny(data, data_len, i, readLen(data, data_len, i));
@@ -191,12 +191,11 @@ namespace art {
 			for (size_t i = 0; i < len; i++)
 				write(data,v[i]);
 		}
-		inline void writeString(std::vector<uint8_t>& data, const std::string& str) {
+		inline void writeString(std::vector<uint8_t>& data, const art::ustring& str) {
 			if (str.size() > (size_t)UINT32_MAX)
 				throw NumericOverflowException();
 			write(data, (uint32_t)str.size());
-			for(size_t i = 0; i < str.size(); i++)
-				write(data, str[i]);
+			data.insert(data.end(), str.begin(), str.end());
 		}
 		inline void writeAny(std::vector<uint8_t>& data, ValueItem& it);
 		inline void writeAnyUarr(std::vector<uint8_t>& data, list_array<ValueItem>& v) {
@@ -259,7 +258,7 @@ namespace art {
 				writeAnyUarr(data, *(list_array<ValueItem>*)it.getSourcePtr());
 				break;
 			case VType::string:
-				writeString(data, *(std::string*)it.getSourcePtr());
+				writeString(data, *(art::ustring*)it.getSourcePtr());
 				break;
 			case VType::faarr:
 				writeAnyRaw(data, (ValueItem*)it.val, it.meta.val_len);

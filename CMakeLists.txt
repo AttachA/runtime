@@ -5,7 +5,9 @@ set(Boost_NO_WARN_NEW_VERSIONS ON)
 #enable_testing()
 #add_subdirectory(tests)
 
-set(list_array_INCLUDE_DIR "src/library/list_array")
+set(art_src_INCLUDE_DIR "src")
+set(art_configuration_INCLUDE_DIR "include")
+set(art_INCLUDE_DIR ${art_src_INCLUDE_DIR} ${art_configuration_INCLUDE_DIR})
 
 if(MSVC)
   enable_language(ASM_MASM)
@@ -32,8 +34,9 @@ FILE(GLOB SRCFILES
         src/run_time/cxx_library/*.cpp
         src/run_time/library/*.cpp
         src/run_time/tasks_util/*.cpp
+        src/util/*.cpp
         src/library/*.cpp
-        src/*.cpp 
+        src/base/*.cpp 
 )
 FILE(GLOB LIB_SRCFILES 
         src/run_time/asm/dynamic_call_asm.asm 
@@ -43,8 +46,9 @@ FILE(GLOB LIB_SRCFILES
         src/run_time/cxx_library/*.cpp
         src/run_time/library/*.cpp
         src/run_time/tasks_util/*.cpp
+        src/util/*.cpp
         src/library/*.cpp
-        src/run_time.cpp 
+        src/base/run_time.cpp
 )
 
 
@@ -57,10 +61,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   pkg_check_modules(liburing REQUIRED IMPORTED_TARGET GLOBAL liburing>=2.0)
   pkg_check_modules(libunwind REQUIRED IMPORTED_TARGET GLOBAL libunwind)
   set (liburing_LIBRARIES PkgConfig::liburing PkgConfig::libunwind)
-  include_directories(${Boost_INCLUDE_DIRS} ${asmjit_INCLUDE_DIRS} ${liburing_INCLUDE_DIRS} ${libunwind_INCLUDE_DIRS} ${list_array_INCLUDE_DIR})
+  include_directories(${Boost_INCLUDE_DIRS} ${asmjit_INCLUDE_DIRS} ${liburing_INCLUDE_DIRS} ${libunwind_INCLUDE_DIRS} ${art_INCLUDE_DIR})
 else()
   set (liburing_LIBRARIES "")
-  include_directories(${Boost_INCLUDE_DIRS} ${asmjit_INCLUDE_DIRS} ${list_array_INCLUDE_DIR})
+  include_directories(${Boost_INCLUDE_DIRS} ${asmjit_INCLUDE_DIRS} ${art_INCLUDE_DIR})
 endif()
 
 

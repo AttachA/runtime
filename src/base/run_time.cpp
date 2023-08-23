@@ -10,15 +10,16 @@
 #include <Dbghelp.h>
 #include <Psapi.h>
 #include <utf8cpp/utf8.h>
-#include "../configuration/run_time.hpp"
-#include "../configuration/tasks.hpp"
+#include <configuration/run_time.hpp>
+#include <configuration/tasks.hpp>
 
-#include "run_time.hpp"
-#include "library/string_help.hpp"
-#include "run_time/asm/FuncEnvironment.hpp"
-#include "run_time/tasks.hpp"
-#include "run_time/asm/dynamic_call.hpp"
-#include "run_time/tasks_util/light_stack.hpp"
+#include <base/run_time.hpp>
+#include <util/string_help.hpp>
+#include <run_time/asm/FuncEnvironment.hpp>
+#include <run_time/tasks.hpp>
+#include <run_time/asm/dynamic_call.hpp>
+#include <run_time/tasks_util/light_stack.hpp>
+#include <util/hash.hpp>
 namespace art{
 	size_t page_size = []() {
 		SYSTEM_INFO si;
@@ -37,7 +38,7 @@ namespace art{
 	BreakPointAction break_point_action = (BreakPointAction)configuration::run_time::break_point_action;
 	ExceptionOnLanguageRoutineAction exception_on_language_routine_action = (ExceptionOnLanguageRoutineAction)configuration::run_time::exception_on_language_routine_action;
 
-	bool _set_name_thread_dbg(const std::string& name) {
+	bool _set_name_thread_dbg(const art::ustring& name) {
 		if(!enable_thread_naming)
 			return false;
 		std::u16string result;
@@ -45,14 +46,13 @@ namespace art{
 		return SUCCEEDED(SetThreadDescription(GetCurrentThread(), (wchar_t*)result.c_str()));
 	}
 
-	std::string _get_name_thread_dbg(unsigned long thread_id) {
+	art::ustring _get_name_thread_dbg(unsigned long thread_id) {
 		HANDLE thread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION,false,thread_id);
 		if (!thread)
 			return "";
 		WCHAR* res;
 		if (SUCCEEDED(GetThreadDescription(thread, &res))) {
-			std::string result;
-			utf8::utf16to8(res, res + wcslen(res), std::back_inserter(result));
+			art::ustring result((const char16_t*)res);
 			LocalFree(res);
 			CloseHandle(thread);
 			return result;
@@ -84,15 +84,15 @@ namespace art{
 			) {
 				if(Task::is_task()){
 					if (e->ExceptionRecord->ExceptionInformation[1] < UINT16_MAX)
-						throw NullPointerException("Task 0x" + string_help::hexsstr(Task::task_id()) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in null pointer region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+						throw NullPointerException("Task 0x" + string_help::hexsstr(Task::task_id()) + " attempted to " + art::ustring(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in null pointer region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
 					else 
-						throw SegmentationFaultException("Task 0x" + string_help::hexsstr(Task::task_id()) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in non mapped region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+						throw SegmentationFaultException("Task 0x" + string_help::hexsstr(Task::task_id()) + " attempted to " + art::ustring(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in non mapped region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
 			
 				}else{
 					if (e->ExceptionRecord->ExceptionInformation[1] < UINT16_MAX)
-						throw NullPointerException("Thread " + string_help::hexsstr(std::hash<art::thread::id>()(art::this_thread::get_id())) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in null pointer region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+						throw NullPointerException("Thread " + string_help::hexsstr((size_t)art::this_thread::get_id()) + " attempted to " + art::ustring(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in null pointer region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
 					else 
-						throw SegmentationFaultException("Thread " + string_help::hexsstr(std::hash<art::thread::id>()(art::this_thread::get_id())) + " attempted to " + std::string(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in non mapped region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
+						throw SegmentationFaultException("Thread " + string_help::hexsstr((size_t)art::this_thread::get_id()) + " attempted to " + art::ustring(e->ExceptionRecord->ExceptionInformation[0] ? "write" : "read") + " in non mapped region. 0x" + string_help::hexstr(e->ExceptionRecord->ExceptionInformation[1]));
 				}
 			}
 			else 
@@ -137,7 +137,7 @@ namespace art{
 
 
 	void show_err(CXXExInfo& cxx) {
-		std::string ex_str;
+		art::ustring ex_str;
 		if (hasClassInEx(cxx,"AttachARuntimeException")) {
 			ex_str = "Caught to unhandled AttachA ";
 			ex_str += cxx.ty_arr[0].ty_info->name();
@@ -156,7 +156,7 @@ namespace art{
 		std::exit(-1);
 	}
 	void show_err(LPEXCEPTION_POINTERS e) {
-		std::string ss;
+		art::ustring ss;
 		ss.reserve(256);
 		ss.append("Caught to unhandled seh exception.\n", 36);
 		ss.append("Ex code: ", 9);
@@ -231,7 +231,7 @@ namespace art{
 			LARGE_INTEGER ticks;
 			if(!QueryPerformanceCounter(&ticks))
 				ticks.QuadPart = -1;
-			path += std::to_wstring(std::hash<long long>()(ticks.QuadPart));
+			path += std::to_wstring(art::hash<long long>()(ticks.QuadPart));
 		}
 		path += L".dmp";
 		HANDLE hndl = CreateFileW(path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_ARCHIVE, 0);
@@ -307,8 +307,8 @@ namespace art{
 		return EXCEPTION_CONTINUE_SEARCH;
 	}
 
-	void invite_to_debugger(const std::string& reason){
-		std::string decorated = 
+	void invite_to_debugger(const art::ustring& reason){
+		art::ustring decorated = 
 						reason 
 						+ ",\n if you wanna debug it, attach to process with id: " 
 						+ std::to_string(GetCurrentProcessId()) 
@@ -336,7 +336,7 @@ namespace art{
 	}();
 
 
-	NativeLib::NativeLib(const std::string& library_path) {
+	NativeLib::NativeLib(const art::ustring& library_path) {
 		std::u16string res;
 		utf8::utf8to16(library_path.begin(), library_path.end(), std::back_inserter(res));
 
@@ -344,13 +344,13 @@ namespace art{
 		if (!hGetProcIDDLL)
 			throw LibraryNotFoundException();
 	}
-	CALL_FUNC NativeLib::get_func(const std::string& func_name) {
+	CALL_FUNC NativeLib::get_func(const art::ustring& func_name) {
 		auto tmp = GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 		if (!tmp)
 			throw LibraryFunctionNotFoundException();
 		return (CALL_FUNC)tmp;
 	}
-	art::shared_ptr<FuncEnvironment> NativeLib::get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ) {
+	art::shared_ptr<FuncEnvironment> NativeLib::get_func_enviro(const art::ustring& func_name, const DynamicCall::FunctionTemplate& templ) {
 		auto& env = envs[func_name];
 		if (!env) {
 			DynamicCall::PROC tmp = (DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
@@ -360,7 +360,7 @@ namespace art{
 		}
 		return env;
 	}
-	art::shared_ptr<FuncEnvironment> NativeLib::get_own_enviro(const std::string& func_name){
+	art::shared_ptr<FuncEnvironment> NativeLib::get_own_enviro(const art::ustring& func_name){
 		auto& env = envs[func_name];
 		if (!env) {
 			Environment tmp = (Environment)(DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
@@ -370,7 +370,7 @@ namespace art{
 		}
 		return env;
 	}
-	size_t NativeLib::get_pure_func(const std::string& func_name) {
+	size_t NativeLib::get_pure_func(const art::ustring& func_name) {
 		size_t tmp = (size_t)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
 		if (!tmp)
 			throw LibraryFunctionNotFoundException();
@@ -403,15 +403,15 @@ namespace art{
 #else
 
 #include <utf8cpp/utf8.h>
-#include "../configuration/run_time.hpp"
-#include "../configuration/tasks.hpp"
+#include <configuration/run_time.hpp>
+#include <configuration/tasks.hpp>
 
-#include "run_time.hpp"
-#include "library/string_help.hpp"
-#include "run_time/asm/FuncEnvironment.hpp"
-#include "run_time/tasks.hpp"
-#include "run_time/asm/dynamic_call.hpp"
-#include "run_time/tasks_util/light_stack.hpp"
+#include <base/run_time.hpp>
+#include <util/string_help.hpp>
+#include <run_time/asm/FuncEnvironment.hpp>
+#include <run_time/tasks.hpp>
+#include <run_time/asm/dynamic_call.hpp>
+#include <run_time/tasks_util/light_stack.hpp>
 #include <unistd.h>
 #include <dlfcn.h>
 
@@ -437,17 +437,17 @@ namespace art {
 	BreakPointAction break_point_action = (BreakPointAction)configuration::run_time::break_point_action;
 	ExceptionOnLanguageRoutineAction exception_on_language_routine_action = (ExceptionOnLanguageRoutineAction)configuration::run_time::exception_on_language_routine_action;
 
-	void invite_to_debugger(const std::string& reason){
+	void invite_to_debugger(const art::ustring& reason){
 		//TODO
 		std::terminate();
 	}
-	bool _set_name_thread_dbg(const std::string& name) {
+	bool _set_name_thread_dbg(const art::ustring& name) {
 		if(name.size() > 15)
 			return false;
 		return pthread_setname_np(pthread_self(), name.c_str()) == 0;
 	}
 
-	std::string _get_name_thread_dbg(unsigned long thread_id) {
+	art::ustring _get_name_thread_dbg(unsigned long thread_id) {
 		char name[16];
 		if(pthread_getname_np(pthread_t(thread_id), name, 16) != 0)
 			return "";
@@ -470,19 +470,19 @@ namespace art {
 
 
 
-	NativeLib::NativeLib(const std::string& library_path){
-		std::string res;
+	NativeLib::NativeLib(const art::ustring& library_path){
+		art::ustring res;
 		hGetProcIDDLL = dlopen(res.c_str(), RTLD_LAZY);
 		if (!hGetProcIDDLL)
 			throw LibraryNotFoundException();
 	}
-	CALL_FUNC NativeLib::get_func(const std::string& func_name){
+	CALL_FUNC NativeLib::get_func(const art::ustring& func_name){
 		auto tmp = dlsym(hGetProcIDDLL, func_name.c_str());
 		if (!tmp)
 			throw LibraryFunctionNotFoundException();
 		return (CALL_FUNC)tmp;
 	}
-	art::shared_ptr<FuncEnvironment> NativeLib::get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ){
+	art::shared_ptr<FuncEnvironment> NativeLib::get_func_enviro(const art::ustring& func_name, const DynamicCall::FunctionTemplate& templ){
 		auto& env = envs[func_name];
 		if (!env) {
 			void* tmp = (void*)(DynamicCall::PROC)dlsym(hGetProcIDDLL, func_name.c_str());
@@ -492,7 +492,7 @@ namespace art {
 		}
 		return env;
 	}
-	art::shared_ptr<FuncEnvironment> NativeLib::get_own_enviro(const std::string& func_name){
+	art::shared_ptr<FuncEnvironment> NativeLib::get_own_enviro(const art::ustring& func_name){
 		auto& env = envs[func_name];
 		if (!env) {
 			Environment tmp = (Environment)dlsym(hGetProcIDDLL, func_name.c_str());
@@ -502,7 +502,7 @@ namespace art {
 		}
 		return env;
 	}
-	size_t NativeLib::get_pure_func(const std::string& func_name){
+	size_t NativeLib::get_pure_func(const art::ustring& func_name){
 		auto tmp = dlsym(hGetProcIDDLL, func_name.c_str());
 		if (!tmp)
 			throw LibraryFunctionNotFoundException();
@@ -519,8 +519,8 @@ namespace art {
 	}
 #endif
 
-	std::unordered_map<std::string, std::string> run_time_configuration;
-	void modify_run_time_config(const std::string& name, const std::string& value){
+	std::unordered_map<art::ustring, art::ustring, art::hash<art::ustring>> run_time_configuration;
+	void modify_run_time_config(const art::ustring& name, const art::ustring& value){
 		if(name == "default_fault_action"){
 	#if _configuration_run_time_fault_action_modifiable
 			if(value == "make_dump" || value == "0")
@@ -663,7 +663,7 @@ namespace art {
 			}
 		}
 	}
-	std::string get_run_time_config(const std::string& name){
+	art::ustring get_run_time_config(const art::ustring& name){
 		if(name == "default_fault_action")
 			return enum_to_string(default_fault_action);
 		else if(name == "break_point_action")

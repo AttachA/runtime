@@ -1,7 +1,7 @@
 #ifndef SRC_RUN_TIME_ASM_IL_HEADER_DECODER
 #define SRC_RUN_TIME_ASM_IL_HEADER_DECODER
-#include "il_compiler/basic.hpp"
-#include "CASM.hpp"
+#include <run_time/asm/il_compiler/basic.hpp>
+#include <run_time/asm/CASM.hpp>
 namespace art {
     namespace il_header{
         struct decoded {
@@ -15,7 +15,7 @@ namespace art {
             uint64_t constants_values;
 
             size_t decode(
-                const std::string& header_compiler_name_version,
+                const art::ustring& header_compiler_name_version,
                 CASM& casm_assembler,//for labels
                 const std::vector<uint8_t>& data,
                 size_t start,

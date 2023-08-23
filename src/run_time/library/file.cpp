@@ -4,13 +4,12 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "file.hpp"
-#include "../exceptions.hpp"
-#include "bytes.hpp"
-#include "../tasks.hpp"
-#include "../cxx_library/files.hpp"
-#include "../AttachA_CXX.hpp"
-#include <utf8cpp/utf8.h>
+#include <run_time/library/file.hpp>
+#include <util/exceptions.hpp>
+#include <run_time/library/bytes.hpp>
+#include <run_time/tasks.hpp>
+#include <run_time/cxx_library/files.hpp>
+#include <run_time/AttachA_CXX.hpp>
 namespace art{
     using namespace bytes;
 
@@ -40,51 +39,39 @@ namespace art{
             convert_endian_arr<T>(endian, buffer, size);
         }
     #define read_buffer_type(type, to_read) list_array<ValueItem> results; type* str; size_t max_i;size_t rest; read_buffer<type,to_read>(results, str, max_i, rest);if(max_i == 0)break;
-        ValueItem validate_return_utf8(const std::string& str){
-            if(file_encoding == Encoding::ascii)
-                return str;
-            if(str.size() == 0)
-                return str;
-            std::string result;
-            result.reserve(str.size());
-            utf8::replace_invalid(str.begin(), str.end(), std::back_inserter(result));
-            if(result[result.size() - 1] != '\0')
-                result.push_back('\0');
-            result.shrink_to_fit();
-            return result;
+        ValueItem validate_return_utf8(const art::ustring& str){
+            art::ustring tmp;
+            tmp.set_unsafe_state(false,false);
+            tmp = str;
+            return tmp;
         }
-        std::string convert_to_read(std::u16string& str, bool endian_convert){
+        art::ustring convert_to_read(std::u16string& str, bool endian_convert){
             if(endian_convert)
                 convert_endian_arr(endian, str.data(), str.size());
-            std::string result;
-            utf8::utf16to8(str.begin(), str.end(), std::back_inserter(result));
-            return result;
+            return str;
         }
-        std::u16string convert_to_write_u16(const std::string& line, bool endian_convert){
-            std::u16string res;
-            utf8::utf8to16(line.begin(), line.end(), std::back_inserter(res));
+        std::u16string convert_to_write_u16(const art::ustring& line, bool endian_convert){
+            std::u16string res = (std::u16string)line;
             if(endian_convert)
                 convert_endian_arr(endian, res.data(), res.size());
             return res;
         }
 
-        std::string convert_to_read(std::u32string& str, bool endian_convert){
+        art::ustring convert_to_read(std::u32string& str, bool endian_convert){
             if(endian_convert)
                 convert_endian_arr(endian, str.data(), str.size());
-            std::string result;
-            utf8::utf32to8(str.begin(), str.end(), std::back_inserter(result));
-            return result;
+            return art::ustring(str);
         }
-        std::u32string convert_to_write_u32(const std::string& line, bool endian_convert){
-            std::u32string res;
-            utf8::utf8to32(line.begin(), line.end(), std::back_inserter(res));
+        std::u32string convert_to_write_u32(const art::ustring& line, bool endian_convert){
+            std::u32string res = (std::u32string)line;
             if(endian_convert)
                 convert_endian_arr(endian, res.data(), res.size());
             return res;
         }
 
         ValueItem read_line_ascii_utf8(){
-            std::string line;
+            art::ustring line;
+            line.set_unsafe_state(true,false);
             line.reserve(1024);
             while(true){
                 ValueItem item = handle->read(1024);
@@ -111,7 +98,8 @@ namespace art{
             else return validate_return_utf8(line);
         }
         ValueItem read_word_ascii_utf8(){
-            std::string word;
+            art::ustring word;
+            word.set_unsafe_state(true,false);
             word.reserve(32);
             while(true){
                 ValueItem item = handle->read(1024);
@@ -137,7 +125,8 @@ namespace art{
             else return validate_return_utf8(word);
         }
         ValueItem read_symbol_ascii_utf8(bool ascii_mode, bool skip_spaces){
-            std::string symbol;
+            art::ustring symbol;
+            symbol.set_unsafe_state(true,false);
             symbol.reserve(2);
             bool state_readed = false;
             uint8_t bytes_need_read = 0;
@@ -162,10 +151,10 @@ namespace art{
                 case '\t':
                 case '\b':
                     if(ascii_mode)
-                        return std::string(1, (char)c);
+                        return art::ustring((char)c);
                     else{
                         if(!state_readed){
-                            symbol += c;
+                            symbol += (char)c;
                             state_readed = true;
                             //decode bytes need read
                             if(c & 0b10000000){
@@ -184,7 +173,7 @@ namespace art{
                         if(bytes_need_read == 0)
                             return validate_return_utf8(symbol);
                         else{ 
-                            symbol += c;
+                            symbol += (char)c;
                             bytes_need_read--;
                             break;
                         }
@@ -197,7 +186,7 @@ namespace art{
         }
         ValueItem write_ascii_utf8(ValueItem& item, bool ascii_mode){
             if(item.meta.vtype == VType::string){
-                auto& string = *(std::string*)item.getSourcePtr();
+                auto& string = *(art::ustring*)item.getSourcePtr();
                 if(ascii_mode){
                     for(char c : string){
                         if(c > 127)
@@ -206,7 +195,7 @@ namespace art{
                 }
                 return handle->write((uint8_t*)string.data(), string.size());
             }else{
-                auto string = (std::string)item;
+                auto string = (art::ustring)item;
                 return handle->write((uint8_t*)string.data(), string.size());
             }
         }
@@ -271,7 +260,7 @@ namespace art{
                     uint16_t c = *(uint16_t*)item.val;
                     if(state_readed){
                         if((c & 0b1111110000000000) != 0b1101110000000000)
-                            return validate_return_utf8(convert_to_read(symbol += c, true));
+                            return validate_return_utf8(convert_to_read(symbol += (uint16_t)c, true));
                         else{
                             throw InvalidInput("Invalid utf16 symbol, wrong codepoint");
                         }
@@ -288,7 +277,7 @@ namespace art{
                     case '\n':
                     case '\t':
                     case '\b':
-                        symbol += c;
+                        symbol += (char)c;
                         state_readed = true;
                         if constexpr(Endian::native != Endian::little)
                             c = convert_endian<Endian::native>(c);
@@ -310,10 +299,10 @@ namespace art{
         ValueItem write_utf16(ValueItem& item){
             std::u16string string;
             if(item.meta.vtype == VType::string){
-                string = convert_to_write_u16(*(std::string*)item.getSourcePtr(), true);
+                string = convert_to_write_u16(*(art::ustring*)item.getSourcePtr(), true);
             
             }else
-                string = convert_to_write_u16(((std::string)item), true);
+                string = convert_to_write_u16(((art::ustring)item), true);
             size_t size = string.size() * 2;
             auto string_ptr = (uint8_t*)string.data();
             while(size > UINT32_MAX){
@@ -419,10 +408,10 @@ namespace art{
         ValueItem write_utf32(ValueItem& item){
             std::u32string string;
             if(item.meta.vtype == VType::string){
-                string = convert_to_write_u32(*(std::string*)item.getSourcePtr(), true);
+                string = convert_to_write_u32(*(art::ustring*)item.getSourcePtr(), true);
             
             }else
-                string = convert_to_write_u32(((std::string)item), true);
+                string = convert_to_write_u32(((art::ustring)item), true);
             size_t size = string.size() * 2;
             auto string_ptr = (uint8_t*)string.data();
             while(size > UINT32_MAX){
@@ -544,7 +533,7 @@ namespace art{
     namespace file {
         namespace constructor {
             AttachAFun(createProxy_FileHandle, 1,{
-                auto path = (std::string)args[0];
+                auto path = (art::ustring)args[0];
                 bool is_async = true;
                 if(len >= 2)if(args[2].meta.vtype != VType::noting) is_async = (bool)args[1];
                 files::open_mode mode = files::open_mode::read_write;
@@ -568,7 +557,7 @@ namespace art{
             
             })
             AttachAFun(createProxy_BlockingFileHandle, 2,{
-                auto path = (std::string)args[0];
+                auto path = (art::ustring)args[0];
                 files::open_mode mode = files::open_mode::read_write;
                 if(len >= 2)if(args[1].meta.vtype != VType::noting) mode = (files::open_mode)(uint8_t)args[1];
                 files::on_open_action action = files::on_open_action::open;
@@ -594,11 +583,11 @@ namespace art{
             AttachAFun(createProxy_FolderChangesMonitor, 1, {
                 bool calc_depth = len >= 2 ? (bool)args[1] : false;
                 if(args[0].meta.vtype == VType::string){
-                    std::string& path = *(std::string*)args[0].getSourcePtr();
+                    art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
                     return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_depth);
                 }
                 else{
-                    std::string path = (std::string)args[0];
+                    art::ustring path = (art::ustring)args[0];
                     return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_depth);
                 }
             })
@@ -607,11 +596,11 @@ namespace art{
                     return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser()), no_copy);
                 else{
                     if(args[0].meta.vtype == VType::string){
-                        std::string& path = *(std::string*)args[0].getSourcePtr();
+                        art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
                         return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser(path.c_str(), path.size())), no_copy);
                     }
                     else{
-                        std::string path = (std::string)args[0];
+                        art::ustring path = (art::ustring)args[0];
                         return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser(path.c_str(), path.size())), no_copy);
                     }
                 }
@@ -770,13 +759,13 @@ namespace art{
     #pragma region FileBrowser
         AttachAFun(funs_FolderBrowser_folders, 1, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-            return handle->folders().convert_take<ValueItem>([](std::string&& str){
+            return handle->folders().convert_take<ValueItem>([](art::ustring&& str){
                 return std::move(str);
             });
         })
         AttachAFun(funs_FolderBrowser_files, 1, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-            return handle->files().convert_take<ValueItem>([](std::string&& str){
+            return handle->files().convert_take<ValueItem>([](art::ustring&& str){
                 return std::move(str);
             });
         })
@@ -799,11 +788,11 @@ namespace art{
         AttachAFun(funs_FolderBrowser_create_path, 2, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
             if(args[1].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[1].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
                 return handle->create_path(path.c_str(), path.size());
             }
             else{
-                std::string path = (std::string)args[1];
+                art::ustring path = (art::ustring)args[1];
                 return handle->create_path(path.c_str(), path.size());
             }
         })
@@ -814,44 +803,44 @@ namespace art{
         AttachAFun(funs_FolderBrowser_create_file, 2, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
             if(args[1].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[1].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
                 return handle->create_file(path.c_str(), path.size());
             }
             else{
-                std::string path = (std::string)args[1];
+                art::ustring path = (art::ustring)args[1];
                 return handle->create_file(path.c_str(), path.size());
             }
         })
         AttachAFun(funs_FolderBrowser_create_folder, 2, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
             if(args[1].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[1].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
                 return handle->create_folder(path.c_str(), path.size());
             }
             else{
-                std::string path = (std::string)args[1];
+                art::ustring path = (art::ustring)args[1];
                 return handle->create_folder(path.c_str(), path.size());
             }
         })
         AttachAFun(funs_FolderBrowser_remove_file, 2, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
             if(args[1].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[1].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
                 return handle->remove_file(path.c_str(), path.size());
             }
             else{
-                std::string path = (std::string)args[1];
+                art::ustring path = (art::ustring)args[1];
                 return handle->remove_file(path.c_str(), path.size());
             }
         })
         AttachAFun(funs_FolderBrowser_remove_folder, 2, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
             if(args[1].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[1].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
                 return handle->remove_folder(path.c_str(), path.size());
             }
             else{
-                std::string path = (std::string)args[1];
+                art::ustring path = (art::ustring)args[1];
                 return handle->remove_folder(path.c_str(), path.size());
             }
         })
@@ -862,57 +851,57 @@ namespace art{
         AttachAFun(funs_FolderBrowser_rename_file, 3, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);        
             if(args[1].meta.vtype == VType::string && args[2].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[1].getSourcePtr();
-                std::string& new_path = *(std::string*)args[2].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
                 return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else if(args[1].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[1].getSourcePtr();
-                std::string new_path = (std::string)args[2];
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                art::ustring new_path = (art::ustring)args[2];
                 return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else if(args[2].meta.vtype == VType::string){
-                std::string path = (std::string)args[1];
-                std::string& new_path = *(std::string*)args[2].getSourcePtr();
+                art::ustring path = (art::ustring)args[1];
+                art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
                 return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else{
-                std::string path = (std::string)args[1];
-                std::string new_path = (std::string)args[2];
+                art::ustring path = (art::ustring)args[1];
+                art::ustring new_path = (art::ustring)args[2];
                 return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
         })
         AttachAFun(funs_FolderBrowser_rename_folder, 3, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);        
             if(args[1].meta.vtype == VType::string && args[2].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[1].getSourcePtr();
-                std::string& new_path = *(std::string*)args[2].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
                 return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else if(args[1].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[1].getSourcePtr();
-                std::string new_path = (std::string)args[2];
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                art::ustring new_path = (art::ustring)args[2];
                 return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else if(args[2].meta.vtype == VType::string){
-                std::string path = (std::string)args[1];
-                std::string& new_path = *(std::string*)args[2].getSourcePtr();
+                art::ustring path = (art::ustring)args[1];
+                art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
                 return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else{
-                std::string path = (std::string)args[1];
-                std::string new_path = (std::string)args[2];
+                art::ustring path = (art::ustring)args[1];
+                art::ustring new_path = (art::ustring)args[2];
                 return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
         })
         AttachAFun(funs_FolderBrowser_join_folder, 2,{
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);        
             if(args[1].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[1].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, handle->join_folder(path.c_str(), path.size())), no_copy);
             }
             else{
-                std::string path = (std::string)args[1];
+                art::ustring path = (art::ustring)args[1];
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, handle->join_folder(path.c_str(), path.size())), no_copy);
             }
         })
@@ -929,56 +918,56 @@ namespace art{
 
         AttachAFun(remove, 1, {
             if(args[0].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[0].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
                 return files::remove(path.c_str(), path.size());
             }
             else{
-                std::string path = (std::string)args[0];
+                art::ustring path = (art::ustring)args[0];
                 return files::remove(path.c_str(), path.size());
             }
         })
         
         AttachAFun(rename, 2,{
             if(args[0].meta.vtype == VType::string && args[1].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[0].getSourcePtr();
-                std::string& new_path = *(std::string*)args[1].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
+                art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
                 return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else if(args[0].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[0].getSourcePtr();
-                std::string new_path = (std::string)args[1];
+                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
+                art::ustring new_path = (art::ustring)args[1];
                 return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else if(args[1].meta.vtype == VType::string){
-                std::string path = (std::string)args[0];
-                std::string& new_path = *(std::string*)args[1].getSourcePtr();
+                art::ustring path = (art::ustring)args[0];
+                art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
                 return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else{
-                std::string path = (std::string)args[0];
-                std::string new_path = (std::string)args[1];
+                art::ustring path = (art::ustring)args[0];
+                art::ustring new_path = (art::ustring)args[1];
                 return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
         })
         AttachAFun(copy, 2,{
             if(args[0].meta.vtype == VType::string && args[1].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[0].getSourcePtr();
-                std::string& new_path = *(std::string*)args[1].getSourcePtr();
+                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
+                art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
                 return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else if(args[0].meta.vtype == VType::string){
-                std::string& path = *(std::string*)args[0].getSourcePtr();
-                std::string new_path = (std::string)args[1];
+                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
+                art::ustring new_path = (art::ustring)args[1];
                 return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else if(args[1].meta.vtype == VType::string){
-                std::string path = (std::string)args[0];
-                std::string& new_path = *(std::string*)args[1].getSourcePtr();
+                art::ustring path = (art::ustring)args[0];
+                art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
                 return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
             else{
-                std::string path = (std::string)args[0];
-                std::string new_path = (std::string)args[1];
+                art::ustring path = (art::ustring)args[0];
+                art::ustring new_path = (art::ustring)args[1];
                 return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
             }
         })

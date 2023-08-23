@@ -4,9 +4,9 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "../tasks.hpp"
-#include "../AttachA_CXX.hpp"
-#include "chanel.hpp"
+#include <run_time/tasks.hpp>
+#include <run_time/AttachA_CXX.hpp>
+#include <run_time/library/chanel.hpp>
 namespace art{
 	namespace chanel {
 		ValueItem _lazy_load_singleton_chanelDeath() {

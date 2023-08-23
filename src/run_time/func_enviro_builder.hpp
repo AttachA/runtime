@@ -6,7 +6,7 @@
 #pragma once
 #ifndef SRC_RUN_TIME_FUNC_ENVIRO_BUILDER
 #define SRC_RUN_TIME_FUNC_ENVIRO_BUILDER
-#include "asm/FuncEnvironment.hpp"
+#include <run_time/asm/FuncEnvironment.hpp>
 #include <forward_list>
 namespace art{
 	struct FuncEnviroBuilder_line_info {
@@ -18,7 +18,7 @@ namespace art{
 	class FuncEnviroBuilder {
 		std::vector<uint8_t> code;
 		std::vector<uint64_t> jump_pos;
-		std::unordered_map<std::string, size_t> jump_pos_map;
+		std::unordered_map<art::ustring, size_t,art::hash<art::ustring>> jump_pos_map;
 		list_array<ValueItem> dynamic_values;
 		std::forward_list<ValueItem> all_constants;
 		std::vector<art::shared_ptr<FuncEnvironment>> local_funs;
@@ -51,7 +51,7 @@ namespace art{
 					break;
 			}
 		}
-		size_t jumpMap(const std::string& name) {
+		size_t jumpMap(const art::ustring& name) {
 			auto it = jump_pos_map.find(name);
 			if (it == jump_pos_map.end()) {
 				jump_pos_map[name] = jump_pos.size();
@@ -109,7 +109,7 @@ namespace art{
 		void compare(ValueIndexPos val0, ValueIndexPos val1);
 		void compare(ValueIndexPos val0, ValueIndexPos val1, ValueMeta m0, ValueMeta m1);
 
-		void jump(JumpCondition cd, const std::string& label_name);
+		void jump(JumpCondition cd, const art::ustring& label_name);
 
 		void arg_set(ValueIndexPos val0);
 
@@ -153,7 +153,7 @@ namespace art{
 
 		void inline_native_opcode(uint8_t* opcode, uint32_t size);
 
-		void bind_pos(const std::string& label_name);
+		void bind_pos(const art::ustring& label_name);
 	#pragma region arr_op
 		struct _arr{
 			FuncEnviroBuilder& build;
@@ -249,13 +249,13 @@ namespace art{
 		void xarray_slice(ValueIndexPos result, ValueIndexPos val, bool unused, ValueIndexPos to);
 		void xarray_slice(ValueIndexPos result, ValueIndexPos val, ValueIndexPos from, ValueIndexPos to);
 		void table_jump(
-			std::vector<std::string> table,
+			std::vector<art::ustring> table,
 			ValueIndexPos index,
 			bool is_signed = false,
 			TableJumpCheckFailAction too_large = TableJumpCheckFailAction::throw_exception,
-			const std::string& too_large_label = "",
+			const art::ustring& too_large_label = "",
 			TableJumpCheckFailAction too_small = TableJumpCheckFailAction::throw_exception,
-			const std::string& too_small_label = ""
+			const art::ustring& too_small_label = ""
 		);
 		void get_reference(ValueIndexPos res, ValueIndexPos val);
 		void make_as_const(ValueIndexPos res);
@@ -280,8 +280,8 @@ namespace art{
 
 		art::shared_ptr<FuncEnvironment> O_prepare_func();
 		std::vector<uint8_t> O_build_func();
-		void O_load_func(const std::string& symbol_name);
-		void O_patch_func(const std::string& symbol_name);
+		void O_load_func(const art::ustring& symbol_name);
+		void O_patch_func(const art::ustring& symbol_name);
 	};
 }
 #endif /* SRC_RUN_TIME_FUNC_ENVIRO_BUILDER */

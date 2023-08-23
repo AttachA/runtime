@@ -1,5 +1,5 @@
-#include "art_1_0_0.hpp"
-#include "../../util/tools.hpp"
+#include <run_time/asm/il_compiler/art_1_0_0.hpp>
+#include <run_time/util/tools.hpp>
 
 art::CallFlags cast_to_local(art::il_compiler::art_1_0_0::CallFlags flags) {
     art::CallFlags result;
@@ -524,7 +524,7 @@ namespace art{
                     switch (command) {
                     case 0: {
                         uint64_t len = readPackedLen(data, data_len, i);
-                        std::vector<std::string> to_catch_names;
+                        std::vector<art::ustring> to_catch_names;
                         to_catch_names.reserve(len);
 
                         for (uint64_t i = 0; i < len; i++)
@@ -548,7 +548,7 @@ namespace art{
                         uint64_t len = readPackedLen(data, data_len, i);
                         if(len == 0)
                             return;
-                        std::vector<std::string> to_catch_names;
+                        std::vector<art::ustring> to_catch_names;
                         std::vector<uint16_t> to_catch_dynamic_values;
                         to_catch_names.reserve(len/2);
                         to_catch_dynamic_values.reserve(len/2);
@@ -572,7 +572,7 @@ namespace art{
                             compiler.dynamic().handle_catch_5(handle_id,local_function, enviro_slice_begin, enviro_slice_end);
                         }
                         else {
-                            std::string global_function = readString(data, data_len, i);
+                            art::ustring global_function = readString(data, data_len, i);
                             uint16_t enviro_slice_begin = readData<uint16_t>(data, data_len, i);
                             uint16_t enviro_slice_end = readData<uint16_t>(data, data_len, i);
                             compiler.dynamic().handle_catch_5(handle_id, global_function, enviro_slice_begin, enviro_slice_end);
@@ -592,7 +592,7 @@ namespace art{
                         compiler.dynamic().handle_finally(handle_id,local_function, enviro_slice_begin, enviro_slice_end);
                     }
                     else {
-                        std::string global_function = readString(data, data_len, i);
+                        art::ustring global_function = readString(data, data_len, i);
                         uint16_t enviro_slice_begin = readData<uint16_t>(data, data_len, i);
                         uint16_t enviro_slice_end = readData<uint16_t>(data, data_len, i);
                         compiler.dynamic().handle_finally(handle_id, global_function, enviro_slice_begin, enviro_slice_end);

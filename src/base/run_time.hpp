@@ -5,12 +5,12 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
-#include "run_time/exceptions.hpp"
-#include <list_array.hpp>
-#include "run_time/tasks.hpp"
-#include "run_time/cxxException.hpp"
-#include "run_time/util/enum_helper.hpp"
-#include "run_time/util/shared_ptr.hpp"
+#include <util/exceptions.hpp>
+#include <library/list_array.hpp>
+#include <run_time/tasks.hpp>
+#include <run_time/cxxException.hpp>
+#include <util/enum_helper.hpp>
+#include <util/shared_ptr.hpp>
 namespace art{
 	typedef void* (*CALL_FUNC)(...);
 
@@ -62,27 +62,27 @@ namespace art{
 	bool restore_stack_fault();
 	bool need_restore_stack_fault();
 
-	void invite_to_debugger(const std::string& reason);
-	bool _set_name_thread_dbg(const std::string& name);
-	std::string _get_name_thread_dbg(unsigned long thread_id);
+	void invite_to_debugger(const art::ustring& reason);
+	bool _set_name_thread_dbg(const art::ustring& name);
+	art::ustring _get_name_thread_dbg(unsigned long thread_id);
 	unsigned long _thread_id();
 
 	void ini_current();
-	void modify_run_time_config(const std::string& name, const std::string& value);
-	std::string get_run_time_config(const std::string& name);
+	void modify_run_time_config(const art::ustring& name, const art::ustring& value);
+	art::ustring get_run_time_config(const art::ustring& name);
 	namespace DynamicCall {
 		class FunctionTemplate;
 	}
 
 	class NativeLib {
 		void* hGetProcIDDLL;
-		std::unordered_map<std::string, art::shared_ptr<FuncEnvironment>> envs;
+		std::unordered_map<art::ustring, art::shared_ptr<FuncEnvironment>, art::hash<art::ustring>> envs;
 	public:
-		NativeLib(const std::string& library_path);
-		CALL_FUNC get_func(const std::string& func_name);
-		art::shared_ptr<FuncEnvironment> get_func_enviro(const std::string& func_name, const DynamicCall::FunctionTemplate& templ);
-		art::shared_ptr<FuncEnvironment> get_own_enviro(const std::string& func_name);
-		size_t get_pure_func(const std::string& func_name);
+		NativeLib(const art::ustring& library_path);
+		CALL_FUNC get_func(const art::ustring& func_name);
+		art::shared_ptr<FuncEnvironment> get_func_enviro(const art::ustring& func_name, const DynamicCall::FunctionTemplate& templ);
+		art::shared_ptr<FuncEnvironment> get_own_enviro(const art::ustring& func_name);
+		size_t get_pure_func(const art::ustring& func_name);
 		~NativeLib();
 	};
 }

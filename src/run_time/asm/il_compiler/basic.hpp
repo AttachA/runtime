@@ -1,7 +1,7 @@
 #ifndef SRC_RUN_TIME_ASM_IL_COMPILER_BASIC
 #define SRC_RUN_TIME_ASM_IL_COMPILER_BASIC
 #include <vector>
-#include "../compiler.hpp"
+#include <run_time/asm/compiler.hpp>
 
 namespace art{
     namespace il_compiler{
@@ -28,7 +28,7 @@ namespace art{
                 uint32_t& used_arguments, 
                 uint64_t& constants_values) = 0;
         };
-        basic* map_compiler(std::string name_version);
+        basic* map_compiler(art::ustring name_version);
     }
 }
 #endif /* SRC_RUN_TIME_ASM_IL_COMPILER_BASIC */

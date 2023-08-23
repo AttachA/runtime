@@ -1,10 +1,10 @@
-#include "../attacha_abi_structs.hpp"
-#include "../cxxException.hpp"
+#include <run_time/attacha_abi_structs.hpp>
+#include <run_time/cxxException.hpp>
 #ifdef _WIN64
 #include <dbgeng.h>
-#include "CASM.hpp"
-#include "../util/tools.hpp"
-#include "../../run_time.hpp"
+#include <run_time/asm/CASM.hpp>
+#include <run_time/util/tools.hpp>
+#include <base/run_time.hpp>
 namespace art{
     struct CXXExInfo;
     namespace exception{
@@ -216,7 +216,7 @@ namespace art{
             }
         }
         ValueItem* get_current_exception_description(){
-            std::string description;
+            art::ustring description;
             if(current_ex_info.ex_ptr == nullptr){
                 if(current_ex_info.native_id == 0)
                     return nullptr;
@@ -224,7 +224,7 @@ namespace art{
                 switch (current_ex_info.native_id) {
                 case EXCEPTION_ACCESS_VIOLATION:
                     description = 
-                        "Program attempted to " + std::string(current_ex_info.ex_data_0 ? "write" : "read") 
+                        "Program attempted to " + art::ustring(current_ex_info.ex_data_0 ? "write" : "read") 
                         + (current_ex_info.ex_data_1 < UINT16_MAX ? " in null pointer region. 0x" : " in non mapped region. 0x")
                         + string_help::hexstr(current_ex_info.ex_data_1);
                     break;
@@ -261,9 +261,9 @@ namespace art{
                     if(current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty){return ty.ty_info->name() == typeid(AttachARuntimeException).name();}))
                         description = ((AttachARuntimeException*)current_ex_info.ex_ptr)->what();
                     else if(current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty){return ty.ty_info->name() == typeid(std::exception).name();})){
-                        description = std::string(current_ex_info.ty_arr[0].ty_info->name()) + ": " + ((std::exception*)current_ex_info.ex_ptr)->what();
+                        description = art::ustring(current_ex_info.ty_arr[0].ty_info->name()) + ": " + ((std::exception*)current_ex_info.ex_ptr)->what();
                     }else
-                        description = "Can not decode exception: " + std::string(current_ex_info.ty_arr[0].ty_info->name());
+                        description = "Can not decode exception: " + art::ustring(current_ex_info.ty_arr[0].ty_info->name());
                 }
             }
             return new ValueItem(description);
@@ -317,8 +317,8 @@ namespace art{
         bool has_exception(){
             return current_ex_info.ex_ptr != nullptr || current_ex_info.native_id != 0;
         }
-        list_array<std::string> map_native_exception_names(CXXExInfo& info){
-            list_array<std::string> ret;
+        list_array<art::ustring> map_native_exception_names(CXXExInfo& info){
+            list_array<art::ustring> ret;
             if(info.ex_ptr == nullptr) {
                 switch (info.native_id) {
                 case EXCEPTION_ACCESS_VIOLATION:
@@ -350,7 +350,7 @@ namespace art{
                     return {"unknown_native_exception"};
                 }
             } else {
-                return info.ty_arr.convert<std::string>([&info](const CXXExInfo::Tys& ty) -> list_array<std::string> {
+                return info.ty_arr.convert<art::ustring>([&info](const CXXExInfo::Tys& ty) -> list_array<art::ustring> {
                     if(ty.is_bad_alloc)
                         return {"bad_alloc", "allocation_exception"};
                     if(ty.ty_info->name() == typeid(AttachARuntimeException).name())
@@ -362,17 +362,16 @@ namespace art{
 	    }
         bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro) {
             uint8_t* data_info = (uint8_t*)data;
-            list_array<std::string> exceptions;
+            list_array<art::ustring> exceptions;
             *continue_from = internal::readFromArrayAsValue<void*>(data_info);
             switch (*data_info++) {
                 case 0: {
                     uint64_t handle_count = internal::readFromArrayAsValue<uint64_t>(data_info);
                     exceptions.reserve_push_back(handle_count);
                     for (size_t i = 0; i < handle_count; i++) {
-                        std::string string;
                         size_t len = 0;
                         char* str = internal::readFromArrayAsArray<char>(data_info, len);
-                        string.assign(str, len);
+                        art::ustring string(str, len);
                         delete[] str;
                         exceptions.push_back(string);
                     }
@@ -381,7 +380,7 @@ namespace art{
                 case 1: {
                     uint16_t value = internal::readFromArrayAsValue<uint16_t>(data_info);
                     ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
-                    exceptions.push_back((std::string)*item);
+                    exceptions.push_back((art::ustring)*item);
                     break;
                 }
                 case 2: {
@@ -390,7 +389,7 @@ namespace art{
                     for (size_t i = 0; i < handle_count; i++) {
                         uint16_t value = internal::readFromArrayAsValue<uint16_t>(data_info);
                         ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
-                        exceptions.push_back((std::string)*item);
+                        exceptions.push_back((art::ustring)*item);
                     }
                     break;
                 }
@@ -400,17 +399,16 @@ namespace art{
                     for (size_t i = 0; i < handle_count; i++) {
                         bool is_dynamic = internal::readFromArrayAsValue<bool>(data_info);
                         if (!is_dynamic) {
-                            std::string string;
                             size_t len = 0;
                             char* str = internal::readFromArrayAsArray<char>(data_info, len);
-                            string.assign(str, len);
+                            art::ustring string(str, len);
                             delete[] str;
                             exceptions.push_back(string);
                         }
                         else {
                             uint16_t value = internal::readFromArrayAsValue<uint16_t>(data_info);
                             ValueItem* item = (ValueItem*)enviro + (uint32_t(value)<<1);
-                            exceptions.push_back((std::string)*item);
+                            exceptions.push_back((art::ustring)*item);
                         }
                     }
                     break;
@@ -437,7 +435,7 @@ namespace art{
                 default:
                     throw BadOperationException();
             }
-            return exception::map_native_exception_names(info).contains_one([&exceptions](const std::string& str) {
+            return exception::map_native_exception_names(info).contains_one([&exceptions](const art::ustring& str) {
                 return exceptions.contains(str);
             });
         }
@@ -456,9 +454,9 @@ namespace art{
     }
 }
 #else
-#include "CASM.hpp"
-#include "../util/tools.hpp"
-#include "../../run_time.hpp"
+#include <run_time/asm/CASM.hpp>
+#include <run_time/util/tools.hpp>
+#include <base/run_time.hpp>
 namespace art{
     struct CXXExInfo;
     namespace exception{
@@ -494,7 +492,7 @@ namespace art{
             }
         }
         ValueItem* get_current_exception_description(){
-            std::string description;
+            art::ustring description;
             if(current_ex_info.ex_ptr == nullptr){
                 if(current_ex_info.native_id == 0)
                     return nullptr;
@@ -507,9 +505,9 @@ namespace art{
                     if(current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty){return ty.ty_info->name() == typeid(AttachARuntimeException).name();}))
                         description = ((AttachARuntimeException*)current_ex_info.ex_ptr)->what();
                     else if(current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty){return ty.ty_info->name() == typeid(std::exception).name();})){
-                        description = std::string(current_ex_info.ty_arr[0].ty_info->name()) + ": " + ((std::exception*)current_ex_info.ex_ptr)->what();
+                        description = art::ustring(current_ex_info.ty_arr[0].ty_info->name()) + ": " + ((std::exception*)current_ex_info.ex_ptr)->what();
                     }else
-                        description = "Can not decode excetion: " + std::string(current_ex_info.ty_arr[0].ty_info->name());
+                        description = "Can not decode excetion: " + art::ustring(current_ex_info.ty_arr[0].ty_info->name());
                 }
             }
             return new ValueItem(description);
@@ -562,15 +560,15 @@ namespace art{
         bool has_exception(){
             return current_ex_info.ex_ptr != nullptr || current_ex_info.native_id != 0;
         }
-        list_array<std::string> map_native_exception_names(CXXExInfo& info){
-            list_array<std::string> ret;
+        list_array<art::ustring> map_native_exception_names(CXXExInfo& info){
+            list_array<art::ustring> ret;
             if(info.ex_ptr == nullptr) {
                 switch (info.native_id) {
                 default:
                     return {"unknown_native_exception"};
                 }
             } else {
-                return info.ty_arr.convert<std::string>([&info](const CXXExInfo::Tys& ty) -> list_array<std::string> {
+                return info.ty_arr.convert<art::ustring>([&info](const CXXExInfo::Tys& ty) -> list_array<art::ustring> {
                     if(ty.is_bad_alloc)
                         return {"bad_alloc", "allocation_exception"};
                     if(ty.ty_info->name() == typeid(AttachARuntimeException).name())

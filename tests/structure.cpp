@@ -6,11 +6,11 @@ ValueItem* _test_set_string(ValueItem* args, uint32_t argc){
   	EXPECT_EQ(args[0].meta.vtype, VType::struct_);
 	Structure* str = (Structure*)args[0].getSourcePtr();
 	if(str->get_vtable_mode() == Structure::VTableMode::AttachAVirtualTable)
-		EXPECT_EQ(str->get_vtable(), CXX::Interface::typeVTable<std::string>());
+		EXPECT_EQ(str->get_vtable(), CXX::Interface::typeVTable<art::ustring>());
 	EXPECT_NE(str->get_data_no_vtable(), nullptr);
-	std::string& class_string = *(std::string*)str->get_data_no_vtable();
+	art::ustring& class_string = *(art::ustring*)str->get_data_no_vtable();
 	EXPECT_NO_THROW({
-		class_string = (std::string)args[1];
+		class_string = (art::ustring)args[1];
 	});
 	return nullptr;
 }
@@ -19,17 +19,17 @@ ValueItem* _test_get_string(ValueItem* args, uint32_t argc){
   	EXPECT_EQ(args[0].meta.vtype, VType::struct_);
 	Structure* str = (Structure*)args[0].getSourcePtr();
 	if(str->get_vtable_mode() == Structure::VTableMode::AttachAVirtualTable)
-		EXPECT_EQ(str->get_vtable(), CXX::Interface::typeVTable<std::string>());
+		EXPECT_EQ(str->get_vtable(), CXX::Interface::typeVTable<art::ustring>());
 	EXPECT_NE(str->get_data_no_vtable(), nullptr);
-	std::string& class_string = *(std::string*)str->get_data_no_vtable();
+	art::ustring& class_string = *(art::ustring*)str->get_data_no_vtable();
 	return new ValueItem(class_string);
 }
 TEST(Structure, AttachA_methods) {
-	auto table = CXX::Interface::createTable<std::string>(".",
+	auto table = CXX::Interface::createTable<art::ustring>(".",
 		CXX::Interface::direct_method("get_string", _test_get_string),
 		CXX::Interface::direct_method("set_string", _test_set_string)
 	);
-	CXX::Interface::typeVTable<std::string>() = table;
+	CXX::Interface::typeVTable<art::ustring>() = table;
 	EXPECT_NE(table, nullptr);
 	EXPECT_TRUE(table->hasMethod("get_string", ClassAccess::pub));
 	EXPECT_TRUE(table->hasMethod("set_string", ClassAccess::pub));
@@ -40,7 +40,7 @@ TEST(Structure, AttachA_methods) {
 	EXPECT_TRUE(table->hasMethod("get_string", ClassAccess::intern));
 	EXPECT_TRUE(table->hasMethod("set_string", ClassAccess::intern));
 
-	Structure* str = CXX::Interface::constructStructure<std::string>(table);
+	Structure* str = CXX::Interface::constructStructure<art::ustring>(table);
 	EXPECT_NE(str, nullptr);
 	EXPECT_TRUE(str->has_method("get_string", ClassAccess::pub));
 	EXPECT_TRUE(str->has_method("set_string", ClassAccess::pub));
@@ -52,7 +52,7 @@ TEST(Structure, AttachA_methods) {
 	EXPECT_TRUE(str->has_method("set_string", ClassAccess::intern));
 	
 	
-	Structure* str2 = CXX::Interface::constructStructure<std::string>(table, "Hello world!");
+	Structure* str2 = CXX::Interface::constructStructure<art::ustring>(table, "Hello world!");
 	EXPECT_NE(str2, nullptr);
 	EXPECT_TRUE(str2->has_method("get_string", ClassAccess::pub));
 	EXPECT_TRUE(str2->has_method("set_string", ClassAccess::pub));
@@ -73,7 +73,7 @@ TEST(Structure, AttachA_methods) {
 
 
 TEST(Structure, AttachA_methods_dynamic) {
-	auto table = CXX::Interface::createDTable<std::string>(".",
+	auto table = CXX::Interface::createDTable<art::ustring>(".",
 		CXX::Interface::direct_method("get_string", _test_get_string),
 		CXX::Interface::direct_method("set_string", _test_set_string)
 	);
@@ -87,7 +87,7 @@ TEST(Structure, AttachA_methods_dynamic) {
 	EXPECT_TRUE(table->hasMethod("get_string", ClassAccess::intern));
 	EXPECT_TRUE(table->hasMethod("set_string", ClassAccess::intern));
 
-	Structure* str = CXX::Interface::constructStructure<std::string>(table);
+	Structure* str = CXX::Interface::constructStructure<art::ustring>(table);
 	EXPECT_NE(str, nullptr);
 	EXPECT_TRUE(str->has_method("get_string", ClassAccess::pub));
 	EXPECT_TRUE(str->has_method("set_string", ClassAccess::pub));
@@ -98,11 +98,11 @@ TEST(Structure, AttachA_methods_dynamic) {
 	EXPECT_TRUE(str->has_method("get_string", ClassAccess::intern));
 	EXPECT_TRUE(str->has_method("set_string", ClassAccess::intern));
 	
-	table = CXX::Interface::createDTable<std::string>(".",
+	table = CXX::Interface::createDTable<art::ustring>(".",
 		CXX::Interface::direct_method("get_string", _test_get_string),
 		CXX::Interface::direct_method("set_string", _test_set_string)
 	);
-	Structure* str2 = CXX::Interface::constructStructure<std::string>(table, "Hello world!");
+	Structure* str2 = CXX::Interface::constructStructure<art::ustring>(table, "Hello world!");
 	EXPECT_NE(str2, nullptr);
 	EXPECT_TRUE(str2->has_method("get_string", ClassAccess::pub));
 	EXPECT_TRUE(str2->has_method("set_string", ClassAccess::pub));

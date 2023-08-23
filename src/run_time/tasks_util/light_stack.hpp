@@ -7,7 +7,7 @@
 #include <boost/context/stack_traits.hpp>
 #include <boost/context/stack_context.hpp>
 #include <boost/context/fiber.hpp>  
-#include "../attacha_abi.hpp"
+#include <run_time/attacha_abi.hpp>
 namespace art{
     struct light_stack {
         typedef boost::context::stack_traits traits_type;
@@ -33,7 +33,7 @@ namespace art{
         //
         static ValueItem* dump_current();
         //default formatted string
-        static std::string dump_current_str();
+        static art::ustring dump_current_str();
         //console
         static void dump_current_out();
 
@@ -47,7 +47,7 @@ namespace art{
         // false if invalid ptr
         static ValueItem* dump(void*);
         //default formatted string
-        static std::string dump_str(void*);
+        static art::ustring dump_str(void*);
         //console
         static void dump_out(void*);
 

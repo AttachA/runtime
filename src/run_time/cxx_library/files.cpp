@@ -1,10 +1,11 @@
-#include "files.hpp"
-#include "../exceptions.hpp"
-#include "../tasks.hpp"
-#include "../tasks_util/native_workers_singleton.hpp"
+#include <run_time/cxx_library/files.hpp>
+#include <util/exceptions.hpp>
+#include <run_time/tasks.hpp>
+#include <run_time/tasks_util/native_workers_singleton.hpp>
 #include <filesystem>
-#include "../AttachA_CXX.hpp"
-#include "../../../configuration/compatibility.hpp"
+#include <run_time/AttachA_CXX.hpp>
+#include <configuration/compatibility.hpp>
+#include <util/ustring.hpp>
 namespace art{
     class IFolderChangesMonitor{
         virtual void start() noexcept(false) = 0;//start async scan
@@ -862,7 +863,7 @@ namespace art{
             if (handle != INVALID_HANDLE_VALUE) {
                 int file_descriptor = _open_osfhandle((intptr_t)handle, 0);
                 if (file_descriptor != -1) {
-                    std::string mode;
+                    art::ustring mode;
                     switch (open) {
                     case open_mode::read:
                         mode = "r";
@@ -1009,16 +1010,16 @@ namespace art{
                 _path = copy._path;
             }
             FolderBrowserImpl(){}
-            list_array<std::string> folders(){
+            list_array<art::ustring> folders(){
                 reduce_to_folder();
-                list_array<std::string> result;
+                list_array<art::ustring> result;
                 if(_path.empty()){
                     DWORD drives = GetLogicalDrives();
                     for(int i = 0; i < 26; i++){
                         if (drives & (1 << i)) {
-                            std::string disk("A:");
+                            char disk[]{"A:"};
                             disk[0] += i;
-                            result.push_back(disk);
+                            result.push_back(art::ustring(disk,3));
                         }
                     }
                     return result;
@@ -1027,8 +1028,7 @@ namespace art{
                     if(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY){
                         if(!wcscmp(fd.cFileName, L".") || !wcscmp(fd.cFileName, L".."))
                             return false;
-                        std::string utf8;
-                        utf8::utf16to8(fd.cFileName, fd.cFileName + wcslen(fd.cFileName), std::back_inserter(utf8));
+                        art::ustring utf8((const char16_t*)fd.cFileName, wcslen(fd.cFileName));
                         for(auto& c : utf8)
                             if(c == native_separator)
                                 c = separator;
@@ -1038,13 +1038,12 @@ namespace art{
                 });
                 return result;
             }
-            list_array<std::string> files(){
+            list_array<art::ustring> files(){
                 reduce_to_folder();
-                list_array<std::string> result;
+                list_array<art::ustring> result;
                 iterate_current_path([&result](const WIN32_FIND_DATAW& fd){
                     if(!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY || fd.dwFileAttributes & FILE_ATTRIBUTE_DEVICE)){
-                        std::string utf8;
-                        utf8::utf16to8(fd.cFileName, fd.cFileName + wcslen(fd.cFileName), std::back_inserter(utf8));
+                        art::ustring utf8((const char16_t*)fd.cFileName, wcslen(fd.cFileName));
                         for(auto& c : utf8)
                             if(c == native_separator)
                                 c = separator;
@@ -1268,7 +1267,7 @@ namespace art{
                     if(length == 1 && isupper(folder_name[0])){
                         DWORD drives = GetLogicalDrives();
                         if(drives & (1 << (folder_name[0] - 'A'))){
-                            std::string path = folder_name + std::string(":\\");
+                            art::ustring path = folder_name + art::ustring(":\\");
                             return new FolderBrowserImpl(path.c_str(), path.length());
                         }
                     }
@@ -1286,7 +1285,7 @@ namespace art{
                 res->_path = wpath;
                 return res;
             }
-            std::string get_current_path(){
+            art::ustring get_current_path(){
                 std::string res;
                 utf8::utf16to8(_path.begin(), _path.end(), std::back_inserter(res));
                 std::string_view pre_result = res;
@@ -1325,7 +1324,7 @@ namespace art{
         class FolderChangesMonitorImpl : public NativeWorkerManager, public IFolderChangesMonitor{
             struct file_state{
                 FILE_NOTIFY_EXTENDED_INFORMATION* current = nullptr;
-                std::string full_path;//utf8
+                art::ustring full_path;//utf8
                 ~file_state(){
                     if(current)
                         free(current);
@@ -1335,7 +1334,7 @@ namespace art{
             HANDLE _directory;
             bool depth_scan;
             bool _is_running = false;
-            std::unordered_map<long long, file_state> states;
+            std::unordered_map<long long, file_state, art::hash<long long>> states;
 
 
             typed_lgr<EventSystem> _folder_name_change = new EventSystem;
@@ -1433,8 +1432,7 @@ namespace art{
                                 creation_time.HighPart = info.ftCreationTime.dwHighDateTime;
                                 creation_time.LowPart = info.ftCreationTime.dwLowDateTime;
                                 ids.push_back(id.QuadPart);
-                                std::string name;
-                                utf8::utf16to8(file_name.begin(), file_name.end(), std::back_inserter(name));
+                                art::ustring name((const char16_t*)file_name.data(), file_name.size());
                                 auto it = states.find(id.QuadPart);
                                 DWORD action = 0;
                                 if(it == states.end()){
@@ -1554,7 +1552,7 @@ namespace art{
             void manually_iterate(){
                 list_array<int64_t> ids;
                 manually_iterate(_path, ids);
-                std::unordered_set<int64_t> _ids;
+                std::unordered_set<int64_t, art::hash<int64_t>> _ids;
                 _ids.reserve(ids.size());
                 for(auto& id : ids)
                     _ids.insert(id);
@@ -1603,8 +1601,7 @@ namespace art{
                 do{
                     std::wstring file_name = _path + L"\\";
                     file_name.insert(file_name.end(), info->FileName, info->FileName + info->FileNameLength / sizeof(wchar_t));
-                    std::string name;
-                    utf8::utf16to8(file_name.begin(), file_name.end(), std::back_inserter(name));
+                    art::ustring name((const char16_t*)file_name.data(), file_name.size());
                     bool is_folder = info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY;
                     switch(info->Action){
                         case FILE_ACTION_ADDED:{
@@ -2023,12 +2020,12 @@ namespace art{
             if (impl != nullptr)
                 delete impl;
         }
-        list_array<std::string> FolderBrowser::folders() {
+        list_array<art::ustring> FolderBrowser::folders() {
             if (impl == nullptr)
                 return false;
             return impl->folders();
         }
-        list_array<std::string> FolderBrowser::files() {
+        list_array<art::ustring> FolderBrowser::files() {
             if (impl == nullptr)
                 return false;
             return impl->files();
@@ -2109,7 +2106,7 @@ namespace art{
                 throw AException("FolderBrowserException", "FolderBrowser is not initialized");
             return new FolderBrowser(impl->join_folder(folder_name, length));
         }
-        std::string FolderBrowser::get_current_path() {
+        art::ustring FolderBrowser::get_current_path() {
             if (impl == nullptr)
                 return "";
             return impl->get_current_path();
@@ -2739,7 +2736,7 @@ namespace art{
             
             int wflags = 0;
             if(flags.delete_on_close)
-                _path = std::string(path, path_len);
+                _path = art::ustring(path, path_len);
             if(flags.no_buffering)
                 mode |= O_DIRECT;
             //if(flags.posix_semantics)
@@ -2924,7 +2921,7 @@ namespace art{
         
 
         class FolderBrowserImpl{
-            std::string _path;
+            art::ustring _path;
             static inline constexpr char separator = '/';
             static inline constexpr char native_separator = '/';
             static char is_separator(char c){
@@ -2967,7 +2964,7 @@ namespace art{
             void iterate_current_path(_FN iterator){
                 if(!current_path_is_folder())
                     return;
-                std::string search_path = _path + "/";
+                art::ustring search_path = _path + "/";
                 for(auto& c : search_path)
                     if(c == '\\')
                         c = '/';
@@ -2981,7 +2978,7 @@ namespace art{
                 closedir(dir);
             }
             void normalize_path() {
-                std::string result;
+                art::ustring result;
                 result.reserve(_path.length());
                 uint8_t dot_count = 0;
                 bool in_folder = false;
@@ -3008,12 +3005,12 @@ namespace art{
                 }
                 _path = std::move(result);
             }
-            static bool _remove_(const std::string& path){
+            static bool _remove_(const art::ustring& path){
                 struct stat st;
                 if(stat(path.c_str(), &st) == -1)
                     return false;
                 if(S_ISDIR(st.st_mode)){
-                    std::string search_path = path + "/";
+                    art::ustring search_path = path + "/";
                     for(auto& c : search_path)
                         if(c == '\\')
                             c = '/';
@@ -3024,7 +3021,7 @@ namespace art{
                     while((entry = readdir(dir)) != nullptr){
                         if(!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, ".."))
                             continue;
-                        std::string new_path = path + "/" + entry->d_name;
+                        art::ustring new_path = path + "/" + entry->d_name;
                         _remove_(new_path);
                     }
                     closedir(dir);
@@ -3040,9 +3037,9 @@ namespace art{
                 _path = copy._path;
             }
             FolderBrowserImpl(){}
-            list_array<std::string> folders(){
+            list_array<art::ustring> folders(){
                 reduce_to_folder();
-                list_array<std::string> result;
+                list_array<art::ustring> result;
                 iterate_current_path([&result](const dirent64* fd){
                     if(fd->d_type == DT_DIR){
                         if(!strcmp(fd->d_name, ".") || !strcmp(fd->d_name, ".."))
@@ -3053,9 +3050,9 @@ namespace art{
                 });
                 return result;
             }
-            list_array<std::string> files(){
+            list_array<art::ustring> files(){
                 reduce_to_folder();
-                list_array<std::string> result;
+                list_array<art::ustring> result;
                 iterate_current_path([&result](const dirent64* fd){
                     if(fd->d_type == DT_REG)
                         result.push_back(fd->d_name);
@@ -3093,7 +3090,7 @@ namespace art{
                     _path = _path.substr(0, pos);
                 }
                 //linux way
-                std::string __path = _path + "/" + std::string(path, length);
+                art::ustring __path = _path + "/" + art::ustring(path, length);
                 return mkdir(__path.c_str(), 0777) != -1;
             }
             bool create_current_path(){
@@ -3116,7 +3113,7 @@ namespace art{
                 if(length == 2 && is_separator(file_name[0]) && is_separator(file_name[1]))
                     return false;
                 //linux way
-                std::string __path = _path + "/" + std::string(file_name, length);
+                art::ustring __path = _path + "/" + art::ustring(file_name, length);
                 int fd = open(__path.c_str(), O_CREAT | O_EXCL, 0777);
                 if(fd == -1)
                     return false;
@@ -3130,7 +3127,7 @@ namespace art{
                     return false;
                 if(length == 2 && is_separator(folder_name[0]) && is_separator(folder_name[1]))
                     return false;
-                std::string path = _path + "/";
+                art::ustring path = _path + "/";
                 path.append(folder_name, length);
                 return mkdir(path.c_str(), 0777) != -1;
             }
@@ -3144,7 +3141,7 @@ namespace art{
                     return false;
                 if(length == 2 && is_separator(file_name[0]) && is_separator(file_name[1]))
                     return false;
-                std::string path = _path + "/";
+                art::ustring path = _path + "/";
                 path.append(file_name, length);
                 return unlink(path.c_str()) != -1;
             }
@@ -3155,7 +3152,7 @@ namespace art{
                     return false;
                 if(length == 2 && is_separator(folder_name[0]) && is_separator(folder_name[1]))
                     return false;
-                std::string path = _path + "/";
+                art::ustring path = _path + "/";
                 path.append(folder_name, length);
                 return _remove_(path);
             }
@@ -3182,8 +3179,8 @@ namespace art{
                     return false;
                 if(new_length == 2 && is_separator(new_name[0]) && is_separator(new_name[1]))
                     return false;
-                std::string wold = _path + "\\";
-                std::string wnew = _path + "\\";
+                art::ustring wold = _path + "\\";
+                art::ustring wnew = _path + "\\";
                 wold.append(old_name, old_length);
                 wnew.append(new_name, new_length);
                 return ::rename(wold.c_str(), wnew.c_str()) != -1;
@@ -3208,23 +3205,23 @@ namespace art{
                         else{
                             auto res = new FolderBrowserImpl(*this);
                             res->_path.resize(pos);
-                            std::string wpath = res->_path;
+                            art::ustring wpath = res->_path;
                             return res;
                         }
                     }
                 }
-                std::string wpath = _path + "\\";
+                art::ustring wpath = _path + "\\";
                 wpath.append(folder_name, length);
                 auto res = new FolderBrowserImpl(wpath.c_str(), wpath.length());
                 return res;
             }
-            std::string get_current_path(){
-                std::string res;
-                std::string_view pre_result = res;
+            art::ustring get_current_path(){
+                art::ustring res;
+                art::ustring_view pre_result = res;
                 for (auto& c : res)
                     if (c == '\\')
                         c = separator;
-                return (std::string)pre_result;
+                return (art::ustring)pre_result;
             }
         };
 
@@ -3235,13 +3232,13 @@ namespace art{
         class FolderChangesMonitorImpl : public NativeWorkerManager, public IFolderChangesMonitor{
             struct file_state{
                 struct stat64* current = nullptr;
-                std::string full_path;
+                art::ustring full_path;
                 ~file_state(){
                     if(current)
                         delete current;
                 }
             };
-            std::string _path;
+            art::ustring _path;
             struct FolderInfo {
                 int watcher;
                 int folder_watch;
@@ -3250,7 +3247,7 @@ namespace art{
 		    FolderInfo  _directory;
             bool depth_scan;
             bool _is_running = false;
-            std::unordered_map<ino64_t, file_state> states;
+            std::unordered_map<ino64_t, file_state,art::hash<ino64_t> states;
 
             
             constexpr static std::uint32_t _listen_filters = IN_MODIFY | IN_CREATE | IN_DELETE | IN_ATTRIB | IN_MOVE;
@@ -3301,7 +3298,7 @@ namespace art{
                 folder_size_change,
                 folder_attributes
             };
-            static std::string absolute_path_of(const std::string& path) {
+            static art::ustring absolute_path_of(const art::ustring& path) {
                   char buf[PATH_MAX];
                   const char* str = buf;
                   struct stat stat;
@@ -3320,10 +3317,10 @@ namespace art{
                               }
                         }
                   }
-                  return std::string {buf};
+                  return art::ustring {buf};
             }
 
-            void manually_iterate(const std::string& _path, list_array<ino64_t>& ids) {
+            void manually_iterate(const art::ustring& _path, list_array<ino64_t>& ids) {
                 DIR* dir = opendir(_path.c_str());
                 if(dir == nullptr)
                     return;
@@ -3333,7 +3330,7 @@ namespace art{
                         continue;
                     if (entry->d_name[0] == '.' && entry->d_name[1] == '.' && entry->d_name[2] == '\0')
                         continue;
-                    std::string file_name = _path + "/" + entry->d_name;
+                    art::ustring file_name = _path + "/" + entry->d_name;
                     ValueItem args{ file_name };
                     file_state& state = states[entry->d_ino];
                     struct stat64 current;
@@ -3382,7 +3379,7 @@ namespace art{
             void manually_iterate(){
                 list_array<ino64_t> ids;
                 manually_iterate(_path, ids);
-                std::unordered_set<int64_t> _ids;
+                std::unordered_set<int64_t, art::hash<int64_t>> _ids;
                 _ids.reserve(ids.size());
                 for(auto& id : ids)
                     _ids.insert(id);
@@ -3419,8 +3416,8 @@ namespace art{
                 }
             }
         public:
-            FolderChangesMonitorImpl(const std::string& path, bool depth_scan) noexcept(false) : depth_scan(depth_scan), _path(path){initialize();}
-            FolderChangesMonitorImpl(std::string&& path, bool depth_scan) noexcept(false) : depth_scan(false), _path(path) {initialize();}
+            FolderChangesMonitorImpl(const art::ustring& path, bool depth_scan) noexcept(false) : depth_scan(depth_scan), _path(path){initialize();}
+            FolderChangesMonitorImpl(art::ustring&& path, bool depth_scan) noexcept(false) : depth_scan(false), _path(path) {initialize();}
             ~FolderChangesMonitorImpl(){
 			    inotify_rm_watch(_directory.watcher, _directory.folder_watch);
                 close(_directory.watcher);
@@ -3435,7 +3432,7 @@ namespace art{
                         
                         if(event->mask & IN_IGNORED)
                             return;
-                        std::string name = _path + "/" + event->name;
+                        art::ustring name = _path + "/" + event->name;
                         ValueItem args{name};
                         struct stat64 stat;
                         ::stat64(name.c_str(), &stat);
@@ -3710,7 +3707,7 @@ namespace art{
         }
         ValueItem copy(const char* path, size_t length, const char* new_path, size_t new_length){
             //TODO: create native way
-            std::filesystem::copy(std::string(path, length), std::string(new_path, new_length));
+            std::filesystem::copy(art::ustring(path, length), art::ustring(new_path, new_length));
             return true;
         }
 
@@ -3769,12 +3766,12 @@ namespace art{
             if (impl != nullptr)
                 delete impl;
         }
-        list_array<std::string> FolderBrowser::folders() {
+        list_array<art::ustring> FolderBrowser::folders() {
             if (impl == nullptr)
                 return false;
             return impl->folders();
         }
-        list_array<std::string> FolderBrowser::files() {
+        list_array<art::ustring> FolderBrowser::files() {
             if (impl == nullptr)
                 return false;
             return impl->files();
@@ -3855,7 +3852,7 @@ namespace art{
                 throw AException("FolderBrowserException", "FolderBrowser is not initialized");
             return new FolderBrowser(impl->join_folder(folder_name, length));
         }
-        std::string FolderBrowser::get_current_path() {
+        art::ustring FolderBrowser::get_current_path() {
             if (impl == nullptr)
                 return "";
             return impl->get_current_path();

@@ -1,5 +1,5 @@
-#include "dynamic_call_proxy.hpp"
-#include "../attacha_abi.hpp"
+#include <run_time/asm/dynamic_call_proxy.hpp>
+#include <run_time/attacha_abi.hpp>
 namespace art{
     namespace __attacha___{
 		void NativeProxy_DynamicToStatic_addValue(DynamicCall::FunctionCall& call, ValueMeta meta, void*& arg) {
@@ -72,7 +72,7 @@ namespace art{
 					call.AddPtrArgument((const list_array<ValueItem>*)arg);
 					break;
 				case VType::string:
-					call.AddArray(((std::string*)arg)->data(), ((std::string*)arg)->size());
+					call.AddArray(((art::ustring*)arg)->data(), ((art::ustring*)arg)->size());
 					break;
 				case VType::undefined_ptr:
 					call.AddPtrArgument(arg);
@@ -150,7 +150,7 @@ namespace art{
 					call.AddPtrArgument((list_array<ValueItem>*)arg);
 					break;
 				case VType::string:
-					call.AddPtrArgument(((std::string*)arg)->data());
+					call.AddPtrArgument(((art::ustring*)arg)->data());
 					break;
 				case VType::undefined_ptr:
 					call.AddPtrArgument(arg);
@@ -280,7 +280,7 @@ namespace art{
 								call.AddValueArgument((double*)arg);
 								break;
 							case VType::string:
-								call.AddValueArgument(((std::string*)arg)->data());
+								call.AddValueArgument(((art::ustring*)arg)->data());
 								break;
 							default:
 								throw InvalidType("Required integer or floating family type but requived another");
@@ -322,16 +322,16 @@ namespace art{
 						case VType::string:
 							if (to_add.vsize == 1) {
 								if (to_add.is_modifiable)
-									call.AddPtrArgument(((std::string*)arg)->data());
+									call.AddPtrArgument(((art::ustring*)arg)->data());
 								else
-									call.AddArray(((std::string*)arg)->c_str(), ((std::string*)arg)->size());
+									call.AddArray(((art::ustring*)arg)->c_str(), ((art::ustring*)arg)->size());
 							}
 							else if (to_add.vsize == 2) {
 
 
 							}
-							else if (to_add.vsize == sizeof(std::string))
-								call.AddPtrArgument((std::string*)arg);
+							else if (to_add.vsize == sizeof(art::ustring))
+								call.AddPtrArgument((art::ustring*)arg);
 							break;
 						case VType::undefined_ptr:
 							call.AddPtrArgument(arg);
