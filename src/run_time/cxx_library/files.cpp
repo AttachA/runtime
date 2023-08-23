@@ -6,6 +6,7 @@
 #include <run_time/AttachA_CXX.hpp>
 #include <configuration/compatibility.hpp>
 #include <util/ustring.hpp>
+#include <util/platform.hpp>
 namespace art{
     class IFolderChangesMonitor{
         virtual void start() noexcept(false) = 0;//start async scan
@@ -28,7 +29,7 @@ namespace art{
     };
 }
 
-#if _WIN32
+#if PLATFORM_WINDOWS
 #include <Windows.h>
 #include <winternl.h>
 #include <io.h>
@@ -2116,7 +2117,7 @@ namespace art{
         }
     }
 }
-#else
+#elif PLATFORM_LINUX
 #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
 #include <iostream>
 #endif
@@ -3862,6 +3863,6 @@ namespace art{
         }
     }
 }
-//linux
-
+#else
+#error Unsupported platform
 #endif

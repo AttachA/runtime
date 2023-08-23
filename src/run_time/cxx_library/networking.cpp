@@ -3,7 +3,8 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-#if defined(_WIN32) || defined(_WIN64)
+#include <util/platform.hpp>
+#if PLATFORM_WINDOWS
 	#define _WINSOCKAPI_
 	#define WIN32_LEAN_AND_MEAN
 	#include <winsock2.h>
@@ -11,11 +12,13 @@
 	#include <mswsock.h>
 	#include <stdio.h>
 	#pragma comment(lib, "Ws2_32.lib")
-#else
+#elif PLATFORM_LINUX
 	#include <arpa/inet.h>
 	#include <sys/mman.h>
 	#include <sys/ioctl.h>
 	#include <netinet/tcp.h>
+#else
+#error Unsupported platform
 #endif
 
 	#include <run_time/asm/FuncEnvironment.hpp>
@@ -367,7 +370,7 @@ namespace art{
 }
 
 namespace art{
-#if defined(_WIN32) || defined(_WIN64)
+#if PLATFORM_WINDOWS
 	bool inited = false;
 	AttachAVirtualTable* define_TcpNetworkStream = nullptr;
 	AttachAVirtualTable* define_TcpNetworkBlocking = nullptr;
@@ -2203,7 +2206,7 @@ re_try:
 		inited = false;
 	}
 
-#else
+#elif PLATFORM_LINUX
 	bool inited = false;
 	AttachAVirtualTable* define_TcpNetworkStream = nullptr;
 	AttachAVirtualTable* define_TcpNetworkBlocking = nullptr;
@@ -3974,6 +3977,8 @@ re_try:
 	void deinit_networking(){
 		inited = false;
 	}
+#else
+#error Unsupported platform
 #endif
 
 	TcpNetworkServer::TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, ValueItem& ip_port, ManageType mt, size_t acceptors, TcpConfiguration config){

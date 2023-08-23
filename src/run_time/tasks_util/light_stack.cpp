@@ -7,6 +7,7 @@
 #include <base/run_time.hpp>
 #include <run_time/library/console.hpp>
 #include <util/exceptions.hpp>
+#include <util/platform.hpp>
 #include <configuration/tasks.hpp>
 #include <cassert>
 #include <boost/lockfree/queue.hpp>
@@ -20,7 +21,7 @@ namespace art{
     bool light_stack::flush_used_stacks = configuration::tasks::light_stack::flush_used_stacks;
     size_t light_stack::max_buffer_size = configuration::tasks::light_stack::max_buffer_size;
 }
-#if defined(_WIN32) || defined(_WIN64)
+#if PLATFORM_WINDOWS
 #include <Windows.h>
 #include <intrin.h>//_AddressOfReturnAddress
 namespace art{
@@ -487,7 +488,7 @@ namespace art{
 
     bool light_stack::is_supported(){return true;}
 }
-#else if defined(__linux__) || defined(__linux) || defined(linux) || defined(__gnu_linux__)
+#elif PLATFORM_LINUX
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -660,4 +661,7 @@ namespace art{
 
     bool light_stack::is_supported(){return false;}
 }
+
+#else
+#error Unsupported platform
 #endif

@@ -12,6 +12,7 @@
 #include <cassert>
 #include <unordered_map>
 #include <util/exceptions.hpp>
+#include <util/platform.hpp>
 #include <run_time/cxxException.hpp>
 #include <run_time/attacha_abi_structs.hpp>
 namespace art{
@@ -155,11 +156,7 @@ namespace art{
 	constexpr creg128 vec14 = asmjit::x86::xmm14;
 	constexpr creg128 vec15 = asmjit::x86::xmm15;
 #endif
-#if defined(_M_X64) || defined(__x86_64__)
-#define CASM_X64
-#endif
-
-#ifdef CASM_X64
+#ifdef BIT_64
 #define CASM_REDZONE_SIZE 0x20
 
 #define CASM_DEBUG

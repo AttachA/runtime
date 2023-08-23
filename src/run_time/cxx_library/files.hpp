@@ -2,14 +2,15 @@
 #define SRC_RUN_TIME_CXX_LIBRARY_FILES
 #include <run_time/tasks.hpp>
 #include <util/in_place_optional.hpp>
+#include <util/platform.hpp>
 #include <run_time/attacha_abi_structs.hpp>
 #include <configuration/compatibility.hpp>
 #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
 #include <fstream>
 #endif
-#if defined(_WIN32) || defined(_WIN64)
+#if PLATFORM_WINDOWS
 #define FILE_HANDLE void*
-#else
+#else/*UNIX*/
 #define FILE_HANDLE int
 #endif
 namespace art{
@@ -114,7 +115,7 @@ namespace art{
             bool eof = false;
             _sync_flags flags;
             open_mode open;
-            #if defined(__linux__) || defined(_LINUX_) || defined(__linux) || defined(__gnu_linux__)
+            #if !PLATFORM_WINDOWS
             art::ustring _path;
             #endif
         public:

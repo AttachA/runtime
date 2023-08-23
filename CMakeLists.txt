@@ -11,6 +11,7 @@ set(art_INCLUDE_DIR ${art_src_INCLUDE_DIR} ${art_configuration_INCLUDE_DIR})
 
 if(MSVC)
   enable_language(ASM_MASM)
+  add_compile_options("/Zc:__cplusplus")#BUG: MASM also take it option ans spam warnings
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})

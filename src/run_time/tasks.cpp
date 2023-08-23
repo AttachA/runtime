@@ -11,6 +11,7 @@
 #include <run_time/tasks.hpp>
 #include <util/exceptions.hpp>
 #include <util/string_help.hpp>
+#include <util/platform.hpp>
 #include <run_time/ValueEnvironment.hpp>
 #include <queue>
 #include <deque>
@@ -1531,10 +1532,13 @@ namespace art{
 			task->started = true;
 			put_arguments(args, std::move(arguments));
 		}
-		#if _WIN32
+		#ifdef PLATFORM_WINDOWS
 		void handle(void* unused0, NativeWorkerHandle* unused1, unsigned long unused2, bool unused3){
-		#elif defined(__linux__)
+		#elif defined(PLATFORM_LINUX)
 		void handle(NativeWorkerHandle* unused1, io_uring_cqe* unused){
+		#else
+		#error Unsupported platform for native tasks
+		void handle(){
 		#endif
 			ValueItem* result = nullptr;
 			try{
@@ -1556,11 +1560,13 @@ namespace art{
 		bool start(){
 			if(started)
 				return false;
-			#if _WIN32
+			#ifdef PLATFORM_WINDOWS
 				return started = NativeWorkersSingleton::post_work(this);
-			#elif defined(__linux__)
+			#elif defined(PLATFORM_LINUX)
 				NativeWorkersSingleton::post_yield(this);
 				return started = true;
+			#else
+				#error Unsupported platform for native tasks
 			#endif
 		}
 	};

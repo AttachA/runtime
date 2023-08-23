@@ -4,6 +4,7 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 #include <run_time/tasks_util/cpu_usage.hpp>
+#include <util/platform.hpp>
 
 static double calculate_cpu_load(art::cpu::usage_prev_stat& prev_stat, uint64_t idle_ticks, uint64_t total_ticks) {
     uint64_t total_ticks_since_last_time = total_ticks - prev_stat.total_ticks;
@@ -20,7 +21,7 @@ static double calculate_cpu_load(art::cpu::usage_prev_stat& prev_stat, uint64_t 
     prev_stat.idle_ticks = idle_ticks;
     return result;
 }
-#if defined(_WIN32) || defined(_WIN64)
+#if PLATFORM_WINDOWS
 #include <windows.h>
 
 namespace art{
@@ -36,7 +37,7 @@ namespace art{
         }
     }
 }
-#elif defined(__linux__) || defined(__linux) || defined(linux) || defined(__gnu_linux__)
+#elif PLATFORM_LINUX
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -73,6 +74,8 @@ namespace art{
         }
     }
 }
+#else
+#error Unsupported platform
 #endif
 
 namespace art{

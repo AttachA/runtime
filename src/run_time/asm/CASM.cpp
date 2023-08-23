@@ -5,6 +5,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <run_time/asm/CASM.hpp>
+#include <util/platform.hpp>
 #ifdef _WIN64
 #include <Windows.h>
 #include <DbgHelp.h>
@@ -76,22 +77,22 @@ namespace art{
 		if (codeSize < estimatedCodeSize)
 			alloc->shrink(rx, additional_size_begin + codeSize + additional_size_end);
 
-#if defined(_M_X64) || defined(__x86_64__)
-#if defined(__GNUC__)
+#if BIT_64
+# if COMPILER_GCC
 	uint8_t* start = rx;
 	uint8_t* end = start + codeSize + additional_size_begin + additional_size_end;
 	__builtin___clear_cache(start, end);
-#endif
-#else
-# if defined(_WIN32)
+# endif
+#elif BIT_32
+# if COMPILER_MSVC
 	// Windows has a built-in support in `kernel32.dll`.
 	::FlushInstructionCache(::GetCurrentProcess(), rx, codeSize + additional_size);
-# elif defined(__GNUC__)
+# elif COMPILER_GCC
 	char* start = static_cast<char*>(const_cast<void*>(rx));
 	char* end = start + codeSize + additional_size;
 	__builtin___clear_cache(start, end);
 # else
-	DebugUtils::unused(p, size);
+	asmjit::DebugUtils::unused(p, size);
 # endif
 #endif
 		res = rx;

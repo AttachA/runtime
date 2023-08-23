@@ -1,4 +1,5 @@
-#if !defined(SRC_RUN_TIME_ASM_CASM_DWARF_BUILDER) && defined(__linux__)
+#include <util/platform.hpp>
+#if !defined(SRC_RUN_TIME_ASM_CASM_DWARF_BUILDER) && PLATFORM_LINUX
 #define SRC_RUN_TIME_ASM_CASM_DWARF_BUILDER
 #include <library/list_array.hpp>
 #include <string>
