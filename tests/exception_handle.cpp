@@ -1,4 +1,4 @@
-#include "../src/run_time/AttachA_CXX.hpp"
+#include <attacha_run_time.hpp>
 #include <gtest/gtest.h>
 using namespace art;
 
@@ -7,19 +7,19 @@ void exceptionThrower(){
     throw 123;
 }
 
-TEST(EXCEPTION, tunel){
+TEST(EXCEPTION, tunnel){
     FuncEnvironment::AddNative(exceptionThrower, "exceptionThrower");
     {
         FuncEnviroBuilder builder;
         builder.call_and_ret(builder.create_constant("exceptionThrower"));
-        builder.O_load_func("exceptionTunel");
+        builder.O_load_func("exceptionTunnel");
     }
     try{
-        CXX::cxxCall("exceptionTunel");
+        CXX::cxxCall("exceptionTunnel");
         ASSERT_TRUE(false);
     }catch(int e){
         ASSERT_EQ(e, 123);
     }
     FuncEnvironment::Unload("exceptionThrower");
-    FuncEnvironment::Unload("exceptionTunel");
+    FuncEnvironment::Unload("exceptionTunnel");
 }

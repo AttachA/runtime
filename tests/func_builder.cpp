@@ -1,4 +1,4 @@
-#include "../src/run_time/AttachA_CXX.hpp"
+#include <attacha_run_time.hpp>
 #include <gtest/gtest.h>
 using namespace art;
 

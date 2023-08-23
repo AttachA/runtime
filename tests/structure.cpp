@@ -1,4 +1,4 @@
-#include "../src/run_time/AttachA_CXX.hpp"
+#include <attacha_run_time.hpp>
 #include <gtest/gtest.h>
 using namespace art;
 ValueItem* _test_set_string(ValueItem* args, uint32_t argc){
