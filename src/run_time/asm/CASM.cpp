@@ -6,7 +6,7 @@
 
 #include <run_time/asm/CASM.hpp>
 #include <util/platform.hpp>
-#ifdef _WIN64
+#ifdef PLATFORM_WINDOWS
 #include <Windows.h>
 #include <DbgHelp.h>
 #include <dbgeng.h>
@@ -15,11 +15,11 @@ namespace art{
 		OutputDebugStringA(str);
 	}
 }
-#elif defined(__linux__) || defined(__APPLE__)
+#elif PLATFORM_LINUX || PLATFORM_MACOS
 #include <libunwind.h>
-#include <run_time/asm/CASM/linux/dwarf_builder.hpp>
 #include <execinfo.h>
 #include <cxxabi.h>
+#include <run_time/asm/CASM/linux/dwarf_builder.hpp>
 extern "C" void __register_frame(void *fde);
 extern "C" void __deregister_frame(void *fde);
 

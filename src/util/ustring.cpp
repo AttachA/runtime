@@ -1,9 +1,9 @@
-#include <util/ustring.hpp>
 #include <unordered_map>
 #include <utf8cpp/utf8.h>
-#include <util/hash.hpp>
 #include <run_time/tasks.hpp>
+#include <util/hash.hpp>
 #include <util/exceptions.hpp>
+#include <util/ustring.hpp>
 
 
 namespace art {

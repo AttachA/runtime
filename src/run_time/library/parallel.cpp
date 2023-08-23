@@ -4,9 +4,9 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <configuration/agreement/symbols.hpp>
 #include <run_time/AttachA_CXX.hpp>
 #include <util/threading.hpp>
-#include <configuration/agreement/symbols.hpp>
 namespace art{
 	namespace parallel {
 		AttachAVirtualTable* define_ConditionVariable;

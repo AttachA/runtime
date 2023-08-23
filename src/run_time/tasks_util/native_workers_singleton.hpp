@@ -1,10 +1,10 @@
 #ifndef SRC_RUN_TIME_TASKS_UTIL_NATIVE_WORKERS_SINGLETON
 #define SRC_RUN_TIME_TASKS_UTIL_NATIVE_WORKERS_SINGLETON
 
-#include <util/threading.hpp>
-#include <run_time/tasks_util/hill_climbing.hpp>
-#include <list>
 #include <base/run_time.hpp>
+#include <run_time/tasks_util/hill_climbing.hpp>
+#include <util/threading.hpp>
+#include <list>
 
 #ifdef _WIN64
 #include <Windows.h>

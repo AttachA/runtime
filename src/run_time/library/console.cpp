@@ -8,11 +8,11 @@
 #ifdef _WIN64
 #include <Windows.h>
 #endif
-#include <util/exceptions.hpp>
 #include <cstdio>
 #include <string>
-#include <run_time/AttachA_CXX.hpp>
 #include <utf8cpp/utf8.h>
+#include <util/exceptions.hpp>
+#include <run_time/AttachA_CXX.hpp>
 namespace art {
 	namespace console {
 		auto _stdin = stdin;

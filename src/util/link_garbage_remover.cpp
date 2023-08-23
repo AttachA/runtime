@@ -5,10 +5,12 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <util/link_garbage_remover.hpp>
+#if ENABLE_SNAPSHOTS_LGR
+#include <run_time/asm/CASM.hpp>
+#endif
 namespace art{
 	thread_local std::unordered_set<const void*> __lgr_safe_depth;
 #if ENABLE_SNAPSHOTS_LGR
-#include <run_time/asm/CASM.hpp>
 	void lgr_join_snapshot(list_array<std::vector<void*>*>* snap_records, std::vector<void*>*& set_current_snap) {
 		if (snap_records)
 			snap_records->push_back(set_current_snap = FrameResult::JitCaptureStackChainTrace(8));

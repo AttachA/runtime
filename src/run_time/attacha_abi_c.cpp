@@ -3,9 +3,9 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-#include <run_time/AttachA_CXX.hpp>
-#include <configuration/agreement/symbols.hpp>
 #include <string>
+#include <configuration/agreement/symbols.hpp>
+#include <run_time/AttachA_CXX.hpp>
 #include <util/hash.hpp>
 namespace art{
 

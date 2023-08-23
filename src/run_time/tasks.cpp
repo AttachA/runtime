@@ -6,21 +6,20 @@
 
 #include <list>
 #include <boost/context/continuation.hpp>
-
-#include <run_time/AttachA_CXX.hpp>
-#include <run_time/tasks.hpp>
-#include <util/exceptions.hpp>
-#include <util/string_help.hpp>
-#include <util/platform.hpp>
-#include <run_time/ValueEnvironment.hpp>
 #include <queue>
 #include <deque>
+#include <configuration/tasks.hpp>
+#include <run_time/AttachA_CXX.hpp>
+#include <run_time/tasks.hpp>
+#include <run_time/ValueEnvironment.hpp>
 #include <run_time/tasks_util/light_stack.hpp>
 #include <run_time/tasks_util/hill_climbing.hpp>
 #include <run_time/library/parallel.hpp>
 #include <run_time/tasks_util/native_workers_singleton.hpp>
-#include <configuration/tasks.hpp>
 #include <run_time/asm/exception.hpp>
+#include <util/exceptions.hpp>
+#include <util/string_help.hpp>
+#include <util/platform.hpp>
 namespace art{
 
 

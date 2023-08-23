@@ -14,11 +14,11 @@
 #include <configuration/tasks.hpp>
 
 #include <base/run_time.hpp>
-#include <util/string_help.hpp>
 #include <run_time/asm/FuncEnvironment.hpp>
 #include <run_time/tasks.hpp>
 #include <run_time/asm/dynamic_call.hpp>
 #include <run_time/tasks_util/light_stack.hpp>
+#include <util/string_help.hpp>
 #include <util/hash.hpp>
 namespace art{
 	size_t page_size = []() {
@@ -407,11 +407,11 @@ namespace art{
 #include <configuration/tasks.hpp>
 
 #include <base/run_time.hpp>
-#include <util/string_help.hpp>
 #include <run_time/asm/FuncEnvironment.hpp>
 #include <run_time/tasks.hpp>
 #include <run_time/asm/dynamic_call.hpp>
 #include <run_time/tasks_util/light_stack.hpp>
+#include <util/string_help.hpp>
 #include <unistd.h>
 #include <dlfcn.h>
 

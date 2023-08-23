@@ -4,9 +4,10 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <run_time/cxxException.hpp>
+#include <util/cxxException.hpp>
 #include <util/ustring.hpp>
-#ifdef _WIN32
+#include <util/platform.hpp>
+#ifdef PLATFORM_WINDOWS
 #include <windows.h>
 #include <string>
 namespace art{

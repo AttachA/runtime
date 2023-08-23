@@ -3,16 +3,16 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-#include <run_time/tasks_util/light_stack.hpp>
+#include <cassert>
+#include <atomic>
+#include <vector>
+#include <boost/lockfree/queue.hpp>
+#include <configuration/tasks.hpp>
 #include <base/run_time.hpp>
+#include <run_time/tasks_util/light_stack.hpp>
 #include <run_time/library/console.hpp>
 #include <util/exceptions.hpp>
 #include <util/platform.hpp>
-#include <configuration/tasks.hpp>
-#include <cassert>
-#include <boost/lockfree/queue.hpp>
-#include <atomic>
-#include <vector>
 namespace art{
     typedef boost::context::stack_context stack_context;
 

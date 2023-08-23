@@ -21,14 +21,14 @@
 #error Unsupported platform
 #endif
 
-	#include <run_time/asm/FuncEnvironment.hpp>
-	#include <configuration/agreement/symbols.hpp>
-	#include <run_time/tasks_util/native_workers_singleton.hpp>
 	#include <condition_variable>
 	#include <utf8cpp/utf8.h>
+	#include <configuration/agreement/symbols.hpp>
 	#include <run_time/AttachA_CXX.hpp>
 	#include <run_time/cxx_library/files.hpp>
 	#include <run_time/cxx_library/networking.hpp>
+	#include <run_time/asm/FuncEnvironment.hpp>
+	#include <run_time/tasks_util/native_workers_singleton.hpp>
 namespace art{
 	AttachAVirtualTable* define_UniversalAddress = nullptr;
 	AttachAVirtualTable* define_TcpConfiguration = nullptr;

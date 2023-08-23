@@ -1,10 +1,11 @@
 #include <run_time/attacha_abi_structs.hpp>
-#include <run_time/cxxException.hpp>
-#ifdef _WIN64
+#include <util/cxxException.hpp>
+#include <util/platform.hpp>
+#ifdef PLATFORM_WINDOWS
 #include <dbgeng.h>
+#include <base/run_time.hpp>
 #include <run_time/asm/CASM.hpp>
 #include <run_time/util/tools.hpp>
-#include <base/run_time.hpp>
 namespace art{
     struct CXXExInfo;
     namespace exception{
@@ -454,9 +455,9 @@ namespace art{
     }
 }
 #else
+#include <base/run_time.hpp>
 #include <run_time/asm/CASM.hpp>
 #include <run_time/util/tools.hpp>
-#include <base/run_time.hpp>
 namespace art{
     struct CXXExInfo;
     namespace exception{

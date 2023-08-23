@@ -6,8 +6,8 @@
 
 #ifndef RUN_TIME_CXX_LIBRARY_NETWORKING
 #define RUN_TIME_CXX_LIBRARY_NETWORKING
-#include <util/link_garbage_remover.hpp>
 #include <run_time/attacha_abi_structs.hpp>
+#include <util/link_garbage_remover.hpp>
 #include <util/ustring.hpp>
 namespace art{
 	namespace files{

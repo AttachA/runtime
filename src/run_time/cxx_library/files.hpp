@@ -1,10 +1,10 @@
 #ifndef SRC_RUN_TIME_CXX_LIBRARY_FILES
 #define SRC_RUN_TIME_CXX_LIBRARY_FILES
+#include <configuration/compatibility.hpp>
 #include <run_time/tasks.hpp>
+#include <run_time/attacha_abi_structs.hpp>
 #include <util/in_place_optional.hpp>
 #include <util/platform.hpp>
-#include <run_time/attacha_abi_structs.hpp>
-#include <configuration/compatibility.hpp>
 #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
 #include <fstream>
 #endif

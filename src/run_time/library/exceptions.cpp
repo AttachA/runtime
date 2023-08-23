@@ -4,8 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <util/exceptions.hpp>
 #include <run_time/asm/exception.hpp>
+#include <util/exceptions.hpp>
 namespace art{
     namespace exceptions{
         ValueItem* get_current_exception_name(ValueItem*, uint32_t){
