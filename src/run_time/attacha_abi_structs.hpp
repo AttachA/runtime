@@ -541,9 +541,9 @@ namespace art{
 			meta.encoded = 0;
 		}
 		ValueItem(ValueItem&& move);
-		ValueItem(const void* vall, ValueMeta meta);
-		ValueItem(void* vall, ValueMeta meta, as_reference_t);
-		ValueItem(void* vall, ValueMeta meta, no_copy_t);
+		ValueItem(const void* val, ValueMeta meta);
+		ValueItem(void* val, ValueMeta meta, as_reference_t);
+		ValueItem(void* val, ValueMeta meta, no_copy_t);
 		ValueItem(VType);
 		ValueItem(ValueMeta);
 		ValueItem(const ValueItem&);

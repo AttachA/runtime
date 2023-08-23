@@ -21,7 +21,7 @@ ValueIndexPos FuncEnviroBuilder::create_constant(const ValueItem& val){
 		}
 	}
 	if(constants_values > UINT16_MAX)
-		throw CompileTimeException("unaddressable constant value");
+		throw CompileTimeException("Unaddressable constant value");
 	all_constants.push_front(val);
 	if(use_dynamic_values && !strict_mode){
 		flags.run_time_computable = true;
@@ -1041,8 +1041,8 @@ FuncEnviroBuilder& FuncEnviroBuilder::O_flag_used_vec128(uint8_t index){
 	}
 	return *this;
 }
-FuncEnviroBuilder& FuncEnviroBuilder::O_flag_is_patchable(bool is_patchabele){
-	flags.is_patchable = is_patchabele;
+FuncEnviroBuilder& FuncEnviroBuilder::O_flag_is_patchable(bool is_patchable){
+	flags.is_patchable = is_patchable;
 	return *this;
 }
 

@@ -17,7 +17,7 @@ namespace art{
         stack_context allocate();
         void deallocate(stack_context& sctx);
 
-        //returns true if the stack is shrinked
+        //returns true if the stack is shrunk
         static bool shrink_current(size_t bytes_threshold = (1 << 12) * 3);
 
         //make sure 'bytes_to_use' available in stack, and increase stack without slow STATUS_GUARD_PAGE_VIOLATION

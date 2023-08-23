@@ -33,14 +33,14 @@ namespace art{
 
             //better stack is supported?
             ValueItem* bs_supported(ValueItem*, uint32_t);
-            //better stack is os depended implementation, for example, on windows supported because that use guard pages for auto grow stack, linix may be support that too but not sure
+            //better stack is os depended implementation, for example, on windows supported because that use guard pages for auto grow stack, linux may be support that too but not sure
 
             //in windows we can deallocate unused stacks and set guard page to let windows auto increase stack size
             //also we can manually increase stack size by manually allocating pages and set guard page to another position
             // that allow reduce memory usage and increase application performance
 
             //in linux stack can be increased automatically by mmap(null, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN, -1, 0)
-            //but we may be cannont deallocate unused stacks
+            //but we may be cannot deallocate unused stacks
 
             //TODO: after reading manuals may be better use PROT_NONE instead of guard pages and catch SIGSEGV to increase stack size
             ValueItem* used_size(ValueItem*, uint32_t);

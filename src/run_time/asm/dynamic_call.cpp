@@ -77,14 +77,14 @@ extern "C" uint64_t ArgumentsPrepareCallFor_V_AMD64(void* rsi, void* rdi, void* 
 	__asm__ volatile ("mov %0, %%rax" : "=r" (values_count));
 	__asm__ volatile ("mov %0, %%r10" : "=r" (args));
 	__asm__ volatile ("shl $3, %rax");
-	__asm__ volatile ("prepeart:");
+	__asm__ volatile ("repeat:");
 	__asm__ volatile ("cmp $0, %rax");
 	__asm__ volatile ("jne not_end");
 	__asm__ volatile ("jmp end_proc");
 	__asm__ volatile ("not_end:");
 	__asm__ volatile ("sub $8, %rax");
 	__asm__ volatile ("push (%r10,%rax)");
-	__asm__ volatile ("jmp prepeart");
+	__asm__ volatile ("jmp repeat");
 	__asm__ volatile ("end_proc:");
 	__asm__ volatile ("mov %0, %%rax" : "=r" (proc));
 	__asm__ volatile ("call (%rax)");
@@ -198,7 +198,7 @@ uint64_t FunctionCall(art::DynamicCall::PROC proc, void** args, int max_i, void*
 	size_t i = 0;
 	void* arg;
 	__asm__ volatile("mov %0, %%edx"::"r"(max_i) : "%edx");
-repeart:
+repeat:
 	__asm__ volatile(
 		"cmp 0, %edx\n\t"
 		"jne not_end\n\t"
@@ -207,7 +207,7 @@ repeart:
 not_end:
 	__asm__ volatile("push %0"::"r"(arg):);
 	arg = args[i++];
-	goto repeart;
+	goto repeat;
 	end:
 	__asm__ volatile(
 		"cmp 0, %0\n\t"

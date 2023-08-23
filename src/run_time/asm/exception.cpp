@@ -507,7 +507,7 @@ namespace art{
                     else if(current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty){return ty.ty_info->name() == typeid(std::exception).name();})){
                         description = art::ustring(current_ex_info.ty_arr[0].ty_info->name()) + ": " + ((std::exception*)current_ex_info.ex_ptr)->what();
                     }else
-                        description = "Can not decode excetion: " + art::ustring(current_ex_info.ty_arr[0].ty_info->name());
+                        description = "Can not decode exception: " + art::ustring(current_ex_info.ty_arr[0].ty_info->name());
                 }
             }
             return new ValueItem(description);

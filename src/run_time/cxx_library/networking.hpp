@@ -21,7 +21,7 @@ namespace art{
 		uint32_t fast_open_queue = 5;//0 - disable fast open
 
 		uint32_t connection_timeout_ms = 2000;//set send_timeout_ms to this value when connecting to server, rollback to send_timeout_ms after connection, also start user space timeout when connecting
-		//int32_t max_retransmit_count; is not porrtable across platforms
+		//int32_t max_retransmit_count; is not portable across platforms
 
 		bool allow_ip4 : 1 = true;
 		bool enable_delay : 1 = true;//TCP_NODELAY
@@ -31,7 +31,7 @@ namespace art{
 			uint32_t idle_ms = 5000;
 			uint32_t interval_ms = 3000;
 			uint8_t retry_count = 3;//255 is max,0 - invalid value and will be replaced by 3
-			uint32_t user_timeout_ms = idle_ms + interval_ms * retry_count;//not recomended to decrease this value
+			uint32_t user_timeout_ms = idle_ms + interval_ms * retry_count;//not recommended to decrease this value
 		} keep_alive_settings;
 	};
 	class TcpNetworkServer {

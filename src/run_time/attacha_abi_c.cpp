@@ -2431,18 +2431,18 @@ namespace art{
 	}
 
 #pragma region ValueItem constructors
-	ValueItem::ValueItem(const void* vall, ValueMeta vmeta) : val(0) {
-		auto tmp = (void*)vall;
-		val = copyValue(tmp, vmeta);
-		meta = vmeta;
+	ValueItem::ValueItem(const void* val_, ValueMeta meta_) : val(0) {
+		auto tmp = (void*)val_;
+		val = copyValue(tmp, meta_);
+		meta = meta_;
 	}
-	ValueItem::ValueItem(void* vall, ValueMeta vmeta, no_copy_t) {
-		val = vall;
-		meta = vmeta;
+	ValueItem::ValueItem(void* val_, ValueMeta meta_, no_copy_t) {
+		val = val_;
+		meta = meta_;
 	}
-	ValueItem::ValueItem(void* vall, ValueMeta vmeta, as_reference_t) {
-		val = vall;
-		meta = vmeta;
+	ValueItem::ValueItem(void* val_, ValueMeta meta_, as_reference_t) {
+		val = val_;
+		meta = meta_;
 		meta.as_ref = true;
 	}
 	ValueItem::ValueItem(const ValueItem& copy) : val(0) {

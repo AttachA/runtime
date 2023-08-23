@@ -34,11 +34,11 @@ namespace art {
 			virtual SelectorInfo<T>* clone() = 0;
 		};
 		template<class T>
-		class LASelectrorInfo : public SelectorInfo<T> {
+		class LASelectorInfo : public SelectorInfo<T> {
 			list_array<T> select;
 		public:
-			LASelectrorInfo(list_array<T>&& select) : select(select), SelectorInfo<T>(nullptr) {}
-			LASelectrorInfo(const list_array<T>& select) : select(select), SelectorInfo<T>(nullptr) {}
+			LASelectorInfo(list_array<T>&& select) : select(select), SelectorInfo<T>(nullptr) {}
+			LASelectorInfo(const list_array<T>& select) : select(select), SelectorInfo<T>(nullptr) {}
 			list_array<T*> selectedRefArr() override {
 				list_array<T*> res(select.size());
 				size_t i = 0;
@@ -76,33 +76,33 @@ namespace art {
 				return new LocalSelector(select);
 			}
 			SelectorInfo<T>* clone() override {
-				return new LASelectrorInfo<T>(select);
+				return new LASelectorInfo<T>(select);
 			};
 		};
 
 		template<class T>
-		class RefsSelectrorInfo : public SelectorInfo<T> {
+		class RefsSelectorInfo : public SelectorInfo<T> {
 		protected:
 			list_array<T*> select;
 		public:
-			RefsSelectrorInfo(const list_array<T*>& select, SelectorInfo<T>* prev) : select(select), SelectorInfo<T>(prev) {}
-			RefsSelectrorInfo(const RefsSelectrorInfo& ) : select(select), SelectorInfo<T>(prev) {}
-			RefsSelectrorInfo(list_array<T*>&& select) : select(select), SelectorInfo<T>(nullptr){}
+			RefsSelectorInfo(const list_array<T*>& select, SelectorInfo<T>* prev) : select(select), SelectorInfo<T>(prev) {}
+			RefsSelectorInfo(const RefsSelectorInfo& ) : select(select), SelectorInfo<T>(prev) {}
+			RefsSelectorInfo(list_array<T*>&& select) : select(select), SelectorInfo<T>(nullptr){}
 			list_array<T*> selectedRefArr() override {return select;}
 			Selector<T>* getSelector() override {
 				
 			}
 			SelectorInfo<T>* clone() override {
 
-				return new RefsSelectrorInfo<T>(select, SelectorInfo<T>::prev ? SelectorInfo<T>::prev->clone() : nullptr);
+				return new RefsSelectorInfo<T>(select, SelectorInfo<T>::prev ? SelectorInfo<T>::prev->clone() : nullptr);
 			};
 		};
 
 		template<class T>
-		class WhereSelectrorInfo : public SelectorInfo<T> {
+		class WhereSelectorInfo : public SelectorInfo<T> {
 			std::function<bool(const T& it)> checker;
 		public:
-			WhereSelectrorInfo(SelectorInfo<T>* prev, std::function<bool(const T& it)> checker) : checker(checker), SelectorInfo<T>(prev) {}
+			WhereSelectorInfo(SelectorInfo<T>* prev, std::function<bool(const T& it)> checker) : checker(checker), SelectorInfo<T>(prev) {}
 			list_array<T*> selectedRefArr() override { return select; }
 			Selector<T>* getSelector() override {
 				class LocalSelector : public Selector<T> {
@@ -133,18 +133,18 @@ namespace art {
 				};
 			}
 			SelectorInfo<T>* clone() override {
-				return new RefsSelectrorInfo<T>(select, prev ? prev->clone() : nullptr);
+				return new RefsSelectorInfo<T>(select, prev ? prev->clone() : nullptr);
 			};
 		};
 
 		template<class T>
-		class JoinSelectorInfo : public RefsSelectrorInfo<T> {
+		class JoinSelectorInfo : public RefsSelectorInfo<T> {
 			SelectorInfo<T>* joinable;
-			JoinSelectorInfo(const list_array<T*>& select) : joinable(nullptr), RefsSelectrorInfo<T>(select, nullptr){}
+			JoinSelectorInfo(const list_array<T*>& select) : joinable(nullptr), RefsSelectorInfo<T>(select, nullptr){}
 		public:
-			JoinSelectorInfo(SelectorInfo<T>* prev, SelectorInfo<T>* joinable) : joinable(joinable), RefsSelectrorInfo<T>(prev->selectedRefArr().join_copy(prev->selectedRefArr()),prev) {}
+			JoinSelectorInfo(SelectorInfo<T>* prev, SelectorInfo<T>* joinable) : joinable(joinable), RefsSelectorInfo<T>(prev->selectedRefArr().join_copy(prev->selectedRefArr()),prev) {}
 			template<class FN>
-			JoinSelectorInfo(SelectorInfo<T>* prev, SelectorInfo<T>* joinable, FN join_selector) : joinable(joinable), RefsSelectrorInfo<T>(prev->selectedRefArr().join_copy(prev->selectedRefArr(), join_selector), prev) {}
+			JoinSelectorInfo(SelectorInfo<T>* prev, SelectorInfo<T>* joinable, FN join_selector) : joinable(joinable), RefsSelectorInfo<T>(prev->selectedRefArr().join_copy(prev->selectedRefArr(), join_selector), prev) {}
 			~JoinSelectorInfo() {
 				if (joinable)
 					delete joinable;
@@ -219,18 +219,18 @@ namespace art {
 		}
 		template<class T>
 		SelectorInfo<T>* order_inc(SelectorInfo<T>* selector) {
-			class OrderedSelectorInfo : public RefsSelectrorInfo<T> {
+			class OrderedSelectorInfo : public RefsSelectorInfo<T> {
 			public:
-				OrderedSelectorInfo(SelectorInfo<T>* prev) : RefsSelectrorInfo(prev->selectedRefArr(),nullptr) { select.sort([](const T& l, const T& r) {return l < r; });}
+				OrderedSelectorInfo(SelectorInfo<T>* prev) : RefsSelectorInfo(prev->selectedRefArr(),nullptr) { select.sort([](const T& l, const T& r) {return l < r; });}
 			}*res = new OrderedSelectorInfo(selector);
 			delete selector;
 			return res;
 		}
 		template<class T>
 		SelectorInfo<T>* order_dec(SelectorInfo<T>* selector) {
-			class OrderedSelectorInfo : public RefsSelectrorInfo<T> {
+			class OrderedSelectorInfo : public RefsSelectorInfo<T> {
 			public:
-				OrderedSelectorInfo(SelectorInfo<T>* prev) : RefsSelectrorInfo(prev->selectedRefArr(), nullptr) { select.sort([](const T& l, const T& r) {return l > r; }); }
+				OrderedSelectorInfo(SelectorInfo<T>* prev) : RefsSelectorInfo(prev->selectedRefArr(), nullptr) { select.sort([](const T& l, const T& r) {return l > r; }); }
 			}*res = new OrderedSelectorInfo(selector);
 			delete selector;
 			return res;
@@ -238,7 +238,7 @@ namespace art {
 
 		template<class T,class _FN>
 		SelectorInfo<T>* where(SelectorInfo<T>* selector, _FN function) {
-			return new WhereSelectrorInfo(selector, function);
+			return new WhereSelectorInfo(selector, function);
 		}
 
 		template<class T, class _FN>

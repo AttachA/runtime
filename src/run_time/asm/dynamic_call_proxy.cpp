@@ -214,7 +214,7 @@ namespace art{
 								call.AddValueArgument(*(double*)&arg);
 								break;
 							default:
-								throw InvalidType("Required integer or floating family type but requived another");
+								throw InvalidType("Required integer or floating family type but received another");
 							}
 						}
 						else {
@@ -283,7 +283,7 @@ namespace art{
 								call.AddValueArgument(((art::ustring*)arg)->data());
 								break;
 							default:
-								throw InvalidType("Required integer or floating family type but requived another");
+								throw InvalidType("Required integer or floating family type but received another");
 							}
 						}
 						break;
@@ -337,7 +337,7 @@ namespace art{
 							call.AddPtrArgument(arg);
 							break;
 						default:
-							throw InvalidType("Required pointer family type but requived another");
+							throw InvalidType("Required pointer family type but received another");
 						}
 						break;
 					case FunctionTemplate::ValueT::ValueType::_class:

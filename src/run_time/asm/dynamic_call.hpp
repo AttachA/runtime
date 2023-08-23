@@ -27,10 +27,10 @@ namespace art {
 				size_t delete_type : 1;
 				size_t is_8bit :1;
 				enum {
-					dt_standart = 0,
+					dt_standard = 0,
 					dt_array = 1
 				};
-				explicit ArgumentItem(void* set_ptr = nullptr,bool delete_ty = dt_standart, bool need_remove = true, size_t set_value_size = 0, size_t set_value_len = 0, bool value_is_8bit = false) {
+				explicit ArgumentItem(void* set_ptr = nullptr,bool delete_ty = dt_standard, bool need_remove = true, size_t set_value_size = 0, size_t set_value_len = 0, bool value_is_8bit = false) {
 					ptr = set_ptr;
 					value_size = set_value_size;
 					value_len = set_value_len;
@@ -77,11 +77,11 @@ namespace art {
 			template<class T>
 			void push_value(const T& value) {
 				if constexpr (sizeof(uint64_t) != sizeof(void*) && sizeof(uint64_t) == sizeof(T))
-					arguments.push_back(ArgumentItem(new T(value), ArgumentItem::dt_standart, true, sizeof(T),true));
+					arguments.push_back(ArgumentItem(new T(value), ArgumentItem::dt_standard, true, sizeof(T),true));
 				else if constexpr (sizeof(T) > sizeof(void*))
-					arguments.push_back(ArgumentItem(new T(value), ArgumentItem::dt_standart,true, sizeof(T)));
+					arguments.push_back(ArgumentItem(new T(value), ArgumentItem::dt_standard,true, sizeof(T)));
 				else
-					arguments.push_back(ArgumentItem(*(void**)&value, ArgumentItem::dt_standart, false, sizeof(T)));
+					arguments.push_back(ArgumentItem(*(void**)&value, ArgumentItem::dt_standard, false, sizeof(T)));
 			}
 			template<class T>
 			void push_ptr(T* value) {
@@ -288,7 +288,7 @@ namespace art {
 					current_argument++;
 					return;
 				}
-				throw std::logic_error("Fail push invalid type argument or value size missmatch(for avoid this enable allow_type_convert)");
+				throw std::logic_error("Fail push invalid type argument or value size mismatch(for avoid this enable allow_type_convert)");
 			}
 			template<class T>
 			void AddLinkArgument(T& value) {
