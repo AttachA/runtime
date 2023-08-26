@@ -34,12 +34,6 @@ inline uint64_t rotl64 ( uint64_t x, int8_t r ) {
 
 
 #include <random>
-uint32_t seed = [](){
-    std::random_device rd;
-    std::mt19937_64 gen(rd());
-    std::uniform_int_distribution<uint64_t> dis;
-    return dis(gen);
-}();
 
 FORCE_INLINE uint64_t getblock64 ( const uint64_t * p, size_t i ) {
 	return p[i];
@@ -59,6 +53,13 @@ FORCE_INLINE uint64_t fmix64 ( uint64_t k ) {
 namespace art{
 
 	void MurmurHash3_x64_128 (const void* key, const size_t len, Murmur3_128& out) {
+		static uint32_t seed = [](){
+			std::random_device rd;
+			std::mt19937_64 gen(rd());
+			std::uniform_int_distribution<uint64_t> dis;
+			return dis(gen);
+		}();
+
 		const uint8_t * data = (const uint8_t*)key;
 		const size_t nblocks = len / 16;
 		uint64_t h1 = seed;

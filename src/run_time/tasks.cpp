@@ -16,18 +16,92 @@
 #include <run_time/tasks_util/hill_climbing.hpp>
 #include <run_time/library/parallel.hpp>
 #include <run_time/tasks_util/native_workers_singleton.hpp>
+#include <run_time/tasks_util/signals.hpp>
 #include <run_time/asm/exception.hpp>
 #include <util/exceptions.hpp>
 #include <util/string_help.hpp>
 #include <util/platform.hpp>
-namespace art{
-
-
-
-
 
 #undef min
+namespace art{
 	namespace ctx = boost::context;
+
+	struct task_context{
+		ctx::continuation context;
+		enum class priority {
+			background,		//| max 15ms	| basic 5ms
+			low,			//| max 30ms	| basic 15ms
+			lower,			//| max 50ms	| basic 25ms
+			normal,			//| max 80ms	| basic 40ms
+			higher,			//| max 100ms	| basic 60ms
+			high,			//| max 200ms	| basic 100ms
+			semi_realtime,	//| no limit	| no limit
+		} _priority;
+		
+		inline static constexpr std::chrono::nanoseconds priority_quantum_basic[] = {
+			std::chrono::nanoseconds(configuration::tasks::scheduler::background_basic_quantum_ns),
+			std::chrono::nanoseconds(configuration::tasks::scheduler::low_basic_quantum_ns),
+			std::chrono::nanoseconds(configuration::tasks::scheduler::lower_basic_quantum_ns),
+			std::chrono::nanoseconds(configuration::tasks::scheduler::normal_basic_quantum_ns),
+			std::chrono::nanoseconds(configuration::tasks::scheduler::higher_basic_quantum_ns),
+			std::chrono::nanoseconds(configuration::tasks::scheduler::high_basic_quantum_ns),
+			std::chrono::nanoseconds::min()
+		};
+		inline static constexpr std::chrono::nanoseconds priority_quantum_max[] = {
+			std::chrono::nanoseconds(configuration::tasks::scheduler::background_max_quantum_ns),
+			std::chrono::nanoseconds(configuration::tasks::scheduler::low_max_quantum_ns),
+			std::chrono::nanoseconds(configuration::tasks::scheduler::lower_max_quantum_ns),
+			std::chrono::nanoseconds(configuration::tasks::scheduler::normal_max_quantum_ns),
+			std::chrono::nanoseconds(configuration::tasks::scheduler::higher_max_quantum_ns),
+			std::chrono::nanoseconds(configuration::tasks::scheduler::high_max_quantum_ns),
+			std::chrono::nanoseconds::min()
+		};
+		//per task has n quantum(ms) to execute depends on priority
+		//if task spend it all it will be suspended
+		//if task not spend it all, unused quantum will be added to next task quantum(ms limited by priority)
+		//after resume if quantum is not more basic quantum, limit will be set to basic quantum
+		//semi_realtime tasks has no limits
+
+
+		std::chrono::nanoseconds current_available_quantum;
+		
+		
+
+		
+		//std::chrono::nanoseconds::min(); means no limit
+		//std::chrono::nanoseconds(0); means no quantum, task last time spend more quantum than it has
+		std::chrono::nanoseconds next_quantum(){
+			if(_priority == priority::semi_realtime)
+				return std::chrono::nanoseconds::min();
+			
+
+			current_available_quantum += priority_quantum_basic[(size_t)_priority];
+			if(current_available_quantum > priority_quantum_max[(size_t)_priority])
+				current_available_quantum = priority_quantum_max[(size_t)_priority];
+			return current_available_quantum > std::chrono::nanoseconds(0) ? current_available_quantum : std::chrono::nanoseconds(0);
+		}
+		std::chrono::nanoseconds peek_quantum() {
+			if (_priority == priority::semi_realtime)
+				return std::chrono::nanoseconds::min();
+			auto current_available_quantum = this->current_available_quantum + priority_quantum_basic[(size_t)_priority];
+			if (current_available_quantum > priority_quantum_max[(size_t)_priority])
+				current_available_quantum = priority_quantum_max[(size_t)_priority];
+			return current_available_quantum > std::chrono::nanoseconds(0) ? current_available_quantum : std::chrono::nanoseconds(0);
+		}
+		void task_switch(std::chrono::nanoseconds elapsed){
+			if(_priority == priority::semi_realtime)
+				return;
+			current_available_quantum -= elapsed;
+		}
+		void init_quantum(){
+			current_available_quantum = priority_quantum_basic[(size_t)_priority];
+		}
+	};
+
+
+
+
+
 	constexpr size_t native_thread_flag = size_t(1) << (sizeof(size_t) * 8 - 1);
 
 	void put_arguments(ValueItem& args_hold, const ValueItem& arguments){
@@ -310,15 +384,17 @@ namespace art{
 	bool TaskCancellation::_in_landing() {
 		return in_landing;
 	}
-		void forceCancelCancellation(TaskCancellation& cancel_token) {
-			cancel_token.in_landing = true;
-		}
+	void forceCancelCancellation(TaskCancellation& cancel_token) {
+		cancel_token.in_landing = true;
+	}
 
 
 #pragma region TaskResult
 	TaskResult::~TaskResult() {
-		if (context) 
-			reinterpret_cast<ctx::continuation&>(context).~continuation();
+		if (context){
+			delete context;
+			context = nullptr;
+		}
 	}
 
 
@@ -400,7 +476,7 @@ namespace art{
 		art::mutex task_timer_safety;
 
 		art::condition_variable_any tasks_notifier;
-		art::condition_variable_any time_notifier;
+		art::condition_variable time_notifier;
 		art::condition_variable_any executor_shutdown_notifier;
 
 		size_t executors = 0;
@@ -433,14 +509,16 @@ namespace art{
 	struct executors_local {
 		art::shared_ptr<Generator> on_load_generator_ref = nullptr;
 
-		ctx::continuation* tmp_current_context = nullptr;
+		ctx::continuation* stack_current_context = nullptr;
+		task_context* current_context = nullptr;
 		std::exception_ptr ex_ptr;
-		list_array<art::shared_ptr<Task>> tasks_buffer;
+		std::queue<art::shared_ptr<Task>> interrupted_tasks;
 		art::shared_ptr<Task> curr_task = nullptr;
 		bool is_task_thread = false;
 		bool context_in_swap = false;
 
 		bool in_exec_decreased = false;
+		bool current_interrupted = false;
 	};
 	thread_local executors_local loc;
 	struct TaskCallback {
@@ -494,7 +572,21 @@ namespace art{
 	}
 #pragma optimize("",off)
 #pragma region TaskExecutor
+	void timer_reinit() {
+		std::chrono::nanoseconds interval = loc.current_context->next_quantum();
+		signals::itimerval timer;
+		timer.it_interval.tv_sec = 0;
+		timer.it_interval.tv_usec = 0;
+		timer.it_value.tv_sec = interval.count() / 1000000000;
+		timer.it_value.tv_usec = (interval.count() % 1000000000) / 1000;
+		signals::setitimer(signals::TIMER_TYPE::PROF, &timer, nullptr);
+	}
+
 	void swapCtx() {
+		#if _configuration_tasks_enable_preemptive_scheduler_preview
+		signals::stop_timers();
+		#endif
+
 		if(loc.is_task_thread){
 			loc.context_in_swap = true;
 			++glob.tasks_in_swap;
@@ -504,14 +596,26 @@ namespace art{
 			if(exception::has_exception()){
 				CXXExInfo cxx = exception::take_current_exception();
 				try{
-					*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+					*loc.stack_current_context = std::move(*loc.stack_current_context).resume();
+					#if _configuration_tasks_enable_preemptive_scheduler_preview
+					timer_reinit();
+					#endif
 				}catch(const ctx::detail::forced_unwind&){
+					#if _configuration_tasks_enable_preemptive_scheduler_preview
+					timer_reinit();
+					#endif
 					exception::load_current_exception(cxx);
 					throw;
 				}
+				#if _configuration_tasks_enable_preemptive_scheduler_preview
+				timer_reinit();
+				#endif
 				exception::load_current_exception(cxx);
 			}else{
-				*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+				*loc.stack_current_context = std::move(*loc.stack_current_context).resume();
+				#if _configuration_tasks_enable_preemptive_scheduler_preview
+				timer_reinit();
+				#endif
 			}
 			loc.context_in_swap = true;
 			loc.curr_task->relock_0.relock_end();
@@ -523,6 +627,33 @@ namespace art{
 			checkCancellation();
 		}else
 			throw InternalException("swapCtx() not allowed call in non-task thread or in dispatcher");
+	}
+	
+	void interruptTask(){
+		loc.interrupted_tasks.push(loc.curr_task);
+		loc.current_interrupted = true;
+		auto old_relock_0 = loc.curr_task->relock_0;
+		auto old_relock_1 = loc.curr_task->relock_1;
+		auto old_relock_2 = loc.curr_task->relock_2;
+		loc.curr_task->relock_0 = nullptr;
+		loc.curr_task->relock_1 = nullptr;
+		loc.curr_task->relock_2 = nullptr;
+		swapCtx();
+		loc.curr_task->relock_0 = old_relock_0;
+		loc.curr_task->relock_1 = old_relock_1;
+		loc.curr_task->relock_2 = old_relock_2;
+	}
+	inline bool pre_startup_check(){
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+		if(loc.current_context->peek_quantum() == std::chrono::nanoseconds(0)){
+			art::unique_lock guard(glob.task_thread_safety);
+			glob.tasks.push(std::move(loc.curr_task));
+			loc.current_interrupted = true;
+			glob.tasks_notifier.notify_one();
+			return true;
+		}
+#endif
+		return false;
 	}
 
 	void swapCtxRelock(const MutexUnify& mut0) {
@@ -586,9 +717,13 @@ namespace art{
 	}
 
 	ctx::continuation context_exec(ctx::continuation&& sink) {
-		*loc.tmp_current_context = std::move(sink);
+		*loc.stack_current_context = std::move(sink);
 		try {
 			checkCancellation();
+			
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+			timer_reinit();
+#endif
 			ValueItem* res = loc.curr_task->func->syncWrapper((ValueItem*)loc.curr_task->args.val, loc.curr_task->args.meta.val_len);
 			MutexUnify mu(loc.curr_task->no_race);
 			art::unique_lock l(mu);
@@ -599,6 +734,9 @@ namespace art{
 			forceCancelCancellation(cancel);
 		}
 		catch (const ctx::detail::forced_unwind&) {
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+			signals::stop_timers();
+#endif
 			throw;
 		}
 		catch (...) {
@@ -613,12 +751,18 @@ namespace art{
 		--glob.in_run_tasks;
 		if (Task::max_running_tasks)
 			glob.can_started_new_notifier.notify_one();
-		return std::move(*loc.tmp_current_context);
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+		signals::stop_timers();
+#endif
+		return std::move(*loc.stack_current_context);
 	}
 	ctx::continuation context_ex_handle(ctx::continuation&& sink) {
-		*loc.tmp_current_context = std::move(sink);
+		*loc.stack_current_context = std::move(sink);
 		try {
 			checkCancellation();
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+			timer_reinit();
+#endif
 			ValueItem* res = loc.curr_task->ex_handle->syncWrapper((ValueItem*)loc.curr_task->args.val, loc.curr_task->args.meta.val_len);
 			MutexUnify mu(loc.curr_task->no_race);
 			art::unique_lock l(mu);
@@ -629,6 +773,9 @@ namespace art{
 			forceCancelCancellation(cancel);
 		}
 		catch (const ctx::detail::forced_unwind&) {
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+			signals::stop_timers();
+#endif
 			throw;
 		}
 		catch (...) {
@@ -645,7 +792,10 @@ namespace art{
 		--glob.in_run_tasks;
 		if (Task::max_running_tasks)
 			glob.can_started_new_notifier.notify_one();
-		return std::move(*loc.tmp_current_context);
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+		signals::stop_timers();
+#endif
+		return std::move(*loc.stack_current_context);
 	}
 
 
@@ -702,8 +852,20 @@ namespace art{
 			glob.no_tasks_execute_notifier.notify_all();
 	}
 	bool loadTask() {
-		{
-			++glob.in_exec;
+		++glob.in_exec;
+
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+		bool interrupt = loc.current_interrupted && !glob.tasks.empty();
+		if (!interrupt) {
+			if (Task::max_running_tasks) {
+				if (Task::max_running_tasks > (glob.in_run_tasks + glob.tasks_in_swap))
+					interrupt = true;
+			}
+			else interrupt = true;
+		}
+		if(interrupt || loc.interrupted_tasks.empty()){
+#endif
+			loc.current_interrupted = false;
 			size_t len = glob.tasks.size();
 			if (!len)
 				return true;
@@ -725,8 +887,16 @@ namespace art{
 					glob.cold_tasks.pop();
 				}
 			}
+			
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+		} else {
+			auto tmp = std::move(loc.interrupted_tasks.front());
+			loc.interrupted_tasks.pop();
+			loc.curr_task = std::move(tmp);
 		}
-		loc.tmp_current_context = &reinterpret_cast<ctx::continuation&>(loc.curr_task->fres.context);
+#endif
+		loc.current_context = loc.curr_task->fres.context;
+		loc.stack_current_context = &loc.current_context->context;
 		return false;
 	}
 #define worker_mode_desk(old_name, mode) if(Task::enable_task_naming)worker_mode_desk_(old_name, mode);
@@ -780,15 +950,19 @@ namespace art{
 			goto end_task;
 
 		worker_mode_desk(old_name, "process task - " + std::to_string(loc.curr_task->task_id()));
-		if (*loc.tmp_current_context) {
-			*loc.tmp_current_context = std::move(*loc.tmp_current_context).resume();
+		if (*loc.stack_current_context) {
+			if(pre_startup_check())
+				return false;
+			*loc.stack_current_context = std::move(*loc.stack_current_context).resume();
 		}
 		else {
 			++glob.in_run_tasks;
 			--glob.planned_tasks;
 			if (Task::max_planned_tasks)
 				glob.can_planned_new_notifier.notify_one();
-			*loc.tmp_current_context = ctx::callcc(std::allocator_arg, light_stack(1048576/*1 mb*/), context_exec);
+			if(pre_startup_check())
+				return false;
+			*loc.stack_current_context = ctx::callcc(std::allocator_arg, light_stack(1048576/*1 mb*/), context_exec);
 		}
 	caught_ex:
 		if (loc.ex_ptr) {
@@ -796,7 +970,7 @@ namespace art{
 				ValueItem temp(new std::exception_ptr(loc.ex_ptr), VType::except_value, no_copy);
 				loc.curr_task->args = ValueItem(&temp, 0);
 				loc.ex_ptr = nullptr;
-				*loc.tmp_current_context = ctx::callcc(context_ex_handle);
+				*loc.stack_current_context = ctx::callcc(context_ex_handle);
 				if (!loc.ex_ptr)
 					goto end_task;
 			}
@@ -811,7 +985,36 @@ namespace art{
 		worker_mode_desk(old_name, "idle");
 		return false;
 	}
+
+	bool taskExecutor_check_next(art::unique_lock<art::recursive_mutex>& guard, bool end_in_task_out) {
+		loc.context_in_swap = false;
+		loc.current_context = nullptr;
+		loc.stack_current_context = nullptr;
+		taskNotifyIfEmpty(guard);
+		loc.is_task_thread = false;
+		while (glob.tasks.empty()) {
+			if (!glob.cold_tasks.empty()) {
+				if (!Task::max_running_tasks) {
+					warmUpTheTasks();
+					break;
+				}
+				else if (Task::max_running_tasks > glob.in_run_tasks) {
+					warmUpTheTasks();
+					break;
+				}
+			}
+
+			if (end_in_task_out)
+				return true;
+			glob.tasks_notifier.wait(guard);
+		}
+		loc.is_task_thread = true;
+		return false;
+	}
 	void taskExecutor(bool end_in_task_out = false) {
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+		signals::sigaction(signals::SIGNAL_TYPE::SIGPROF, interruptTask);
+#endif
 		art::ustring old_name = end_in_task_out ? _get_name_thread_dbg(_thread_id()) : "";
 
 		if(old_name.empty())
@@ -819,42 +1022,41 @@ namespace art{
 		else
 			_set_name_thread_dbg(old_name + " | (Temporal worker) " + std::to_string(_thread_id()));
 
-		art::unique_lock guard(glob.task_thread_safety);
+		art::unique_lock<art::recursive_mutex> guard(glob.task_thread_safety);
 		glob.workers_completions.push_front(0);
 		auto to_remove_after_death = glob.workers_completions.begin();
 		uint32_t& completions = glob.workers_completions.front();
 		++glob.in_exec;
 		++glob.executors;
+		bool termination_state = false;
+
 		while (true) {
-			loc.context_in_swap = false;
-			loc.tmp_current_context = nullptr;
-			taskNotifyIfEmpty(guard);
-			loc.is_task_thread = false;
-			while (glob.tasks.empty()) {
-				if (!glob.cold_tasks.empty()) {
-					if (!Task::max_running_tasks) {
-						warmUpTheTasks();
-						break;
-					}
-					else if (Task::max_running_tasks > glob.in_run_tasks) {
-						warmUpTheTasks();
-						break;
+			if(termination_state){
+				if (loc.interrupted_tasks.empty())
+					break;
+				else {
+					loc.curr_task = std::move(loc.interrupted_tasks.front());
+					loc.interrupted_tasks.pop();
+					loc.current_context = loc.curr_task->fres.context;
+					loc.stack_current_context = &loc.current_context->context;
+				}
+			}
+			else {
+				if (taskExecutor_check_next(guard, end_in_task_out)) {
+					termination_state = true;
+					guard.unlock();
+				}
+				else {
+					if (loadTask())
+						continue;
+					glob.executor_manager_task_taken.notify_one();
+					guard.unlock();
+					if (loc.curr_task->bind_to_worker_id != (uint16_t)-1) {
+						transfer_task(loc.curr_task);
+						guard.lock();
+						continue;
 					}
 				}
-
-				if (end_in_task_out) 
-					goto end_worker;
-				glob.tasks_notifier.wait(guard);
-			}
-			loc.is_task_thread = true;
-			if (loadTask())
-				continue;
-			glob.executor_manager_task_taken.notify_one();
-			guard.unlock();
-			if(loc.curr_task->bind_to_worker_id != (uint16_t)-1){
-				transfer_task(loc.curr_task);
-				guard.lock();
-				continue;
 			}
 #if _configuration_tasks_enable_debug_mode
 			{
@@ -874,12 +1076,13 @@ namespace art{
 			}
 #endif
 
+			if (shut_down_signal) {
+				termination_state = true;
+				continue;
+			}
 			guard.lock();
-			if (shut_down_signal)
-				break;
 			completions +=1;
 		}
-	end_worker:
 		--glob.executors;
 		glob.workers_completions.erase(to_remove_after_death);
 		taskNotifyIfEmpty(guard);
@@ -887,6 +1090,9 @@ namespace art{
 	}
 
 	void bindedTaskExecutor(uint16_t id){
+#if _configuration_tasks_enable_preemptive_scheduler_preview
+		signals::sigaction(signals::SIGNAL_TYPE::SIGPROF, interruptTask);
+#endif
 		art::ustring old_name = "Binded";
 		art::unique_lock initializer_guard(glob.binded_workers_safety);
 		if(!glob.binded_workers.contains(id)){
@@ -907,20 +1113,43 @@ namespace art{
 
 		art::unique_lock guard(safety);
 		context.executors++;
+		bool termination_state = false;
 		while(true){
-			while(queue.empty())
-				notifier.wait(guard);
-			loc.curr_task = std::move(queue.front());
-			queue.pop_front();
+			if (termination_state) {
+				if (loc.interrupted_tasks.empty())
+					break;
+				else {
+					loc.curr_task = std::move(loc.interrupted_tasks.front());
+					loc.interrupted_tasks.pop();
+				}
+			}
+			else {
+				if ((loc.current_interrupted && !queue.empty()) || loc.interrupted_tasks.empty()) {
+					loc.current_interrupted = false;
+					while (queue.empty()) {
+						notifier.wait(guard);
+					}
+					loc.curr_task = std::move(queue.front());
+					queue.pop_front();
+				}
+				else {
+					loc.curr_task = std::move(loc.interrupted_tasks.front());
+					loc.interrupted_tasks.pop();
+				}
+			}
+			
 			guard.unlock();
-			if (!loc.curr_task->func)
-				break;
+			if (!loc.curr_task->func) {
+				termination_state = true;
+				continue;
+			}
 			if(loc.curr_task->bind_to_worker_id !=  (uint16_t)id){
 				transfer_task(loc.curr_task);
 				continue;
 			}
 			loc.is_task_thread = true;
-			loc.tmp_current_context = &reinterpret_cast<ctx::continuation&>(loc.curr_task->fres.context);
+			loc.current_context = loc.curr_task->fres.context;
+			loc.stack_current_context = &loc.current_context->context;
 #if _configuration_tasks_enable_debug_mode
 			{
 				art::shared_lock dbg_guard(glob.debug_safety);
@@ -960,48 +1189,44 @@ namespace art{
 		glob.time_control_enabled = true;
 		_set_name_thread_dbg("Task time controller");
 
-		art::mutex mtx;
-		mtx.lock();
+		art::unique_lock guard(glob.task_timer_safety);
 		list_array<art::shared_ptr<Task>> cached_wake_ups;
 		while (glob.time_control_enabled) {
-			{
-				art::lock_guard guard(glob.task_timer_safety);
-				if (glob.timed_tasks.size()) {
-					while (glob.timed_tasks.front().wait_timepoint <= std::chrono::high_resolution_clock::now()) {
-						timing& tmng = glob.timed_tasks.front();
-						if (tmng.check_id != tmng.awake_task->awake_check) {
-							glob.timed_tasks.pop_front();
-							if (glob.timed_tasks.empty())
-								break;
-							else
-								continue;
-						}
-						art::lock_guard task_guard(tmng.awake_task->no_race);
-						if (tmng.awake_task->awaked) {
-							glob.timed_tasks.pop_front();
-						}
-						else {
-							tmng.awake_task->time_end_flag = true;
-							cached_wake_ups.push_back(std::move(tmng.awake_task));
-							glob.timed_tasks.pop_front();
-						}
+			if (glob.timed_tasks.size()) {
+				while (glob.timed_tasks.front().wait_timepoint <= std::chrono::high_resolution_clock::now()) {
+					timing& tmng = glob.timed_tasks.front();
+					if (tmng.check_id != tmng.awake_task->awake_check) {
+						glob.timed_tasks.pop_front();
 						if (glob.timed_tasks.empty())
 							break;
+						else
+							continue;
 					}
+					art::lock_guard task_guard(tmng.awake_task->no_race);
+					if (tmng.awake_task->awaked) {
+						glob.timed_tasks.pop_front();
+					}
+					else {
+						tmng.awake_task->time_end_flag = true;
+						cached_wake_ups.push_back(std::move(tmng.awake_task));
+						glob.timed_tasks.pop_front();
+					}
+					if (glob.timed_tasks.empty())
+						break;
 				}
 			}
+			guard.unlock();
 			if (!cached_wake_ups.empty()) {
 				art::lock_guard guard(glob.task_thread_safety);
 				while (!cached_wake_ups.empty()) 
 					glob.tasks.push(cached_wake_ups.take_back());
 				glob.tasks_notifier.notify_all();
 			}
-			
-
+			guard.lock();
 			if (glob.timed_tasks.empty())
-				glob.time_notifier.wait(mtx);
+				glob.time_notifier.wait(guard);
 			else
-				glob.time_notifier.wait_until(mtx, glob.timed_tasks.front().wait_timepoint);
+				glob.time_notifier.wait_until(guard, glob.timed_tasks.front().wait_timepoint);
 		}
 	}
 
@@ -1019,26 +1244,54 @@ namespace art{
 		loc.curr_task->awaked = false;
 		loc.curr_task->time_end_flag = false;
 		size_t i = 0;
-		{
-			art::lock_guard guard(glob.task_timer_safety);
-			auto it = glob.timed_tasks.begin();
-			auto end = glob.timed_tasks.end();
-			while (it != end) {
-				if (it->wait_timepoint >= t) {
-					glob.timed_tasks.insert(it, timing(t,loc.curr_task, loc.curr_task->awake_check ));
-					i = -1;
-					break;
-				}
-				++it;
+		
+		art::lock_guard guard(glob.task_timer_safety);
+		auto it = glob.timed_tasks.begin();
+		auto end = glob.timed_tasks.end();
+		while (it != end) {
+			if (it->wait_timepoint >= t) {
+				glob.timed_tasks.insert(it, timing(t,loc.curr_task, loc.curr_task->awake_check ));
+				i = -1;
+				break;
 			}
-			if (i != -1)
-				glob.timed_tasks.push_back(timing(t, loc.curr_task, loc.curr_task->awake_check));
+			++it;
 		}
+		if (i != -1)
+			glob.timed_tasks.push_back(timing(t, loc.curr_task, loc.curr_task->awake_check));
 		glob.time_notifier.notify_one();
 	}
 
 #pragma region Task
-	Task::Task(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
+	void initTaskContext(TaskResult& fres, TaskPriority priority){
+		fres.context = new task_context;
+		switch (priority){
+		case TaskPriority::background:
+			fres.context->_priority = task_context::priority::background;
+			break;
+		case TaskPriority::low:
+			fres.context->_priority = task_context::priority::low;
+			break;
+		case TaskPriority::lower:
+			fres.context->_priority = task_context::priority::lower;
+			break;
+		case TaskPriority::normal:
+			fres.context->_priority = task_context::priority::normal;
+			break;
+		case TaskPriority::higher:
+			fres.context->_priority = task_context::priority::higher;
+			break;
+		case TaskPriority::high:
+			fres.context->_priority = task_context::priority::high;
+			break;
+		case TaskPriority::realtime:
+			fres.context->_priority = task_context::priority::semi_realtime;
+			break;
+		default:
+			break;
+		}
+		fres.context->init_quantum();
+	}
+	Task::Task(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout, TaskPriority priority) {
 		ex_handle = exception_handler;
 		func = call_func;
 		put_arguments(args, arguments);
@@ -1053,9 +1306,10 @@ namespace art{
 			while (glob.planned_tasks >= Task::max_planned_tasks)
 				glob.can_planned_new_notifier.wait(l);
 		}
+		initTaskContext(fres, priority);
 		++glob.planned_tasks;
 	}
-	Task::Task(art::shared_ptr<FuncEnvironment> call_func, ValueItem&& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout) {
+	Task::Task(art::shared_ptr<FuncEnvironment> call_func, ValueItem&& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout, TaskPriority priority) {
 		ex_handle = exception_handler;
 		func = call_func;
 		put_arguments(args, std::move(arguments));
@@ -1070,6 +1324,7 @@ namespace art{
 			while (glob.planned_tasks >= Task::max_planned_tasks)
 				glob.can_planned_new_notifier.wait(l);
 		}
+		initTaskContext(fres, priority);
 		++glob.planned_tasks;
 	}
 	Task::Task(Task&& mov) noexcept : fres(std::move(mov.fres)) {
@@ -1617,8 +1872,7 @@ namespace art{
 		while(!glob.binded_workers.empty())
 			Task::close_bind_only_executor(glob.binded_workers.begin()->first);
 		
-		MutexUnify mtx(glob.task_thread_safety);
-		art::unique_lock guard(mtx);
+		art::unique_lock guard(glob.task_thread_safety);
 		size_t executors = glob.executors;
 		for(size_t i = 0; i<executors;i++)
 			glob.tasks.emplace(new Task(nullptr,{}));

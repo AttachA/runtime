@@ -10,6 +10,7 @@
 #include <run_time/standard_lib.hpp>
 
 #include <run_time/library/console.hpp>
+#include <run_time/tasks_util/signals.hpp>
 using namespace art;
 
 void sleep_test() {
@@ -22,10 +23,14 @@ void sleep_test() {
 
 
 
-
+ValueItem* busyWorker(ValueItem* args, uint32_t argc){
+	for(size_t i = 0; i < UINT64_MAX - 1; i++);
+	return nullptr;
+}
 
 ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	ValueItem noting;
+	Task::start(new Task(FuncEnvironment::environment("busy_worker"), noting));
 
 	console::setBgColor(123, 21, 2);
 	console::setTextColor(0, 230,0);
@@ -125,7 +130,7 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
 	///	tasks.push_back(new Task(env, noting));
 	///Task::await_multiple(tasks);
 	///tasks.clear();
-	for (size_t i = 0; i < 1000000; i++)
+	for (size_t i = 0; i < 10000; i++)
 		tasks.push_back(new Task(env, noting));
 	Task::await_multiple(tasks);
 	tasks.clear();
@@ -157,6 +162,7 @@ const char _WARN[] = "WARN";
 const char _INFO[] = "INFO";
 #include <run_time/ValueEnvironment.hpp>
 int main(){
+	signals::init_signals_handler();
 	unhandled_exception.join(new FuncEnvironment(logger<_FATAL>, false, false));
 	errors.join(new FuncEnvironment(logger<_ERROR>, false, false));
 	warning.join(new FuncEnvironment(logger<_WARN>, false, false));
@@ -164,14 +170,16 @@ int main(){
 	auto timer_start = std::chrono::high_resolution_clock::now();
 	initStandardLib();
 	FuncEnvironment::AddNative(sleep_test, "sleep_test", false);
+	FuncEnvironment::AddNative(busyWorker, "busy_worker", false);
 	enable_thread_naming = true;
 	Task::max_running_tasks = 20000;
 	Task::max_planned_tasks = 0;
+	Task::enable_task_naming = false;
 
 	art::shared_ptr<Task> main_task = new Task(new FuncEnvironment(attacha_main, false, false), {});
-	main_task->bind_to_worker_id = Task::create_bind_only_executor(0, true);
+	main_task->bind_to_worker_id = Task::create_bind_only_executor(1, true);
+	Task::create_executor(4);
 	Task::start(main_task);
-	_Task_unsafe::become_executor_count_manager(true);
 	ValueItem* res = Task::get_result(main_task);
 	if(res != nullptr)
 		res->getAsync();

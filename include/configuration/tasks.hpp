@@ -17,6 +17,22 @@ namespace configuration {
 
             static_assert(inital_buffer_size <= max_buffer_size || !max_buffer_size, "inital_buffer_size must be less or equal max_buffer_size");
         }
+        namespace scheduler {
+            constexpr long long background_basic_quantum_ns = 15 * 1000000;
+            constexpr long long low_basic_quantum_ns = 30 * 1000000;	
+            constexpr long long lower_basic_quantum_ns = 40 * 1000000;	
+            constexpr long long normal_basic_quantum_ns = 80 * 1000000;
+            constexpr long long higher_basic_quantum_ns = 90 * 1000000;
+            constexpr long long high_basic_quantum_ns = 120 * 1000000;
+
+
+            constexpr long long background_max_quantum_ns = 30 * 1000000;
+			constexpr long long low_max_quantum_ns = 60 * 1000000;
+			constexpr long long lower_max_quantum_ns = 80 * 1000000;
+			constexpr long long normal_max_quantum_ns = 160 * 1000000;
+			constexpr long long higher_max_quantum_ns = 180 * 1000000;
+			constexpr long long high_max_quantum_ns = 240 * 1000000;
+        }
     }
 }
 
@@ -27,4 +43,5 @@ namespace configuration {
 #define _configuration_tasks_light_stack_max_buffer_size_modifiable true
 
 #define _configuration_tasks_enable_debug_mode false
+#define _configuration_tasks_enable_preemptive_scheduler_preview false
 #endif /* CONFIGURATION_TASKS */

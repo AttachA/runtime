@@ -6,6 +6,7 @@ namespace art{
     struct shared_ptr : public std::shared_ptr<T>{
         shared_ptr() : std::shared_ptr<T>(){}
         shared_ptr(T* ptr) : std::shared_ptr<T>(ptr){}
+        shared_ptr(std::nullptr_t) : std::shared_ptr<T>(nullptr){}
         shared_ptr(const shared_ptr<T>& ptr) : std::shared_ptr<T>(ptr){}
         shared_ptr(shared_ptr<T>&& ptr) : std::shared_ptr<T>(std::move(ptr)){}
         
@@ -17,8 +18,12 @@ namespace art{
             this->std::shared_ptr<T>::operator=(std::move(ptr));
             return *this;
         }
-        shared_ptr<T>& operator=(T* ptr){
+        shared_ptr<T>& operator=(T* ptr) {
             this->std::shared_ptr<T>::operator=(std::shared_ptr<T>(ptr));
+            return *this;
+        }
+        shared_ptr<T>& operator=(std::nullptr_t) {
+            this->std::shared_ptr<T>::operator=(nullptr);
             return *this;
         }
     };

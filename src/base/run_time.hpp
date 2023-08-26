@@ -4,13 +4,17 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#ifndef SRC_BASE_RUN_TIME
+#define SRC_BASE_RUN_TIME
 #pragma once
+
 #include <library/list_array.hpp>
 #include <run_time/tasks.hpp>
 #include <util/exceptions.hpp>
 #include <util/cxxException.hpp>
 #include <util/enum_helper.hpp>
 #include <util/shared_ptr.hpp>
+#include <util/ustring.hpp>
 namespace art{
 	typedef void* (*CALL_FUNC)(...);
 
@@ -71,18 +75,21 @@ namespace art{
 	void modify_run_time_config(const art::ustring& name, const art::ustring& value);
 	art::ustring get_run_time_config(const art::ustring& name);
 	namespace DynamicCall {
-		class FunctionTemplate;
+		struct FunctionTemplate;
 	}
 
 	class NativeLib {
 		void* hGetProcIDDLL;
-		std::unordered_map<art::ustring, art::shared_ptr<FuncEnvironment>, art::hash<art::ustring>> envs;
+		std::unordered_map<art::ustring, art::shared_ptr<class FuncEnvironment>, art::hash<art::ustring>> envs;
 	public:
 		NativeLib(const art::ustring& library_path);
 		CALL_FUNC get_func(const art::ustring& func_name);
-		art::shared_ptr<FuncEnvironment> get_func_enviro(const art::ustring& func_name, const DynamicCall::FunctionTemplate& templ);
-		art::shared_ptr<FuncEnvironment> get_own_enviro(const art::ustring& func_name);
+		art::shared_ptr<class FuncEnvironment> get_func_enviro(const art::ustring& func_name, const DynamicCall::FunctionTemplate& templ);
+		art::shared_ptr<class FuncEnvironment> get_own_enviro(const art::ustring& func_name);
 		size_t get_pure_func(const art::ustring& func_name);
 		~NativeLib();
 	};
 }
+
+
+#endif /* SRC_BASE_RUN_TIME */

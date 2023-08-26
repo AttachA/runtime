@@ -3,8 +3,8 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-
-#ifdef _WIN32
+#include <util/platform.hpp>
+#if PLATFORM_WINDOWS
 #pragma comment(lib,"Dbghelp.lib")
 #include <Windows.h>
 #include <Dbghelp.h>
@@ -350,7 +350,7 @@ namespace art{
 			throw LibraryFunctionNotFoundException();
 		return (CALL_FUNC)tmp;
 	}
-	art::shared_ptr<FuncEnvironment> NativeLib::get_func_enviro(const art::ustring& func_name, const DynamicCall::FunctionTemplate& templ) {
+	art::shared_ptr<class FuncEnvironment> NativeLib::get_func_enviro(const art::ustring& func_name, const DynamicCall::FunctionTemplate& templ) {
 		auto& env = envs[func_name];
 		if (!env) {
 			DynamicCall::PROC tmp = (DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
@@ -360,7 +360,7 @@ namespace art{
 		}
 		return env;
 	}
-	art::shared_ptr<FuncEnvironment> NativeLib::get_own_enviro(const art::ustring& func_name){
+	art::shared_ptr<class FuncEnvironment> NativeLib::get_own_enviro(const art::ustring& func_name){
 		auto& env = envs[func_name];
 		if (!env) {
 			Environment tmp = (Environment)(DynamicCall::PROC)GetProcAddress((HMODULE)hGetProcIDDLL, func_name.c_str());
@@ -400,7 +400,7 @@ namespace art{
 	bool need_restore_stack_fault() {
 		return need_stack_restore;
 	}
-#else
+#elif PLATFORM_LINUX
 
 #include <utf8cpp/utf8.h>
 #include <configuration/run_time.hpp>

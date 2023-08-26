@@ -11,7 +11,6 @@ set(art_INCLUDE_DIR ${art_src_INCLUDE_DIR} ${art_configuration_INCLUDE_DIR})
 
 if(MSVC)
   enable_language(ASM_MASM)
-  add_compile_options("/Zc:__cplusplus")#BUG: MASM also take it option ans spam warnings
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
@@ -28,7 +27,7 @@ endif(MSVC)
 set(ENABLE_BOOST_PREPROCESSOR ON)
 
 FILE(GLOB SRCFILES 
-        src/run_time/asm/dynamic_call_asm.asm 
+        src/asm.asm 
         src/run_time/*.cpp
         src/run_time/asm/*.cpp
         src/run_time/asm/il_compiler/*.cpp
@@ -40,7 +39,7 @@ FILE(GLOB SRCFILES
         src/base/*.cpp 
 )
 FILE(GLOB LIB_SRCFILES 
-        src/run_time/asm/dynamic_call_asm.asm 
+        src/asm.asm 
         src/run_time/*.cpp
         src/run_time/asm/*.cpp
         src/run_time/asm/il_compiler/*.cpp
@@ -62,14 +61,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   pkg_check_modules(liburing REQUIRED IMPORTED_TARGET GLOBAL liburing>=2.0)
   pkg_check_modules(libunwind REQUIRED IMPORTED_TARGET GLOBAL libunwind)
   set (liburing_LIBRARIES PkgConfig::liburing PkgConfig::libunwind)
+  FILE(GLOB PLATFORM_SRCFILES 
+        src/asm.S
+  )
   include_directories(${Boost_INCLUDE_DIRS} ${asmjit_INCLUDE_DIRS} ${liburing_INCLUDE_DIRS} ${libunwind_INCLUDE_DIRS} ${art_INCLUDE_DIR})
 else()
+  set (PLATFORM_SRCFILES "")
   set (liburing_LIBRARIES "")
   include_directories(${Boost_INCLUDE_DIRS} ${asmjit_INCLUDE_DIRS} ${art_INCLUDE_DIR})
 endif()
 
 
-add_executable(AttachA ${SRCFILES})
+add_executable(AttachA ${SRCFILES} ${PLATFORM_SRCFILES})
 set_property(TARGET AttachA PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_link_libraries(AttachA
@@ -81,7 +84,7 @@ target_link_libraries(AttachA
   )
 
   
-add_library(AttachA_lib STATIC ${LIB_SRCFILES})
+add_library(AttachA_lib STATIC ${LIB_SRCFILES} ${PLATFORM_SRCFILES})
 set_property(TARGET AttachA_lib PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_link_libraries(AttachA_lib

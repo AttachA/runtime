@@ -3,7 +3,10 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
+
+#include <asmjit/asmjit.h>
 #include <util/threading.hpp>
+#include <run_time/tasks_util/signals.hpp>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -20,13 +23,19 @@ namespace art {
         
     }
     void mutex::lock() {
+        signals::interrupt_unsafe_region::lock();
         AcquireSRWLockExclusive((PSRWLOCK)&_mutex);
     }
     void mutex::unlock() {
         ReleaseSRWLockExclusive((PSRWLOCK)&_mutex);
+        signals::interrupt_unsafe_region::unlock();
     }
     bool mutex::try_lock() {
-        return TryAcquireSRWLockExclusive((PSRWLOCK)&_mutex);
+        signals::interrupt_unsafe_region::lock();
+        bool res = TryAcquireSRWLockExclusive((PSRWLOCK)&_mutex);
+        if(!res)
+            signals::interrupt_unsafe_region::unlock();
+        return res;
     }
 
     rw_mutex::rw_mutex(){
@@ -36,20 +45,28 @@ namespace art {
 
     }
     void rw_mutex::lock(){
+        signals::interrupt_unsafe_region::lock();
         AcquireSRWLockExclusive((PSRWLOCK)&_mutex);
     }
     void rw_mutex::unlock(){
         ReleaseSRWLockExclusive((PSRWLOCK)&_mutex);
+        signals::interrupt_unsafe_region::unlock();
     }
     bool rw_mutex::try_lock(){
-        return TryAcquireSRWLockExclusive((PSRWLOCK)&_mutex);
+        signals::interrupt_unsafe_region::lock();
+        bool res = TryAcquireSRWLockExclusive((PSRWLOCK)&_mutex);
+        if(!res)
+            signals::interrupt_unsafe_region::unlock();
+        return res;
     }
 
     void rw_mutex::lock_shared(){
+        signals::interrupt_unsafe_region::lock();
         AcquireSRWLockShared((PSRWLOCK)&_mutex);
     }
     void rw_mutex::unlock_shared(){
         ReleaseSRWLockShared((PSRWLOCK)&_mutex);
+        signals::interrupt_unsafe_region::unlock();
     }
 
 
@@ -100,13 +117,16 @@ namespace art {
         
     }
     void condition_variable::notify_one() {
+        signals::interrupt_unsafe_region region;
         WakeConditionVariable((PCONDITION_VARIABLE)&_cond);
     }
     void condition_variable::notify_all() {
+        signals::interrupt_unsafe_region region;
         WakeAllConditionVariable((PCONDITION_VARIABLE)&_cond);
     }
     
     void condition_variable::wait(mutex& mtx) {
+        signals::interrupt_unsafe_region region;
         if(SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx._mutex, INFINITE, 0)){
             DWORD err = GetLastError();
             if(err)
@@ -122,6 +142,7 @@ namespace art {
             if (sleep_ms.count() <= 0) 
                 return cv_status::timeout;
             DWORD wait_time = sleep_ms.count() > 0x7FFFFFFF ? 0x7FFFFFFF : (DWORD)sleep_ms.count();
+            signals::interrupt_unsafe_region region;
             if (SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx._mutex, wait_time, 0)) {
                 auto err = GetLastError();
                 switch(err){
@@ -138,6 +159,7 @@ namespace art {
     }
     
     void condition_variable::wait(recursive_mutex& mtx) {
+        signals::interrupt_unsafe_region region;
         auto state = mtx.relock_begin();
         if(SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx.actual_mutex, INFINITE, 0)){
             mtx.relock_end(state);
@@ -159,6 +181,7 @@ namespace art {
             if (sleep_ms.count() <= 0)
                 return cv_status::timeout;
             DWORD wait_time = sleep_ms.count() > 0x7FFFFFFF ? 0x7FFFFFFF : (DWORD)sleep_ms.count();
+            signals::interrupt_unsafe_region region;
             bool res = SleepConditionVariableSRW((PCONDITION_VARIABLE)&_cond, (PSRWLOCK)&mtx.actual_mutex, wait_time, 0);
             cv_status status = cv_status::no_timeout;
             mtx.relock_end(state);
@@ -199,6 +222,7 @@ namespace art {
     }
     void thread::join(){
         if(_thread){
+            signals::interrupt_unsafe_region region;
             WaitForSingleObject(_thread, INFINITE);
             CloseHandle(_thread);
             _thread = nullptr;
@@ -210,6 +234,56 @@ namespace art {
             _thread = nullptr;
         }
     }
+    void thread::insert_context(void(* inserted_context)(void*), void* arg){
+        insert_context(this->_id, inserted_context, arg);
+    }
+    struct HANDLE_CLOSER {
+        HANDLE handle = nullptr;
+        HANDLE_CLOSER(HANDLE handle) : handle(handle) {}
+        ~HANDLE_CLOSER() { 
+            if(handle != nullptr)
+                CloseHandle(handle);
+            handle = nullptr;
+        }
+    };
+    void(*thread_insert_context_asm_ptr)() = [](){
+        //get current cpu abilities, use asmjit
+        asmjit::JitRuntime jrt;
+        auto& features = jrt.cpuFeatures().x86();
+        return nullptr;
+    }();
+    bool thread::insert_context(id id, void(* inserted_context)(void*), void* arg){
+        return false;
+        //TODO: implement insert_context for capturing stacks
+        HANDLE_CLOSER thread_handle(OpenThread(THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION  | THREAD_GET_CONTEXT | THREAD_SET_CONTEXT, false, id._id));
+        if(SuspendThread(thread_handle.handle) == -1)
+            return false;
+        
+        CONTEXT context;
+        context.ContextFlags = CONTEXT_CONTROL;
+        if(GetThreadContext(thread_handle.handle, &context) == 0){
+            DWORD error = GetLastError();
+            ResumeThread(thread_handle.handle);
+            return false;
+        }
+        bool res = true;
+        try{
+            auto rsp = context.Rsp;
+            rsp -= sizeof(DWORD64);
+            *(DWORD64*)rsp = context.Rip;//return address
+            rsp -= sizeof(DWORD64);
+            *(DWORD64*)rsp = (DWORD64)inserted_context;//inserted_context
+            rsp -= sizeof(DWORD64);
+            *(DWORD64*)rsp = (DWORD64)arg;//arg
+            context.Rsp = rsp;
+            //set rip to trampoline
+            context.Rip = (DWORD64)thread_insert_context_asm_ptr;
+            res = SetThreadContext(thread_handle.handle, &context);
+        }catch(...){}
+        ResumeThread(thread_handle.handle);
+        return res;
+    }
+
     namespace this_thread{
         thread::id get_id() noexcept{
             return thread::id(GetCurrentThreadId());
@@ -218,11 +292,13 @@ namespace art {
             SwitchToThread();
         }
         void sleep_for(std::chrono::milliseconds ms){
+            signals::interrupt_unsafe_region region;
             Sleep((DWORD)ms.count());
         }
         void sleep_until(std::chrono::high_resolution_clock::time_point time){
             auto diff = time - std::chrono::high_resolution_clock::now();
             while(diff.count() > 0){
+                signals::interrupt_unsafe_region region;
                 Sleep((DWORD)diff.count());
                 diff = time - std::chrono::high_resolution_clock::now();
             }

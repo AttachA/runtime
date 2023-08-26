@@ -157,7 +157,7 @@ namespace art{
 	struct TaskResult {
 		TaskConditionVariable result_notify;
 		list_array<ValueItem> results;
-		void* context = nullptr;
+		struct task_context* context = nullptr;
 		bool end_of_life = false;
 		ValueItem* getResult(size_t res_num, art::unique_lock<MutexUnify>& l);
 		void awaitEnd(art::unique_lock<MutexUnify>& l);
@@ -168,6 +168,15 @@ namespace art{
 		TaskResult();
 		TaskResult(TaskResult&& move) noexcept;
 		~TaskResult();
+	};
+	enum class TaskPriority {
+		background,	
+		low,		
+		lower,		
+		normal,		
+		higher,		
+		high,
+		realtime
 	};
 	struct Task {
 		static size_t max_running_tasks;
@@ -194,8 +203,8 @@ namespace art{
 		bool end_of_life : 1 = false;
 		bool make_cancel : 1 = false;
 		bool auto_bind_worker : 1 = false;//can be binded to regular worker
-		Task(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_task_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
-		Task(art::shared_ptr<FuncEnvironment> call_func, ValueItem&& arguments, bool used_task_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
+		Task(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_task_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min(), TaskPriority priority = TaskPriority::normal);
+		Task(art::shared_ptr<FuncEnvironment> call_func, ValueItem&& arguments, bool used_task_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min(), TaskPriority priority = TaskPriority::normal);
 		Task(Task&& mov) noexcept;
 		~Task();
 		void auto_bind_worker_enable(bool enable = true);

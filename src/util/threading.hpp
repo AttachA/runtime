@@ -3,8 +3,8 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-#ifndef SRC_RUN_TIME_THREADING
-#define SRC_RUN_TIME_THREADING
+#ifndef SRC_UTIL_THREADING
+#define SRC_UTIL_THREADING
 #include <type_traits>
 #include <chrono>
 #include <tuple>
@@ -148,6 +148,8 @@ namespace art {
         void join();
         void detach();
         [[nodiscard]] bool joinable() const noexcept;
+        void insert_context(void(*inserted_context)(void*), void* arg);//not implemented
+        static bool insert_context(id, void(*inserted_context)(void*), void* arg);//TODO not implemented
     };
     namespace this_thread{
         thread::id get_id() noexcept;
@@ -359,4 +361,4 @@ namespace std{
     };
 }
 
-#endif /* SRC_RUN_TIME_THREADING */
+#endif /* SRC_UTIL_THREADING */
