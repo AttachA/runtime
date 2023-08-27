@@ -3,7 +3,7 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-#include <run_time/tasks_util/cpu_usage.hpp>
+#include <run_time/tasks/util/cpu_usage.hpp>
 #include <util/platform.hpp>
 
 static double calculate_cpu_load(art::cpu::usage_prev_stat& prev_stat, uint64_t idle_ticks, uint64_t total_ticks) {

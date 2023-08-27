@@ -43,5 +43,5 @@ namespace configuration {
 #define _configuration_tasks_light_stack_max_buffer_size_modifiable true
 
 #define _configuration_tasks_enable_debug_mode false
-#define _configuration_tasks_enable_preemptive_scheduler_preview false
+#define _configuration_tasks_enable_preemptive_scheduler_preview true
 #endif /* CONFIGURATION_TASKS */

@@ -4,10 +4,15 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#ifndef SRC_RUN_TIME_TASKS_UTIL_LIGHT_STACK
+#define SRC_RUN_TIME_TASKS_UTIL_LIGHT_STACK
+
 #include <boost/context/stack_traits.hpp>
 #include <boost/context/stack_context.hpp>
 #include <boost/context/fiber.hpp>  
 #include <run_time/attacha_abi.hpp>
+
+
 namespace art{
     struct light_stack {
         typedef boost::context::stack_traits traits_type;
@@ -67,3 +72,6 @@ namespace art{
         std::size_t size;
     };
 }
+
+
+#endif /* SRC_RUN_TIME_TASKS_UTIL_LIGHT_STACK */

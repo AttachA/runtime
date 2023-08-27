@@ -6,11 +6,12 @@
 
 ifdef rsp
 .code
-;so signal_interrupter_asm can be called anywhere from code, we need to save everything to call interrupter
-signal_interrupter_asm PROC FRAME
+;so thread_interrupter_asm can be called anywhere from code, we need to save everything to call interrupter
+thread_interrupter_asm PROC FRAME
     ;push return address
     ;push interrupter
-    .allocstack 8
+    ;push args
+    .allocstack 16
     push rbp
 	.pushreg rbp
 
@@ -53,8 +54,9 @@ signal_interrupter_asm PROC FRAME
 
 
 
-    ;get interrupter
-    mov rax, [rbp + 120]
+    
+    mov rax, [rbp + 128];get interrupter
+    mov rcx, [rbp + 120];get args
     and rsp, 0fffffffffffffff0h
     ;make buffer zone for c++
 	sub rsp,20h
@@ -78,14 +80,14 @@ signal_interrupter_asm PROC FRAME
     pop rax
     popfq
     pop rbp
-    ;pop interrupter
-    lea rsp, [rsp+8]
+    ;pop interrupter and args
+    lea rsp, [rsp+16]
     ret
-signal_interrupter_asm ENDP
-signal_interrupter_asm_zmm PROC FRAME
+thread_interrupter_asm ENDP
+thread_interrupter_asm_zmm PROC FRAME
     ;push return address
     ;push interrupter
-    .allocstack 8
+    .allocstack 16
     push rbp
 	.pushreg rbp
 
@@ -160,8 +162,8 @@ signal_interrupter_asm_zmm PROC FRAME
 
 
 
-    ;get interrupter
-    mov rax, [rbp + 120]
+    mov rax, [rbp + 128];get interrupter
+    mov rcx, [rbp + 120];get args
     and rsp, 0fffffffffffffff0h
     ;make buffer zone for c++
 	sub rsp,20h
@@ -172,38 +174,38 @@ signal_interrupter_asm_zmm PROC FRAME
     ;restore everything (flags + registers)
     and rsp, 0ffffffffffffffC0h
 
-    vmovups zmm0, [rsp]
-    vmovups zmm1, [rsp+40h]
-    vmovups zmm2, [rsp+80h]
-    vmovups zmm3, [rsp+0c0h]
-    vmovups zmm4, [rsp+100h]
-    vmovups zmm5, [rsp+140h]
-    vmovups zmm6, [rsp+180h]
-    vmovups zmm7, [rsp+1c0h]
-    vmovups zmm8, [rsp+200h]
-    vmovups zmm9, [rsp+240h]
-    vmovups zmm10, [rsp+280h]
-    vmovups zmm11, [rsp+2c0h]
-    vmovups zmm12, [rsp+300h]
-    vmovups zmm13, [rsp+340h]
-    vmovups zmm14, [rsp+380h]
-    vmovups zmm15, [rsp+3c0h]
-    vmovups zmm16, [rsp+400h]
-    vmovups zmm17, [rsp+440h]
-    vmovups zmm18, [rsp+480h]
-    vmovups zmm19, [rsp+4c0h]
-    vmovups zmm20, [rsp+500h]
-    vmovups zmm21, [rsp+540h]
-    vmovups zmm22, [rsp+580h]
-    vmovups zmm23, [rsp+5c0h]
-    vmovups zmm24, [rsp+600h]
-    vmovups zmm25, [rsp+640h]
-    vmovups zmm26, [rsp+680h]
-    vmovups zmm27, [rsp+6c0h]
-    vmovups zmm28, [rsp+700h]
-    vmovups zmm29, [rsp+740h]
-    vmovups zmm30, [rsp+780h]
-    vmovups zmm31, [rsp+7c0h]
+    vmovups zmm31, [rsp]
+    vmovups zmm30, [rsp-40h]
+    vmovups zmm29, [rsp-80h]
+    vmovups zmm28, [rsp-0c0h]
+    vmovups zmm27, [rsp-100h]
+    vmovups zmm26, [rsp-140h]
+    vmovups zmm25, [rsp-180h]
+    vmovups zmm24, [rsp-1c0h]
+    vmovups zmm23, [rsp-200h]
+    vmovups zmm22, [rsp-240h]
+    vmovups zmm21, [rsp-280h]
+    vmovups zmm20, [rsp-2c0h]
+    vmovups zmm19, [rsp-300h]
+    vmovups zmm18, [rsp-340h]
+    vmovups zmm17, [rsp-380h]
+    vmovups zmm16, [rsp-3c0h]
+    vmovups zmm15, [rsp-400h]
+    vmovups zmm14, [rsp-440h]
+    vmovups zmm13, [rsp-480h]
+    vmovups zmm12, [rsp-4c0h]
+    vmovups zmm11, [rsp-500h]
+    vmovups zmm10, [rsp-540h]
+    vmovups zmm9, [rsp-580h]
+    vmovups zmm8, [rsp-5c0h]
+    vmovups zmm7, [rsp-600h]
+    vmovups zmm6, [rsp-640h]
+    vmovups zmm5, [rsp-680h]
+    vmovups zmm4, [rsp-6c0h]
+    vmovups zmm3, [rsp-700h]
+    vmovups zmm2, [rsp-740h]
+    vmovups zmm1, [rsp-780h]
+    vmovups zmm0, [rsp-7c0h]
 
     mov rsp,rbp
     pop r15
@@ -221,14 +223,14 @@ signal_interrupter_asm_zmm PROC FRAME
     pop rax
     popfq
     pop rbp
-    ;pop interrupter
-    lea rsp, [rsp+8]
+    ;pop interrupter and args
+    lea rsp, [rsp+16]
     ret
-signal_interrupter_asm_zmm ENDP
-signal_interrupter_asm_ymm PROC FRAME
+thread_interrupter_asm_zmm ENDP
+thread_interrupter_asm_ymm PROC FRAME
     ;push return address
     ;push interrupter
-    .allocstack 8
+    .allocstack 16
     push rbp
 	.pushreg rbp
 
@@ -292,8 +294,8 @@ signal_interrupter_asm_ymm PROC FRAME
 
 
 
-    ;get interrupter
-    mov rax, [rbp + 120]
+    mov rax, [rbp + 128];get interrupter
+    mov rcx, [rbp + 120];get args
     and rsp, 0fffffffffffffff0h
     ;make buffer zone for c++
 	sub rsp,20h
@@ -304,22 +306,22 @@ signal_interrupter_asm_ymm PROC FRAME
     ;restore everything (flags + registers)
     and rsp, 0ffffffffffffffe0h
 
-    vmovups ymm0, [rsp]
-    vmovups ymm1, [rsp+40h]
-    vmovups ymm2, [rsp+80h]
-    vmovups ymm3, [rsp+0c0h]
-    vmovups ymm4, [rsp+100h]
-    vmovups ymm5, [rsp+140h]
-    vmovups ymm6, [rsp+180h]
-    vmovups ymm7, [rsp+1c0h]
-    vmovups ymm8, [rsp+200h]
-    vmovups ymm9, [rsp+240h]
-    vmovups ymm10, [rsp+280h]
-    vmovups ymm11, [rsp+2c0h]
-    vmovups ymm12, [rsp+300h]
-    vmovups ymm13, [rsp+340h]
-    vmovups ymm14, [rsp+380h]
-    vmovups ymm15, [rsp+3c0h]
+    vmovups ymm15, [rsp]
+    vmovups ymm14, [rsp-40h]
+    vmovups ymm13, [rsp-80h]
+    vmovups ymm12, [rsp-0c0h]
+    vmovups ymm11, [rsp-100h]
+    vmovups ymm10, [rsp-140h]
+    vmovups ymm9, [rsp-180h]
+    vmovups ymm8, [rsp-1c0h]
+    vmovups ymm7, [rsp-200h]
+    vmovups ymm6, [rsp-240h]
+    vmovups ymm5, [rsp-280h]
+    vmovups ymm4, [rsp-2c0h]
+    vmovups ymm3, [rsp-300h]
+    vmovups ymm2, [rsp-340h]
+    vmovups ymm1, [rsp-380h]
+    vmovups ymm0, [rsp-3c0h]
     mov rsp,rbp
     
     pop r15
@@ -337,14 +339,14 @@ signal_interrupter_asm_ymm PROC FRAME
     pop rax
     popfq
     pop rbp
-    ;pop interrupter
-    lea rsp, [rsp+8]
+    ;pop interrupter and args
+    lea rsp, [rsp+16]
     ret
-signal_interrupter_asm_ymm ENDP
-signal_interrupter_asm_xmm PROC FRAME
+thread_interrupter_asm_ymm ENDP
+thread_interrupter_asm_xmm PROC FRAME
     ;push return address;136
     ;push interrupter;128
-    .allocstack 8
+    .allocstack 16
     push rbp    ;120
 	.pushreg rbp
 
@@ -408,8 +410,8 @@ signal_interrupter_asm_xmm PROC FRAME
 
 
 
-    ;get interrupter
-    mov rax, [rbp + 120]
+    mov rax, [rbp + 128];get interrupter
+    mov rcx, [rbp + 120];get args
     and rsp, 0fffffffffffffff0h
     ;make buffer zone for c++
 	sub rsp,20h
@@ -420,22 +422,22 @@ signal_interrupter_asm_xmm PROC FRAME
     ;restore everything (flags + registers)
     and rsp, 0fffffffffffffff0h
 
-    vmovups xmm0, [rsp]
-    vmovups xmm1, [rsp+40h]
-    vmovups xmm2, [rsp+80h]
-    vmovups xmm3, [rsp+0c0h]
-    vmovups xmm4, [rsp+100h]
-    vmovups xmm5, [rsp+140h]
-    vmovups xmm6, [rsp+180h]
-    vmovups xmm7, [rsp+1c0h]
-    vmovups xmm8, [rsp+200h]
-    vmovups xmm9, [rsp+240h]
-    vmovups xmm10, [rsp+280h]
-    vmovups xmm11, [rsp+2c0h]
-    vmovups xmm12, [rsp+300h]
-    vmovups xmm13, [rsp+340h]
-    vmovups xmm14, [rsp+380h]
-    vmovups xmm15, [rsp+3c0h]
+    vmovups xmm15, [rsp]
+    vmovups xmm14, [rsp-10h]
+    vmovups xmm13, [rsp-20h]
+    vmovups xmm12, [rsp-30h]
+    vmovups xmm11, [rsp-40h]
+    vmovups xmm10, [rsp-50h]
+    vmovups xmm9, [rsp-60h]
+    vmovups xmm8, [rsp-70h]
+    vmovups xmm7, [rsp-80h]
+    vmovups xmm6, [rsp-90h]
+    vmovups xmm5, [rsp-0a0h]
+    vmovups xmm4, [rsp-0b0h]
+    vmovups xmm3, [rsp-0c0h]
+    vmovups xmm2, [rsp-0d0h]
+    vmovups xmm1, [rsp-0e0h]
+    vmovups xmm0, [rsp-0f0h]
     mov rsp,rbp
 
     pop r15
@@ -453,14 +455,14 @@ signal_interrupter_asm_xmm PROC FRAME
     pop rax
     popfq
     pop rbp
-    ;pop interrupter
-    lea rsp, [rsp+8]
+    ;pop interrupter and args
+    lea rsp, [rsp+16]
     ret
-signal_interrupter_asm_xmm ENDP
-signal_interrupter_asm_xmm_small PROC FRAME
+thread_interrupter_asm_xmm ENDP
+thread_interrupter_asm_xmm_small PROC FRAME
     ;push return address
     ;push interrupter
-    .allocstack 8
+    .allocstack 16
     push rbp
 	.pushreg rbp
 
@@ -517,8 +519,8 @@ signal_interrupter_asm_xmm_small PROC FRAME
 
 
 
-    ;get interrupter
-    mov rax, [rbp + 120]
+    mov rax, [rbp + 128];get interrupter
+    mov rcx, [rbp + 120];get args
     and rsp, 0fffffffffffffff0h
     ;make buffer zone for c++
 	sub rsp,20h
@@ -529,14 +531,14 @@ signal_interrupter_asm_xmm_small PROC FRAME
     ;restore everything (flags + registers)
     and rsp, 0fffffffffffffff0h
 
-    vmovups xmm0, [rsp]
-    vmovups xmm1, [rsp+40h]
-    vmovups xmm2, [rsp+80h]
-    vmovups xmm3, [rsp+0c0h]
-    vmovups xmm4, [rsp+100h]
-    vmovups xmm5, [rsp+140h]
-    vmovups xmm6, [rsp+180h]
-    vmovups xmm7, [rsp+1c0h]
+    vmovups xmm7, [rsp] 
+    vmovups xmm6, [rsp-10h] 
+    vmovups xmm5, [rsp-20h] 
+    vmovups xmm4, [rsp-30h] 
+    vmovups xmm3, [rsp-40h] 
+    vmovups xmm2, [rsp-50h] 
+    vmovups xmm1, [rsp-60h] 
+    vmovups xmm0, [rsp-70h] 
     mov rsp,rbp
 
     pop r15
@@ -554,10 +556,10 @@ signal_interrupter_asm_xmm_small PROC FRAME
     pop rax
     popfq
     pop rbp
-    ;pop interrupter
-    lea rsp, [rsp+8]
+    ;pop interrupter and args
+    lea rsp, [rsp+16]
     ret
-signal_interrupter_asm_xmm_small ENDP
+thread_interrupter_asm_xmm_small ENDP
 
 
 ArgumentsPrepareCallForFastcall PROC FRAME

@@ -3,8 +3,8 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-#ifndef RUN_TIME_TASKS_UTIL_CPU_USAGE
-#define RUN_TIME_TASKS_UTIL_CPU_USAGE
+#ifndef SRC_RUN_TIME_TASKS_UTIL_CPU_USAGE
+#define SRC_RUN_TIME_TASKS_UTIL_CPU_USAGE
 #include <cstdint>
 namespace art{
     namespace cpu{
@@ -18,4 +18,4 @@ namespace art{
 }
 
 
-#endif /* RUN_TIME_TASKS_UTIL_CPU_USAGE */
+#endif /* SRC_RUN_TIME_TASKS_UTIL_CPU_USAGE */

@@ -28,7 +28,7 @@
 	#include <run_time/cxx_library/files.hpp>
 	#include <run_time/cxx_library/networking.hpp>
 	#include <run_time/asm/FuncEnvironment.hpp>
-	#include <run_time/tasks_util/native_workers_singleton.hpp>
+	#include <run_time/tasks/util/native_workers_singleton.hpp>
 namespace art{
 	AttachAVirtualTable* define_UniversalAddress = nullptr;
 	AttachAVirtualTable* define_TcpConfiguration = nullptr;

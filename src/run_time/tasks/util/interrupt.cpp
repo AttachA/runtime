@@ -1,45 +1,24 @@
 #include <unordered_map>
 #include <asmjit/asmjit.h>
 #include <library/list_array.hpp>
-#include <run_time/tasks_util/signals.hpp>
-#include <run_time/tasks_util/native_workers_singleton.hpp>
+#include <run_time/tasks/util/interrupt.hpp>
+#include <run_time/tasks/util/native_workers_singleton.hpp>
 #include <util/threading.hpp>
 #include <util/platform.hpp>
-extern "C" void signal_interrupter_asm_zmm();
-extern "C" void signal_interrupter_asm_ymm();
-extern "C" void signal_interrupter_asm_xmm();
-extern "C" void signal_interrupter_asm_xmm_small();
-extern "C" void signal_interrupter_asm();
-void(*signal_interrupter_asm_ptr)() = [](){
-        //get current cpu abilities, use asmjit
-        asmjit::JitRuntime jrt;
-        auto& features = jrt.cpuFeatures().x86();
-        if(features.hasAVX512_VL())
-            return signal_interrupter_asm_zmm;
-        if(features.hasAVX())
-            return signal_interrupter_asm_ymm;
-        if(features.hasSSE())
-            return signal_interrupter_asm_xmm;
-        return signal_interrupter_asm;
-    }();
+void uninstall_timer_handle_local();
+
 namespace art{
-    namespace signals{
+    namespace interrupt{
         struct timer_handle{
-            void (*sigprof)() = nullptr;
-            void (*sigalarm)() = nullptr;
-            void (*sigvalarm)() = nullptr;
+            void (*interrupt)();
             itimerval timer_value;
             void* timer_handle_ = nullptr;
             thread::id thread_id;
             std::atomic_size_t guard_zones = 0;
             bool enabled_timers = true;
             ~timer_handle() {
-                stop_timers();
+                uninstall_timer_handle_local();
             }
-        };
-        struct timer_data {
-            void (*interrupter)();
-            timer_handle* thread_timers;
         };
         thread_local timer_handle timer;
         
@@ -64,75 +43,45 @@ namespace art{
 #if PLATFORM_WINDOWS
 #include <windows.h>
 namespace art{
-    
-
-
-
-    namespace signals{
+    namespace interrupt {
         
         
         
 
-        list_array<timer_data> await_timers;
+        list_array<timer_handle*> await_timers;
         art::condition_variable timer_signal;
         art::mutex timer_signal_mutex;
 
         
-        struct HANDLE_CLOSER {
-            HANDLE handle = nullptr;
-            HANDLE_CLOSER(HANDLE handle) : handle(handle) {}
-            ~HANDLE_CLOSER() { 
-                if(handle != nullptr)
-                    CloseHandle(handle);
-                handle = nullptr;
-            }
-        };
-        void init_signals_handler(){
+
+        void init_interrupt_handler(){
             art::thread([](){
                 art::unique_lock<art::mutex> lock(timer_signal_mutex, art::defer_lock);
                 while(true){
                     lock.lock();
                     while(await_timers.empty())
                         timer_signal.wait(lock);
-                    timer_data data = await_timers.take_front();
+                    timer_handle* data = await_timers.take_front();
                     lock.unlock();
-                    if(data.thread_timers != nullptr){
+                    if(data != nullptr){
                         //get thread handle
-                        HANDLE_CLOSER thread_handle(OpenThread(THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION  | THREAD_GET_CONTEXT | THREAD_SET_CONTEXT, false, data.thread_timers->thread_id._id));
-                        if(SuspendThread(thread_handle.handle) == -1)
+                        auto id = data->thread_id;
+                        if(art::thread::suspend(id) == false)
                             continue;
-                        if (!data.thread_timers->enabled_timers) {
-                            ResumeThread(thread_handle.handle);
+
+                        if (!data->enabled_timers) {
+                            art::thread::resume(id);
                             continue;
                         }
-                        if(data.thread_timers->guard_zones != 0){
-                            ResumeThread(thread_handle.handle);
+                        if(data->guard_zones != 0){
+                            art::thread::resume(id);
                             lock.lock();
                             await_timers.push_back(data);
                             lock.unlock();
                             continue;
                         }
-                        
-                        //set thread context
-                        CONTEXT context;
-                        context.ContextFlags = CONTEXT_CONTROL;
-                        if(GetThreadContext(thread_handle.handle, &context) == 0){
-                            DWORD error = GetLastError();
-                            ResumeThread(thread_handle.handle);
-                            continue;
-                        }
-                        try{
-                            auto rsp = context.Rsp;
-                            rsp -= sizeof(DWORD64);
-                            *(DWORD64*)rsp = context.Rip;//return address
-                            rsp -= sizeof(DWORD64);
-                            *(DWORD64*)rsp = (DWORD64)data.interrupter;//interrupter
-                            context.Rsp = rsp;
-                            //set rip to trampoline
-                            context.Rip = (DWORD64)signal_interrupter_asm_ptr;
-                            SetThreadContext(thread_handle.handle, &context);
-                        }catch(...){}
-                        ResumeThread(thread_handle.handle);
+                        art::thread::insert_context(id, (void(*)(void*))data->interrupt, nullptr);
+                        art::thread::resume(id);
                     }
                 }
             });
@@ -144,47 +93,23 @@ namespace art{
             if(timer->thread_id == this_thread::get_id())
                 return;
             std::unique_lock<art::mutex> lock(timer_signal_mutex);
-            await_timers.push_back({timer->sigprof, timer});
+            await_timers.push_back(timer);
             timer_signal.notify_all();
         }
 
-        int sigaction(SIGNAL_TYPE signum, void(*interrupter)()){
-            switch(signum){
-                case SIGNAL_TYPE::SIGALRM:
-                    timer.sigalarm = interrupter;
-                    break;
-                case SIGNAL_TYPE::SIGVTALRM:
-                    timer.sigvalarm = interrupter;
-                    break;
-                case SIGNAL_TYPE::SIGPROF:
-                    timer.sigprof = interrupter;
-                    break;
-            }
-            return 0;
+        bool timer_callback(void(*interrupter)()){
+            timer.interrupt = interrupter;
+            return true;
         }
-        int setitimer(TIMER_TYPE which, const struct itimerval *new_value, struct itimerval *old_value){
+        bool setitimer(const struct itimerval *new_value, struct itimerval *old_value){
             interrupt_unsafe_region guard;
             if(old_value)
                 *old_value = timer.timer_value;
             if(new_value == nullptr)
-                return -1;
+                return false;
             
             timer.timer_value = *new_value;
             timer.thread_id = this_thread::get_id();
-            auto args = (void (*)())nullptr;
-            switch(which){
-                case TIMER_TYPE::REALTIME:
-                    args = timer.sigalarm;
-                    break;
-                case TIMER_TYPE::VIRTUAL:
-                    args = timer.sigvalarm;
-                    break;
-                case TIMER_TYPE::PROF:
-                    args = timer.sigprof;
-                    break;
-            }
-            if(args == nullptr)
-                return -1;
             if(timer.timer_handle_ != nullptr){
                 DeleteTimerQueueTimer(NULL, timer.timer_handle_, INVALID_HANDLE_VALUE);
                 timer.timer_handle_ = nullptr;
@@ -199,12 +124,12 @@ namespace art{
                         WT_EXECUTEINTIMERTHREAD
             ) == 0
             ){
-                return -1;
+                return false;
             }
             timer.enabled_timers = true;
-            return 0;
+            return true;
         }
-        void stop_timers(){
+        void stop_timer(){
             interrupt_unsafe_region region;
             if(timer.timer_handle_ != nullptr){
                 DeleteTimerQueueTimer(NULL, timer.timer_handle_, INVALID_HANDLE_VALUE);
@@ -212,7 +137,15 @@ namespace art{
             }
             timer.enabled_timers = false;
         }
+
     }
+}
+void uninstall_timer_handle_local(){
+    art::interrupt::stop_timer();
+    art::lock_guard<art::mutex> lock(art::interrupt::timer_signal_mutex);
+    art::interrupt::await_timers.remove_if([](art::interrupt::timer_handle* timer){
+        return timer->thread_id == art::this_thread::get_id();
+    });
 }
 #else
 #include <signal.h>
@@ -257,9 +190,11 @@ namespace art{
     }
 }
 
+#endif
+
 void * operator new(std::size_t n) throw(std::bad_alloc)
 {
-    art::signals::interrupt_unsafe_region region;
+    art::interrupt::interrupt_unsafe_region region;
     void* ptr = malloc(n);
     if(ptr == nullptr)
         throw std::bad_alloc();
@@ -267,12 +202,12 @@ void * operator new(std::size_t n) throw(std::bad_alloc)
 }
 void operator delete(void * p) throw()
 {
-    art::signals::interrupt_unsafe_region region;
+    art::interrupt::interrupt_unsafe_region region;
     free(p);
 }
 void *operator new[](std::size_t s) throw(std::bad_alloc)
 {
-    art::signals::interrupt_unsafe_region region;
+    art::interrupt::interrupt_unsafe_region region;
     void* ptr = malloc(s);
     if(ptr == nullptr)
         throw std::bad_alloc();
@@ -280,7 +215,6 @@ void *operator new[](std::size_t s) throw(std::bad_alloc)
 }
 void operator delete[](void *p) throw()
 {
-    art::signals::interrupt_unsafe_region region;
+    art::interrupt::interrupt_unsafe_region region;
     free(p);
 }
-#endif

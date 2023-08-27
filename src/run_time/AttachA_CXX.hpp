@@ -13,6 +13,28 @@
 #include <run_time/util/templates.hpp>
 namespace art{
 	namespace CXX {
+		inline ValueItem aCall(const art::shared_ptr<FuncEnvironment>& func, ValueItem* args, uint32_t len) {
+			ValueItem* res = func->syncWrapper(args, len);
+			if (res == nullptr)
+				return {};
+			ValueItem m(std::move(*res));
+			delete res;
+			return m;
+		}
+		inline ValueItem aCall(const art::shared_ptr<FuncEnvironment>& func, ValueItem& args) {
+			ValueItem copyArgs;
+			if (args.meta.vtype == VType::faarr || args.meta.vtype == VType::saarr) {
+				if (!args.meta.use_gc)
+					copyArgs = ValueItem(args, as_reference);
+				else
+					copyArgs = ValueItem((ValueItem*)args.getSourcePtr(), args.meta.val_len, as_reference);
+			}
+			else {
+				if (args.meta.vtype != VType::noting)
+					copyArgs = ValueItem(&args, 1, as_reference);
+			}
+			return aCall(func, (ValueItem*)copyArgs.val, copyArgs.meta.val_len);
+		}
 		template<class ...Types>
 		ValueItem cxxCall(art::shared_ptr<FuncEnvironment> func, Types... types) {
 			ValueItem args[] = {ABI_IMPL::BVcast(types)...};

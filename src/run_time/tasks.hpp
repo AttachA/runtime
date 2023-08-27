@@ -276,6 +276,11 @@ namespace art{
 
 		static void explicitStartTimer();
 		static void shutDown();
+
+		
+		static void become_executor_count_manager(bool leave_after_finish);
+		static void start_executor_count_manager();
+		static void start_interrupt_handler();
 	};
 #pragma pack (pop)
 	class TaskSemaphore {
@@ -439,20 +444,6 @@ namespace art{
 		static void return_(Generator* generator_weak_ref, ValueItem* result);
 	};
 
-
-
-
-	//internal
-	namespace _Task_unsafe{
-		void ctxSwap();
-		void ctxSwapRelock(const MutexUnify& lock0);
-		void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1);
-		void ctxSwapRelock(const MutexUnify& lock0, const MutexUnify& lock1, const MutexUnify& lock2);
-		art::shared_ptr<Task> get_self();
-		void become_executor_count_manager(bool leave_after_finish);
-		void start_executor_count_manager();
-		
-	}
 #pragma pop_macro("min")
 }
 #endif

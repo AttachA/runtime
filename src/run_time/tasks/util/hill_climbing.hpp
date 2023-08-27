@@ -1,5 +1,5 @@
-#ifndef RUN_TIME_TASKS_UTIL_HILL_CLIMBING
-#define RUN_TIME_TASKS_UTIL_HILL_CLIMBING
+#ifndef SRC_RUN_TIME_TASKS_UTIL_HILL_CLIMBING
+#define SRC_RUN_TIME_TASKS_UTIL_HILL_CLIMBING
 //source https://github.com/dotnet/runtime/blob/main/src/libraries/System.Private.CoreLib/src/System/Threading/PortableThreadPool.HillClimbing.cs
 // used to balance the number of threads in thread pools, ported from the C# runtime sources
 // uses https://en.wikipedia.org/wiki/Hill_climbing to find the best number of threads to use
@@ -8,7 +8,7 @@
 #include <vector>
 #include <random>
 #include <complex>
-#include <run_time/tasks_util/cpu_usage.hpp>
+#include <run_time/tasks/util/cpu_usage.hpp>
 namespace art{
     namespace util{
         class hill_climb{
@@ -49,4 +49,4 @@ namespace art{
         };
     }
 }
-#endif /* RUN_TIME_TASKS_UTIL_HILL_CLIMBING */
+#endif /* SRC_RUN_TIME_TASKS_UTIL_HILL_CLIMBING */

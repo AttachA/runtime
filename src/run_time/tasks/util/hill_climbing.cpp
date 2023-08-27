@@ -3,13 +3,13 @@
 // uses https://en.wikipedia.org/wiki/Hill_climbing to find the best number of threads to use
 // this and hill_climbing.hpp file licensed under MIT license
 
-#include <run_time/tasks_util/hill_climbing.hpp>
+#include <run_time/tasks/util/hill_climbing.hpp>
 #define _USE_MATH_DEFINES
 #include <math.h>
 #include <numbers>
 #include <cassert>
 #include <algorithm>
-#include <run_time/tasks_util/cpu_usage.hpp>
+#include <run_time/tasks/util/cpu_usage.hpp>
 
 
 

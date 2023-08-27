@@ -1,7 +1,7 @@
 #include <run_time/cxx_library/files.hpp>
 #include <util/exceptions.hpp>
 #include <run_time/tasks.hpp>
-#include <run_time/tasks_util/native_workers_singleton.hpp>
+#include <run_time/tasks/util/native_workers_singleton.hpp>
 #include <filesystem>
 #include <run_time/AttachA_CXX.hpp>
 #include <configuration/compatibility.hpp>

@@ -9,7 +9,8 @@ set(art_src_INCLUDE_DIR "src")
 set(art_configuration_INCLUDE_DIR "include")
 set(art_INCLUDE_DIR ${art_src_INCLUDE_DIR} ${art_configuration_INCLUDE_DIR})
 
-if(MSVC)
+if(MSVC)  
+  add_definitions(/MP)
   enable_language(ASM_MASM)
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
@@ -33,7 +34,12 @@ FILE(GLOB SRCFILES
         src/run_time/asm/il_compiler/*.cpp
         src/run_time/cxx_library/*.cpp
         src/run_time/library/*.cpp
-        src/run_time/tasks_util/*.cpp
+        src/run_time/tasks/*.cpp
+        src/run_time/tasks/classes/*.cpp
+        src/run_time/tasks/classes/misc/*.cpp
+        src/run_time/tasks/classes/synchronization/*.cpp
+        src/run_time/tasks/classes/task/*.cpp
+        src/run_time/tasks/util/*.cpp
         src/util/*.cpp
         src/library/*.cpp
         src/base/*.cpp 
@@ -45,7 +51,12 @@ FILE(GLOB LIB_SRCFILES
         src/run_time/asm/il_compiler/*.cpp
         src/run_time/cxx_library/*.cpp
         src/run_time/library/*.cpp
-        src/run_time/tasks_util/*.cpp
+        src/run_time/tasks/*.cpp
+        src/run_time/tasks/classes/*.cpp
+        src/run_time/tasks/classes/misc/*.cpp
+        src/run_time/tasks/classes/synchronization/*.cpp
+        src/run_time/tasks/classes/task/*.cpp
+        src/run_time/tasks/util/*.cpp
         src/util/*.cpp
         src/library/*.cpp
         src/base/run_time.cpp

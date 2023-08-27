@@ -148,8 +148,13 @@ namespace art {
         void join();
         void detach();
         [[nodiscard]] bool joinable() const noexcept;
-        void insert_context(void(*inserted_context)(void*), void* arg);//not implemented
-        static bool insert_context(id, void(*inserted_context)(void*), void* arg);//TODO not implemented
+
+        bool suspend();
+        bool resume();
+        void insert_context(void(*inserted_context)(void*), void* arg);
+        static bool suspend(id);
+        static bool resume(id);
+        static bool insert_context(id, void(*inserted_context)(void*), void* arg);
     };
     namespace this_thread{
         thread::id get_id() noexcept;

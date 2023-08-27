@@ -9,7 +9,7 @@
 #include <boost/lockfree/queue.hpp>
 #include <configuration/tasks.hpp>
 #include <base/run_time.hpp>
-#include <run_time/tasks_util/light_stack.hpp>
+#include <run_time/tasks/util/light_stack.hpp>
 #include <run_time/library/console.hpp>
 #include <util/exceptions.hpp>
 #include <util/platform.hpp>

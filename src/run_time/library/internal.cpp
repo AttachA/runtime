@@ -5,7 +5,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <run_time/asm/dynamic_call.hpp>
-#include <run_time/tasks_util/light_stack.hpp>
+#include <run_time/tasks/util/light_stack.hpp>
 #include <run_time/asm/CASM.hpp>
 #include <run_time/AttachA_CXX.hpp>
 #include <run_time/func_enviro_builder.hpp>

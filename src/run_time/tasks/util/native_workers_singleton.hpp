@@ -2,11 +2,13 @@
 #define SRC_RUN_TIME_TASKS_UTIL_NATIVE_WORKERS_SINGLETON
 
 #include <base/run_time.hpp>
-#include <run_time/tasks_util/hill_climbing.hpp>
+#include <run_time/tasks/util/hill_climbing.hpp>
 #include <util/threading.hpp>
 #include <list>
 
 #ifdef _WIN64
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <Windows.h>
 namespace art{
     class NativeWorkerManager {
