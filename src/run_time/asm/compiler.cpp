@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2022-Present
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #include <util/platform.hpp>
 #if ARCHITECTURE_AMD64
 	#include <run_time/asm/compiler/dynamic/amd64/_any_os.hpp>

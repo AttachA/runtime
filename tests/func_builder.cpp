@@ -1,9 +1,10 @@
 #include <attacha_run_time.hpp>
+
 #include <gtest/gtest.h>
+
 using namespace art;
 
-
-TEST(FuncEnviroBuilder, static_test){
+TEST(FuncEnviroBuilder, static_test) {
     {
         FuncEnviroBuilder builder;
         auto noting = builder.create_constant(nullptr);
@@ -22,18 +23,17 @@ TEST(FuncEnviroBuilder, static_test){
     EXPECT_EQ(CXX::cxxCall("static_test"), 3);
     FuncEnvironment::Unload("static_test");
 }
-TEST(FuncEnviroBuilder, table_jump){
+
+TEST(FuncEnviroBuilder, table_jump) {
     {
         FuncEnviroBuilder builder;
-        builder.table_jump(
-            { "0", "1", "2", "3" },
-            0_arg,
-            true,
-            TableJumpCheckFailAction::jump_specified,
-            "too_big",
-            TableJumpCheckFailAction::jump_specified,
-            "too_small"
-        );
+        builder.table_jump({"0", "1", "2", "3"},
+                           0_arg,
+                           true,
+                           TableJumpCheckFailAction::jump_specified,
+                           "too_big",
+                           TableJumpCheckFailAction::jump_specified,
+                           "too_small");
         auto num7 = builder.create_constant(7);
         auto num6 = builder.create_constant(6);
         auto num5 = builder.create_constant(5);
@@ -63,18 +63,17 @@ TEST(FuncEnviroBuilder, table_jump){
     EXPECT_EQ(CXX::cxxCall("table_jump_test", -100), 30);
     FuncEnvironment::Unload("table_jump_test");
 }
-TEST(FuncEnviroBuilder,table_jump_2){
+
+TEST(FuncEnviroBuilder, table_jump_2) {
     {
         FuncEnviroBuilder builder;
-        builder.table_jump(
-            { "0", "1", "2", "3" },
-            0_arg,
-            true,
-            TableJumpCheckFailAction::jump_specified,
-            "default",
-            TableJumpCheckFailAction::jump_specified,
-            "default"
-        );
+        builder.table_jump({"0", "1", "2", "3"},
+                           0_arg,
+                           true,
+                           TableJumpCheckFailAction::jump_specified,
+                           "default",
+                           TableJumpCheckFailAction::jump_specified,
+                           "default");
         auto num7 = builder.create_constant(7);
         auto num6 = builder.create_constant(6);
         auto num5 = builder.create_constant(5);

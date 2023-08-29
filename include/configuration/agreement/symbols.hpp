@@ -1,14 +1,9 @@
 #ifndef RUN_TIME_AGREEMENT_SYMBOLS
 #define RUN_TIME_AGREEMENT_SYMBOLS
 
-
-
-
-
-namespace symbols{
-    namespace structures{
+namespace symbols {
+    namespace structures {
         constexpr const char* const size = "size";
-
 
 
         constexpr const char* const add_operator = "operator+=";
@@ -27,7 +22,6 @@ namespace symbols{
         constexpr const char* const hash_operator = "operator#=";
 
 
-
         constexpr const char* const not_equal_operator = "operator!=";
         constexpr const char* const equal_operator = "operator==";
         constexpr const char* const less_operator = "operator<";
@@ -43,6 +37,7 @@ namespace symbols{
 
         constexpr const char* const index_operator = "operator[]get";
         constexpr const char* const index_set_operator = "operator[]set";
+
         namespace _auto {
             constexpr bool enabled = true;
             constexpr const char* const copy_add_operator = "operator+";
@@ -60,7 +55,8 @@ namespace symbols{
             constexpr const char* const copy_set_non_noting_operator = "operator?";
             constexpr const char* const copy_hash_operator = "operator#";
         }
-        namespace iterable{
+
+        namespace iterable {
             constexpr const char* const begin = "begin";
             constexpr const char* const end = "end";
             constexpr const char* const next = "next";
@@ -68,7 +64,8 @@ namespace symbols{
             constexpr const char* const get = "get";
             constexpr const char* const set = "set";
         }
-        namespace convert{
+
+        namespace convert {
             constexpr const char* const to_string = "to_string";
             constexpr const char* const to_ui8 = "to_ui8";
             constexpr const char* const to_ui16 = "to_ui16";
@@ -86,7 +83,6 @@ namespace symbols{
             constexpr const char* const to_function = "to_function";
             constexpr const char* const to_map = "to_map";
             constexpr const char* const to_set = "to_set";
-
 
 
             constexpr const char* const to_ui8_arr = "to_ui8[]";

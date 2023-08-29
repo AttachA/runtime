@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2022-Present
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #ifndef INCLUDE_BASIC_RUN_TIME
 #define INCLUDE_BASIC_RUN_TIME
 #include <base/run_time.hpp>

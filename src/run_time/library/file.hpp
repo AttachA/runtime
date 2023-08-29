@@ -1,4 +1,4 @@
-// Copyright Danyil Melnytskyi 2022-2023
+// Copyright Danyil Melnytskyi 2022-Present
 //
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
@@ -6,20 +6,22 @@
 
 #pragma once
 #include <run_time/attacha_abi_structs.hpp>
-namespace art{
-	namespace file {
-		namespace constructor {
-			ValueItem* createProxy_FileHandle(ValueItem*, uint32_t);
-			ValueItem* createProxy_BlockingFileHandle(ValueItem*, uint32_t);
 
-			ValueItem* createProxy_TextFile(ValueItem*, uint32_t);
+namespace art {
+    namespace file {
+        namespace constructor {
+            ValueItem* createProxy_FileHandle(ValueItem*, uint32_t);
+            ValueItem* createProxy_BlockingFileHandle(ValueItem*, uint32_t);
 
-			ValueItem* createProxy_FolderBrowser(ValueItem*, uint32_t);
-			ValueItem* createProxy_FolderChangesMonitor(ValueItem*, uint32_t);
-		}
-		ValueItem* remove(ValueItem*, uint32_t);
-		ValueItem* rename(ValueItem*, uint32_t);
-		ValueItem* copy(ValueItem*, uint32_t);
-		void init();
-	}
+            ValueItem* createProxy_TextFile(ValueItem*, uint32_t);
+
+            ValueItem* createProxy_FolderBrowser(ValueItem*, uint32_t);
+            ValueItem* createProxy_FolderChangesMonitor(ValueItem*, uint32_t);
+        }
+
+        ValueItem* remove(ValueItem*, uint32_t);
+        ValueItem* rename(ValueItem*, uint32_t);
+        ValueItem* copy(ValueItem*, uint32_t);
+        void init();
+    }
 }

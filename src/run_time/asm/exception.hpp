@@ -1,9 +1,17 @@
+// Copyright Danyil Melnytskyi 2022-Present
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #ifndef SRC_RUN_TIME_ASM_EXCEPTION
 #define SRC_RUN_TIME_ASM_EXCEPTION
 #include <run_time/attacha_abi_structs.hpp>
-namespace art{
+
+namespace art {
     struct CXXExInfo;
-    namespace exception{
+
+    namespace exception {
         void* __get_internal_handler();
         ValueItem* get_current_exception_name();
         ValueItem* get_current_exception_name();
@@ -18,8 +26,8 @@ namespace art{
         bool has_exception();
         list_array<art::ustring> map_native_exception_names(CXXExInfo& cxx);
 
-        bool _attacha_filter(CXXExInfo &info, void **continue_from, void *data, size_t size, void *enviro);
-        void _attacha_finally(void *data, size_t size, void *enviro);
+        bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro);
+        void _attacha_finally(void* data, size_t size, void* enviro);
     }
 }
 

@@ -1,4 +1,4 @@
-// Copyright Danyil Melnytskyi 2022-2023
+// Copyright Danyil Melnytskyi 2022-Present
 //
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
@@ -8,12 +8,11 @@
 #define RUN_TIME_LIBRARY_INTERNAL
 #include <run_time/attacha_abi_structs.hpp>
 
-
-namespace art{
+namespace art {
     namespace internal {
 
         //not thread safe!
-        namespace memory{
+        namespace memory {
             //returns faarr[faarr[ptr from, ptr to, len, str desk, bool is_fault]...], args: array/value ptr
             ValueItem* dump(ValueItem*, uint32_t);
         }
@@ -49,7 +48,6 @@ namespace art{
             ValueItem* free_size(ValueItem*, uint32_t);
 
 
-
             //returns [{file_path, fun_name, line},...], args: framesToSkip, include_native, max_frames
             ValueItem* trace(ValueItem*, uint32_t);
             //returns [rip,...], args: framesToSkip, include_native, max_frames
@@ -58,7 +56,7 @@ namespace art{
             ValueItem* resolve_frame(ValueItem*, uint32_t);
         }
 
-        namespace run_time{
+        namespace run_time {
             //not recommended to use, use only for debug
             ValueItem* gc_pause(ValueItem*, uint32_t);
             ValueItem* gc_resume(ValueItem*, uint32_t);
@@ -66,20 +64,23 @@ namespace art{
             //gc can ignore this hint
             ValueItem* gc_hint_collect(ValueItem*, uint32_t);
 
-            namespace native{
-                namespace construct{
-                    ValueItem* createProxy_NativeValue(ValueItem*, uint32_t);// used in NativeTemplate
-                    ValueItem* createProxy_NativeTemplate(ValueItem*, uint32_t);// used in NativeLib
-                    ValueItem* createProxy_NativeLib(ValueItem*, uint32_t);// args: str lib path(resolved by os), do not use functions from this instance when destructor called
+            namespace native {
+                namespace construct {
+                    ValueItem* createProxy_NativeValue(ValueItem*, uint32_t);    // used in NativeTemplate
+                    ValueItem* createProxy_NativeTemplate(ValueItem*, uint32_t); // used in NativeLib
+                    ValueItem* createProxy_NativeLib(ValueItem*, uint32_t);      // args: str lib path(resolved by os), do not use functions from this instance when destructor called
                 }
+
                 void init();
             }
         }
-        namespace construct{
+
+        namespace construct {
             ValueItem* createProxy_function_builder(ValueItem*, uint32_t);
             ValueItem* createProxy_index_pos(ValueItem*, uint32_t);
             ValueItem* createProxy_line_info(ValueItem*, uint32_t);
         }
+
         void init();
     }
 }

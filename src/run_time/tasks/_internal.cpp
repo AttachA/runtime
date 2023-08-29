@@ -6,8 +6,7 @@
 
 #include <run_time/tasks/_internal.hpp>
 
-
-namespace art{
+namespace art {
     thread_local executors_local loc;
     executor_global glob;
 }

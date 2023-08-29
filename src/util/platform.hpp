@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2022-Present
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #ifndef SRC_UTIL_PLATFORM
 #define SRC_UTIL_PLATFORM
 
@@ -48,7 +54,6 @@
 #else
 #define BIT_UNKNOWN 1
 #endif
-
 
 
 #endif /* SRC_UTIL_PLATFORM */

@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION 3.20)
 project(AttachA CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(Boost_NO_WARN_NEW_VERSIONS ON)
-#enable_testing()
-#add_subdirectory(tests)
 
 set(art_src_INCLUDE_DIR "src")
 set(art_configuration_INCLUDE_DIR "include")

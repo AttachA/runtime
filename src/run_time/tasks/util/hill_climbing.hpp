@@ -4,14 +4,16 @@
 // used to balance the number of threads in thread pools, ported from the C# runtime sources
 // uses https://en.wikipedia.org/wiki/Hill_climbing to find the best number of threads to use
 // this and hill_climbing.cpp file licensed under MIT license
+#include <complex>
+#include <random>
 #include <tuple>
 #include <vector>
-#include <random>
-#include <complex>
+
 #include <run_time/tasks/util/cpu_usage.hpp>
-namespace art{
-    namespace util{
-        class hill_climb{
+
+namespace art {
+    namespace util {
+        class hill_climb {
             /*const*/ uint32_t wave_period;
             /*const*/ uint32_t samples_to_measure;
             /*const*/ double target_throughput_ratio;
@@ -25,7 +27,7 @@ namespace art{
             /*const*/ double throughput_error_smoothing_factor;
             /*const*/ double gain_exponent;
             /*const*/ double max_sample_error;
-            
+
             double current_control_setting = 0;
             uint64_t total_samples = 0;
             uint32_t last_thread_count = 0;
@@ -37,15 +39,20 @@ namespace art{
             std::vector<double> samples;
             std::vector<double> thread_counts;
             uint32_t current_sample_ms = 0;
-            
+
             std::mt19937 _random_interval_generator;
             cpu::usage_prev_stat prev_stat;
             std::complex<double> get_wave_component(std::vector<double>& samples, uint32_t num_samples, double period);
             void set_thread_count(uint32_t thread_count);
+
         public:
             hill_climb();
             //new_thread_count, next_sample_ms
-            std::pair<uint32_t, uint32_t> climb(uint32_t curr_thread_count, double sample_seconds, uint32_t completed_count, uint32_t min_threads, uint32_t max_threads);
+            std::pair<uint32_t, uint32_t> climb(uint32_t curr_thread_count,
+                                                double sample_seconds,
+                                                uint32_t completed_count,
+                                                uint32_t min_threads,
+                                                uint32_t max_threads);
         };
     }
 }

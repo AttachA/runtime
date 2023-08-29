@@ -1,4 +1,4 @@
-// Copyright Danyil Melnytskyi 2022-2023
+// Copyright Danyil Melnytskyi 2022-Present
 //
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
@@ -7,13 +7,12 @@
 #ifndef SRC_RUN_TIME_TASKS_UTIL_LIGHT_STACK
 #define SRC_RUN_TIME_TASKS_UTIL_LIGHT_STACK
 
-#include <boost/context/stack_traits.hpp>
+#include <boost/context/fiber.hpp>
 #include <boost/context/stack_context.hpp>
-#include <boost/context/fiber.hpp>  
+#include <boost/context/stack_traits.hpp>
 #include <run_time/attacha_abi.hpp>
 
-
-namespace art{
+namespace art {
     struct light_stack {
         typedef boost::context::stack_traits traits_type;
         typedef boost::context::stack_context stack_context;
@@ -30,7 +29,7 @@ namespace art{
         //alloc all stack without slow STATUS_GUARD_PAGE_VIOLATION
         static bool prepare();
 
-        //returns 
+        //returns
         // faarr[
         //     faarr[undefined_ptr stack_begin_from, undefined_ptr stack_end_at, ui64 used_memory, str desk, bool fault_prot]
         //     ...
@@ -42,7 +41,7 @@ namespace art{
         //console
         static void dump_current_out();
 
-        //returns 
+        //returns
         // faarr[
         //     faarr[undefined_ptr stack_begin_from, undefined_ptr stack_end_at, ui64 used_memory, str desk, bool fault_prot]
         //     ...
@@ -68,6 +67,7 @@ namespace art{
         //set in stack bytes from buffer to 0xCCCC, by default false
         static bool flush_used_stacks;
         static size_t max_buffer_size;
+
     private:
         std::size_t size;
     };

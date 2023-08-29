@@ -1,11 +1,19 @@
+// Copyright Danyil Melnytskyi 2022-Present
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #ifndef SRC_RUN_TIME_ASM_IL_COMPILER_ART_1_0_0
 #define SRC_RUN_TIME_ASM_IL_COMPILER_ART_1_0_0
 #include <run_time/asm/il_compiler/basic.hpp>
 #include <util/enum_helper.hpp>
-namespace art{
-    namespace il_compiler{
-        namespace art_1_0_0{
-            ENUM_t(Opcode,uint8_t,
+
+
+namespace art {
+    namespace il_compiler {
+        namespace art_1_0_0 {
+            ENUM_t(Opcode, uint8_t, 
                 (noting)
                 (create_saarr)
                 (remove)
@@ -43,7 +51,6 @@ namespace art{
                 (is)
                 (store_bool)
                 (load_bool)
-
                 (inline_native)
                 (call_value_function)
                 (call_value_function_id)
@@ -83,7 +90,8 @@ namespace art{
             )
 
 
-            ENUM_t( OpcodeArray,uint8_t,
+
+            ENUM_t(OpcodeArray, uint8_t, 
                 (set)
                 (insert)
                 (push_end)
@@ -114,13 +122,12 @@ namespace art{
                 (remove_reserved)
                 (size)
             )
-            ENUM_t(ArrCheckMode, uint8_t,
-                (no_check)
+            ENUM_t(ArrCheckMode, uint8_t, (no_check)
                 (check)
                 (no_throw_check)
             )
-            ENUM_t(TableJumpCheckFailAction, uint8_t,
-                (jump_specified)
+                        
+            ENUM_t(TableJumpCheckFailAction, uint8_t, (jump_specified)
                 (throw_exception)
                 (unchecked)
             )
@@ -132,6 +139,7 @@ namespace art{
                 };
                 uint8_t raw;
             };
+            
             union TableJumpFlags {
                 struct {
                     uint8_t is_signed : 1;
@@ -141,7 +149,7 @@ namespace art{
                 uint8_t raw;
             };
 
-            ENUM_ta(JumpCondition, uint8_t,
+            ENUM_ta(JumpCondition, uint8_t, 
                 (no_condition)
                 (is_equal)
                 (is_not_equal)
@@ -156,8 +164,7 @@ namespace art{
                 (is_signed_lower_or_eq)
                 (is_signed_more_or_eq)
 
-                (is_zero)
-                ,
+                (is_zero),
                 (is_more = is_unsigned_more)
                 (is_lower = is_unsigned_lower)
                 (is_lower_or_eq = is_unsigned_lower_or_eq)
@@ -165,7 +172,7 @@ namespace art{
             )
 
             struct Command {
-                Command(){
+                Command() {
                     code = Opcode::noting;
                     is_gc_mode = false;
                     static_mode = false;
@@ -182,7 +189,7 @@ namespace art{
 
             union CallFlags {
                 struct {
-                    uint8_t always_dynamic : 1;//prevent holding old function reference
+                    uint8_t always_dynamic : 1; //prevent holding old function reference
                     uint8_t async_mode : 1;
                     uint8_t use_result : 1;
                     uint8_t : 5;
@@ -196,9 +203,8 @@ namespace art{
                     size_t start,
                     size_t end_offset,
                     Compiler& compiler,
-                    FuncHandle::inner_handle* func
-                ) override;
-                
+                    FuncHandle::inner_handle* func) override;
+
                 void decode_header(
                     const std::vector<uint8_t>& data,
                     size_t& start,
@@ -208,8 +214,8 @@ namespace art{
                     std::vector<art::shared_ptr<FuncEnvironment>>& locals,
                     FunctionMetaFlags& flags,
                     uint16_t& used_static_values,
-                    uint16_t& used_enviro_vals, 
-                    uint32_t& used_arguments, 
+                    uint16_t& used_enviro_vals,
+                    uint32_t& used_arguments,
                     uint64_t& constants_values) override;
             };
         }

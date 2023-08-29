@@ -1,15 +1,23 @@
+// Copyright Danyil Melnytskyi 2022-Present
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #ifndef SRC_RUN_TIME_LIBRARY_LANGUAGE
 #define SRC_RUN_TIME_LIBRARY_LANGUAGE
 #include <run_time/attacha_abi_structs.hpp>
-namespace art{
-    namespace optimizers{
+
+namespace art {
+    namespace optimizers {
         ValueItem* createProxy_opcode_optimizer(ValueItem*, uint32_t);
         ValueItem* createProxy_stack_localizer(ValueItem*, uint32_t);
         ValueItem* createProxy_simd_super_optimizer(ValueItem*, uint32_t);
         ValueItem* createProxy_loop_unroller(ValueItem*, uint32_t);
         ValueItem* createProxy_mathematic_optimizer(ValueItem*, uint32_t);
     }
-    namespace compilers{
+
+    namespace compilers {
         ValueItem* createProxy_universal_compiler(ValueItem*, uint32_t);
         //{
         //   void setCompilerConfiguration(string name, any...);
@@ -35,7 +43,6 @@ namespace art{
         //   iterator iterate();
         //}
     }
-
 
 
 }

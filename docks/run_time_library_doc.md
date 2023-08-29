@@ -106,7 +106,7 @@
         arguments: any...
         desc: 'print all arguments, convert all non string values to string'
         returns: noting
-	
+
     fun: printf
         unsafe
         c_function

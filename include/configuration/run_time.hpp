@@ -1,5 +1,6 @@
 #ifndef CONFIGURATION_RUN_TIME
 #define CONFIGURATION_RUN_TIME
+
 namespace configuration {
     namespace run_time {
         enum class FaultActionByDefault {
@@ -22,28 +23,29 @@ namespace configuration {
             ignore
         };
 
-        
-        #if defined(_DEBUG) || defined(DEBUG) || !defined(NDEBUG)
+
+#if defined(_DEBUG) || defined(DEBUG) || !defined(NDEBUG)
         constexpr FaultActionByDefault default_fault_action = FaultActionByDefault::invite_to_debugger;
         constexpr BreakPointActionByDefault break_point_action = BreakPointActionByDefault::invite_to_debugger;
         constexpr ExceptionOnLanguageRoutineActionByDefault exception_on_language_routine_action = ExceptionOnLanguageRoutineActionByDefault::invite_to_debugger;
 
-        #else 
+#else
         constexpr FaultActionByDefault default_fault_action = FaultActionByDefault::make_dump;
         constexpr BreakPointActionByDefault break_point_action = BreakPointActionByDefault::throw_exception;
         constexpr ExceptionOnLanguageRoutineActionByDefault exception_on_language_routine_action = ExceptionOnLanguageRoutineActionByDefault::nest_exception;
-        #endif
+#endif
 
-        
-        #if defined(_DEBUG) || defined(DEBUG) || !defined(NDEBUG)
+
+#if defined(_DEBUG) || defined(DEBUG) || !defined(NDEBUG)
         constexpr bool enable_thread_naming = true;
-        #else 
+#else
         constexpr bool enable_thread_naming = false;
-        #endif
+#endif
 
         constexpr bool allow_intern_access = false;
     }
 }
+
 #define _configuration_run_time_fault_action_modifiable true
 #define _configuration_run_time_break_point_action_modifiable true
 #define _configuration_run_time_exception_on_language_routine_action_modifiable true
