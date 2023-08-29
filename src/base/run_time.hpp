@@ -32,9 +32,33 @@ namespace art {
 #define DISABLE_RUNTIME_INFO
     extern EventSystem info;
 
-    ENUM_ta(FaultAction, uint8_t, (make_dump)(show_error)(dump_and_show_error)(invite_to_debugger)(system_default), (ignore = system_default));
-    ENUM_t(BreakPointAction, uint8_t, (invite_to_debugger)(throw_exception)(ignore));
-    ENUM_t(ExceptionOnLanguageRoutineAction, uint8_t, (invite_to_debugger)(nest_exception)(swap_exception)(ignore));
+    ENUM_ta(
+        FaultAction,
+        uint8_t,
+        (ignore = system_default),
+        make_dump,
+        show_error,
+        dump_and_show_error,
+        invite_to_debugger,
+        system_default
+    );
+
+    ENUM_t(
+        BreakPointAction,
+        uint8_t,
+        invite_to_debugger,
+        throw_exception,
+        ignore
+    );
+
+    ENUM_t(
+        ExceptionOnLanguageRoutineAction,
+        uint8_t,
+        invite_to_debugger,
+        nest_exception,
+        swap_exception,
+        ignore
+    );
 
 
     extern unsigned long fault_reserved_stack_size;

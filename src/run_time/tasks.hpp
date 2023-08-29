@@ -85,7 +85,16 @@ namespace art {
         bool is_own();
     };
 
-    ENUM_t(MutexUnifyType, uint8_t, (noting)(nmut)(ntimed)(nrec)(umut)(mmut));
+    ENUM_t(
+        MutexUnifyType,
+        uint8_t,
+        noting,
+        nmut,
+        ntimed,
+        nrec,
+        umut,
+        mmut
+    );
 
     struct MutexUnify {
         union {

@@ -125,4 +125,10 @@
         "file:///D:/progs/visual_studio_code_css/tabs.css"
     ],
     "C_Cpp.clang_format_style": "file",
+    "[cpp]": {
+        "editor.formatOnPaste": true,
+        "editor.formatOnSave": true,
+        "editor.formatOnSaveMode": "modifications",
+        "editor.formatOnType": true
+    }
 }

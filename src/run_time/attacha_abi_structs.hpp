@@ -6,55 +6,160 @@
 
 #pragma once
 #ifndef SRC_RUN_TIME_ATTACHA_ABI_STRUCTS
-#define SRC_RUN_TIME_ATTACHA_ABI_STRUCTS
-#include <cassert>
-#include <chrono>
-#include <cstdint>
-#include <exception>
-#include <unordered_map>
-#include <unordered_set>
+    #define SRC_RUN_TIME_ATTACHA_ABI_STRUCTS
+    #include <cassert>
+    #include <chrono>
+    #include <cstdint>
+    #include <exception>
+    #include <unordered_map>
+    #include <unordered_set>
 
-#include <library/list_array.hpp>
-#include <util/array.hpp>
-#include <util/enum_helper.hpp>
-#include <util/exceptions.hpp>
-#include <util/hash.hpp>
-#include <util/link_garbage_remover.hpp>
-#include <util/shared_ptr.hpp>
-#include <util/ustring.hpp>
+    #include <library/list_array.hpp>
+    #include <util/array.hpp>
+    #include <util/enum_helper.hpp>
+    #include <util/exceptions.hpp>
+    #include <util/hash.hpp>
+    #include <util/link_garbage_remover.hpp>
+    #include <util/shared_ptr.hpp>
+    #include <util/ustring.hpp>
 
 namespace art {
     struct Task;
     class FuncEnvironment;
 
-    ENUM_t(Opcode, uint8_t,
-           (noting)(create_saarr)(remove)(sum)(minus)(div)(mul)(rest)(bit_xor)(bit_or)(bit_and)(bit_not)(bit_shift_left)(bit_shift_right)(log_not)(compare)(jump)(arg_set)(call)(call_self)(call_local)(call_and_ret)(call_self_and_ret)(call_local_and_ret)(ret)(ret_take)(ret_noting)(copy)(move)(arr_op)(debug_break)(force_debug_break)(throw_ex)(as)(is)(store_bool) //store bool from value for if statements, set false if type is noting, numeric types is zero and containers is empty, if another then true
-           (load_bool)                                                                                                                                                                                                                                                                                                                                                    //used if need save equality result, set numeric type as 1 or 0
+    ENUM_t(
+        Opcode,
+        uint8_t,
+        noting,
+        create_saarr,
+        remove,
+        sum,
+        minus,
+        div,
+        mul,
+        rest,
+        bit_xor,
+        bit_or,
+        bit_and,
+        bit_not,
+        bit_shift_left,
+        bit_shift_right,
+        log_not,
+        compare,
+        jump,
+        arg_set,
+        call,
+        call_self,
+        call_local,
+        call_and_ret,
+        call_self_and_ret,
+        call_local_and_ret,
+        ret,
+        ret_take,
+        ret_noting,
+        copy,
+        move,
+        arr_op,
+        debug_break,
+        force_debug_break,
+        throw_ex,
+        as,
+        is,
+        store_bool, //store bool from value for if statements, set false if type is noting, numeric types is zero and containers is empty, if another then true
 
-           (inline_native)(call_value_function)(call_value_function_id)(call_value_function_and_ret)(call_value_function_id_and_ret)(static_call_value_function)(static_call_value_function_and_ret)(static_call_value_function_id)(static_call_value_function_id_and_ret)(set_structure_value)(get_structure_value)(explicit_await)(generator_get) //get value from generator or async task
-           (yield)
+        load_bool, //used if need save equality result, set numeric type as 1 or 0
 
-               (handle_begin)(handle_catch)(handle_finally)(handle_end)
+        inline_native,
+        call_value_function,
+        call_value_function_id,
+        call_value_function_and_ret,
+        call_value_function_id_and_ret,
+        static_call_value_function,
+        static_call_value_function_and_ret,
+        static_call_value_function_id,
+        static_call_value_function_id_and_ret,
+        set_structure_value,
+        get_structure_value,
+        explicit_await,
+        generator_get, //get value from generator or async task
 
-                   (value_hold)(value_unhold)(is_gc)(to_gc)(localize_gc)(from_gc)(table_jump)(xarray_slice) //faarr and saarr slice by creating reference to original array with moved pointer and new size
-           (store_constant)(get_reference)(make_as_const)(remove_const_protect)(copy_un_constant)(copy_un_reference)(move_un_reference)(remove_qualifiers))
+        yield,
+
+        handle_begin,
+        handle_catch,
+        handle_finally,
+        handle_end,
+        value_hold,
+        value_unhold,
+        is_gc,
+        to_gc,
+        localize_gc,
+        from_gc,
+        table_jump,
+        xarray_slice, //faarr and saarr slice by creating reference to original array with moved pointer and new size
+
+        store_constant,
+        get_reference,
+        make_as_const,
+        remove_const_protect,
+        copy_un_constant,
+        copy_un_reference,
+        move_un_reference,
+        remove_qualifiers
+    );
 
 
-        ENUM_t(OpcodeArray, uint8_t, (set)(insert)(push_end)(push_start)(insert_range)
+    ENUM_t(
+        OpcodeArray,
+        uint8_t,
+        set,
+        insert,
+        push_end,
+        push_start,
+        insert_range,
 
-                                         (get)(take)(take_end)(take_start)(get_range)(take_range)
+        get,
+        take,
+        take_end,
+        take_start,
+        get_range,
+        take_range,
 
 
-                                             (pop_end)(pop_start)(remove_item)(remove_range)
+        pop_end,
+        pop_start,
+        remove_item,
+        remove_range,
 
-                                                 (resize)(resize_default)
+        resize,
+        resize_default,
 
 
-                                                     (reserve_push_end)(reserve_push_start)(commit)(decommit)(remove_reserved)(size))
-            ENUM_t(ArrCheckMode, uint8_t, (no_check)(check)(no_throw_check))
-                ENUM_t(TableJumpCheckFailAction, uint8_t, (jump_specified)(throw_exception)(unchecked))
+        reserve_push_end,
+        reserve_push_start,
+        commit,
+        decommit,
+        remove_reserved,
+        size
+    );
 
-                    union OpArrFlags {
+    ENUM_t(
+        ArrCheckMode,
+        uint8_t,
+        no_check,
+        check,
+        no_throw_check
+    );
+
+    ENUM_t(
+        TableJumpCheckFailAction,
+        uint8_t,
+        jump_specified,
+        throw_exception,
+        unchecked
+    );
+
+    union OpArrFlags {
         struct {
             uint8_t move_mode : 1;
             ArrCheckMode checked : 2;
@@ -73,16 +178,28 @@ namespace art {
         uint8_t raw;
     };
 
-    ENUM_ta(JumpCondition, uint8_t, (no_condition)(is_equal)(is_not_equal)
+    ENUM_ta(
+        JumpCondition,
+        uint8_t,
+        (is_more = is_unsigned_more)(is_lower = is_unsigned_lower)(is_lower_or_eq = is_unsigned_lower_or_eq)(is_more_or_eq = is_unsigned_more_or_eq),
 
-                                        (is_unsigned_more)(is_unsigned_lower)(is_unsigned_lower_or_eq)(is_unsigned_more_or_eq)
+        no_condition,
+        is_equal,
+        is_not_equal,
+        is_unsigned_more,
+        is_unsigned_lower,
+        is_unsigned_lower_or_eq,
+        is_unsigned_more_or_eq,
+        is_signed_more,
+        is_signed_lower,
+        is_signed_lower_or_eq,
+        is_signed_more_or_eq,
+        is_zero
+    );
 
-                                            (is_signed_more)(is_signed_lower)(is_signed_lower_or_eq)(is_signed_more_or_eq)
+    
 
-                                                (is_zero),
-            (is_more = is_unsigned_more)(is_lower = is_unsigned_lower)(is_lower_or_eq = is_unsigned_lower_or_eq)(is_more_or_eq = is_unsigned_more_or_eq))
-
-        struct Command {
+    struct Command {
         Command() {
             code = Opcode::noting;
             is_gc_mode = false;
@@ -157,21 +274,60 @@ namespace art {
         };
     };
 
-    ENUM_t(VType, uint8_t, (noting)(boolean)(i8)(i16)(i32)(i64)(ui8)(ui16)(ui32)(ui64)(flo)(doub)
-           //(character)//char32(utf32)  TO-DO
-           (raw_arr_i8)(raw_arr_i16)(raw_arr_i32)(raw_arr_i64)(raw_arr_ui8)(raw_arr_ui16)(raw_arr_ui32)(raw_arr_ui64)(raw_arr_flo)(raw_arr_doub)(uarr)(string) //Convert to struct_
-           (async_res)(undefined_ptr)(except_value)                                                                                                            //default from except call
-           (faarr)                                                                                                                                             //fixed any array
-           (saarr)                                                                                                                                             //stack fixed any array //only local, cannot returned, cannot be used with lgr, cannot be passed as arguments
+    ENUM_t(
+        VType,
+        uint8_t,
+        noting,
+        boolean,
+        i8,
+        i16,
+        i32,
+        i64,
+        ui8,
+        ui16,
+        ui32,
+        ui64,
+        flo,
+        doub,
+        //character,//char32utf32,  TO-DO
+        raw_arr_i8,
+        raw_arr_i16,
+        raw_arr_i32,
+        raw_arr_i64,
+        raw_arr_ui8,
+        raw_arr_ui16,
+        raw_arr_ui32,
+        raw_arr_ui64,
+        raw_arr_flo,
+        raw_arr_doub,
+        uarr,
+        string, //Convert to struct_
+        async_res,
+        undefined_ptr,
+        except_value, //default from except call
+        faarr,        //fixed any array
+        saarr,        //stack fixed any array //only local, cannot returned, cannot be used with lgr, cannot be passed as arguments
 
-           (struct_) //like c++ class, but with dynamic abilities
+        struct_, //like c++ class, but with dynamic abilities
 
-           (type_identifier)(function)(map) //unordered_map<any,any,art::hash<any>
-           (set)                            //unordered_set<any>
-           (time_point)                     //std::chrono::high_resolution_clock::time_point
-           (generator))
+        type_identifier,
+        function,
+        map,        //unordered_map<any,any,art::hash<any>
+        set,        //unordered_set<any>
+        time_point, //std::chrono::high_resolution_clock::time_point
+        generator
+    );
 
-        ENUM_t(ValuePos, uint8_t, (in_enviro)(in_arguments)(in_static)(in_constants)) struct ValueIndexPos {
+    ENUM_t(
+        ValuePos,
+        uint8_t,
+        in_enviro,
+        in_arguments,
+        in_static,
+        in_constants
+    );
+
+    struct ValueIndexPos {
         uint16_t index;
         ValuePos pos = ValuePos::in_enviro;
 
@@ -398,19 +554,19 @@ namespace art {
         ValueItem(uint64_t val);
         ValueItem(float val);
         ValueItem(double val);
-#ifdef _WIN32
+    #ifdef _WIN32
         ValueItem(long val)
             : ValueItem(int32_t(val)) {}
 
         ValueItem(unsigned long val)
             : ValueItem(uint32_t(val)) {}
-#else
+    #else
         ValueItem(long long val)
             : ValueItem(int64_t(val)) {}
 
         ValueItem(unsigned long long val)
             : ValueItem(uint64_t(val)) {}
-#endif
+    #endif
         ValueItem(const art::ustring& val);
         ValueItem(art::ustring&& val);
         ValueItem(const char* str);
@@ -646,7 +802,7 @@ namespace art {
         explicit operator uint64_t() const;
         explicit operator float() const;
         explicit operator double() const;
-#ifdef _WIN32
+    #ifdef _WIN32
         explicit operator long() const {
             return (long)(int32_t) * this;
         }
@@ -654,7 +810,7 @@ namespace art {
         explicit operator unsigned long() const {
             return (unsigned long)(uint32_t) * this;
         }
-#else
+    #else
         explicit operator long long() const {
             return (long long)(int64_t) * this;
         }
@@ -662,7 +818,7 @@ namespace art {
         explicit operator unsigned long long() const {
             return (unsigned long long)(uint64_t) * this;
         }
-#endif
+    #endif
         explicit operator void*() const;
         explicit operator art::ustring() const;
         explicit operator list_array<ValueItem>() const;
@@ -685,9 +841,9 @@ namespace art {
         explicit operator const array_t<uint64_t>() const;
         explicit operator const array_t<float>() const;
         explicit operator const array_t<double>() const;
-#ifdef _WIN32
+    #ifdef _WIN32
         explicit operator const array_t<long>() const;
-#endif
+    #endif
         explicit operator const array_t<ValueItem>() const;
         explicit operator const array_ref_t<bool>() const;
         explicit operator const array_ref_t<int8_t>() const;
@@ -700,9 +856,9 @@ namespace art {
         explicit operator const array_ref_t<uint64_t>() const;
         explicit operator const array_ref_t<float>() const;
         explicit operator const array_ref_t<double>() const;
-#ifdef _WIN32
+    #ifdef _WIN32
         explicit operator const array_ref_t<long>() const;
-#endif
+    #endif
         explicit operator const array_ref_t<ValueItem>() const;
         explicit operator array_ref_t<bool>();
         explicit operator array_ref_t<int8_t>();
@@ -715,9 +871,9 @@ namespace art {
         explicit operator array_ref_t<uint64_t>();
         explicit operator array_ref_t<float>();
         explicit operator array_ref_t<double>();
-#ifdef _WIN32
+    #ifdef _WIN32
         explicit operator array_ref_t<long>();
-#endif
+    #endif
         explicit operator array_ref_t<ValueItem>();
         ValueItem* operator()(ValueItem* arguments, uint32_t arguments_size);
         void getAsync();
@@ -761,13 +917,13 @@ namespace art {
     typedef ValueItem* (*Environment)(ValueItem* args, uint32_t len);
 
     ENUM_t(ClassAccess, uint8_t,
-           (pub)    //anyone can use
-           (priv)   //main only
-           (prot)   //derived or main
-           (intern) //internal, derived or main
-           )
+           pub,   //anyone can use
+           priv,  //main only
+           prot,  //derived or main
+           intern //internal, derived or main
+    );
 
-        struct StructureTag {
+    struct StructureTag {
         art::ustring name;
         ValueItem value;
     };

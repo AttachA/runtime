@@ -9,6 +9,7 @@ set(art_INCLUDE_DIR ${art_src_INCLUDE_DIR} ${art_configuration_INCLUDE_DIR})
 
 if(MSVC)  
   add_definitions(/MP)
+  add_definitions(/Zc:preprocessor)
   enable_language(ASM_MASM)
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
   string(REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
