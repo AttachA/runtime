@@ -6,7 +6,8 @@
 
 #ifndef SRC_RUN_TIME_UTIL_MURMUR3_ENCHANTED
 #define SRC_RUN_TIME_UTIL_MURMUR3_ENCHANTED
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 #include <type_traits>
 
 namespace art {

@@ -8,5 +8,5 @@
 
 
 namespace art{
-    ValueEnvironment environments;
+    ValueEnvironment value_environments;
 }

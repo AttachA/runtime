@@ -145,9 +145,9 @@ inline list_array<uint8_t> make_CIE(const CIE_entry& entry,
     size_t personality_offset_set = data.size();
     if (entry.personality.enabled) {
         augmentation_config += "P";
-        augmentation_config.push_back((char)0x3 | 0x40);
+        augmentation_config.push_back((char)(0x3 | 0x40));
         personality_offset_set += augmentation_config.size();
-        augmentation_config.push_back((uint8_t)0);
+        augmentation_config.push_back((char)0);
     }
     if (entry.use_fde.enabled)
         augmentation_config += "R";

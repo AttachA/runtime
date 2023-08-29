@@ -160,49 +160,26 @@ void uninstall_timer_handle_local() {
 #include <sys/time.h>
 
 namespace art {
-    namespace signals {
+    namespace interrupt {
         void install_on_stack() {
         }
 
         void init_signals_handler() {}
 
-        int sigaction(SIGNAL_TYPE signum, void (*interrupter)()) {
-            timer.sigprof = interrupter;
-            struct sigaction action;
-            action.sa_handler = interrupter;
-            sigemptyset(&action.sa_mask);
-            action.sa_flags = 0;
-            switch (signum) {
-            case SIGNAL_TYPE::SIGALRM:
-                timer.sigprof = interrupter;
-                return ::sigaction(SIGALRM, &action, nullptr);
-            case SIGNAL_TYPE::SIGVTALRM:
-                return ::sigaction(SIGVTALRM, &action, nullptr);
-            case SIGNAL_TYPE::SIGPROF:
-                return ::sigaction(SIGPROF, &action, nullptr);
-            }
-            return -1;
+        bool timer_callback(void (*interrupter)()) {
+            return false;
         }
 
-        int setitimer(TIMER_TYPE which, const struct itimerval* new_value, struct itimerval* old_value) {
-            return ::setitimer((int)which, new_value, old_value);
+        bool setitimer(const struct itimerval* new_value, struct itimerval* old_value) {
+            return false;
         }
 
-        void stop_timers() {
-            struct itimerval timer;
-            timer.it_interval.tv_sec = 0;
-            timer.it_interval.tv_usec = 0;
-            timer.it_value.tv_sec = 0;
-            timer.it_value.tv_usec = 0;
-            ::setitimer(ITIMER_PROF, &timer, nullptr);
-            ::setitimer(ITIMER_REAL, &timer, nullptr);
-            ::setitimer(ITIMER_VIRTUAL, &timer, nullptr);
-        }
+        void stop_timer() {}
     }
 }
 
 void uninstall_timer_handle_local() {
-    stop_timers();
+    art::interrupt::stop_timer();
 }
 
 #endif

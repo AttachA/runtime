@@ -3,7 +3,6 @@
 // Distributed under the Boost Software License, Version 1.0.
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
-
 #include <unordered_map>
 #include <utf8cpp/utf8.h>
 
@@ -182,10 +181,10 @@ namespace art {
     void ustring::cleanup_current() {
         switch (flags.type) {
         case ustring::type::def:
-            d_data.~list_array<char>();
+            _data.d.larr.~list_array<char>();
             break;
         case ustring::type::dyn_constant:
-            dynamic_constant_data.~shared_ptr();
+            _data.dynamic_constant_data.~shared_ptr();
             break;
         default:
             break;
@@ -197,38 +196,38 @@ namespace art {
             return;
         switch (type) {
         case ustring::type::def: {
-            list_array<char> _data;
+            list_array<char> __data;
             size_t _hash = flags.has_hash ? hash() : 0;
-            _data.push_back(c_str(), size());
+            __data.push_back(c_str(), size());
             cleanup_current();
-            new (&d_data) list_array<char>(std::move(_data));
+            new (&_data.d.larr) list_array<char>(std::move(__data));
             if (flags.has_hash)
-                d_hash = _hash;
+                _data.d.hash = _hash;
             break;
         }
         case ustring::type::short_def: {
             size_t _size = this->size();
             if (_size >= short_array_size)
                 throw InvalidOperation("String is too long for short_def");
-            std::unique_ptr<char[]> _data(new char[_size]);
-            memcpy(_data.get(), c_str(), _size);
+            std::unique_ptr<char[]> __data(new char[_size]);
+            memcpy(__data.get(), c_str(), _size);
             cleanup_current();
-            memcpy(short_data, _data.get(), _size);
-            short_data[_size] = 0;
+            memcpy(_data.short_data, __data.get(), _size);
+            _data.short_data[_size] = 0;
             flags.has_hash = false;
             break;
         }
         case ustring::type::constant: {
             auto _constant_data = constant_pool::make_constant_pool(*this);
             cleanup_current();
-            constant_data = _constant_data;
+            _data.constant_data = _constant_data;
             flags.has_hash = true;
             break;
         }
         case ustring::type::dyn_constant: {
             auto _constant_data = constant_pool::dynamic_constant_pool(*this);
             cleanup_current();
-            dynamic_constant_data = _constant_data;
+            _data.dynamic_constant_data = _constant_data;
             flags.has_hash = true;
             break;
         }
@@ -241,13 +240,13 @@ namespace art {
     char* ustring::direct_ptr() {
         switch (flags.type) {
         case ustring::type::def:
-            return d_data.data();
+            return _data.d.larr.data();
         case ustring::type::short_def:
-            return short_data;
+            return _data.short_data;
         case ustring::type::constant:
-            return constant_data->from_constant_pool;
+            return _data.constant_data->from_constant_pool;
         case ustring::type::dyn_constant:
-            return dynamic_constant_data->item->from_constant_pool;
+            return _data.dynamic_constant_data->item->from_constant_pool;
         default:
             throw InvalidType("String type is unrecognized");
         }
@@ -281,15 +280,15 @@ namespace art {
     ustring::ustring(const char* str, size_t size)
         : ustring() {
         if (size < short_array_size) {
-            utf8::replace_invalid(str, str + size, short_data);
-            short_data[size] = 0;
+            utf8::replace_invalid(str, str + size, _data.short_data);
+            _data.short_data[size] = 0;
             flags.has_data = true;
         } else {
             flags.has_data = true;
             flags.type = ustring::type::def;
-            new (&d_data) list_array<char>();
-            d_data.reserve_push_back(size);
-            utf8::replace_invalid(str, str + size, std::back_inserter(d_data));
+            new (&_data.d.larr) list_array<char>();
+            _data.d.larr.reserve_push_back(size);
+            utf8::replace_invalid(str, str + size, std::back_inserter(_data.d.larr));
         }
     }
 
@@ -348,18 +347,18 @@ namespace art {
             cleanup_current();
         switch (str.flags.type) {
         case type::def:
-            d_data = str.d_data;
-            d_hash = str.d_hash;
-            symbols = str.symbols;
+            _data.d.larr = str._data.d.larr;
+            _data.d.hash = str._data.d.hash;
+            _data.d.symbols = str._data.d.symbols;
             break;
         case type::short_def:
-            memcpy(short_data, str.short_data, short_array_size);
+            memcpy(_data.short_data, str._data.short_data, short_array_size);
             break;
         case type::constant:
-            constant_data = str.constant_data;
+            _data.constant_data = str._data.constant_data;
             break;
         case type::dyn_constant:
-            dynamic_constant_data = str.dynamic_constant_data;
+            _data.dynamic_constant_data = str._data.dynamic_constant_data;
         default:
             assert(false && "String type is unrecognized");
             break;
@@ -378,19 +377,19 @@ namespace art {
             cleanup_current();
         switch (str.flags.type) {
         case type::def:
-            d_data = std::move(str.d_data);
-            d_hash = str.d_hash;
-            symbols = str.symbols;
+            _data.d.larr = std::move(str._data.d.larr);
+            _data.d.hash = str._data.d.hash;
+            _data.d.symbols = str._data.d.symbols;
             break;
         case type::short_def:
-            memcpy(short_data, str.short_data, short_array_size);
-            memset(str.short_data, 0, short_array_size);
+            memcpy(_data.short_data, str._data.short_data, short_array_size);
+            memset(str._data.short_data, 0, short_array_size);
             break;
         case type::constant:
-            constant_data = str.constant_data;
+            _data.constant_data = str._data.constant_data;
             break;
         case type::dyn_constant:
-            dynamic_constant_data = std::move(str.dynamic_constant_data);
+            _data.dynamic_constant_data = std::move(str._data.dynamic_constant_data);
         default:
             assert(false && "String type is unrecognized");
             break;
@@ -440,7 +439,8 @@ namespace art {
             begin_self,
             end_self,
             begin_other,
-            end_other);
+            end_other
+        );
         if (result != std::strong_ordering::equal)
             return result;
         return std::strong_ordering::equal;
@@ -452,19 +452,19 @@ namespace art {
             char* new_data = new char[old_size + str.size()];
             memcpy(new_data, direct_ptr(), old_size);
             memcpy(new_data + old_size, str.c_str(), str.size());
-            dynamic_constant_data = constant_pool::dynamic_constant_pool(new_data, old_size + str.size());
+            _data.dynamic_constant_data = constant_pool::dynamic_constant_pool(new_data, old_size + str.size());
             delete[] new_data;
         } else if (flags.type == type::short_def) {
             if (size() + str.size() < short_array_size) {
-                memcpy(short_data + old_size, str.c_str(), str.size());
-                short_data[old_size + str.size()] = 0;
+                memcpy(_data.short_data + old_size, str.c_str(), str.size());
+                _data.short_data[old_size + str.size()] = 0;
             } else {
                 switch_to_type(type::def);
-                d_data.push_back(str.c_str(), str.size());
+                _data.d.larr.push_back(str.c_str(), str.size());
             }
         } else {
             switch_to_type(type::def);
-            d_data.push_back(str.c_str(), str.size());
+            _data.d.larr.push_back(str.c_str(), str.size());
         }
         return *this;
     }
@@ -478,21 +478,21 @@ namespace art {
             char* new_data = new char[size() + str.size()];
             memcpy(new_data, str.c_str(), str.size());
             memcpy(new_data + str.size(), direct_ptr(), size());
-            dynamic_constant_data = constant_pool::dynamic_constant_pool(new_data, size() + str.size());
+            _data.dynamic_constant_data = constant_pool::dynamic_constant_pool(new_data, size() + str.size());
             delete[] new_data;
         } else if (flags.type == type::short_def) {
             if (size() + str.size() < short_array_size) {
                 size_t old_size = size();
-                memmove(short_data + str.size(), short_data, old_size);
-                memcpy(short_data, str.c_str(), str.size());
-                short_data[old_size + str.size()] = 0;
+                memmove(_data.short_data + str.size(), _data.short_data, old_size);
+                memcpy(_data.short_data, str.c_str(), str.size());
+                _data.short_data[old_size + str.size()] = 0;
             } else {
                 switch_to_type(type::def);
-                d_data.push_front(str.c_str(), str.size());
+                _data.d.larr.push_front(str.c_str(), str.size());
             }
         } else {
             switch_to_type(type::def);
-            d_data.push_front(str.c_str(), str.size());
+            _data.d.larr.push_front(str.c_str(), str.size());
         }
         return *this;
     }
@@ -516,12 +516,12 @@ namespace art {
         switch (flags.type) {
         case ustring::type::def: {
             if (flags.has_length)
-                return symbols;
+                return _data.d.symbols;
             else {
                 ptrdiff_t symbols_ = utf8::distance(c_str(), c_str() + size());
-                const_cast<size_t&>(symbols) = (size_t)symbols_;
+                const_cast<size_t&>(_data.d.symbols) = (size_t)symbols_;
                 const_cast<decltype(flags)&>(flags).has_length = true;
-                return symbols;
+                return _data.d.symbols;
             }
         }
         case ustring::type::short_def: {
@@ -529,9 +529,9 @@ namespace art {
             return (size_t)symbols_;
         }
         case ustring::type::constant:
-            return constant_data->symbols;
+            return _data.constant_data->symbols;
         case ustring::type::dyn_constant:
-            return dynamic_constant_data->item->symbols;
+            return _data.dynamic_constant_data->item->symbols;
         default:
             throw InvalidType("String type is unrecognized");
         }
@@ -540,13 +540,13 @@ namespace art {
     size_t ustring::size() const {
         switch (flags.type) {
         case ustring::type::def:
-            return d_data.size();
+            return _data.d.larr.size();
         case ustring::type::short_def:
-            return strlen(short_data);
+            return strlen(_data.short_data);
         case ustring::type::constant:
-            return constant_data->size;
+            return _data.constant_data->size;
         case ustring::type::dyn_constant:
-            return dynamic_constant_data->item->size;
+            return _data.dynamic_constant_data->item->size;
         default:
             throw InvalidType("String type is unrecognized");
         }
@@ -555,13 +555,13 @@ namespace art {
     size_t ustring::hash() const {
         switch (flags.type) {
         case ustring::type::def:
-            return flags.has_hash ? d_hash : const_cast<size_t&>(d_hash) = art::hash<char>()(c_str(), d_data.size());
+            return flags.has_hash ? _data.d.hash : const_cast<size_t&>(_data.d.hash) = art::hash<char>()(c_str(), _data.d.larr.size());
         case ustring::type::short_def:
-            return art::hash<char>()(short_data, strlen(short_data));
+            return art::hash<char>()(_data.short_data, strlen(_data.short_data));
         case ustring::type::constant:
-            return constant_data->hash;
+            return _data.constant_data->hash;
         case ustring::type::dyn_constant:
-            return dynamic_constant_data->item->hash;
+            return _data.dynamic_constant_data->item->hash;
         default:
             throw InvalidType("String type is unrecognized");
         }
@@ -573,16 +573,16 @@ namespace art {
         bool has_data;
         switch (flags.type) {
         case ustring::type::def:
-            has_data = d_data.empty();
+            has_data = _data.d.larr.empty();
             break;
         case ustring::type::short_def:
-            has_data = short_data[0] != 0;
+            has_data = _data.short_data[0] != 0;
             break;
         case ustring::type::constant:
-            has_data = constant_data->from_constant_pool[0] != 0;
+            has_data = _data.constant_data->from_constant_pool[0] != 0;
             break;
         case ustring::type::dyn_constant:
-            has_data = dynamic_constant_data->item->from_constant_pool[0] != 0;
+            has_data = _data.dynamic_constant_data->item->from_constant_pool[0] != 0;
             break;
         default:
             throw InvalidType("String type is unrecognized");
@@ -650,14 +650,14 @@ namespace art {
         else {
             if (flags.type != type::dyn_constant) {
                 switch_to_type(type::def);
-                d_data.remove(begin - direct_ptr(), remove_points);
-                d_data.insert(begin - direct_ptr(), buff, insert_points);
+                _data.d.larr.remove(begin - direct_ptr(), remove_points);
+                _data.d.larr.insert(begin - direct_ptr(), buff, insert_points);
             } else {
                 char* new_data = new char[size() - remove_points + insert_points];
                 memcpy(new_data, direct_ptr(), begin - direct_ptr());
                 memcpy(new_data + (begin - direct_ptr()), buff, insert_points);
                 memcpy(new_data + (begin - direct_ptr()) + insert_points, begin, size() - (begin - direct_ptr()));
-                dynamic_constant_data = constant_pool::dynamic_constant_pool(new_data, size() - remove_points + insert_points);
+                _data.dynamic_constant_data = constant_pool::dynamic_constant_pool(new_data, size() - remove_points + insert_points);
                 delete[] new_data;
             }
         }
@@ -683,14 +683,14 @@ namespace art {
         else {
             if (flags.type != type::dyn_constant) {
                 switch_to_type(type::def);
-                d_data.remove(begin - direct_ptr(), remove_points);
-                d_data.insert(begin - direct_ptr(), &c, 1);
+                _data.d.larr.remove(begin - direct_ptr(), remove_points);
+                _data.d.larr.insert(begin - direct_ptr(), &c, 1);
             } else {
                 char* new_data = new char[size() - remove_points + c];
                 memcpy(new_data, direct_ptr(), begin - direct_ptr());
                 memcpy(new_data + (begin - direct_ptr()), &c, 1);
                 memcpy(new_data + (begin - direct_ptr()) + 1, begin, size() - (begin - direct_ptr()));
-                dynamic_constant_data = constant_pool::dynamic_constant_pool(new_data, size() - remove_points + 1);
+                _data.dynamic_constant_data = constant_pool::dynamic_constant_pool(new_data, size() - remove_points + 1);
                 delete[] new_data;
             }
         }
@@ -772,17 +772,17 @@ namespace art {
 
     void ustring::reserve(size_t siz) {
         switch_to_type(type::def);
-        d_data.reserve_push_back(siz);
+        _data.d.larr.reserve_push_back(siz);
     }
 
     void ustring::reserve_push_back(size_t siz) {
         switch_to_type(type::def);
-        d_data.reserve_push_back(siz);
+        _data.d.larr.reserve_push_back(siz);
     }
 
     void ustring::reserve_push_front(size_t siz) {
         switch_to_type(type::def);
-        d_data.reserve_push_front(siz);
+        _data.d.larr.reserve_push_front(siz);
     }
 
     void ustring::push_back(const ustring& c) {
@@ -803,7 +803,7 @@ namespace art {
         if (!flags.as_unsafe)
             if (!utf8::is_valid(str, str + len))
                 throw InvalidEncodingException("String is not valid utf8");
-        d_data.push_back(str, len);
+        _data.d.larr.push_back(str, len);
     }
 
     void ustring::append(const char8_t* str, size_t len) {
@@ -811,13 +811,13 @@ namespace art {
         if (!flags.as_unsafe)
             if (!utf8::is_valid(str, str + len))
                 throw InvalidEncodingException("String is not valid utf8");
-        d_data.push_back((const char*)str, len);
+        _data.d.larr.push_back((const char*)str, len);
     }
 
     void ustring::append(const char16_t* str, size_t len) {
         switch_to_type(type::def);
         try {
-            utf8::utf16to8(str, str + len, std::back_inserter(d_data));
+            utf8::utf16to8(str, str + len, std::back_inserter(_data.d.larr));
         } catch (const utf8::invalid_utf16& ex) {
             throw InvalidEncodingException("String is not valid utf16, fail cast to utf8");
         }
@@ -826,7 +826,7 @@ namespace art {
     void ustring::append(const char32_t* str, size_t len) {
         switch_to_type(type::def);
         try {
-            utf8::utf32to8(str, str + len, std::back_inserter(d_data));
+            utf8::utf32to8(str, str + len, std::back_inserter(_data.d.larr));
         } catch (const utf8::invalid_code_point& ex) {
             throw InvalidEncodingException("String is not valid utf32, fail cast to utf8");
         }
@@ -854,8 +854,8 @@ namespace art {
             if (len <= short_array_size) {
                 size_t old_len = size();
                 for (size_t i = 0; i < len; len++)
-                    short_data[i] = ' ';
-                short_data[len - 1] = 0;
+                    _data.short_data[i] = ' ';
+                _data.short_data[len - 1] = 0;
                 break;
             }
             [[fallthrough]];
@@ -864,7 +864,7 @@ namespace art {
             switch_to_type(type::def);
             [[fallthrough]];
         case type::def:
-            d_data.resize(len);
+            _data.d.larr.resize(len);
             break;
         }
     }
@@ -927,6 +927,26 @@ namespace art {
 
     void ustring::shrink_to_fit() {
         if (flags.type == type::def)
-            d_data.shrink_to_fit();
+            _data.d.larr.shrink_to_fit();
+    }
+
+    size_t ustring::find_last_of(const ustring& c) const {
+        size_t self_siz = size();
+        size_t c_siz = c.size();
+        if (self_siz < c_siz)
+            return npos;
+        const char* self_begin = begin();
+        const char* self_end = end();
+
+        const char* c_begin = c.begin();
+        const char* c_end = c.end();
+
+        const char* self_ = self_end - c_siz;
+        while (self_ >= self_begin) {
+            if (std::equal(c_begin, c_end, self_))
+                return self_ - self_begin;
+            self_--;
+        }
+        return npos;
     }
 }

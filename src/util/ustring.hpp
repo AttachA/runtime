@@ -60,18 +60,26 @@ namespace art {
             return long_arr > dyn_constant_data ? long_arr : dyn_constant_data;
         }();
 
-        union {
+        union UnifiedData {
             char short_data[short_array_size]{0};
 
-            struct {
-                list_array<char> d_data;
-                size_t d_hash;
+            struct default_ {
+                list_array<char> larr;
+                size_t hash;
                 size_t symbols;
-            };
+
+                default_() {}
+
+                ~default_() {}
+            } d;
 
             constant_pool::pool_item* constant_data;
             shared_ptr<constant_pool::dyn_pool_item> dynamic_constant_data;
-        };
+
+            UnifiedData() {}
+
+            ~UnifiedData() {}
+        } _data;
         enum class type : uint8_t {
             def,
             short_def,
@@ -92,6 +100,7 @@ namespace art {
         char* direct_ptr();
 
     public:
+        static constexpr size_t npos = -1;
         void set_unsafe_state(bool state, bool throw_on_error);
         ustring();
         ustring(const char* str); //ansi7 | utf8
@@ -230,6 +239,8 @@ namespace art {
         ustring substr(size_t pos) const;
         void clear();
         void shrink_to_fit();
+
+        size_t find_last_of(const ustring& c) const;
 
         /*[[INTERNAL]]*/ char& operator[](size_t i) {
             return data()[i];

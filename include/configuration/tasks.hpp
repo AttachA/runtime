@@ -1,5 +1,6 @@
 #ifndef CONFIGURATION_TASKS
 #define CONFIGURATION_TASKS
+#include <cstddef>
 
 namespace configuration {
     namespace tasks {

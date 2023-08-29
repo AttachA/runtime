@@ -37,5 +37,5 @@ namespace art {
         }
     };
 
-    extern ValueEnvironment environments;
+    extern ValueEnvironment value_environments;
 }

@@ -3468,12 +3468,12 @@ namespace art {
             }
 
             art::ustring get_current_path() {
-                art::ustring res;
-                art::ustring_view pre_result = res;
+                std::string res;
+                std::string_view pre_result = res;
                 for (auto& c : res)
                     if (c == '\\')
                         c = separator;
-                return (art::ustring)pre_result;
+                return (std::string)pre_result;
             }
         };
 
@@ -3505,7 +3505,7 @@ namespace art {
             FolderInfo _directory;
             bool depth_scan;
             bool _is_running = false;
-            std::unordered_map < ino64_t, file_state, art::hash<ino64_t> states;
+            std::unordered_map<ino64_t, file_state, art::hash<ino64_t>> states;
 
 
             constexpr static std::uint32_t _listen_filters = IN_MODIFY | IN_CREATE | IN_DELETE | IN_ATTRIB | IN_MOVE;
@@ -3970,7 +3970,7 @@ namespace art {
 
         ValueItem copy(const char* path, size_t length, const char* new_path, size_t new_length) {
             //TODO: create native way
-            std::filesystem::copy(art::ustring(path, length), art::ustring(new_path, new_length));
+            std::filesystem::copy(std::string(path, length), std::string(new_path, new_length));
             return true;
         }
 
