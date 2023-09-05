@@ -5,7 +5,7 @@
 using namespace art;
 
 void exceptionThrower() {
-    throw 123;
+    //throw 123;
 }
 
 TEST(EXCEPTION, tunnel) {
@@ -17,10 +17,12 @@ TEST(EXCEPTION, tunnel) {
     }
     try {
         CXX::cxxCall("exceptionTunnel");
+        FuncEnvironment::Unload("exceptionThrower");
+        FuncEnvironment::Unload("exceptionTunnel");
         ASSERT_TRUE(false);
     } catch (int e) {
+        FuncEnvironment::Unload("exceptionThrower");
+        FuncEnvironment::Unload("exceptionTunnel");
         ASSERT_EQ(e, 123);
     }
-    FuncEnvironment::Unload("exceptionThrower");
-    FuncEnvironment::Unload("exceptionTunnel");
 }

@@ -139,6 +139,20 @@ inline list_array<uint8_t> make_CIE(const CIE_entry& entry,
                                     const list_array<uint8_t>& augmentation_data,
                                     const list_array<uint8_t>& instructions) {
     list_array<uint8_t> data;
+
+    struct {
+        uint32_t length;
+        uint32_t id;
+        uint8_t version;
+    } cie;
+
+    cie.length = 0;
+    cie.id = entry.id;
+    cie.version = entry.version;
+    size_t cie_length_offset = data.size();
+    data.push_back((uint8_t*)&cie, sizeof(cie));
+
+
     art::ustring augmentation_config;
     if (entry.augmentation_remainder.enabled)
         augmentation_config += "z";
@@ -170,44 +184,18 @@ inline list_array<uint8_t> make_CIE(const CIE_entry& entry,
     }
     data.push_back(augmentation_data);
     data.push_back(instructions);
-    size_t cie_length_min = data.size() + sizeof(uint32_t) + sizeof(uint8_t);
-    if (uint8_t padding = cie_length_min % sizeof(uint64_t)) {
-        padding = sizeof(uint64_t) - padding;
-        for (uint8_t i = 0; i < padding; i++)
-            data.push_back(0);
-        cie_length_min += padding;
-    }
-    if (cie_length_min < data.size())
+    size_t cie_length = data.size() - cie_length_offset - sizeof(cie.length);
+    if (cie_length > UINT32_MAX)
         throw std::runtime_error("CIE length overflow");
-    if (cie_length_min < UINT32_MAX) {
-        struct {
-            uint32_t length;
-            uint32_t id;
-            uint8_t version;
-        } cie;
-        cie.length = data.size() + sizeof(cie) - sizeof(cie.length);
-        cie.id = entry.id;
-        cie.version = entry.version;
-        data.push_front((uint8_t*)&cie, sizeof(cie));
-    } else {
-        struct {
-            uint32_t length = 0xffffffff;
-            uint64_t length64;
-            uint32_t id;
-            uint8_t version;
-        } cie;
-        cie.length64 = data.size() + sizeof(cie) - sizeof(cie.length) - sizeof(cie.length64);
-        cie.id = entry.id;
-        cie.version = entry.version;
-        data.push_front((uint8_t*)&cie, sizeof(cie));
-    }
+    (*(uint32_t*)&data[cie_length_offset]) = cie_length;
+
+
     return data;
 }
 
 struct DWARF {
     list_array<uint8_t> data;
     size_t fun_pointers_fix_pos;
-    size_t fde_off;
 
     void patch_function_address(uint64_t address) {
         (*(uint64_t*)&data[fun_pointers_fix_pos]) = address;
@@ -216,81 +204,40 @@ struct DWARF {
         (*(uint64_t*)&data[fun_pointers_fix_pos + sizeof(uint64_t)]) = length;
     }
 };
-inline void* get_cie_from_fde(void* ptr) {
-    struct basic_fde {
-        uint32_t length;
-    }& fde = (basic_fde&)ptr;
 
-    if (fde.length != 0xffffffff) {
-        struct basic_fde {
-            uint32_t length;
-            int32_t CIE_pointer;
-            uint64_t function_pointer;
-            uint64_t function_size;
-        }& fde = (basic_fde&)ptr;
-        return (uint8_t*)&fde + fde.CIE_pointer;
-    } else {
-        struct extended_fde {
-            uint32_t length;
-            uint64_t length64;
-            int32_t CIE_pointer;
-            uint64_t function_pointer;
-            uint64_t function_size;
-        }& fde = (extended_fde&)ptr;
-        return (uint8_t*)&fde + fde.CIE_pointer;
-    }
-}
-inline DWARF complete_dwarf(const list_array<uint8_t>& CIE,
-                            const FDE_entry& entry,
-                            const list_array<uint8_t>& augmentation_data,
-                            const list_array<uint8_t>& instructions) {
-    DWARF result;
-    result.data = CIE;
-    result.fde_off = result.data.size();
+inline DWARF complete_dwarf(const list_array<uint8_t>& CIE, const FDE_entry& entry, const list_array<uint8_t>& augmentation_data, const list_array<uint8_t>& instructions) {
     list_array<uint8_t> data;
+
+    struct {
+        uint32_t length;
+        int32_t CIE_pointer;
+        uint64_t function_pointer;
+        uint64_t function_size;
+    } fde;
+
+    fde.length = data.size() + sizeof(fde) - sizeof(fde.length);
+    fde.CIE_pointer = 0;
+    fde.function_pointer = entry.function_pointer;
+    fde.function_size = entry.function_size;
+
+    size_t fde_length_offset = data.size();
+    data.push_front((uint8_t*)&fde, sizeof(fde));
     data.push_back(make_uleb128(augmentation_data.size()));
     data.push_back(augmentation_data);
     data.push_back(instructions);
-    size_t fde_length_min = data.size() + sizeof(uint32_t) + sizeof(uint8_t);
-    if (uint8_t padding = fde_length_min % sizeof(uint64_t)) {
-        padding = sizeof(uint64_t) - padding;
-        for (uint8_t i = 0; i < padding; i++)
-            data.push_back(0);
-        fde_length_min += padding;
-    }
-    if (fde_length_min < data.size())
+
+    if (data.size() > INT32_MAX)
         throw std::runtime_error("FDE length overflow");
-    if (fde_length_min < UINT32_MAX) {
-        struct {
-            uint32_t length;
-            int32_t CIE_pointer;
-            uint64_t function_pointer;
-            uint64_t function_size;
-        } fde;
-        fde.length = data.size() + sizeof(fde) - sizeof(fde.length);
-        fde.CIE_pointer = -(data.size() + sizeof(fde));
-        fde.function_pointer = entry.function_pointer;
-        fde.function_size = entry.function_size;
-        data.push_front((uint8_t*)&fde, sizeof(fde));
-    } else {
-        struct {
-            uint32_t length = 0xffffffff;
-            uint64_t length64;
-            int32_t CIE_pointer;
-            uint64_t function_pointer;
-            uint64_t function_size;
-        } fde;
-        fde.length64 = data.size() + sizeof(fde) - sizeof(fde.length) - sizeof(fde.length64);
-        fde.CIE_pointer = -(data.size() + sizeof(fde));
-        fde.function_pointer = entry.function_pointer;
-        fde.function_size = entry.function_size;
-        data.push_front((uint8_t*)&fde, sizeof(fde));
-    }
-    result.data.push_back(std::move(data));
-    result.fun_pointers_fix_pos = result.data.size() - 16;
+
+    (*(uint32_t*)&data[fde_length_offset]) = data.size() - sizeof(fde.length);
+    (*(uint32_t*)&data[fde_length_offset + sizeof(uint32_t)]) = data.size();
+    DWARF result;
+    result.fun_pointers_fix_pos = fde_length_offset + sizeof(uint32_t) + sizeof(int32_t);
+    result.data.push_front(std::move(data));
+    result.data.push_front(CIE);
     result.data.push_back({0, 0, 0, 0, 0, 0, 0, 0});
     return result;
 }
 
-#pragma pack(pop)
+    #pragma pack(pop)
 #endif /* SRC_RUN_TIME_ASM_CASM_DWARF_BUILDER */

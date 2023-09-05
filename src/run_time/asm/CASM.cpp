@@ -652,7 +652,7 @@ namespace art {
         unwindInfo.patch_function_address((uint64_t)baseaddr);
         unwindInfo.patch_function_size(fun_size);
         memcpy(fde, unwindInfo.data.data(), unwindInfo.data.size());
-        __register_frame(fde + unwindInfo.fde_off); //libgcc
+        __register_frame(fde); //libgcc
         //TO-DO register frames for:
         // libunwind _U_dyn_register							https://www.nongnu.org/libunwind/man/_U_dyn_register(3).html
         // GDB __jit_debug_register_code 						https://sourceware.org/gdb/onlinedocs/gdb/JIT-Interface.html
@@ -671,7 +671,7 @@ namespace art {
     }
 
     bool FrameResult::deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime) {
-        __deregister_frame(get_cie_from_fde(frame));
+        __deregister_frame(frame);
         frame_symbols.erase((uint8_t*)funct);
         return !(runtime._release(funct));
     };
