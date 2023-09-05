@@ -2134,6 +2134,7 @@ namespace art {
 
                 ValueItem* yield(ValueItem*, uint32_t) {
                     art::this_thread::yield();
+                    return nullptr;
                 }
             }
 

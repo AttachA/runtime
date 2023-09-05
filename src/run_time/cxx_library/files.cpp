@@ -458,7 +458,7 @@ namespace art {
                 }
             }
 
-            ValueItem write(uint8_t* data, uint32_t size) {
+            ValueItem write(const uint8_t* data, uint32_t size) {
                 File_* file = new File_(this, _handle, (char*)data, size, write_pointer);
                 switch (pointer_mode) {
                 case pointer_mode::separated:
@@ -479,7 +479,7 @@ namespace art {
                 return file->awaiter;
             }
 
-            ValueItem append(uint8_t* data, uint32_t size) {
+            ValueItem append(const uint8_t* data, uint32_t size) {
                 File_* file = new File_(this, _handle, (char*)data, size, (uint64_t)-1);
                 ValueItem args((void*)file);
                 try {

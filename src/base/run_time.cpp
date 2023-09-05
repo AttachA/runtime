@@ -42,15 +42,23 @@ namespace art {
     BreakPointAction break_point_action = (BreakPointAction)configuration::run_time::break_point_action;
     ExceptionOnLanguageRoutineAction exception_on_language_routine_action = (ExceptionOnLanguageRoutineAction)configuration::run_time::exception_on_language_routine_action;
 
-    bool _set_name_thread_dbg(const art::ustring& name) {
-        return _set_name_thread_dbg(name, GetCurrentThread());
-    }
-
     bool _set_name_thread_dbg(const art::ustring& name, unsigned long thread_id) {
         if (!enable_thread_naming)
             return false;
-        std::u16string result = (std::u16string)name;
-        return SUCCEEDED(SetThreadDescription(thread_id, (wchar_t*)result.c_str()));
+        std::u16string wname = (std::u16string)name;
+        HANDLE thread = OpenThread(THREAD_SET_LIMITED_INFORMATION, false, thread_id);
+        if (!thread)
+            return false;
+        bool result = SUCCEEDED(SetThreadDescription(thread, (wchar_t*)wname.c_str()));
+        CloseHandle(thread);
+        return result;
+    }
+
+    bool _set_name_thread_dbg(const art::ustring& name) {
+        if (!enable_thread_naming)
+            return false;
+        std::u16string wname = (std::u16string)name;
+        return SUCCEEDED(SetThreadDescription(GetCurrentThread(), (wchar_t*)wname.c_str()));
     }
 
     art::ustring _get_name_thread_dbg(unsigned long thread_id) {

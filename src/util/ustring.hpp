@@ -4,14 +4,15 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#ifndef SRC_GLOBAL_UTIL_USTRING
-#define SRC_GLOBAL_UTIL_USTRING
+#ifndef SRC_UTIL_USTRING
+#define SRC_UTIL_USTRING
 #include <cstdint>
 #include <string>
 
 #include <library/list_array.hpp>
 #include <util/array.hpp>
 #include <util/link_garbage_remover.hpp>
+#include <util/platform.hpp>
 #include <util/shared_ptr.hpp>
 
 namespace art {
@@ -140,6 +141,17 @@ namespace art {
         ustring(const std::string& str);
         ustring(const std::u16string& str);
         ustring(const std::u32string& str);
+#ifdef PLATFORM_WINDOWS
+        ustring(const std::wstring& str);
+        ustring(wchar_t* str);
+        ustring(wchar_t* str, size_t len);
+
+        ustring(wchar_t* begin, wchar_t* end)
+            : ustring(begin, end - begin) {}
+
+        ustring(wchar_t str)
+            : ustring(&str, 1) {}
+#endif
         ustring(ustring&& str) noexcept;
         ~ustring();
 
@@ -540,4 +552,4 @@ namespace art {
         return ustring(s) >= str;
     }
 }
-#endif /* SRC_GLOBAL_UTIL_USTRING */
+#endif /* SRC_UTIL_USTRING */

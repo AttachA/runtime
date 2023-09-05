@@ -335,7 +335,16 @@ namespace art {
     ustring::ustring(ustring&& str) noexcept {
         *this = std::move(str);
     }
+#ifdef PLATFORM_WINDOWS
+    ustring::ustring(const std::wstring& str)
+        : ustring((char16_t*)str.c_str(), str.size()) {}
 
+    ustring::ustring(wchar_t* str)
+        : ustring((char16_t*)str) {}
+
+    ustring::ustring(wchar_t* str, size_t len)
+        : ustring((char16_t*)str, len) {}
+#endif
     ustring::~ustring() {
         cleanup_current();
     }
