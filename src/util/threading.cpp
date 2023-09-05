@@ -403,6 +403,44 @@ namespace art {
         return true;
     }
 
+    rw_mutex::rw_mutex() {
+        _mutex = new pthread_rwlock_t;
+        pthread_rwlock_init(_mutex, nullptr);
+    }
+
+    rw_mutex::~rw_mutex() {
+        pthread_rwlock_destroy(_mutex);
+        delete _mutex;
+    }
+
+    void rw_mutex::lock() {
+        interrupt::interrupt_unsafe_region::lock();
+        pthread_rwlock_wrlock(_mutex);
+    }
+
+    void rw_mutex::unlock() {
+        pthread_rwlock_unlock(_mutex);
+        interrupt::interrupt_unsafe_region::unlock();
+    }
+
+    bool rw_mutex::try_lock() {
+        interrupt::interrupt_unsafe_region::lock();
+        bool res = pthread_rwlock_trywrlock(_mutex);
+        if (!res)
+            interrupt::interrupt_unsafe_region::unlock();
+        return res;
+    }
+
+    void rw_mutex::lock_shared() {
+        interrupt::interrupt_unsafe_region::lock();
+        pthread_rwlock_rdlock(_mutex);
+    }
+
+    void rw_mutex::unlock_shared() {
+        pthread_rwlock_unlock(_mutex);
+        interrupt::interrupt_unsafe_region::unlock();
+    }
+
     timed_mutex::timed_mutex() {
         _mutex = new pthread_mutex_t;
         pthread_mutex_init(_mutex, nullptr);
@@ -673,12 +711,16 @@ namespace art {
     }
 
     relock_state recursive_mutex::relock_begin() {
+        if (owner != art::this_thread::get_id())
+            throw InvalidLock("Try relock non-owned mutex");
         unsigned int _count = count;
         count = 1;
         return relock_state(_count);
     }
 
     void recursive_mutex::relock_end(relock_state state) {
+        if (owner != art::this_thread::get_id())
+            throw InvalidLock("Try relock non-owned mutex");
         count = state._state;
         owner = art::this_thread::get_id();
     }

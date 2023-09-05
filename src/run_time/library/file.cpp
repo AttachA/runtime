@@ -612,7 +612,8 @@ namespace art {
                     return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FileHandle>>(define_FileHandle, new files::FileHandle(path.c_str(), path.size(), mode, action, async_flags, share, pointer_mode)), no_copy);
                 } else
                     return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FileHandle>>(define_FileHandle, new files::FileHandle(path.c_str(), path.size(), mode, action, flags, share, pointer_mode)), no_copy);
-            }) AttachAFun(createProxy_BlockingFileHandle, 2, {
+            });
+            AttachAFun(createProxy_BlockingFileHandle, 2, {
                 auto path = (art::ustring)args[0];
                 files::open_mode mode = files::open_mode::read_write;
                 if (len >= 2)
@@ -636,7 +637,8 @@ namespace art {
                         pointer_mode = (files::pointer_mode)(uint8_t)args[5];
 
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::BlockingFileHandle>>(define_BlockingFileHandle, new files::BlockingFileHandle(path.c_str(), path.size(), mode, action, flags, share)), no_copy);
-            }) AttachAFun(createProxy_TextFile, 1, {
+            });
+            AttachAFun(createProxy_TextFile, 1, {
                 auto file_handle = CXX::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
                 auto endian = Endian::native;
                 if (len >= 2)
@@ -647,30 +649,31 @@ namespace art {
                     if (args[2].meta.vtype != VType::noting)
                         encoding = (TextFile::Encoding)(uint8_t)args[2];
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<TextFile>>(define_TextFile, new TextFile(file_handle, encoding, endian)), no_copy);
-            })
+            });
 
-                AttachAFun(createProxy_FolderChangesMonitor, 1, {
-                    bool calc_depth = len >= 2 ? (bool)args[1] : false;
+            AttachAFun(createProxy_FolderChangesMonitor, 1, {
+                bool calc_depth = len >= 2 ? (bool)args[1] : false;
+                if (args[0].meta.vtype == VType::string) {
+                    art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
+                    return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_depth);
+                } else {
+                    art::ustring path = (art::ustring)args[0];
+                    return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_depth);
+                }
+            });
+            AttachAFun(createProxy_FolderBrowser, 0, {
+                if (len == 0)
+                    return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser()), no_copy);
+                else {
                     if (args[0].meta.vtype == VType::string) {
                         art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
-                        return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_depth);
+                        return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser(path.c_str(), path.size())), no_copy);
                     } else {
                         art::ustring path = (art::ustring)args[0];
-                        return files::createFolderChangesMonitor(path.c_str(), path.size(), calc_depth);
+                        return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser(path.c_str(), path.size())), no_copy);
                     }
-                }) AttachAFun(createProxy_FolderBrowser, 0, {
-                    if (len == 0)
-                        return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser()), no_copy);
-                    else {
-                        if (args[0].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
-                            return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser(path.c_str(), path.size())), no_copy);
-                        } else {
-                            art::ustring path = (art::ustring)args[0];
-                            return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, new files::FolderBrowser(path.c_str(), path.size())), no_copy);
-                        }
-                    }
-                })
+                }
+            });
         }
 
 #pragma region FileHandle
@@ -682,28 +685,36 @@ namespace art {
                 return handle->read((uint8_t*)item.getSourcePtr(), item.meta.val_len);
             else
                 return handle->read((uint32_t)item);
-        }) AttachAFun(funs_FileHandle_read_fixed, 2, {
+        });
+
+        AttachAFun(funs_FileHandle_read_fixed, 2, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
             ValueItem& item = args[1];
             if (item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
                 return handle->read_fixed((uint8_t*)item.getSourcePtr(), item.meta.val_len);
             else
                 return handle->read_fixed((uint32_t)item);
-        }) AttachAFun(funs_FileHandle_write, 2, {
+        });
+
+        AttachAFun(funs_FileHandle_write, 2, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
             ValueItem& item = args[1];
             if (item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
                 return handle->write((uint8_t*)item.getSourcePtr(), item.meta.val_len);
             else
                 throw InvalidArguments("Excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
-        }) AttachAFun(funs_FileHandle_append, 2, {
+        });
+
+        AttachAFun(funs_FileHandle_append, 2, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
             ValueItem& item = args[1];
             if (item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
                 return handle->append((uint8_t*)item.getSourcePtr(), item.meta.val_len);
             else
                 throw InvalidArguments("Excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
-        }) AttachAFun(funs_FileHandle_seek_pos, 2, {
+        });
+
+        AttachAFun(funs_FileHandle_seek_pos, 2, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
             uint64_t offset = (uint64_t)args[1];
             files::pointer_offset pointer_offset = files::pointer_offset::begin;
@@ -714,329 +725,439 @@ namespace art {
                 if (args[3].meta.vtype != VType::noting)
                     return handle->seek_pos(offset, pointer_offset, (files::pointer)(uint8_t)args[3]);
             return handle->seek_pos(offset, pointer_offset);
-        }) AttachAFun(funs_FileHandle_tell_pos, 2, {
+        });
+
+        AttachAFun(funs_FileHandle_tell_pos, 2, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
             return handle->tell_pos((files::pointer)(uint8_t)args[1]);
-        }) AttachAFun(funs_FileHandle_flush, 1, {
+        });
+
+        AttachAFun(funs_FileHandle_flush, 1, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
             return handle->flush();
-        }) AttachAFun(funs_FileHandle_size, 1, {
+        });
+
+        AttachAFun(funs_FileHandle_size, 1, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
             return handle->size();
-        }) AttachAFun(funs_FileHandle_internal_get_handle, 1, {
+        });
+
+        AttachAFun(funs_FileHandle_internal_get_handle, 1, {
             auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
             return handle->internal_get_handle();
-        })
+        });
+
+        AttachAFun(funs_FileHandle_get_path, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FileHandle>>(args[0], define_FileHandle);
+            return handle->get_path();
+        });
 #pragma endregion
 
 #pragma region BlockingFileHandle
-            AttachAFun(funs_BlockingFileHandle_read, 2, {
-                auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
-                ValueItem& item = args[1];
-                if (item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
-                    return handle->read((uint8_t*)item.getSourcePtr(), item.meta.val_len);
-                else {
-                    uint32_t len = (uint32_t)args[1];
-                    if (len == 0)
-                        return 0;
-                    uint8_t* ptr = new uint8_t[len];
-                    auto res = handle->read(ptr, len);
-                    if (res <= 0) {
-                        delete[] ptr;
-                        return res;
-                    } else
-                        return ValueItem(ptr, len, no_copy);
-                }
-            }) AttachAFun(funs_BlockingFileHandle_write, 2, {
-                auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
-                ValueItem& item = args[1];
-                if (item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
-                    return handle->write((uint8_t*)item.getSourcePtr(), item.meta.val_len);
-                else
-                    throw InvalidArguments("Excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
-            }) AttachAFun(funs_BlockingFileHandle_seek_pos, 2, {
-                auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
-                uint64_t offset = (uint64_t)args[1];
-                files::pointer_offset pointer_offset = files::pointer_offset::begin;
-                if (len >= 3)
-                    if (args[2].meta.vtype != VType::noting)
-                        pointer_offset = (files::pointer_offset)(uint8_t)args[2];
-                return handle->seek_pos(offset, pointer_offset);
-            }) AttachAFun(funs_BlockingFileHandle_tell_pos, 1, {
-                auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
-                return handle->tell_pos();
-            }) AttachAFun(funs_BlockingFileHandle_flush, 1, {
-                auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
-                return handle->flush();
-            }) AttachAFun(funs_BlockingFileHandle_size, 1, {
-                auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
-                return handle->size();
-            }) AttachAFun(funs_BlockingFileHandle_eof_state, 1, {
-                auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
-                return handle->eof_state();
-            }) AttachAFun(funs_BlockingFileHandle_valid, 1, {
-                auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
-                return handle->valid();
-            }) AttachAFun(funs_BlockingFileHandle_internal_get_handle, 1, {
-                auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
-                return handle->internal_get_handle();
-            })
+        AttachAFun(funs_BlockingFileHandle_read, 2, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+            ValueItem& item = args[1];
+            if (item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
+                return handle->read((uint8_t*)item.getSourcePtr(), item.meta.val_len);
+            else {
+                uint32_t len = (uint32_t)args[1];
+                if (len == 0)
+                    return 0;
+                uint8_t* ptr = new uint8_t[len];
+                auto res = handle->read(ptr, len);
+                if (res <= 0) {
+                    delete[] ptr;
+                    return res;
+                } else
+                    return ValueItem(ptr, len, no_copy);
+            }
+        });
+
+        AttachAFun(funs_BlockingFileHandle_write, 2, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+            ValueItem& item = args[1];
+            if (item.meta.vtype == VType::raw_arr_ui8 || item.meta.vtype == VType::raw_arr_i8)
+                return handle->write((uint8_t*)item.getSourcePtr(), item.meta.val_len);
+            else
+                throw InvalidArguments("Excepted raw_arr_ui8 or raw_arr_i8, got " + enum_to_string(item.meta.vtype));
+        });
+
+        AttachAFun(funs_BlockingFileHandle_seek_pos, 2, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+            uint64_t offset = (uint64_t)args[1];
+            files::pointer_offset pointer_offset = files::pointer_offset::begin;
+            if (len >= 3)
+                if (args[2].meta.vtype != VType::noting)
+                    pointer_offset = (files::pointer_offset)(uint8_t)args[2];
+            return handle->seek_pos(offset, pointer_offset);
+        });
+
+        AttachAFun(funs_BlockingFileHandle_tell_pos, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+            return handle->tell_pos();
+        });
+
+        AttachAFun(funs_BlockingFileHandle_flush, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+            return handle->flush();
+        });
+
+        AttachAFun(funs_BlockingFileHandle_size, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+            return handle->size();
+        });
+
+        AttachAFun(funs_BlockingFileHandle_eof_state, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+            return handle->eof_state();
+        });
+
+        AttachAFun(funs_BlockingFileHandle_valid, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+            return handle->valid();
+        });
+
+        AttachAFun(funs_BlockingFileHandle_internal_get_handle, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+            return handle->internal_get_handle();
+        });
+
+        AttachAFun(funs_BlockingFileHandle_get_path, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::BlockingFileHandle>>(args[0], define_BlockingFileHandle);
+            return handle->get_path();
+        });
 #pragma endregion
 
 #pragma region TextFile
-                AttachAFun(funs_TextFile_read_line, 1, {
-                    auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
-                    return handle->read_line();
-                }) AttachAFun(funs_TextFile_read_word, 1, {
-                    auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
-                    return handle->read_word();
-                }) AttachAFun(funs_TextFile_read_symbol, 1, {
-                    auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
-                    if (len >= 2)
-                        return handle->read_symbol((bool)args[2]);
-                    else
-                        return handle->read_symbol(false);
-                }) AttachAFun(funs_TextFile_write, 2, {
-                    auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
-                    return handle->write(args[1]);
-                }) AttachAFun(funs_TextFile_read_bom, 1, {
-                    auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
-                    handle->read_bom();
-                }) AttachAFun(funs_TextFile_init_bom, 1, {
-                    auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
-                    handle->init_bom();
-                })
+        AttachAFun(funs_TextFile_read_line, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
+            return handle->read_line();
+        });
+
+        AttachAFun(funs_TextFile_read_word, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
+            return handle->read_word();
+        });
+
+        AttachAFun(funs_TextFile_read_symbol, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
+            if (len >= 2)
+                return handle->read_symbol((bool)args[2]);
+            else
+                return handle->read_symbol(false);
+        });
+
+        AttachAFun(funs_TextFile_write, 2, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
+            return handle->write(args[1]);
+        });
+
+        AttachAFun(funs_TextFile_read_bom, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
+            handle->read_bom();
+        });
+
+        AttachAFun(funs_TextFile_init_bom, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<TextFile>>(args[0], define_TextFile);
+            handle->init_bom();
+        });
 #pragma endregion
 
 #pragma region FileBrowser
-                    AttachAFun(funs_FolderBrowser_folders, 1, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        return handle->folders().convert_take<ValueItem>([](art::ustring&& str) {
-                            return std::move(str);
-                        });
-                    }) AttachAFun(funs_FolderBrowser_files, 1, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        return handle->files().convert_take<ValueItem>([](art::ustring&& str) {
-                            return std::move(str);
-                        });
-                    }) AttachAFun(funs_FolderBrowser_is_folder, 1, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        return handle->is_folder();
-                    }) AttachAFun(funs_FolderBrowser_is_file, 1, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        return handle->is_file();
-                    }) AttachAFun(funs_FolderBrowser_exists, 1, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        return handle->exists();
-                    }) AttachAFun(funs_FolderBrowser_is_hidden, 1, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        return handle->is_hidden();
-                    }) AttachAFun(funs_FolderBrowser_create_path, 2, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        if (args[1].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
-                            return handle->create_path(path.c_str(), path.size());
-                        } else {
-                            art::ustring path = (art::ustring)args[1];
-                            return handle->create_path(path.c_str(), path.size());
-                        }
-                    }) AttachAFun(funs_FolderBrowser_create_current_path, 1, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        return handle->create_current_path();
-                    }) AttachAFun(funs_FolderBrowser_create_file, 2, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        if (args[1].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
-                            return handle->create_file(path.c_str(), path.size());
-                        } else {
-                            art::ustring path = (art::ustring)args[1];
-                            return handle->create_file(path.c_str(), path.size());
-                        }
-                    }) AttachAFun(funs_FolderBrowser_create_folder, 2, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        if (args[1].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
-                            return handle->create_folder(path.c_str(), path.size());
-                        } else {
-                            art::ustring path = (art::ustring)args[1];
-                            return handle->create_folder(path.c_str(), path.size());
-                        }
-                    }) AttachAFun(funs_FolderBrowser_remove_file, 2, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        if (args[1].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
-                            return handle->remove_file(path.c_str(), path.size());
-                        } else {
-                            art::ustring path = (art::ustring)args[1];
-                            return handle->remove_file(path.c_str(), path.size());
-                        }
-                    }) AttachAFun(funs_FolderBrowser_remove_folder, 2, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        if (args[1].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
-                            return handle->remove_folder(path.c_str(), path.size());
-                        } else {
-                            art::ustring path = (art::ustring)args[1];
-                            return handle->remove_folder(path.c_str(), path.size());
-                        }
-                    }) AttachAFun(funs_FolderBrowser_remove_current_path, 1, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        return handle->remove_current_path();
-                    }) AttachAFun(funs_FolderBrowser_rename_file, 3, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        if (args[1].meta.vtype == VType::string && args[2].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
-                            art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
-                            return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                        } else if (args[1].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
-                            art::ustring new_path = (art::ustring)args[2];
-                            return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                        } else if (args[2].meta.vtype == VType::string) {
-                            art::ustring path = (art::ustring)args[1];
-                            art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
-                            return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                        } else {
-                            art::ustring path = (art::ustring)args[1];
-                            art::ustring new_path = (art::ustring)args[2];
-                            return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                        }
-                    }) AttachAFun(funs_FolderBrowser_rename_folder, 3, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        if (args[1].meta.vtype == VType::string && args[2].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
-                            art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
-                            return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                        } else if (args[1].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
-                            art::ustring new_path = (art::ustring)args[2];
-                            return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                        } else if (args[2].meta.vtype == VType::string) {
-                            art::ustring path = (art::ustring)args[1];
-                            art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
-                            return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                        } else {
-                            art::ustring path = (art::ustring)args[1];
-                            art::ustring new_path = (art::ustring)args[2];
-                            return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                        }
-                    }) AttachAFun(funs_FolderBrowser_join_folder, 2, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        if (args[1].meta.vtype == VType::string) {
-                            art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
-                            return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, handle->join_folder(path.c_str(), path.size())), no_copy);
-                        } else {
-                            art::ustring path = (art::ustring)args[1];
-                            return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, handle->join_folder(path.c_str(), path.size())), no_copy);
-                        }
-                    }) AttachAFun(funs_FolderBrowser_get_current_path, 1, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        return handle->get_current_path();
-                    }) AttachAFun(funs_FolderBrowser_is_corrupted, 1, {
-                        auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
-                        return handle->is_corrupted();
-                    })
+        AttachAFun(funs_FolderBrowser_folders, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->folders().convert_take<ValueItem>([](art::ustring&& str) {
+                return std::move(str);
+            });
+        });
 
+        AttachAFun(funs_FolderBrowser_files, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->files().convert_take<ValueItem>([](art::ustring&& str) {
+                return std::move(str);
+            });
+        });
+
+        AttachAFun(funs_FolderBrowser_is_folder, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->is_folder();
+        });
+
+        AttachAFun(funs_FolderBrowser_is_file, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->is_file();
+        });
+
+        AttachAFun(funs_FolderBrowser_exists, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->exists();
+        });
+
+        AttachAFun(funs_FolderBrowser_is_hidden, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->is_hidden();
+        });
+
+        AttachAFun(funs_FolderBrowser_create_path, 2, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            if (args[1].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                return handle->create_path(path.c_str(), path.size());
+            } else {
+                art::ustring path = (art::ustring)args[1];
+                return handle->create_path(path.c_str(), path.size());
+            }
+        });
+
+        AttachAFun(funs_FolderBrowser_create_current_path, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->create_current_path();
+        });
+
+        AttachAFun(funs_FolderBrowser_create_file, 2, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            if (args[1].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                return handle->create_file(path.c_str(), path.size());
+            } else {
+                art::ustring path = (art::ustring)args[1];
+                return handle->create_file(path.c_str(), path.size());
+            }
+        });
+
+        AttachAFun(funs_FolderBrowser_create_folder, 2, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            if (args[1].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                return handle->create_folder(path.c_str(), path.size());
+            } else {
+                art::ustring path = (art::ustring)args[1];
+                return handle->create_folder(path.c_str(), path.size());
+            }
+        });
+
+        AttachAFun(funs_FolderBrowser_remove_file, 2, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            if (args[1].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                return handle->remove_file(path.c_str(), path.size());
+            } else {
+                art::ustring path = (art::ustring)args[1];
+                return handle->remove_file(path.c_str(), path.size());
+            }
+        });
+
+        AttachAFun(funs_FolderBrowser_remove_folder, 2, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            if (args[1].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                return handle->remove_folder(path.c_str(), path.size());
+            } else {
+                art::ustring path = (art::ustring)args[1];
+                return handle->remove_folder(path.c_str(), path.size());
+            }
+        });
+
+        AttachAFun(funs_FolderBrowser_remove_current_path, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->remove_current_path();
+        });
+
+        AttachAFun(funs_FolderBrowser_rename_file, 3, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            if (args[1].meta.vtype == VType::string && args[2].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
+                return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else if (args[1].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                art::ustring new_path = (art::ustring)args[2];
+                return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else if (args[2].meta.vtype == VType::string) {
+                art::ustring path = (art::ustring)args[1];
+                art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
+                return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else {
+                art::ustring path = (art::ustring)args[1];
+                art::ustring new_path = (art::ustring)args[2];
+                return handle->rename_file(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            }
+        });
+
+        AttachAFun(funs_FolderBrowser_rename_folder, 3, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            if (args[1].meta.vtype == VType::string && args[2].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
+                return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else if (args[1].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                art::ustring new_path = (art::ustring)args[2];
+                return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else if (args[2].meta.vtype == VType::string) {
+                art::ustring path = (art::ustring)args[1];
+                art::ustring& new_path = *(art::ustring*)args[2].getSourcePtr();
+                return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else {
+                art::ustring path = (art::ustring)args[1];
+                art::ustring new_path = (art::ustring)args[2];
+                return handle->rename_folder(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            }
+        });
+
+        AttachAFun(funs_FolderBrowser_join_folder, 2, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            if (args[1].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[1].getSourcePtr();
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, handle->join_folder(path.c_str(), path.size())), no_copy);
+            } else {
+                art::ustring path = (art::ustring)args[1];
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<files::FolderBrowser>>(define_FolderBrowser, handle->join_folder(path.c_str(), path.size())), no_copy);
+            }
+        });
+
+        AttachAFun(funs_FolderBrowser_get_current_path, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->get_current_path();
+        });
+
+        AttachAFun(funs_FolderBrowser_is_corrupted, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->is_corrupted();
+        });
+
+        AttachAFun(funs_FolderBrowser_file_extension, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->file_extension();
+        });
+
+        AttachAFun(funs_FolderBrowser_file_name, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->file_name();
+        });
+
+        AttachAFun(funs_FolderBrowser_file_name_without_extension, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->file_name_without_extension();
+        });
+
+        AttachAFun(funs_FolderBrowser_file_path, 1, {
+            auto& handle = CXX::Interface::getExtractAs<typed_lgr<files::FolderBrowser>>(args[0], define_FolderBrowser);
+            return handle->file_path();
+        });
 #pragma endregion
 
-                        AttachAFun(remove, 1, {
-                            if (args[0].meta.vtype == VType::string) {
-                                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
-                                return files::remove(path.c_str(), path.size());
-                            } else {
-                                art::ustring path = (art::ustring)args[0];
-                                return files::remove(path.c_str(), path.size());
-                            }
-                        })
+        AttachAFun(remove, 1, {
+            if (args[0].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
+                return files::remove(path.c_str(), path.size());
+            } else {
+                art::ustring path = (art::ustring)args[0];
+                return files::remove(path.c_str(), path.size());
+            }
+        });
 
-                            AttachAFun(rename, 2, {
-                                if (args[0].meta.vtype == VType::string && args[1].meta.vtype == VType::string) {
-                                    art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
-                                    art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
-                                    return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                                } else if (args[0].meta.vtype == VType::string) {
-                                    art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
-                                    art::ustring new_path = (art::ustring)args[1];
-                                    return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                                } else if (args[1].meta.vtype == VType::string) {
-                                    art::ustring path = (art::ustring)args[0];
-                                    art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
-                                    return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                                } else {
-                                    art::ustring path = (art::ustring)args[0];
-                                    art::ustring new_path = (art::ustring)args[1];
-                                    return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                                }
-                            }) AttachAFun(copy, 2, {
-                                if (args[0].meta.vtype == VType::string && args[1].meta.vtype == VType::string) {
-                                    art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
-                                    art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
-                                    return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                                } else if (args[0].meta.vtype == VType::string) {
-                                    art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
-                                    art::ustring new_path = (art::ustring)args[1];
-                                    return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                                } else if (args[1].meta.vtype == VType::string) {
-                                    art::ustring path = (art::ustring)args[0];
-                                    art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
-                                    return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                                } else {
-                                    art::ustring path = (art::ustring)args[0];
-                                    art::ustring new_path = (art::ustring)args[1];
-                                    return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
-                                }
-                            })
+        AttachAFun(rename, 2, {
+            if (args[0].meta.vtype == VType::string && args[1].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
+                art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
+                return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else if (args[0].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
+                art::ustring new_path = (art::ustring)args[1];
+                return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else if (args[1].meta.vtype == VType::string) {
+                art::ustring path = (art::ustring)args[0];
+                art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
+                return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else {
+                art::ustring path = (art::ustring)args[0];
+                art::ustring new_path = (art::ustring)args[1];
+                return files::rename(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            }
+        });
 
+        AttachAFun(copy, 2, {
+            if (args[0].meta.vtype == VType::string && args[1].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
+                art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
+                return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else if (args[0].meta.vtype == VType::string) {
+                art::ustring& path = *(art::ustring*)args[0].getSourcePtr();
+                art::ustring new_path = (art::ustring)args[1];
+                return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else if (args[1].meta.vtype == VType::string) {
+                art::ustring path = (art::ustring)args[0];
+                art::ustring& new_path = *(art::ustring*)args[1].getSourcePtr();
+                return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            } else {
+                art::ustring path = (art::ustring)args[0];
+                art::ustring new_path = (art::ustring)args[1];
+                return files::copy(path.c_str(), path.size(), new_path.c_str(), new_path.size());
+            }
+        });
 
-                                void init() {
-            define_FileHandle = CXX::Interface::createTable<typed_lgr<files::FileHandle>>("file_handle",
-                                                                                          CXX::Interface::direct_method("read", funs_FileHandle_read),
-                                                                                          CXX::Interface::direct_method("read_fixed", funs_FileHandle_read_fixed),
-                                                                                          CXX::Interface::direct_method("write", funs_FileHandle_write),
-                                                                                          CXX::Interface::direct_method("append", funs_FileHandle_append),
-                                                                                          CXX::Interface::direct_method("seek_pos", funs_FileHandle_seek_pos),
-                                                                                          CXX::Interface::direct_method("tell_pos", funs_FileHandle_tell_pos),
-                                                                                          CXX::Interface::direct_method("flush", funs_FileHandle_flush),
-                                                                                          CXX::Interface::direct_method("size", funs_FileHandle_size),
-                                                                                          CXX::Interface::direct_method("get_native_handle", funs_FileHandle_internal_get_handle, ClassAccess::intern));
-
-            define_BlockingFileHandle = CXX::Interface::createTable<typed_lgr<files::BlockingFileHandle>>("blocking_file_handle",
-                                                                                                          CXX::Interface::direct_method("read", funs_BlockingFileHandle_read),
-                                                                                                          CXX::Interface::direct_method("write", funs_BlockingFileHandle_write),
-                                                                                                          CXX::Interface::direct_method("seek_pos", funs_BlockingFileHandle_seek_pos),
-                                                                                                          CXX::Interface::direct_method("tell_pos", funs_BlockingFileHandle_tell_pos),
-                                                                                                          CXX::Interface::direct_method("flush", funs_BlockingFileHandle_flush),
-                                                                                                          CXX::Interface::direct_method("size", funs_BlockingFileHandle_size),
-                                                                                                          CXX::Interface::direct_method("eof_state", funs_BlockingFileHandle_eof_state),
-                                                                                                          CXX::Interface::direct_method("valid", funs_BlockingFileHandle_valid),
-                                                                                                          CXX::Interface::direct_method("get_native_handle", funs_BlockingFileHandle_internal_get_handle, ClassAccess::intern));
-
-            define_TextFile = CXX::Interface::createTable<typed_lgr<TextFile>>("text_file",
-                                                                               CXX::Interface::direct_method("read_line", funs_TextFile_read_line),
-                                                                               CXX::Interface::direct_method("read_word", funs_TextFile_read_word),
-                                                                               CXX::Interface::direct_method("read_symbol", funs_TextFile_read_symbol),
-                                                                               CXX::Interface::direct_method("write", funs_TextFile_write),
-                                                                               CXX::Interface::direct_method("read_bom", funs_TextFile_read_bom),
-                                                                               CXX::Interface::direct_method("init_bom", funs_TextFile_init_bom));
-            define_FolderBrowser = CXX::Interface::createTable<typed_lgr<files::FolderBrowser>>("folder_browser",
-                                                                                                CXX::Interface::direct_method("folders", funs_FolderBrowser_folders),
-                                                                                                CXX::Interface::direct_method("files", funs_FolderBrowser_files),
-                                                                                                CXX::Interface::direct_method("is_folder", funs_FolderBrowser_is_folder),
-                                                                                                CXX::Interface::direct_method("is_file", funs_FolderBrowser_is_file),
-                                                                                                CXX::Interface::direct_method("exists", funs_FolderBrowser_exists),
-                                                                                                CXX::Interface::direct_method("is_hidden", funs_FolderBrowser_is_hidden),
-                                                                                                CXX::Interface::direct_method("create_path", funs_FolderBrowser_create_path),
-                                                                                                CXX::Interface::direct_method("create_current_path", funs_FolderBrowser_create_current_path),
-                                                                                                CXX::Interface::direct_method("create_file", funs_FolderBrowser_create_file),
-                                                                                                CXX::Interface::direct_method("create_folder", funs_FolderBrowser_create_folder),
-                                                                                                CXX::Interface::direct_method("remove_file", funs_FolderBrowser_remove_file),
-                                                                                                CXX::Interface::direct_method("remove_folder", funs_FolderBrowser_remove_folder),
-                                                                                                CXX::Interface::direct_method("remove_current_path", funs_FolderBrowser_remove_current_path),
-                                                                                                CXX::Interface::direct_method("rename_file", funs_FolderBrowser_rename_file),
-                                                                                                CXX::Interface::direct_method("rename_folder", funs_FolderBrowser_rename_folder),
-                                                                                                CXX::Interface::direct_method("join_folder", funs_FolderBrowser_join_folder),
-                                                                                                CXX::Interface::direct_method("get_current_path", funs_FolderBrowser_get_current_path),
-                                                                                                CXX::Interface::direct_method("is_corrupted", funs_FolderBrowser_is_corrupted));
+        void init() {
+            define_FileHandle = CXX::Interface::createTable<typed_lgr<files::FileHandle>>(
+                "file_handle",
+                CXX::Interface::direct_method("read", funs_FileHandle_read),
+                CXX::Interface::direct_method("read_fixed", funs_FileHandle_read_fixed),
+                CXX::Interface::direct_method("write", funs_FileHandle_write),
+                CXX::Interface::direct_method("append", funs_FileHandle_append),
+                CXX::Interface::direct_method("seek_pos", funs_FileHandle_seek_pos),
+                CXX::Interface::direct_method("tell_pos", funs_FileHandle_tell_pos),
+                CXX::Interface::direct_method("flush", funs_FileHandle_flush),
+                CXX::Interface::direct_method("size", funs_FileHandle_size),
+                CXX::Interface::direct_method("get_native_handle", funs_FileHandle_internal_get_handle, ClassAccess::intern),
+                CXX::Interface::direct_method("get_path", funs_FileHandle_get_path)
+            );
+            define_BlockingFileHandle = CXX::Interface::createTable<typed_lgr<files::BlockingFileHandle>>(
+                "blocking_file_handle",
+                CXX::Interface::direct_method("read", funs_BlockingFileHandle_read),
+                CXX::Interface::direct_method("write", funs_BlockingFileHandle_write),
+                CXX::Interface::direct_method("seek_pos", funs_BlockingFileHandle_seek_pos),
+                CXX::Interface::direct_method("tell_pos", funs_BlockingFileHandle_tell_pos),
+                CXX::Interface::direct_method("flush", funs_BlockingFileHandle_flush),
+                CXX::Interface::direct_method("size", funs_BlockingFileHandle_size),
+                CXX::Interface::direct_method("eof_state", funs_BlockingFileHandle_eof_state),
+                CXX::Interface::direct_method("valid", funs_BlockingFileHandle_valid),
+                CXX::Interface::direct_method("get_native_handle", funs_BlockingFileHandle_internal_get_handle, ClassAccess::intern),
+                CXX::Interface::direct_method("get_path", funs_BlockingFileHandle_get_path)
+            );
+            define_TextFile = CXX::Interface::createTable<typed_lgr<TextFile>>(
+                "text_file",
+                CXX::Interface::direct_method("read_line", funs_TextFile_read_line),
+                CXX::Interface::direct_method("read_word", funs_TextFile_read_word),
+                CXX::Interface::direct_method("read_symbol", funs_TextFile_read_symbol),
+                CXX::Interface::direct_method("write", funs_TextFile_write),
+                CXX::Interface::direct_method("read_bom", funs_TextFile_read_bom),
+                CXX::Interface::direct_method("init_bom", funs_TextFile_init_bom)
+            );
+            define_FolderBrowser = CXX::Interface::createTable<typed_lgr<files::FolderBrowser>>(
+                "folder_browser",
+                CXX::Interface::direct_method("folders", funs_FolderBrowser_folders),
+                CXX::Interface::direct_method("files", funs_FolderBrowser_files),
+                CXX::Interface::direct_method("is_folder", funs_FolderBrowser_is_folder),
+                CXX::Interface::direct_method("is_file", funs_FolderBrowser_is_file),
+                CXX::Interface::direct_method("exists", funs_FolderBrowser_exists),
+                CXX::Interface::direct_method("is_hidden", funs_FolderBrowser_is_hidden),
+                CXX::Interface::direct_method("create_path", funs_FolderBrowser_create_path),
+                CXX::Interface::direct_method("create_current_path", funs_FolderBrowser_create_current_path),
+                CXX::Interface::direct_method("create_file", funs_FolderBrowser_create_file),
+                CXX::Interface::direct_method("create_folder", funs_FolderBrowser_create_folder),
+                CXX::Interface::direct_method("remove_file", funs_FolderBrowser_remove_file),
+                CXX::Interface::direct_method("remove_folder", funs_FolderBrowser_remove_folder),
+                CXX::Interface::direct_method("remove_current_path", funs_FolderBrowser_remove_current_path),
+                CXX::Interface::direct_method("rename_file", funs_FolderBrowser_rename_file),
+                CXX::Interface::direct_method("rename_folder", funs_FolderBrowser_rename_folder),
+                CXX::Interface::direct_method("join_folder", funs_FolderBrowser_join_folder),
+                CXX::Interface::direct_method("get_current_path", funs_FolderBrowser_get_current_path),
+                CXX::Interface::direct_method("is_corrupted", funs_FolderBrowser_is_corrupted),
+                CXX::Interface::direct_method("file_extension", funs_FolderBrowser_file_extension),
+                CXX::Interface::direct_method("file_name", funs_FolderBrowser_file_name),
+                CXX::Interface::direct_method("file_name_without_extension", funs_FolderBrowser_file_name_without_extension),
+                CXX::Interface::direct_method("file_path", funs_FolderBrowser_file_path)
+            );
             CXX::Interface::typeVTable<typed_lgr<files::FileHandle>>() = define_FileHandle;
             CXX::Interface::typeVTable<typed_lgr<files::BlockingFileHandle>>() = define_BlockingFileHandle;
             CXX::Interface::typeVTable<typed_lgr<TextFile>>() = define_TextFile;

@@ -43,11 +43,14 @@ namespace art {
     ExceptionOnLanguageRoutineAction exception_on_language_routine_action = (ExceptionOnLanguageRoutineAction)configuration::run_time::exception_on_language_routine_action;
 
     bool _set_name_thread_dbg(const art::ustring& name) {
+        return _set_name_thread_dbg(name, GetCurrentThread());
+    }
+
+    bool _set_name_thread_dbg(const art::ustring& name, unsigned long thread_id) {
         if (!enable_thread_naming)
             return false;
-        std::u16string result;
-        utf8::utf8to16(name.begin(), name.end(), std::back_inserter(result));
-        return SUCCEEDED(SetThreadDescription(GetCurrentThread(), (wchar_t*)result.c_str()));
+        std::u16string result = (std::u16string)name;
+        return SUCCEEDED(SetThreadDescription(thread_id, (wchar_t*)result.c_str()));
     }
 
     art::ustring _get_name_thread_dbg(unsigned long thread_id) {
@@ -434,6 +437,12 @@ namespace art {
         if (name.size() > 15)
             return false;
         return pthread_setname_np(pthread_self(), name.c_str()) == 0;
+    }
+
+    bool _set_name_thread_dbg(const art::ustring& name, unsigned long id) {
+        if (name.size() > 15)
+            return false;
+        return pthread_setname_np(id, name.c_str()) == 0;
     }
 
     art::ustring _get_name_thread_dbg(unsigned long thread_id) {

@@ -74,6 +74,7 @@ namespace art {
 
     void invite_to_debugger(const art::ustring& reason);
     bool _set_name_thread_dbg(const art::ustring& name);
+    bool _set_name_thread_dbg(const art::ustring& name, unsigned long thread_id);
     art::ustring _get_name_thread_dbg(unsigned long thread_id);
     unsigned long _thread_id();
 

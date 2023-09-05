@@ -66,13 +66,33 @@ namespace art {
             }
         }
 
-        //art::shared_ptr<FuncEnvironment>*, any...
+        namespace native {
+            namespace constructor {
+                ValueItem* createProxy_mutex(ValueItem*, uint32_t);
+                ValueItem* createProxy_rw_mutex(ValueItem*, uint32_t);
+                ValueItem* createProxy_timed_mutex(ValueItem*, uint32_t);
+                ValueItem* createProxy_recursive_mutex(ValueItem*, uint32_t);
+
+                ValueItem* createProxy_condition_variable(ValueItem*, uint32_t);
+
+                ValueItem* construct_Thread(ValueItem*, uint32_t);
+            }
+
+            namespace this_thread {
+                ValueItem* get_id(ValueItem*, uint32_t);
+                ValueItem* sleep_for(ValueItem*, uint32_t);
+                ValueItem* sleep_until(ValueItem*, uint32_t);
+                ValueItem* yield(ValueItem*, uint32_t);
+            }
+        }
+
+        //make raw thread
         ValueItem* createThread(ValueItem*, uint32_t);
 
-        //returns function result that what reached by native thread
+        //uses native::thread::wait
         ValueItem* createThreadAndWait(ValueItem*, uint32_t);
 
-        //returns task that wait native thread and return function result
+        //returns task that uses native::thread::wait
         ValueItem* createAsyncThread(ValueItem*, uint32_t);
 
         //returns task, args: [func, (fault handler), (timeout), (used_task_local)], saarr,faarr[args....]

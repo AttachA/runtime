@@ -321,7 +321,7 @@ namespace art {
 #ifdef _WIN32
         void* _mutex;
 #else
-        pthread_mutex_t* _mutex;
+        pthread_rwlock_t* _mutex;
 #endif
     public:
         rw_mutex();
@@ -467,6 +467,15 @@ namespace art {
             ref.lock();
             ref.relock_end(state);
         }
+    };
+
+    template <>
+    struct full_state_relock_guard<class MutexUnify> {
+        class MutexUnify& ref;
+
+        full_state_relock_guard(class MutexUnify& ref);
+
+        ~full_state_relock_guard();
     };
 
     class condition_variable_any {

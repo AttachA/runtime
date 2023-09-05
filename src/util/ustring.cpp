@@ -949,4 +949,24 @@ namespace art {
         }
         return npos;
     }
+
+    size_t ustring::find_first_of(const ustring& c) const {
+        size_t self_siz = size();
+        size_t c_siz = c.size();
+        if (self_siz < c_siz)
+            return npos;
+        const char* self_begin = begin();
+        const char* self_end = end();
+
+        const char* c_begin = c.begin();
+        const char* c_end = c.end();
+
+        const char* self_ = self_begin;
+        while (self_ <= self_end - c_siz) {
+            if (std::equal(c_begin, c_end, self_))
+                return self_ - self_begin;
+            self_++;
+        }
+        return npos;
+    }
 }

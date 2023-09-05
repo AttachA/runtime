@@ -241,6 +241,7 @@ namespace art {
         void shrink_to_fit();
 
         size_t find_last_of(const ustring& c) const;
+        size_t find_first_of(const ustring& c) const;
 
         /*[[INTERNAL]]*/ char& operator[](size_t i) {
             return data()[i];

@@ -4,8 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#ifndef RUN_TIME_LIBRARY_INTERNAL
-#define RUN_TIME_LIBRARY_INTERNAL
+#ifndef SRC_RUN_TIME_LIBRARY_INTERNAL
+#define SRC_RUN_TIME_LIBRARY_INTERNAL
 #include <run_time/attacha_abi_structs.hpp>
 
 namespace art {
@@ -65,7 +65,7 @@ namespace art {
             ValueItem* gc_hint_collect(ValueItem*, uint32_t);
 
             namespace native {
-                namespace construct {
+                namespace constructor {
                     ValueItem* createProxy_NativeValue(ValueItem*, uint32_t);    // used in NativeTemplate
                     ValueItem* createProxy_NativeTemplate(ValueItem*, uint32_t); // used in NativeLib
                     ValueItem* createProxy_NativeLib(ValueItem*, uint32_t);      // args: str lib path(resolved by os), do not use functions from this instance when destructor called
@@ -75,14 +75,15 @@ namespace art {
             }
         }
 
-        namespace construct {
+        namespace constructor {
             ValueItem* createProxy_function_builder(ValueItem*, uint32_t);
             ValueItem* createProxy_index_pos(ValueItem*, uint32_t);
             ValueItem* createProxy_line_info(ValueItem*, uint32_t);
+            ValueItem* createProxy_universal_compiler(ValueItem*, uint32_t);
         }
 
         void init();
     }
 }
 
-#endif /* RUN_TIME_LIBRARY_INTERNAL */
+#endif /* SRC_RUN_TIME_LIBRARY_INTERNAL */

@@ -7,11 +7,12 @@
 #pragma once
 #ifndef SRC_RUN_TIME_UTIL_TOOLS
 #define SRC_RUN_TIME_UTIL_TOOLS
-#include <string>
-#include <vector>
+    #include <string>
+    #include <vector>
 
-#include <run_time/attacha_abi_structs.hpp>
-#include <util/exceptions.hpp>
+    #include <run_time/attacha_abi_structs.hpp>
+    #include <run_time/library/bytes.hpp>
+    #include <util/exceptions.hpp>
 
 namespace art {
     namespace reader {
@@ -22,6 +23,7 @@ namespace art {
             uint8_t res[sizeof(T)]{0};
             for (size_t j = 0; j < sizeof(T); j++)
                 res[j] = data[i++];
+            bytes::convert_endian<bytes::Endian::little>(res, sizeof(T));
             return *(T*)res;
         }
 
@@ -47,6 +49,7 @@ namespace art {
             T* res = new T[len];
             for (uint32_t j = 0; j < len; j++)
                 res[j] = readData<T>(data, data_len, i);
+            bytes::convert_endian_arr<bytes::Endian::little>(res, len);
             return res;
         }
 
@@ -173,9 +176,9 @@ namespace art {
                 return readData<uint8_t>(data, data_len, i);
             case 2:
                 return readData<uint16_t>(data, data_len, i);
-            case 3:
-                return readData<uint32_t>(data, data_len, i);
             case 4:
+                return readData<uint32_t>(data, data_len, i);
+            case 8:
                 return readData<uint64_t>(data, data_len, i);
             default:
                 throw NotImplementedException();
@@ -194,7 +197,8 @@ namespace art {
         template <class T>
         typename std::enable_if<!std::is_same_v<T, ValueIndexPos>, void>::type
         write(std::vector<uint8_t>& data, const T& v) {
-            const uint8_t* res = reinterpret_cast<const uint8_t*>(&v);
+            T converted_ = bytes::convert_endian<bytes::Endian::little>(v);
+            const uint8_t* res = reinterpret_cast<const uint8_t*>(&converted_);
             for (size_t i = 0; i < sizeof(T); i++)
                 data.push_back(res[i]);
         }

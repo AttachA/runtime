@@ -13,6 +13,9 @@ namespace art {
         case MutexUnifyType::nmut:
             nmut->lock();
             break;
+        case MutexUnifyType::nrwmut:
+            nrwmut->lock();
+            break;
         case MutexUnifyType::ntimed:
             ntimed->lock();
             break;
@@ -21,6 +24,9 @@ namespace art {
             break;
         case MutexUnifyType::umut:
             umut->lock();
+            break;
+        case MutexUnifyType::urmut:
+            urmut->lock();
             break;
         case MutexUnifyType::mmut:
             mmut->lock();
@@ -34,12 +40,16 @@ namespace art {
         switch (type) {
         case MutexUnifyType::nmut:
             return nmut->try_lock();
+        case MutexUnifyType::nrwmut:
+            return nrwmut->try_lock();
         case MutexUnifyType::ntimed:
             return ntimed->try_lock();
         case MutexUnifyType::nrec:
             return nrec->try_lock();
         case MutexUnifyType::umut:
             return umut->try_lock();
+        case MutexUnifyType::urmut:
+            return urmut->try_lock();
         default:
             return false;
         }
@@ -55,6 +65,8 @@ namespace art {
             return nrec->try_lock();
         case MutexUnifyType::umut:
             return umut->try_lock_for(milliseconds);
+        case MutexUnifyType::urmut:
+            return urmut->try_lock_for(milliseconds);
         case MutexUnifyType::mmut:
             return mmut->try_lock_for(milliseconds);
         default:
@@ -72,6 +84,8 @@ namespace art {
             return nrec->try_lock();
         case MutexUnifyType::umut:
             return umut->try_lock_until(time_point);
+        case MutexUnifyType::urmut:
+            return urmut->try_lock_until(time_point);
         case MutexUnifyType::mmut:
             return mmut->try_lock_until(time_point);
         default:
@@ -84,6 +98,9 @@ namespace art {
         case MutexUnifyType::nmut:
             nmut->unlock();
             break;
+        case MutexUnifyType::nrwmut:
+            nrwmut->unlock();
+            break;
         case MutexUnifyType::ntimed:
             ntimed->unlock();
             break;
@@ -92,6 +109,9 @@ namespace art {
             break;
         case MutexUnifyType::umut:
             umut->unlock();
+            break;
+        case MutexUnifyType::urmut:
+            urmut->unlock();
             break;
         case MutexUnifyType::mmut:
             mmut->unlock();
@@ -115,6 +135,11 @@ namespace art {
         nmut = std::addressof(smut);
     }
 
+    MutexUnify::MutexUnify(art::rw_mutex& smut) {
+        type = MutexUnifyType::nrwmut;
+        nrwmut = std::addressof(smut);
+    }
+
     MutexUnify::MutexUnify(art::timed_mutex& smut) {
         type = MutexUnifyType::ntimed;
         ntimed = std::addressof(smut);
@@ -128,6 +153,11 @@ namespace art {
     MutexUnify::MutexUnify(TaskMutex& smut) {
         type = MutexUnifyType::umut;
         umut = std::addressof(smut);
+    }
+
+    MutexUnify::MutexUnify(TaskRecursiveMutex& smut) {
+        type = MutexUnifyType::urmut;
+        urmut = std::addressof(smut);
     }
 
     MutexUnify::MutexUnify(MultiplyMutex& mmut)
@@ -151,6 +181,12 @@ namespace art {
         return *this;
     }
 
+    MutexUnify& MutexUnify::operator=(art::rw_mutex& smut) {
+        type = MutexUnifyType::nrwmut;
+        nrwmut = std::addressof(smut);
+        return *this;
+    }
+
     MutexUnify& MutexUnify::operator=(art::timed_mutex& smut) {
         type = MutexUnifyType::ntimed;
         ntimed = std::addressof(smut);
@@ -169,6 +205,12 @@ namespace art {
         return *this;
     }
 
+    MutexUnify& MutexUnify::operator=(TaskRecursiveMutex& smut) {
+        type = MutexUnifyType::urmut;
+        urmut = std::addressof(smut);
+        return *this;
+    }
+
     MutexUnify& MutexUnify::operator=(MultiplyMutex& smut) {
         type = MutexUnifyType::mmut;
         mmut = std::addressof(smut);
@@ -183,6 +225,8 @@ namespace art {
     void MutexUnify::relock_start() {
         if (type == MutexUnifyType::nrec)
             state = nrec->relock_begin();
+        if (type == MutexUnifyType::urmut)
+            state = urmut->relock_begin();
         unlock();
     }
 
@@ -190,9 +234,20 @@ namespace art {
         lock();
         if (type == MutexUnifyType::nrec)
             nrec->relock_end(state);
+        if (type == MutexUnifyType::urmut)
+            urmut->relock_end(state);
     }
 
     MutexUnify::operator bool() {
         return type != MutexUnifyType::noting;
+    }
+
+    full_state_relock_guard<class MutexUnify>::full_state_relock_guard(class MutexUnify& ref)
+        : ref(ref) {
+        ref.relock_start();
+    }
+
+    full_state_relock_guard<class MutexUnify>::~full_state_relock_guard() {
+        ref.relock_end();
     }
 }

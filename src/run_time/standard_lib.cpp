@@ -1055,10 +1055,7 @@ namespace art {
         FuncEnvironment::AddNative(parallel::constructor::createProxy_TaskQuery, "# parallel task_query", false);
         FuncEnvironment::AddNative(parallel::constructor::construct_Task, "# parallel task", false);
         FuncEnvironment::AddNative(parallel::constructor::createProxy_TaskGroup, "# parallel task_group", false);
-        FuncEnvironment::AddNative(parallel::createThread, "parallel create_thread", false);
-        FuncEnvironment::AddNative(parallel::createThreadAndWait, "parallel create_thread_and_wait", false);
-        FuncEnvironment::AddNative(parallel::createAsyncThread, "parallel create_async_thread", false);
-        FuncEnvironment::AddNative(parallel::createTask, "parallel create_task", false);
+
         FuncEnvironment::AddNative(parallel::task_runtime::await_end_tasks, "parallel task_runtime await_end_tasks", false);
         FuncEnvironment::AddNative(parallel::task_runtime::await_no_tasks, "parallel task_runtime await_no_tasks", false);
         FuncEnvironment::AddNative(parallel::task_runtime::become_task_executor, "parallel task_runtime become_task_executor", false);
@@ -1067,6 +1064,7 @@ namespace art {
         FuncEnvironment::AddNative(parallel::task_runtime::explicitStartTimer, "parallel task_runtime explicitStartTimer", false);
         FuncEnvironment::AddNative(parallel::task_runtime::reduce_executor, "parallel task_runtime reduce_executor", false);
         FuncEnvironment::AddNative(parallel::task_runtime::total_executors, "parallel task_runtime total_executors", false);
+
         FuncEnvironment::AddNative(parallel::this_task::check_cancellation, "parallel this_task check_cancellation", false);
         FuncEnvironment::AddNative(parallel::this_task::is_task, "parallel this_task is_task", false);
         FuncEnvironment::AddNative(parallel::this_task::self_cancel, "parallel this_task self_cancel", false);
@@ -1075,6 +1073,7 @@ namespace art {
         FuncEnvironment::AddNative(parallel::this_task::task_id, "parallel this_task task_id", false);
         FuncEnvironment::AddNative(parallel::this_task::yield, "parallel this_task yield", false);
         FuncEnvironment::AddNative(parallel::this_task::yield_result, "parallel this_task yield_result", false);
+
         FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_Any, "# parallel atomic any", false);
         FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_Bool, "# parallel atomic boolean", false);
         FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_I8, "# parallel atomic i8", false);
@@ -1088,6 +1087,22 @@ namespace art {
         FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_Float, "# parallel atomic float", false);
         FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_Double, "# parallel atomic double", false);
         FuncEnvironment::AddNative(parallel::atomic::constructor::createProxy_UndefinedPtr, "# parallel atomic undefined_ptr", false);
+
+        FuncEnvironment::AddNative(parallel::native::constructor::createProxy_mutex, "# parallel native mutex", false);
+        FuncEnvironment::AddNative(parallel::native::constructor::createProxy_rw_mutex, "# parallel native rw_mutex", false);
+        FuncEnvironment::AddNative(parallel::native::constructor::createProxy_recursive_mutex, "# parallel native recursive_mutex", false);
+        FuncEnvironment::AddNative(parallel::native::constructor::createProxy_timed_mutex, "# parallel native timed_mutex", false);
+        FuncEnvironment::AddNative(parallel::native::constructor::createProxy_condition_variable, "# parallel native condition_variable", false);
+        FuncEnvironment::AddNative(parallel::native::constructor::construct_Thread, "# parallel native thread", false);
+        FuncEnvironment::AddNative(parallel::native::this_thread::get_id, "parallel native this_thread get_id", false);
+        FuncEnvironment::AddNative(parallel::native::this_thread::sleep_for, "parallel native this_thread sleep_for", false);
+        FuncEnvironment::AddNative(parallel::native::this_thread::sleep_until, "parallel native this_thread sleep_until", false);
+        FuncEnvironment::AddNative(parallel::native::this_thread::yield, "parallel native this_thread yield", false);
+
+        FuncEnvironment::AddNative(parallel::createThread, "parallel create_thread", false);
+        FuncEnvironment::AddNative(parallel::createThreadAndWait, "parallel create_thread_and_wait", false);
+        FuncEnvironment::AddNative(parallel::createAsyncThread, "parallel create_async_thread", false);
+        FuncEnvironment::AddNative(parallel::createTask, "parallel create_task", false);
     }
 
     void initStandardLib_chanel() {
@@ -1099,9 +1114,9 @@ namespace art {
     void initStandardLib_internal() {
         INIT_CHECK
         internal::init();
-        FuncEnvironment::AddNative(internal::construct::createProxy_function_builder, "# internal function_builder", false);
-        FuncEnvironment::AddNative(internal::construct::createProxy_index_pos, "# internal index_pos", false);
-        FuncEnvironment::AddNative(internal::construct::createProxy_line_info, "# internal line_info", false);
+        FuncEnvironment::AddNative(internal::constructor::createProxy_function_builder, "# internal function_builder", false);
+        FuncEnvironment::AddNative(internal::constructor::createProxy_index_pos, "# internal index_pos", false);
+        FuncEnvironment::AddNative(internal::constructor::createProxy_line_info, "# internal line_info", false);
     }
 
     void initStandardLib_internal_memory() {
@@ -1119,9 +1134,9 @@ namespace art {
     void initStandardLib_internal_run_time_native() {
         INIT_CHECK
         internal::run_time::native::init();
-        FuncEnvironment::AddNative(internal::run_time::native::construct::createProxy_NativeLib, "# internal run_time native native_lib", false);
-        FuncEnvironment::AddNative(internal::run_time::native::construct::createProxy_NativeValue, "# internal run_time native native_value", false);
-        FuncEnvironment::AddNative(internal::run_time::native::construct::createProxy_NativeTemplate, "# internal run_time native native_template", false);
+        FuncEnvironment::AddNative(internal::run_time::native::constructor::createProxy_NativeLib, "# internal run_time native native_lib", false);
+        FuncEnvironment::AddNative(internal::run_time::native::constructor::createProxy_NativeValue, "# internal run_time native native_value", false);
+        FuncEnvironment::AddNative(internal::run_time::native::constructor::createProxy_NativeTemplate, "# internal run_time native native_template", false);
     }
 
     void initStandardLib_internal_stack() {

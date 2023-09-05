@@ -138,128 +138,156 @@ namespace art {
         AttachAFun(_define_get_recv_timeout_ms, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.recv_timeout_ms;
-        }) AttachAFun(_define_get_send_timeout_ms, 1, {
+        });
+        AttachAFun(_define_get_send_timeout_ms, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.send_timeout_ms;
-        }) AttachAFun(_define_get_buffer_size, 1, {
+        });
+        AttachAFun(_define_get_buffer_size, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.buffer_size;
-        }) AttachAFun(_define_get_fast_open_queue, 1, {
+        });
+        AttachAFun(_define_get_fast_open_queue, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.fast_open_queue;
-        }) AttachAFun(_define_get_connection_timeout_ms, 1, {
+        });
+        AttachAFun(_define_get_connection_timeout_ms, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.connection_timeout_ms;
-        }) AttachAFun(_define_get_allow_ip4, 1, {
+        });
+        AttachAFun(_define_get_allow_ip4, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.allow_ip4;
-        }) AttachAFun(_define_get_enable_delay, 1, {
+        });
+        AttachAFun(_define_get_enable_delay, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.enable_delay;
-        }) AttachAFun(_define_get_enable_timestamps, 1, {
+        });
+        AttachAFun(_define_get_enable_timestamps, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.enable_timestamps;
-        }) AttachAFun(_define_get_enable_keep_alive, 1, {
+        });
+        AttachAFun(_define_get_enable_keep_alive, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.enable_keep_alive;
-        }) AttachAFun(_define_get_keep_alive_idle_ms, 1, {
+        });
+        AttachAFun(_define_get_keep_alive_idle_ms, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.keep_alive_settings.idle_ms;
-        }) AttachAFun(_define_get_keep_alive_interval_ms, 1, {
+        });
+        AttachAFun(_define_get_keep_alive_interval_ms, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.keep_alive_settings.interval_ms;
-        }) AttachAFun(_define_get_keep_alive_retry_count, 1, {
+        });
+        AttachAFun(_define_get_keep_alive_retry_count, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.keep_alive_settings.retry_count;
-        }) AttachAFun(_define_get_keep_alive_user_timeout_ms, 1, {
+        });
+        AttachAFun(_define_get_keep_alive_user_timeout_ms, 1, {
             auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
             return conf.keep_alive_settings.user_timeout_ms;
-        })
+        });
 
 
-            AttachAFun(_define_set_recv_timeout_ms, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.recv_timeout_ms = (uint32_t)args[1];
-            }) AttachAFun(_define_set_send_timeout_ms, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.send_timeout_ms = (uint32_t)args[1];
-            }) AttachAFun(_define_set_buffer_size, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.buffer_size = (uint32_t)args[1];
-            }) AttachAFun(_define_set_fast_open_queue, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.fast_open_queue = (uint32_t)args[1];
-            }) AttachAFun(_define_set_connection_timeout_ms, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.connection_timeout_ms = (uint32_t)args[1];
-            }) AttachAFun(_define_set_allow_ip4, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.allow_ip4 = (bool)args[1];
-            }) AttachAFun(_define_set_enable_delay, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.enable_delay = (bool)args[1];
-            }) AttachAFun(_define_set_enable_timestamps, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.enable_timestamps = (bool)args[1];
-            }) AttachAFun(_define_set_enable_keep_alive, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.enable_keep_alive = (bool)args[1];
-            }) AttachAFun(_define_set_keep_alive_idle_ms, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.keep_alive_settings.idle_ms = (uint32_t)args[1];
-            }) AttachAFun(_define_set_keep_alive_interval_ms, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.keep_alive_settings.interval_ms = (uint32_t)args[1];
-            }) AttachAFun(_define_set_keep_alive_retry_count, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.keep_alive_settings.retry_count = (uint32_t)args[1];
-            }) AttachAFun(_define_set_keep_alive_user_timeout_ms, 2, {
-                auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
-                conf.keep_alive_settings.user_timeout_ms = (uint32_t)args[1];
-            })
+        AttachAFun(_define_set_recv_timeout_ms, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.recv_timeout_ms = (uint32_t)args[1];
+        });
+        AttachAFun(_define_set_send_timeout_ms, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.send_timeout_ms = (uint32_t)args[1];
+        });
+        AttachAFun(_define_set_buffer_size, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.buffer_size = (uint32_t)args[1];
+        });
+        AttachAFun(_define_set_fast_open_queue, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.fast_open_queue = (uint32_t)args[1];
+        });
+        AttachAFun(_define_set_connection_timeout_ms, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.connection_timeout_ms = (uint32_t)args[1];
+        });
+        AttachAFun(_define_set_allow_ip4, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.allow_ip4 = (bool)args[1];
+        });
+        AttachAFun(_define_set_enable_delay, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.enable_delay = (bool)args[1];
+        });
+        AttachAFun(_define_set_enable_timestamps, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.enable_timestamps = (bool)args[1];
+        });
+        AttachAFun(_define_set_enable_keep_alive, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.enable_keep_alive = (bool)args[1];
+        });
+        AttachAFun(_define_set_keep_alive_idle_ms, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.keep_alive_settings.idle_ms = (uint32_t)args[1];
+        });
+        AttachAFun(_define_set_keep_alive_interval_ms, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.keep_alive_settings.interval_ms = (uint32_t)args[1];
+        });
+        AttachAFun(_define_set_keep_alive_retry_count, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.keep_alive_settings.retry_count = (uint32_t)args[1];
+        });
+        AttachAFun(_define_set_keep_alive_user_timeout_ms, 2, {
+            auto& conf = CXX::Interface::getExtractAs<TcpConfiguration>(args[0], define_TcpConfiguration);
+            conf.keep_alive_settings.user_timeout_ms = (uint32_t)args[1];
+        });
     }
 
     void init_define_UniversalAddress() {
         if (define_UniversalAddress != nullptr)
             return;
-        define_UniversalAddress = CXX::Interface::createTable<universal_address>("universal_address",
-                                                                                 CXX::Interface::direct_method("to_string", UniversalAddress::_define_to_string),
-                                                                                 CXX::Interface::direct_method("type", UniversalAddress::_define_type),
-                                                                                 CXX::Interface::direct_method("actual_type", UniversalAddress::_define_actual_type),
-                                                                                 CXX::Interface::direct_method("port", UniversalAddress::_define_port),
-                                                                                 CXX::Interface::direct_method("full_address", UniversalAddress::_define_full_address));
+        define_UniversalAddress = CXX::Interface::createTable<universal_address>(
+            "universal_address",
+            CXX::Interface::direct_method("to_string", UniversalAddress::_define_to_string),
+            CXX::Interface::direct_method("type", UniversalAddress::_define_type),
+            CXX::Interface::direct_method("actual_type", UniversalAddress::_define_actual_type),
+            CXX::Interface::direct_method("port", UniversalAddress::_define_port),
+            CXX::Interface::direct_method("full_address", UniversalAddress::_define_full_address)
+        );
     }
 
     void init_define_TcpConfiguration() {
         if (define_UniversalAddress != nullptr)
             return;
-        define_UniversalAddress = CXX::Interface::createTable<TcpConfiguration>("tcp_configuration",
-                                                                                CXX::Interface::direct_method("get_recv_timeout_ms", TcpConfiguration_map::_define_get_recv_timeout_ms),
-                                                                                CXX::Interface::direct_method("get_send_timeout_ms", TcpConfiguration_map::_define_get_send_timeout_ms),
-                                                                                CXX::Interface::direct_method("get_buffer_size", TcpConfiguration_map::_define_get_buffer_size),
-                                                                                CXX::Interface::direct_method("get_fast_open_queue", TcpConfiguration_map::_define_get_fast_open_queue),
-                                                                                CXX::Interface::direct_method("get_connection_timeout_ms", TcpConfiguration_map::_define_get_connection_timeout_ms),
-                                                                                CXX::Interface::direct_method("get_allow_ip4", TcpConfiguration_map::_define_get_allow_ip4),
-                                                                                CXX::Interface::direct_method("get_enable_delay", TcpConfiguration_map::_define_get_enable_delay),
-                                                                                CXX::Interface::direct_method("get_enable_timestamps", TcpConfiguration_map::_define_get_enable_timestamps),
-                                                                                CXX::Interface::direct_method("get_enable_keep_alive", TcpConfiguration_map::_define_get_enable_keep_alive),
-                                                                                CXX::Interface::direct_method("get_keep_alive_idle_ms", TcpConfiguration_map::_define_get_keep_alive_idle_ms),
-                                                                                CXX::Interface::direct_method("get_keep_alive_interval_ms", TcpConfiguration_map::_define_get_keep_alive_interval_ms),
-                                                                                CXX::Interface::direct_method("get_keep_alive_retry_count", TcpConfiguration_map::_define_get_keep_alive_retry_count),
-                                                                                CXX::Interface::direct_method("get_keep_alive_user_timeout_ms", TcpConfiguration_map::_define_get_keep_alive_user_timeout_ms),
-                                                                                CXX::Interface::direct_method("set_recv_timeout_ms", TcpConfiguration_map::_define_set_recv_timeout_ms),
-                                                                                CXX::Interface::direct_method("set_send_timeout_ms", TcpConfiguration_map::_define_set_send_timeout_ms),
-                                                                                CXX::Interface::direct_method("set_buffer_size", TcpConfiguration_map::_define_set_buffer_size),
-                                                                                CXX::Interface::direct_method("set_fast_open_queue", TcpConfiguration_map::_define_set_fast_open_queue),
-                                                                                CXX::Interface::direct_method("set_connection_timeout_ms", TcpConfiguration_map::_define_set_connection_timeout_ms),
-                                                                                CXX::Interface::direct_method("set_allow_ip4", TcpConfiguration_map::_define_set_allow_ip4),
-                                                                                CXX::Interface::direct_method("set_enable_delay", TcpConfiguration_map::_define_set_enable_delay),
-                                                                                CXX::Interface::direct_method("set_enable_timestamps", TcpConfiguration_map::_define_set_enable_timestamps),
-                                                                                CXX::Interface::direct_method("set_enable_keep_alive", TcpConfiguration_map::_define_set_enable_keep_alive),
-                                                                                CXX::Interface::direct_method("set_keep_alive_idle_ms", TcpConfiguration_map::_define_set_keep_alive_idle_ms),
-                                                                                CXX::Interface::direct_method("set_keep_alive_interval_ms", TcpConfiguration_map::_define_set_keep_alive_interval_ms),
-                                                                                CXX::Interface::direct_method("set_keep_alive_retry_count", TcpConfiguration_map::_define_set_keep_alive_retry_count),
-                                                                                CXX::Interface::direct_method("set_keep_alive_user_timeout_ms", TcpConfiguration_map::_define_set_keep_alive_user_timeout_ms));
+        define_UniversalAddress = CXX::Interface::createTable<TcpConfiguration>(
+            "tcp_configuration",
+            CXX::Interface::direct_method("get_recv_timeout_ms", TcpConfiguration_map::_define_get_recv_timeout_ms),
+            CXX::Interface::direct_method("get_send_timeout_ms", TcpConfiguration_map::_define_get_send_timeout_ms),
+            CXX::Interface::direct_method("get_buffer_size", TcpConfiguration_map::_define_get_buffer_size),
+            CXX::Interface::direct_method("get_fast_open_queue", TcpConfiguration_map::_define_get_fast_open_queue),
+            CXX::Interface::direct_method("get_connection_timeout_ms", TcpConfiguration_map::_define_get_connection_timeout_ms),
+            CXX::Interface::direct_method("get_allow_ip4", TcpConfiguration_map::_define_get_allow_ip4),
+            CXX::Interface::direct_method("get_enable_delay", TcpConfiguration_map::_define_get_enable_delay),
+            CXX::Interface::direct_method("get_enable_timestamps", TcpConfiguration_map::_define_get_enable_timestamps),
+            CXX::Interface::direct_method("get_enable_keep_alive", TcpConfiguration_map::_define_get_enable_keep_alive),
+            CXX::Interface::direct_method("get_keep_alive_idle_ms", TcpConfiguration_map::_define_get_keep_alive_idle_ms),
+            CXX::Interface::direct_method("get_keep_alive_interval_ms", TcpConfiguration_map::_define_get_keep_alive_interval_ms),
+            CXX::Interface::direct_method("get_keep_alive_retry_count", TcpConfiguration_map::_define_get_keep_alive_retry_count),
+            CXX::Interface::direct_method("get_keep_alive_user_timeout_ms", TcpConfiguration_map::_define_get_keep_alive_user_timeout_ms),
+            CXX::Interface::direct_method("set_recv_timeout_ms", TcpConfiguration_map::_define_set_recv_timeout_ms),
+            CXX::Interface::direct_method("set_send_timeout_ms", TcpConfiguration_map::_define_set_send_timeout_ms),
+            CXX::Interface::direct_method("set_buffer_size", TcpConfiguration_map::_define_set_buffer_size),
+            CXX::Interface::direct_method("set_fast_open_queue", TcpConfiguration_map::_define_set_fast_open_queue),
+            CXX::Interface::direct_method("set_connection_timeout_ms", TcpConfiguration_map::_define_set_connection_timeout_ms),
+            CXX::Interface::direct_method("set_allow_ip4", TcpConfiguration_map::_define_set_allow_ip4),
+            CXX::Interface::direct_method("set_enable_delay", TcpConfiguration_map::_define_set_enable_delay),
+            CXX::Interface::direct_method("set_enable_timestamps", TcpConfiguration_map::_define_set_enable_timestamps),
+            CXX::Interface::direct_method("set_enable_keep_alive", TcpConfiguration_map::_define_set_enable_keep_alive),
+            CXX::Interface::direct_method("set_keep_alive_idle_ms", TcpConfiguration_map::_define_set_keep_alive_idle_ms),
+            CXX::Interface::direct_method("set_keep_alive_interval_ms", TcpConfiguration_map::_define_set_keep_alive_interval_ms),
+            CXX::Interface::direct_method("set_keep_alive_retry_count", TcpConfiguration_map::_define_set_keep_alive_retry_count),
+            CXX::Interface::direct_method("set_keep_alive_user_timeout_ms", TcpConfiguration_map::_define_set_keep_alive_user_timeout_ms)
+        );
     }
 
     void internal_makeIP4(universal_address& addr_storage, const char* ip, uint16_t port) {

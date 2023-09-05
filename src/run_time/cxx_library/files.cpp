@@ -612,6 +612,16 @@ namespace art {
             void* get_handle() {
                 return _handle;
             }
+
+            art::ustring get_path() const {
+                size_t size = GetFinalPathNameByHandleW(_handle, nullptr, 0, FILE_NAME_NORMALIZED);
+                std::wstring wpath;
+                wpath.resize(size);
+                if (GetFinalPathNameByHandleW(_handle, (wchar_t*)wpath.c_str(), size, FILE_NAME_NORMALIZED) == 0)
+                    throw AException("FileException", "GetFinalPathNameByHandleW failed");
+                //remove \\?\ prefix
+                return art::ustring((const char16_t*)wpath.c_str() + 4, wpath.size() - 4);
+            }
         };
 
         FileHandle::FileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _async_flags flags, share_mode share, pointer_mode pointer_mode) noexcept(false) {
@@ -686,7 +696,7 @@ namespace art {
                 return (uint32_t)handle->read(data, size, true);
         }
 
-        ValueItem FileHandle::write(uint8_t* data, uint32_t size) {
+        ValueItem FileHandle::write(const uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
                 std::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->write(data, size);
@@ -700,7 +710,7 @@ namespace art {
                 return handle->write(data, size);
         }
 
-        ValueItem FileHandle::append(uint8_t* data, uint32_t size) {
+        ValueItem FileHandle::append(const uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
                 std::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->append(data, size);
@@ -755,6 +765,10 @@ namespace art {
 
         void* FileHandle::internal_get_handle() const noexcept {
             return handle->get_handle();
+        }
+
+        art::ustring FileHandle::get_path() const {
+            return handle->get_path();
         }
 
         BlockingFileHandle::BlockingFileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _sync_flags flags, share_mode share) noexcept(false)
@@ -890,7 +904,7 @@ namespace art {
             return readed;
         }
 
-        int64_t BlockingFileHandle::write(uint8_t* data, uint32_t size) {
+        int64_t BlockingFileHandle::write(const uint8_t* data, uint32_t size) {
             art::lock_guard<TaskMutex> lock(mutex);
             DWORD written;
             if (!WriteFile(handle, data, size, &written, NULL)) {
@@ -970,7 +984,7 @@ namespace art {
         bool BlockingFileHandle::valid() const noexcept {
             return handle != nullptr;
         }
-#if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
+    #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
         ::std::fstream BlockingFileHandle::get_iostream() const {
             if (handle != INVALID_HANDLE_VALUE) {
                 int file_descriptor = _open_osfhandle((intptr_t)handle, 0);
@@ -1009,8 +1023,16 @@ namespace art {
             }
             throw AException("FileException", "Can't open file");
         }
-#endif
-
+    #endif
+        art::ustring BlockingFileHandle::get_path() const {
+            size_t size = GetFinalPathNameByHandleW(handle, nullptr, 0, FILE_NAME_NORMALIZED);
+            std::wstring wpath;
+            wpath.resize(size);
+            if (GetFinalPathNameByHandleW(handle, (wchar_t*)wpath.c_str(), size, FILE_NAME_NORMALIZED) == 0)
+                throw AException("FileException", "GetFinalPathNameByHandleW failed");
+            //remove \\?\ prefix
+            return art::ustring((const char16_t*)wpath.c_str() + 4, wpath.size() - 4);
+        }
 
         class FolderBrowserImpl {
             std::wstring _path;
@@ -1444,6 +1466,46 @@ namespace art {
                 }
             NOT_UUID_DRIVE:
                 return (std::string)pre_result;
+            }
+
+            ValueItem file_extension() {
+                size_t pos = _path.find_last_of('/');
+                if (pos == art::ustring::npos)
+                    return nullptr;
+                art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
+                pos = wpath.find_first_of('.');
+
+                return ValueItem(wpath.substr(pos + 1));
+            }
+
+            ValueItem file_name() {
+                size_t pos = _path.find_last_of('/');
+                if (pos == art::ustring::npos)
+                    return nullptr;
+                art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
+                pos = wpath.find_first_of('.');
+                if (pos == art::ustring::npos)
+                    return ValueItem(wpath);
+                return ValueItem(wpath.substr(0, pos));
+            }
+
+            ValueItem file_name_without_extension() {
+                size_t pos = _path.find_last_of('/');
+                if (pos == art::ustring::npos)
+                    return nullptr;
+                art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
+                pos = wpath.find_first_of('.');
+                if (pos == art::ustring::npos)
+                    return ValueItem(wpath);
+                return ValueItem(wpath.substr(0, pos));
+            }
+
+            ValueItem file_path() {
+                size_t pos = _path.find_last_of('/');
+                if (pos == art::ustring::npos)
+                    return nullptr;
+                art::ustring wpath = _path.substr(0, pos);
+                return ValueItem(wpath);
             }
         };
 
@@ -1986,88 +2048,115 @@ namespace art {
         AttachAFun(funs_FolderChangesMonitorImpl_start, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             self->start();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_lazy_start, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_lazy_start, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             self->lazy_start();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_once_scan, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_once_scan, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             self->once_scan();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_stop, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_stop, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             self->stop();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_name_change, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_name_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_name_change();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_name_change, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_name_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_name_change();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_size_change, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_size_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_size_change();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_size_change, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_size_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_size_change();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_creation, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_creation, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_creation();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_creation, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_creation, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_creation();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_removed, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_removed, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_removed();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_removed, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_removed, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_removed();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_watcher_shutdown, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_watcher_shutdown, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_watcher_shutdown();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_last_access, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_last_access, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_last_access();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_last_access, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_last_access, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_last_access();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_last_write, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_last_write, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_last_write();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_last_write, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_last_write, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_last_write();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_security_change, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_security_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_security_change();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_security_change, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_security_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_security_change();
-        })
+        });
 
-
-            void init() {
+        void init() {
             art::mutex m;
             std::lock_guard l(m);
             if (CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
                 return;
-            define_FolderChangesMonitor = CXX::Interface::createTable<typed_lgr<FolderChangesMonitorImpl>>("folder_changes_monitor",
-                                                                                                           CXX::Interface::direct_method("start", funs_FolderChangesMonitorImpl_start),
-                                                                                                           CXX::Interface::direct_method("lazy_start", funs_FolderChangesMonitorImpl_lazy_start),
-                                                                                                           CXX::Interface::direct_method("once_scan", funs_FolderChangesMonitorImpl_once_scan),
-                                                                                                           CXX::Interface::direct_method("stop", funs_FolderChangesMonitorImpl_stop),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_name_change", funs_FolderChangesMonitorImpl_get_event_folder_name_change),
-                                                                                                           CXX::Interface::direct_method("get_event_file_name_change", funs_FolderChangesMonitorImpl_get_event_file_name_change),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_size_change", funs_FolderChangesMonitorImpl_get_event_folder_size_change),
-                                                                                                           CXX::Interface::direct_method("get_event_file_size_change", funs_FolderChangesMonitorImpl_get_event_file_size_change),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_creation", funs_FolderChangesMonitorImpl_get_event_folder_creation),
-                                                                                                           CXX::Interface::direct_method("get_event_file_creation", funs_FolderChangesMonitorImpl_get_event_file_creation),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_removed", funs_FolderChangesMonitorImpl_get_event_folder_removed),
-                                                                                                           CXX::Interface::direct_method("get_event_file_removed", funs_FolderChangesMonitorImpl_get_event_file_removed),
-                                                                                                           CXX::Interface::direct_method("get_event_watcher_shutdown", funs_FolderChangesMonitorImpl_get_event_watcher_shutdown),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_last_access", funs_FolderChangesMonitorImpl_get_event_folder_last_access),
-                                                                                                           CXX::Interface::direct_method("get_event_file_last_access", funs_FolderChangesMonitorImpl_get_event_file_last_access),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_last_write", funs_FolderChangesMonitorImpl_get_event_folder_last_write),
-                                                                                                           CXX::Interface::direct_method("get_event_file_last_write", funs_FolderChangesMonitorImpl_get_event_file_last_write),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_security_change", funs_FolderChangesMonitorImpl_get_event_folder_security_change),
-                                                                                                           CXX::Interface::direct_method("get_event_file_security_change", funs_FolderChangesMonitorImpl_get_event_file_security_change));
+            define_FolderChangesMonitor = CXX::Interface::createTable<typed_lgr<FolderChangesMonitorImpl>>(
+                "folder_changes_monitor",
+                CXX::Interface::direct_method("start", funs_FolderChangesMonitorImpl_start),
+                CXX::Interface::direct_method("lazy_start", funs_FolderChangesMonitorImpl_lazy_start),
+                CXX::Interface::direct_method("once_scan", funs_FolderChangesMonitorImpl_once_scan),
+                CXX::Interface::direct_method("stop", funs_FolderChangesMonitorImpl_stop),
+                CXX::Interface::direct_method("get_event_folder_name_change", funs_FolderChangesMonitorImpl_get_event_folder_name_change),
+                CXX::Interface::direct_method("get_event_file_name_change", funs_FolderChangesMonitorImpl_get_event_file_name_change),
+                CXX::Interface::direct_method("get_event_folder_size_change", funs_FolderChangesMonitorImpl_get_event_folder_size_change),
+                CXX::Interface::direct_method("get_event_file_size_change", funs_FolderChangesMonitorImpl_get_event_file_size_change),
+                CXX::Interface::direct_method("get_event_folder_creation", funs_FolderChangesMonitorImpl_get_event_folder_creation),
+                CXX::Interface::direct_method("get_event_file_creation", funs_FolderChangesMonitorImpl_get_event_file_creation),
+                CXX::Interface::direct_method("get_event_folder_removed", funs_FolderChangesMonitorImpl_get_event_folder_removed),
+                CXX::Interface::direct_method("get_event_file_removed", funs_FolderChangesMonitorImpl_get_event_file_removed),
+                CXX::Interface::direct_method("get_event_watcher_shutdown", funs_FolderChangesMonitorImpl_get_event_watcher_shutdown),
+                CXX::Interface::direct_method("get_event_folder_last_access", funs_FolderChangesMonitorImpl_get_event_folder_last_access),
+                CXX::Interface::direct_method("get_event_file_last_access", funs_FolderChangesMonitorImpl_get_event_file_last_access),
+                CXX::Interface::direct_method("get_event_folder_last_write", funs_FolderChangesMonitorImpl_get_event_folder_last_write),
+                CXX::Interface::direct_method("get_event_file_last_write", funs_FolderChangesMonitorImpl_get_event_file_last_write),
+                CXX::Interface::direct_method("get_event_folder_security_change", funs_FolderChangesMonitorImpl_get_event_folder_security_change),
+                CXX::Interface::direct_method("get_event_file_security_change", funs_FolderChangesMonitorImpl_get_event_file_security_change)
+            );
             CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() = define_FolderChangesMonitor;
         }
 
@@ -2243,6 +2332,30 @@ namespace art {
             return new FolderBrowser(impl->join_folder(folder_name, length));
         }
 
+        ValueItem FolderBrowser::file_extension() {
+            if (impl == nullptr)
+                return "";
+            return impl->file_extension();
+        }
+
+        ValueItem FolderBrowser::file_name() {
+            if (impl == nullptr)
+                return "";
+            return impl->file_name();
+        }
+
+        ValueItem FolderBrowser::file_name_without_extension() {
+            if (impl == nullptr)
+                return "";
+            return impl->file_name_without_extension();
+        }
+
+        ValueItem FolderBrowser::file_path() {
+            if (impl == nullptr)
+                return "";
+            return impl->file_path();
+        }
+
         art::ustring FolderBrowser::get_current_path() {
             if (impl == nullptr)
                 return "";
@@ -2303,7 +2416,7 @@ namespace art {
             const bool is_read;
             const bool required_full;
 
-            File_(NativeWorkerManager* manager, int handle, char* buffer, uint32_t buffer_size, uint64_t offset)
+            File_(NativeWorkerManager* manager, int handle, const char* buffer, uint32_t buffer_size, uint64_t offset)
                 : NativeWorkerHandle(manager), handle(handle), is_read(false), buffer_size(buffer_size), offset(offset), required_full(true) {
                 this->buffer = new char[buffer_size];
                 memcpy(this->buffer, buffer, buffer_size);
@@ -2643,8 +2756,8 @@ namespace art {
                 }
             }
 
-            ValueItem write(uint8_t* data, uint32_t size) {
-                File_* file = new File_(this, _handle, (char*)data, size, write_pointer);
+            ValueItem write(const uint8_t* data, uint32_t size) {
+                File_* file = new File_(this, _handle, (const char*)data, size, write_pointer);
                 switch (_pointer_mode) {
                 case pointer_mode::separated:
                     write_pointer += size;
@@ -2664,8 +2777,8 @@ namespace art {
                 return file->awaiter;
             }
 
-            ValueItem append(uint8_t* data, uint32_t size) {
-                File_* file = new File_(this, _handle, (char*)data, size, (uint64_t)-1);
+            ValueItem append(const uint8_t* data, uint32_t size) {
+                File_* file = new File_(this, _handle, (const char*)data, size, (uint64_t)-1);
                 ValueItem args((void*)file);
                 try {
                     file->awaiter = Task::callback_dummy(args, file_overlapped_on_await, file_overlapped_on_cancel, nullptr, file_overlapped_on_destruct);
@@ -2797,6 +2910,20 @@ namespace art {
             int get_handle() {
                 return _handle;
             }
+
+            art::ustring get_path() const {
+                struct stat st;
+                if (fstat(_handle, &st) == 0) {
+                    if (st.st_nlink == 0)
+                        return "";
+                }
+                char path[PATH_MAX];
+                ssize_t len = readlink(("/proc/self/fd/" + std::to_string(_handle)).c_str(), path, PATH_MAX);
+                if (len == -1)
+                    return "";
+                else
+                    return art::ustring(path, len);
+            }
         };
 
         FileHandle::FileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _async_flags flags, share_mode share, pointer_mode pointer_mode) noexcept(false) {
@@ -2871,7 +2998,7 @@ namespace art {
                 return (uint32_t)handle->read(data, size, true);
         }
 
-        ValueItem FileHandle::write(uint8_t* data, uint32_t size) {
+        ValueItem FileHandle::write(const uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
                 std::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->write(data, size);
@@ -2885,7 +3012,7 @@ namespace art {
                 return handle->write(data, size);
         }
 
-        ValueItem FileHandle::append(uint8_t* data, uint32_t size) {
+        ValueItem FileHandle::append(const uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
                 std::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->append(data, size);
@@ -2940,6 +3067,10 @@ namespace art {
 
         int FileHandle::internal_get_handle() const noexcept {
             return handle->get_handle();
+        }
+
+        art::ustring FileHandle::get_path() const {
+            return handle->get_path();
         }
 
         BlockingFileHandle::BlockingFileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _sync_flags flags, share_mode share) noexcept(false)
@@ -3060,7 +3191,7 @@ namespace art {
             return readed;
         }
 
-        int64_t BlockingFileHandle::write(uint8_t* data, uint32_t size) {
+        int64_t BlockingFileHandle::write(const uint8_t* data, uint32_t size) {
             art::lock_guard<TaskMutex> lock(mutex);
             ssize_t written;
             if ((written = ::write(handle, data, size)) == -1) {
@@ -3146,6 +3277,10 @@ namespace art {
             throw AException("FileException", "Can't open file");
         }
 #endif
+
+        art::ustring BlockingFileHandle::get_path() const {
+            return _path;
+        }
 
 
         class FolderBrowserImpl {
@@ -3272,7 +3407,8 @@ namespace art {
             }
 
         public:
-            FolderBrowserImpl(const char* path, size_t length) noexcept(false) {}
+            FolderBrowserImpl(const char* path, size_t length) noexcept(false)
+                : _path(path, length) {}
 
             FolderBrowserImpl(const FolderBrowserImpl& copy) {
                 _path = copy._path;
@@ -3474,6 +3610,46 @@ namespace art {
                     if (c == '\\')
                         c = separator;
                 return (std::string)pre_result;
+            }
+
+            ValueItem file_extension() {
+                size_t pos = _path.find_last_of('/');
+                if (pos == art::ustring::npos)
+                    return nullptr;
+                art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
+                pos = wpath.find_first_of('.');
+
+                return ValueItem(wpath.substr(pos + 1));
+            }
+
+            ValueItem file_name() {
+                size_t pos = _path.find_last_of('/');
+                if (pos == art::ustring::npos)
+                    return nullptr;
+                art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
+                pos = wpath.find_first_of('.');
+                if (pos == art::ustring::npos)
+                    return ValueItem(wpath);
+                return ValueItem(wpath.substr(0, pos));
+            }
+
+            ValueItem file_name_without_extension() {
+                size_t pos = _path.find_last_of('/');
+                if (pos == art::ustring::npos)
+                    return nullptr;
+                art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
+                pos = wpath.find_first_of('.');
+                if (pos == art::ustring::npos)
+                    return ValueItem(wpath);
+                return ValueItem(wpath.substr(0, pos));
+            }
+
+            ValueItem file_path() {
+                size_t pos = _path.find_last_of('/');
+                if (pos == art::ustring::npos)
+                    return nullptr;
+                art::ustring wpath = _path.substr(0, pos);
+                return ValueItem(wpath);
             }
         };
 
@@ -3867,88 +4043,121 @@ namespace art {
         AttachAFun(funs_FolderChangesMonitorImpl_start, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             self->start();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_lazy_start, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_lazy_start, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             self->lazy_start();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_once_scan, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_once_scan, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             self->once_scan();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_stop, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_stop, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             self->stop();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_name_change, 1, {
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_name_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_name_change();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_name_change, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_name_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_name_change();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_size_change, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_size_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_size_change();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_size_change, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_size_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_size_change();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_creation, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_creation, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_creation();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_creation, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_creation, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_creation();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_removed, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_removed, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_removed();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_removed, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_removed, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_removed();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_watcher_shutdown, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_watcher_shutdown, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_watcher_shutdown();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_last_access, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_last_access, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_last_access();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_last_access, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_last_access, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_last_access();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_last_write, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_last_write, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_last_write();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_last_write, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_last_write, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_last_write();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_security_change, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_security_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_folder_security_change();
-        }) AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_security_change, 1, {
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_get_event_file_security_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             return self->get_event_file_security_change();
-        })
+        });
 
-
-            void init() {
+        void init() {
             art::mutex m;
             std::lock_guard l(m);
             if (CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
                 return;
-            define_FolderChangesMonitor = CXX::Interface::createTable<typed_lgr<FolderChangesMonitorImpl>>("folder_changes_monitor",
-                                                                                                           CXX::Interface::direct_method("start", funs_FolderChangesMonitorImpl_start),
-                                                                                                           CXX::Interface::direct_method("lazy_start", funs_FolderChangesMonitorImpl_lazy_start),
-                                                                                                           CXX::Interface::direct_method("once_scan", funs_FolderChangesMonitorImpl_once_scan),
-                                                                                                           CXX::Interface::direct_method("stop", funs_FolderChangesMonitorImpl_stop),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_name_change", funs_FolderChangesMonitorImpl_get_event_folder_name_change),
-                                                                                                           CXX::Interface::direct_method("get_event_file_name_change", funs_FolderChangesMonitorImpl_get_event_file_name_change),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_size_change", funs_FolderChangesMonitorImpl_get_event_folder_size_change),
-                                                                                                           CXX::Interface::direct_method("get_event_file_size_change", funs_FolderChangesMonitorImpl_get_event_file_size_change),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_creation", funs_FolderChangesMonitorImpl_get_event_folder_creation),
-                                                                                                           CXX::Interface::direct_method("get_event_file_creation", funs_FolderChangesMonitorImpl_get_event_file_creation),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_removed", funs_FolderChangesMonitorImpl_get_event_folder_removed),
-                                                                                                           CXX::Interface::direct_method("get_event_file_removed", funs_FolderChangesMonitorImpl_get_event_file_removed),
-                                                                                                           CXX::Interface::direct_method("get_event_watcher_shutdown", funs_FolderChangesMonitorImpl_get_event_watcher_shutdown),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_last_access", funs_FolderChangesMonitorImpl_get_event_folder_last_access),
-                                                                                                           CXX::Interface::direct_method("get_event_file_last_access", funs_FolderChangesMonitorImpl_get_event_file_last_access),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_last_write", funs_FolderChangesMonitorImpl_get_event_folder_last_write),
-                                                                                                           CXX::Interface::direct_method("get_event_file_last_write", funs_FolderChangesMonitorImpl_get_event_file_last_write),
-                                                                                                           CXX::Interface::direct_method("get_event_folder_security_change", funs_FolderChangesMonitorImpl_get_event_folder_security_change),
-                                                                                                           CXX::Interface::direct_method("get_event_file_security_change", funs_FolderChangesMonitorImpl_get_event_file_security_change));
+            define_FolderChangesMonitor = CXX::Interface::createTable<typed_lgr<FolderChangesMonitorImpl>>(
+                "folder_changes_monitor",
+                CXX::Interface::direct_method("start", funs_FolderChangesMonitorImpl_start),
+                CXX::Interface::direct_method("lazy_start", funs_FolderChangesMonitorImpl_lazy_start),
+                CXX::Interface::direct_method("once_scan", funs_FolderChangesMonitorImpl_once_scan),
+                CXX::Interface::direct_method("stop", funs_FolderChangesMonitorImpl_stop),
+                CXX::Interface::direct_method("get_event_folder_name_change", funs_FolderChangesMonitorImpl_get_event_folder_name_change),
+                CXX::Interface::direct_method("get_event_file_name_change", funs_FolderChangesMonitorImpl_get_event_file_name_change),
+                CXX::Interface::direct_method("get_event_folder_size_change", funs_FolderChangesMonitorImpl_get_event_folder_size_change),
+                CXX::Interface::direct_method("get_event_file_size_change", funs_FolderChangesMonitorImpl_get_event_file_size_change),
+                CXX::Interface::direct_method("get_event_folder_creation", funs_FolderChangesMonitorImpl_get_event_folder_creation),
+                CXX::Interface::direct_method("get_event_file_creation", funs_FolderChangesMonitorImpl_get_event_file_creation),
+                CXX::Interface::direct_method("get_event_folder_removed", funs_FolderChangesMonitorImpl_get_event_folder_removed),
+                CXX::Interface::direct_method("get_event_file_removed", funs_FolderChangesMonitorImpl_get_event_file_removed),
+                CXX::Interface::direct_method("get_event_watcher_shutdown", funs_FolderChangesMonitorImpl_get_event_watcher_shutdown),
+                CXX::Interface::direct_method("get_event_folder_last_access", funs_FolderChangesMonitorImpl_get_event_folder_last_access),
+                CXX::Interface::direct_method("get_event_file_last_access", funs_FolderChangesMonitorImpl_get_event_file_last_access),
+                CXX::Interface::direct_method("get_event_folder_last_write", funs_FolderChangesMonitorImpl_get_event_folder_last_write),
+                CXX::Interface::direct_method("get_event_file_last_write", funs_FolderChangesMonitorImpl_get_event_file_last_write),
+                CXX::Interface::direct_method("get_event_folder_security_change", funs_FolderChangesMonitorImpl_get_event_folder_security_change),
+                CXX::Interface::direct_method("get_event_file_security_change", funs_FolderChangesMonitorImpl_get_event_file_security_change)
+            );
             CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() = define_FolderChangesMonitor;
         }
 
@@ -4112,6 +4321,30 @@ namespace art {
             if (impl == nullptr)
                 throw AException("FolderBrowserException", "FolderBrowser is not initialized");
             return new FolderBrowser(impl->join_folder(folder_name, length));
+        }
+
+        ValueItem FolderBrowser::file_extension() {
+            if (impl == nullptr)
+                return "";
+            return impl->file_extension();
+        }
+
+        ValueItem FolderBrowser::file_name() {
+            if (impl == nullptr)
+                return "";
+            return impl->file_name();
+        }
+
+        ValueItem FolderBrowser::file_name_without_extension() {
+            if (impl == nullptr)
+                return "";
+            return impl->file_name_without_extension();
+        }
+
+        ValueItem FolderBrowser::file_path() {
+            if (impl == nullptr)
+                return "";
+            return impl->file_path();
         }
 
         art::ustring FolderBrowser::get_current_path() {

@@ -83,6 +83,9 @@ namespace art {
         //put here child task(not started), and it will lock mutex and relock it when received value from child task, and unlock it when it will be finished
         void sequence_lock(art::shared_ptr<Task> task);
         bool is_own();
+
+        relock_state relock_begin();
+        void relock_end(relock_state state);
     };
 
     ENUM_t(
@@ -90,36 +93,44 @@ namespace art {
         uint8_t,
         noting,
         nmut,
+        nrwmut,
         ntimed,
         nrec,
         umut,
+        urmut,
         mmut
     );
 
     struct MutexUnify {
         union {
             art::mutex* nmut = nullptr;
+            art::rw_mutex* nrwmut;
             art::timed_mutex* ntimed;
             art::recursive_mutex* nrec;
             TaskMutex* umut;
+            TaskRecursiveMutex* urmut;
             struct MultiplyMutex* mmut;
         };
 
         MutexUnify();
         MutexUnify(const MutexUnify& mut);
         MutexUnify(art::mutex& smut);
+        MutexUnify(art::rw_mutex& smut);
         MutexUnify(art::timed_mutex& smut);
         MutexUnify(art::recursive_mutex& smut);
         MutexUnify(TaskMutex& smut);
+        MutexUnify(TaskRecursiveMutex& smut);
         MutexUnify(struct MultiplyMutex& mmut);
         MutexUnify(nullptr_t);
 
 
         MutexUnify& operator=(const MutexUnify& mut);
         MutexUnify& operator=(art::mutex& smut);
+        MutexUnify& operator=(art::rw_mutex& smut);
         MutexUnify& operator=(art::timed_mutex& smut);
         MutexUnify& operator=(art::recursive_mutex& smut);
         MutexUnify& operator=(TaskMutex& smut);
+        MutexUnify& operator=(TaskRecursiveMutex& smut);
         MutexUnify& operator=(struct MultiplyMutex& mmut);
         MutexUnify& operator=(nullptr_t);
 

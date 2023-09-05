@@ -110,8 +110,8 @@ namespace art {
             ValueItem read_fixed(uint32_t size);
             uint32_t read_fixed(uint8_t* data, uint32_t size);
 
-            ValueItem write(uint8_t* data, uint32_t size);
-            ValueItem append(uint8_t* data, uint32_t size);
+            ValueItem write(const uint8_t* data, uint32_t size);
+            ValueItem append(const uint8_t* data, uint32_t size);
 
             ValueItem seek_pos(uint64_t offset, pointer_offset pointer_offset, pointer pointer);
             ValueItem seek_pos(uint64_t offset, pointer_offset pointer_offset);
@@ -123,6 +123,9 @@ namespace art {
             ValueItem size();
 
             FILE_HANDLE internal_get_handle() const noexcept;
+
+            //extract full path from handle, can not be same as path in constructor
+            art::ustring get_path() const;
         };
 
         class BlockingFileHandle { //block workers threads, one pointer per handle
@@ -138,7 +141,7 @@ namespace art {
             BlockingFileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _sync_flags flags, share_mode share = {}) noexcept(false);
             ~BlockingFileHandle();
             int64_t read(uint8_t* data, uint32_t size);
-            int64_t write(uint8_t* data, uint32_t size);
+            int64_t write(const uint8_t* data, uint32_t size);
             bool seek_pos(uint64_t offset, pointer_offset pointer_offset);
             uint64_t tell_pos();
             bool flush();
@@ -153,6 +156,10 @@ namespace art {
             //require explicit close, destructor will not close it,
             // BlockingFileHandle will be not used when ::std::fstream alive,
             // can cause desync, ie thread unsafe
+
+
+            //extract full path from handle, can not be same as path in constructor
+            art::ustring get_path() const;
         };
 
         class FolderBrowser {
@@ -193,6 +200,11 @@ namespace art {
             art::ustring get_current_path();
 
             bool is_corrupted();
+
+            ValueItem file_extension();
+            ValueItem file_name();
+            ValueItem file_name_without_extension();
+            ValueItem file_path();
         };
 
         ValueItem createFolderChangesMonitor(const char* path, size_t length, bool depth);

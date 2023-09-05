@@ -163,4 +163,18 @@ namespace art {
             return true;
         return false;
     }
+
+    relock_state TaskRecursiveMutex::relock_begin() {
+        if (!is_own())
+            throw InvalidOperation("Try relock non-owned mutex");
+        unsigned int _count = recursive_count;
+        recursive_count = 1;
+        return relock_state(_count);
+    }
+
+    void TaskRecursiveMutex::relock_end(relock_state state) {
+        if (!is_own())
+            throw InvalidOperation("Try relock non-owned mutex");
+        recursive_count = state._state;
+    }
 }
