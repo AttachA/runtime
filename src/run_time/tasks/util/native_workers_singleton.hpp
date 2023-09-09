@@ -240,57 +240,27 @@ namespace art {
         static inline NativeWorkersSingleton* instance = nullptr;
         static inline art::mutex instance_mutex;
         io_uring m_ring;
-        art::util::hill_climb hill_climb;
-        art::mutex hill_climb_mutex;
-        std::list<uint32_t> hill_climb_processed;
 
         NativeWorkersSingleton() {
-            //init m_ring
-            if (int res = io_uring_queue_init(2048, &m_ring, 0) < 0) {
+            struct io_uring_params params;
+            memset(&params, 0, sizeof(params));
+            params.flags |= IORING_SETUP_IOPOLL;
+            params.sq_thread_idle = 2000;
+            if (int res = io_uring_queue_init_params(2048, &m_ring, &params) < 0) {
                 ValueItem notify{"io_uring_queue_init failed with error ", res};
                 errors.sync_notify(notify);
                 return;
             }
-            for (ptrdiff_t i = art::thread::hardware_concurrency() / 3 + 1; i > 0; i--)
-                art::thread(&NativeWorkersSingleton::dispatch, this).detach();
+            art::thread(&NativeWorkersSingleton::dispatch, this).detach();
         }
 
         std::pair<uint32_t, uint32_t> proceed_hill_climb(double sample_seconds) {
-            const uint32_t max_threads = art::thread::hardware_concurrency();
-            std::lock_guard<art::mutex> lock(hill_climb_mutex);
-            uint32_t recommended_thread_count = 0;
-            uint32_t recommended_sleep_count = 0;
-            if (hill_climb_processed.empty()) {
-                art::thread(&NativeWorkersSingleton::dispatch, this).detach();
-                return {100, 1};
-            }
-            for (auto& item : hill_climb_processed) {
-                auto [thread_count, sleep_count] = hill_climb.climb(hill_climb_processed.size(), sample_seconds, item, 1, max_threads);
-                recommended_thread_count += thread_count;
-                recommended_sleep_count += sleep_count;
-                item = 0;
-            }
-            recommended_thread_count /= hill_climb_processed.size();
-            recommended_sleep_count /= hill_climb_processed.size();
-
-            ptrdiff_t diff = recommended_thread_count - hill_climb_processed.size();
-            if (diff > 0) {
-                for (ptrdiff_t i = diff; i > 0; i--)
-                    art::thread(&NativeWorkersSingleton::dispatch, this).detach();
-            } else if (diff < 0) {
-                for (ptrdiff_t i = diff; i < 0; i++)
-                    post_yield(new CancellationHandle(cancellation_manager_instance));
-            }
-            return {recommended_thread_count, 1};
+            return {1, 1};
         }
 
         void dispatch() {
             if (enable_thread_naming)
                 _set_name_thread_dbg("NativeWorker Dispatch");
-            art::unique_lock<art::mutex> lock(hill_climb_mutex);
-            uint32_t& item = hill_climb_processed.emplace_back();
-            auto item_ptr = hill_climb_processed.begin();
-            lock.unlock();
             while (true) {
                 uint64_t handle = 0;
                 io_uring_cqe* cqe = nullptr;
@@ -329,10 +299,7 @@ namespace art {
                     throw;
                 }
                 io_uring_cqe_seen(&m_ring, cqe);
-                item++;
             }
-            lock.lock();
-            hill_climb_processed.erase(item_ptr);
         }
 
         static NativeWorkersSingleton& get_instance() {

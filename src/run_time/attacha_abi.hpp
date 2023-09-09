@@ -289,7 +289,7 @@ namespace art {
                 return val;
             else if constexpr (std::is_same_v<std::remove_cvref_t<T>, void*>)
                 return val;
-            else if constexpr (std::is_reference_v<T> && (std::is_aggregate<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>)) {
+            else if constexpr (std::is_reference_v<T> && (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>)) {
                 throw NotImplementedException(); //TODO: implement
             } else {
                 static_assert(
@@ -308,7 +308,7 @@ namespace art {
                         std::is_same_v<std::remove_cvref_t<T>, Environment> ||
                         std::is_same_v<std::remove_cvref_t<T>, bool> ||
                         std::is_same_v<std::remove_cvref_t<T>, void*> ||
-                        (std::is_reference_v<T> && (std::is_aggregate<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>))
+                        (std::is_reference_v<T> && (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>))
                     ),
                     "Invalid type for convert"
                 );

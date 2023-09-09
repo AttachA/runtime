@@ -2342,6 +2342,9 @@ namespace art {
         bool is_bound = false;
         uint32_t max_read_queue_size;
         TcpError invalid_reason = TcpError::none;
+        sockaddr_storage clientAddress;
+        socklen_t clientAddressLen = sizeof(sockaddr_storage);
+
         enum class Opcode : uint8_t {
             ACCEPT,
             READ,
@@ -2533,7 +2536,7 @@ namespace art {
             return data;
         }
 
-        void close(error err = error::local_close) {
+        void close(TcpError err = TcpError::local_close) {
             if (!data)
                 return;
             pre_close(err);
@@ -2554,13 +2557,13 @@ namespace art {
 #if EAGAIN != EWOULDBLOCK
                 case EWOULDBLOCK:
 #endif
-                    pre_close(error::invalid_state);
+                    pre_close(TcpError::invalid_state);
                     return;
                 case ECONNRESET:
-                    pre_close(error::remote_close);
+                    pre_close(TcpError::remote_close);
                     return;
                 default:
-                    pre_close(error::undefined_error);
+                    pre_close(TcpError::undefined_error);
                     return;
                 }
             }
@@ -2600,12 +2603,12 @@ namespace art {
                 }
                 if (!data_available()) {
                     if (read_queue.size() > max_read_queue_size)
-                        close(error::read_queue_overflow);
+                        close(TcpError::read_queue_overflow);
                     else
                         read();
                 } else {
                     if (write_queue.empty())
-                        close(error::invalid_state);
+                        close(TcpError::invalid_state);
                     else {
                         auto item = write_queue.front();
                         write_queue.pop_front();
@@ -3402,8 +3405,7 @@ namespace art {
 
         void make_acceptEx(void) {
             tcp_handle* pClientContext = new tcp_handle(0, config.buffer_size, this);
-            pClientContext->opcode = tcp_handle::Opcode::ACCEPT;
-            NativeWorkersSingleton::post_accept(pClientContext, main_socket, nullptr, nullptr, O_NONBLOCK);
+            NativeWorkersSingleton::post_accept(pClientContext, main_socket, (sockaddr*)&pClientContext->clientAddress, &pClientContext->clientAddressLen, 0);
         }
 
         ValueItem accept_manager_construct(tcp_handle* self) {
@@ -3422,6 +3424,11 @@ namespace art {
                 delete self;
                 return;
             }
+            if (self->aerrno) {
+                self->connection_reset();
+                delete self;
+                return;
+            }
             std::lock_guard guard(safety);
             Task::start(
                 new Task(handler_fn, ValueItem{accept_manager_construct(self), std::move(clientAddr), std::move(localAddr)}));
@@ -3435,7 +3442,7 @@ namespace art {
 
         void new_connection(tcp_handle& data, SOCKET client_socket) {
             if (!allow_new_connections) {
-                NativeWorkersSingleton::post_accept(&data, main_socket, nullptr, nullptr, O_NONBLOCK);
+                NativeWorkersSingleton::post_accept(&data, main_socket, nullptr, nullptr, 0);
                 close(client_socket);
             }
             if (data.is_bound && !accept_filter)
@@ -3453,7 +3460,7 @@ namespace art {
             ValueItem localAddress(CXX::Interface::constructStructure<universal_address>(define_UniversalAddress, pLocalAddr), no_copy);
             if (accept_filter) {
                 if (CXX::cxxCall(accept_filter, clientAddress, localAddress)) {
-                    NativeWorkersSingleton::post_accept(&data, main_socket, nullptr, nullptr, O_NONBLOCK);
+                    NativeWorkersSingleton::post_accept(&data, main_socket, nullptr, nullptr, 0);
                     close(client_socket);
 #ifndef DISABLE_RUNTIME_INFO
                     auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
@@ -3491,15 +3498,15 @@ namespace art {
                 corrupted = true;
                 return;
             }
-            int argp = 1; //non blocking
+            int argp = 1;
             if (setsockopt(main_socket, SOL_SOCKET, SO_REUSEADDR, &argp, sizeof(argp)) == -1) {
                 ValueItem error = art::ustring("Failed set reuse addr: ") + std::to_string(errno);
                 errors.sync_notify(error);
                 corrupted = true;
                 return;
             }
-            if (ioctl(main_socket, FIONBIO, &argp) == -1) {
-                ValueItem error = art::ustring("Failed set no block mode: ") + std::to_string(errno);
+            if (setsockopt(main_socket, SOL_SOCKET, SO_REUSEPORT, &argp, sizeof(argp)) == -1) {
+                ValueItem error = art::ustring("Failed set reuse port: ") + std::to_string(errno);
                 errors.sync_notify(error);
                 corrupted = true;
                 return;
@@ -3515,10 +3522,12 @@ namespace art {
             }
             cfg = !config.enable_timestamps;
             if (setsockopt(main_socket, IPPROTO_TCP, TCP_TIMESTAMP, &cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set timestamps mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
-                corrupted = true;
-                return;
+                if (errno != 1) {
+                    ValueItem error = art::ustring("Failed set timestamps mode: ") + std::to_string(errno);
+                    errors.sync_notify(error);
+                    corrupted = true;
+                    return;
+                }
             }
             cfg = !config.enable_delay;
             if (setsockopt(main_socket, IPPROTO_TCP, TCP_NODELAY, &cfg, sizeof(cfg)) == -1) {
@@ -3532,15 +3541,18 @@ namespace art {
                 ValueItem warn = art::ustring("Failed set fast open settings for server (") + std::to_string(errno) + "), continue regular mode";
                 warning.async_notify(warn);
             }
-            cfg = config.recv_timeout_ms;
-            if (setsockopt(main_socket, SOL_SOCKET, SO_RCVTIMEO, &cfg, sizeof(cfg)) == -1) {
+            struct timeval cfgt = {};
+            cfgt.tv_sec = config.recv_timeout_ms / 1000;
+            cfgt.tv_usec = (config.recv_timeout_ms % 1000) * 1000;
+            if (setsockopt(main_socket, SOL_SOCKET, SO_RCVTIMEO, &cfgt, sizeof(cfgt)) == -1) {
                 ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
                 errors.sync_notify(error);
                 corrupted = true;
                 return;
             }
-            cfg = config.send_timeout_ms;
-            if (setsockopt(main_socket, SOL_SOCKET, SO_SNDTIMEO, &cfg, sizeof(cfg)) == -1) {
+            cfgt.tv_sec = config.send_timeout_ms / 1000;
+            cfgt.tv_usec = (config.send_timeout_ms % 1000) * 1000;
+            if (setsockopt(main_socket, SOL_SOCKET, SO_SNDTIMEO, &cfgt, sizeof(cfgt)) == -1) {
                 ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
                 errors.sync_notify(error);
                 corrupted = true;
@@ -3684,7 +3696,7 @@ namespace art {
             unique_lock lock(mutex);
             data->is_bound = true;
             data->opcode = tcp_handle::Opcode::ACCEPT;
-            NativeWorkersSingleton::post_accept(data, main_socket, nullptr, nullptr, O_NONBLOCK);
+            NativeWorkersSingleton::post_accept(data, main_socket, (sockaddr*)&data->clientAddress, &data->clientAddressLen, 0);
             data->cv.wait(lock);
             return accept_manager_construct(data);
         }
