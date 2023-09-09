@@ -346,7 +346,9 @@ namespace art {
                 CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->notify(args[0]);
             else
                 CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->notify(args + 2, len - 2);
-        }) AttachAFun(funs_Chanel_auto_notify, 2, {
+        });
+
+        AttachAFun(funs_Chanel_auto_notify, 2, {
             art::shared_ptr<Task> task;
             switch (args[1].meta.vtype) {
             case VType::async_res:
@@ -361,7 +363,9 @@ namespace art {
             return ValueItem(art::CXX::Interface::constructStructure<typed_lgr<AutoNotifyChanel>>(define_AutoNotifyChanel,
                                                                                                   art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->auto_notify(task)),
                              no_copy);
-        }) AttachAFun(funs_Chanel_auto_notify_continue, 2, {
+        });
+
+        AttachAFun(funs_Chanel_auto_notify_continue, 2, {
             art::shared_ptr<Task> task;
             switch (args[1].meta.vtype) {
             case VType::async_res:
@@ -376,7 +380,9 @@ namespace art {
             return ValueItem(art::CXX::Interface::constructStructure<typed_lgr<AutoNotifyChanel>>(define_AutoNotifyChanel,
                                                                                                   art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->auto_notify_continue(task)),
                              no_copy);
-        }) AttachAFun(funs_Chanel_auto_notify_skip, 3, {
+        });
+
+        AttachAFun(funs_Chanel_auto_notify_skip, 3, {
             art::shared_ptr<Task> task;
             switch (args[1].meta.vtype) {
             case VType::async_res:
@@ -391,35 +397,56 @@ namespace art {
             return ValueItem(art::CXX::Interface::constructStructure<typed_lgr<AutoNotifyChanel>>(define_AutoNotifyChanel,
                                                                                                   art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->auto_notify_skip(task, (size_t)args[2])),
                              no_copy);
-        }) AttachAFun(funs_Chanel_auto_event, 3, {
+        });
+
+        AttachAFun(funs_Chanel_auto_event, 3, {
             art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->auto_event(art::CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[1], (AttachAVirtualTable*)art::CXX::Interface::typeVTable<EventSystem>()), (AutoEventChanel::NotifyType)(uint8_t)args[2]);
-        }) AttachAFun(funs_Chanel_create_handle, 1, {
+        });
+
+        AttachAFun(funs_Chanel_create_handle, 1, {
             return ValueItem(art::CXX::Interface::constructStructure<typed_lgr<ChanelHandler>>(define_ChanelHandler,
                                                                                                art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->create_handle()),
                              no_copy);
-        }) AttachAFun(funs_Chanel_remove_handle, 2, {
+        });
+
+        AttachAFun(funs_Chanel_remove_handle, 2, {
             art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->remove_handle(art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[1], define_ChanelHandler));
-        }) AttachAFun(funs_Chanel_remove_auto_notify, 2, {
+        });
+
+        AttachAFun(funs_Chanel_remove_auto_notify, 2, {
             art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->remove_auto_notify(art::CXX::Interface::getExtractAs<typed_lgr<AutoNotifyChanel>>(args[1], define_AutoNotifyChanel));
-        }) AttachAFun(funs_Chanel_remove_auto_event, 2, {
+        });
+
+        AttachAFun(funs_Chanel_remove_auto_event, 2, {
             art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->remove_auto_event(art::CXX::Interface::getExtractAs<typed_lgr<AutoEventChanel>>(args[1], define_AutoEventChanel));
-        }) AttachAFun(funs_Chanel_add_handle, 2, {
+        });
+
+        AttachAFun(funs_Chanel_add_handle, 2, {
             art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->add_handle(art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[1], define_ChanelHandler));
-        })
+        });
 
-            AttachAFun(funs_ChanelHandler_get, 2, {
-                return art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->get();
-            }) AttachAFun(funs_ChanelHandler_try_get, 2, {
-                return art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->try_get();
-            }) AttachAFun(funs_ChanelHandler_can_get, 2, {
-                return art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->can_get();
-            }) AttachAFun(funs_ChanelHandler_end_of_chanel, 2, {
-                return art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->end_of_chanel();
-            }) AttachAFun(funs_ChanelHandler_wait_item, 2, {
-                art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->wait_item();
-            })
 
-                void init() {
+        AttachAFun(funs_ChanelHandler_get, 2, {
+            return art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->get();
+        });
+
+        AttachAFun(funs_ChanelHandler_try_get, 2, {
+            return art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->try_get();
+        });
+
+        AttachAFun(funs_ChanelHandler_can_get, 2, {
+            return art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->can_get();
+        });
+
+        AttachAFun(funs_ChanelHandler_end_of_chanel, 2, {
+            return art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->end_of_chanel();
+        });
+
+        AttachAFun(funs_ChanelHandler_wait_item, 2, {
+            art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->wait_item();
+        });
+
+        void init() {
             if (define_Chanel != nullptr)
                 return;
             define_Chanel = art::CXX::Interface::createTable<typed_lgr<Chanel>>("chanel",

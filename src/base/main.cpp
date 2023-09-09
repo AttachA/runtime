@@ -158,7 +158,7 @@ const char _WARN[] = "WARN";
 const char _INFO[] = "INFO";
 #include <run_time/ValueEnvironment.hpp>
 
-int main() {
+int smain() {
     unhandled_exception.join(new FuncEnvironment(logger<_FATAL>, false, false));
     errors.join(new FuncEnvironment(logger<_ERROR>, false, false));
     warning.join(new FuncEnvironment(logger<_WARN>, false, false));
@@ -193,6 +193,52 @@ int main() {
             return -1;
         }
         delete res;
+        return 0;
     } else
         return 0;
+}
+
+#include "run_time/cxx_library/files.hpp"
+#include "run_time/cxx_library/networking.hpp"
+static constexpr char file_path[] = "D:\\sample_hello_world_http_response.txt";
+
+void test_slow_server_http(TcpNetworkStream& stream) {
+    if (!stream.is_closed()) {
+        files::FileHandle file(file_path, sizeof(file_path), files::open_mode::read, files::on_open_action::open, files::_async_flags{.sequential_scan = true});
+        auto file_read = file.read((uint32_t)file.size());
+
+        while (stream.data_available())
+            stream.read_available_ref();
+        stream.write((array_t<char>)file_read);
+    }
+}
+
+files::FileHandle file(file_path, sizeof(file_path), files::open_mode::read, files::on_open_action::open, files::_async_flags{.sequential_scan = true});
+
+void test_fast_server_http(TcpNetworkStream& stream) {
+    if (!stream.is_closed()) {
+        while (stream.data_available())
+            stream.read_available_ref();
+        stream.write_file(file.internal_get_handle());
+    }
+}
+
+int main() {
+    Task::create_executor(1);
+    init_networking();
+    initStandardLib_file();
+    unhandled_exception.join(CXX::MakeNative(logger<_FATAL>, false, false));
+    errors.join(CXX::MakeNative(logger<_ERROR>, false, false));
+    warning.join(CXX::MakeNative(logger<_WARN>, false, false));
+    info.join(CXX::MakeNative(logger<_INFO>, false, false));
+
+    TcpNetworkServer server(CXX::MakeNative(test_slow_server_http, false, false), "0.0.0.0:1234", TcpNetworkServer::ManageType::write_delayed, 20);
+    TcpNetworkServer server2(CXX::MakeNative(test_fast_server_http, false, false), "0.0.0.0:1235", TcpNetworkServer::ManageType::write_delayed, 20);
+
+    server.start();
+    server2.start();
+    Task::become_executor_count_manager(false);
+    server._await();
+    server2._await();
+    return 0;
 }

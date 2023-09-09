@@ -100,8 +100,8 @@ namespace art {
             i_p_optional<TaskMutex> mimic_non_async;
 
         public:
-            FileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _async_flags flags, share_mode share = {}, pointer_mode pointer_mode = pointer_mode::combined) noexcept(false);
-            FileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _sync_flags flags, share_mode share = {}, pointer_mode pointer_mode = pointer_mode::combined) noexcept(false);
+            FileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _async_flags flags = {}, share_mode share = {}, pointer_mode pointer_mode = pointer_mode::combined) noexcept(false);
+            FileHandle(const char* path, size_t path_len, open_mode open, on_open_action action, _sync_flags flags = {}, share_mode share = {}, pointer_mode pointer_mode = pointer_mode::combined) noexcept(false);
             ~FileHandle();
 
             ValueItem read(uint32_t size);

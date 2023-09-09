@@ -272,6 +272,9 @@ namespace art {
         if (!val)
             return nullptr;
         art::shared_ptr<Task>& tmp = *(art::shared_ptr<Task>*)val;
+        if(!tmp){
+            return nullptr;
+        }
         auto res = Task::await_results(tmp);
         if (res.size() == 1)
             return new ValueItem(std::move(res[0]));
@@ -3159,6 +3162,11 @@ namespace art {
         val.release();
     }
 
+    ValueItem::ValueItem(array_t<char>&& val)
+        : ValueItem(val.data, val.length, no_copy) {
+        val.release();
+    }
+
     ValueItem::ValueItem(array_t<int16_t>&& val)
         : ValueItem(val.data, val.length, no_copy) {
         val.release();
@@ -3213,6 +3221,9 @@ namespace art {
     ValueItem::ValueItem(const array_t<uint8_t>& val)
         : ValueItem(val.data, val.length) {}
 
+    ValueItem::ValueItem(const array_t<char>& val)
+        : ValueItem(val.data, val.length, no_copy) {
+    }
     ValueItem::ValueItem(const array_t<int16_t>& val)
         : ValueItem(val.data, val.length) {}
 
@@ -3248,6 +3259,10 @@ namespace art {
 
     ValueItem::ValueItem(const array_ref_t<uint8_t>& val)
         : ValueItem(val.data, val.length, as_reference) {}
+
+    ValueItem::ValueItem(const array_ref_t<char>& val)
+        : ValueItem(val.data, val.length, as_reference) {
+    }
 
     ValueItem::ValueItem(const array_ref_t<int16_t>& val)
         : ValueItem(val.data, val.length, as_reference) {}
@@ -4395,10 +4410,10 @@ namespace art {
     }
 
     ValueItem::operator const array_t<bool>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<bool>();
         bool* copy_arr = new bool[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
         case VType::raw_arr_ui8:
@@ -4439,10 +4454,10 @@ namespace art {
     }
 
     ValueItem::operator const array_t<int8_t>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<int8_t>();
         int8_t* copy_arr = new int8_t[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             memcpy(copy_arr, src, meta.val_len);
@@ -4495,10 +4510,10 @@ namespace art {
     }
 
     ValueItem::operator const array_t<uint8_t>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<uint8_t>();
         uint8_t* copy_arr = new uint8_t[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -4550,11 +4565,67 @@ namespace art {
         return array_t<uint8_t>(meta.val_len, copy_arr);
     }
 
+    ValueItem::operator const array_t<char>() const {
+        const void* src = getSourcePtr();
+        if (!meta.val_len)
+            return array_t<char>();
+        char* copy_arr = new char[meta.val_len];
+        switch (meta.vtype) {
+        case VType::raw_arr_i8:
+            for (int i = 0; i < meta.val_len; i++)
+                copy_arr[i] = (char)((const int8_t*)src)[i];
+            break;
+        case VType::raw_arr_ui8:
+            memcpy(copy_arr, src, meta.val_len);
+            break;
+        case VType::raw_arr_i16:
+            for (int i = 0; i < meta.val_len; i++)
+                copy_arr[i] = (char)((const int16_t*)src)[i];
+            break;
+        case VType::raw_arr_ui16:
+            for (int i = 0; i < meta.val_len; i++)
+                copy_arr[i] = (char)((const uint16_t*)src)[i];
+            break;
+        case VType::raw_arr_i32:
+            for (int i = 0; i < meta.val_len; i++)
+                copy_arr[i] = (char)((const int32_t*)src)[i];
+            break;
+        case VType::raw_arr_ui32:
+            for (int i = 0; i < meta.val_len; i++)
+                copy_arr[i] = (char)((const uint32_t*)src)[i];
+            break;
+        case VType::raw_arr_i64:
+            for (int i = 0; i < meta.val_len; i++)
+                copy_arr[i] = (char)((const int64_t*)src)[i];
+            break;
+        case VType::raw_arr_ui64:
+            for (int i = 0; i < meta.val_len; i++)
+                copy_arr[i] = (char)((const uint64_t*)src)[i];
+            break;
+        case VType::raw_arr_flo:
+            for (int i = 0; i < meta.val_len; i++)
+                copy_arr[i] = (char)((const float*)src)[i];
+            break;
+        case VType::raw_arr_doub:
+            for (int i = 0; i < meta.val_len; i++)
+                copy_arr[i] = (char)((const double*)src)[i];
+            break;
+        case VType::faarr:
+        case VType::saarr:
+            for (int i = 0; i < meta.val_len; i++)
+                copy_arr[i] = (char)(uint8_t)((const ValueItem*)src)[i];
+            break;
+        default:
+            throw InvalidCast("This type is not array");
+        }
+        return array_t<char>(meta.val_len, copy_arr);
+    }
+
     ValueItem::operator const array_t<int16_t>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<int16_t>();
         int16_t* copy_arr = new int16_t[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -4608,10 +4679,10 @@ namespace art {
     }
 
     ValueItem::operator const array_t<uint16_t>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<uint16_t>();
         uint16_t* copy_arr = new uint16_t[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -4665,10 +4736,10 @@ namespace art {
     }
 
     ValueItem::operator const array_t<int32_t>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<int32_t>();
         int32_t* copy_arr = new int32_t[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -4722,10 +4793,10 @@ namespace art {
     }
 
     ValueItem::operator const array_t<uint32_t>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<uint32_t>();
         uint32_t* copy_arr = new uint32_t[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -4779,10 +4850,10 @@ namespace art {
     }
 
     ValueItem::operator const array_t<int64_t>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<int64_t>();
         int64_t* copy_arr = new int64_t[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -4836,10 +4907,10 @@ namespace art {
     }
 
     ValueItem::operator const array_t<uint64_t>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<uint64_t>();
         uint64_t* copy_arr = new uint64_t[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -4893,10 +4964,10 @@ namespace art {
     }
 
     ValueItem::operator const array_t<float>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<float>();
         float* copy_arr = new float[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -4950,10 +5021,10 @@ namespace art {
     }
 
     ValueItem::operator const array_t<double>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<double>();
         double* copy_arr = new double[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -5007,10 +5078,10 @@ namespace art {
     }
 #ifdef _WIN32
     ValueItem::operator const array_t<long>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<long>();
         long* copy_arr = new long[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -5064,10 +5135,10 @@ namespace art {
     }
 #endif
     ValueItem::operator const array_t<ValueItem>() const {
+        const void* src = getSourcePtr();
         if (!meta.val_len)
             return array_t<ValueItem>();
         ValueItem* copy_arr = new ValueItem[meta.val_len];
-        const void* src = getSourcePtr();
         switch (meta.vtype) {
         case VType::raw_arr_i8:
             for (int i = 0; i < meta.val_len; i++)
@@ -5136,6 +5207,12 @@ namespace art {
         if (meta.vtype != VType::raw_arr_ui8)
             throw InvalidCast("This type is not similar to uint8_t array");
         return array_ref_t<uint8_t>((uint8_t*)getSourcePtr(), meta.val_len);
+    }
+
+    ValueItem::operator const array_ref_t<char>() const {
+        if (meta.vtype != VType::raw_arr_ui8 && meta.vtype != VType::raw_arr_i8)
+            throw InvalidCast("This type is not similar to uint8_t array");
+        return array_ref_t<char>((char*)getSourcePtr(), meta.val_len);
     }
 
     ValueItem::operator const array_ref_t<int16_t>() const {
@@ -5285,10 +5362,11 @@ namespace art {
             return new ValueItem(*this);
     }
 
-    void ValueItem::getAsync() {
+    ValueItem& ValueItem::getAsync() {
         if (val)
             while (meta.vtype == VType::async_res)
                 getAsyncResult(val, meta);
+        return *this;
     }
 
     void ValueItem::getGeneratorResult(ValueItem* result, uint64_t index) {

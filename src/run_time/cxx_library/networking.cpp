@@ -369,7 +369,7 @@ namespace art {
             return internal_makeIP4_port(addr_storage, ip_port);
     }
 
-    void get_address_from_valueItem(ValueItem& ip_port, universal_address& addr_storage) {
+    void get_address_from_valueItem(const ValueItem& ip_port, universal_address& addr_storage) {
         if (ip_port.meta.vtype == VType::struct_) {
             auto& address = CXX::Interface::getExtractAs<universal_address>((Structure&)ip_port, define_UniversalAddress);
             memcpy(&addr_storage, &address, sizeof(addr_storage));
@@ -442,15 +442,7 @@ namespace art {
         bool force_mode;
         bool is_bound = false;
         uint32_t max_read_queue_size;
-        enum class error : uint8_t {
-            none = 0,
-            remote_close = 1,
-            local_close = 2,
-            local_reset = 3,
-            read_queue_overflow = 4,
-            invalid_state = 5,
-            undefined_error = 0xFF
-        } invalid_reason = error::none;
+        TcpError invalid_reason = TcpError::none;
         enum class Opcode : uint8_t {
             ACCEPT,
             READ,
@@ -551,7 +543,7 @@ namespace art {
             }
         }
 
-        int64_t write_force(char* to_write, uint32_t to_write_len) {
+        int64_t write_force(const char* to_write, uint32_t to_write_len) {
             if (!data)
                 return -1;
             if (!to_write_len)
@@ -641,7 +633,7 @@ namespace art {
             return data;
         }
 
-        void close(error err = error::local_close) {
+        void close(TcpError err = TcpError::local_close) {
             if (!data)
                 return;
             pre_close(err);
@@ -694,12 +686,12 @@ namespace art {
                 }
                 if (!data_available()) {
                     if (read_queue.size() > max_read_queue_size)
-                        close(error::read_queue_overflow);
+                        close(TcpError::read_queue_overflow);
                     else
                         read();
                 } else {
                     if (write_queue.empty())
-                        close(error::invalid_state);
+                        close(TcpError::invalid_state);
                     else {
                         auto item = write_queue.front();
                         write_queue.pop_front();
@@ -724,7 +716,7 @@ namespace art {
             }
         }
 
-        void send_and_close(char* data, int len) {
+        void send_and_close(const char* data, int len) {
             if (!data)
                 return;
             buffer.len = data_len;
@@ -770,14 +762,14 @@ namespace art {
                 uint64_t last_block = data_len % blocks;
 
                 while (blocks--)
-                    if (!transfer_file(socket, file, blocks, chunks_size, sended + offset))
+                    if (!transfer_file(socket, file, 0x7FFFFFFE, chunks_size, sended + offset))
                         return false;
                     else
-                        sended += UINT_MAX;
+                        sended += 0x7FFFFFFE;
 
 
                 if (last_block)
-                    if (!transfer_file(socket, file, data_len, chunks_size, sended + offset))
+                    if (!transfer_file(socket, file, last_block, chunks_size, sended + offset))
                         return false;
             } else {
                 if (!transfer_file(socket, file, data_len, chunks_size, offset))
@@ -789,8 +781,6 @@ namespace art {
         bool send_file(const char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) {
             if (!data)
                 return false;
-            if (chunks_size == 0)
-                chunks_size = 0x1000;
             std::u16string wpath;
             utf8::utf8to16(path, path + path_len, std::back_inserter(wpath));
             HANDLE file = CreateFileW((wchar_t*)wpath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
@@ -814,7 +804,7 @@ namespace art {
         void reset() {
             if (!data)
                 return;
-            pre_close(error::local_reset);
+            pre_close(TcpError::local_reset);
             closesocket(socket); //with iocp socket not send everything and cancel all operations
         }
 
@@ -822,7 +812,7 @@ namespace art {
             MutexUnify mutex(cv_mutex);
             art::unique_lock<MutexUnify> lock(mutex);
             data = nullptr;
-            invalid_reason = error::remote_close;
+            invalid_reason = TcpError::remote_close;
             readed_bytes = 0;
             cv.notify_all();
             internal_close();
@@ -844,7 +834,7 @@ namespace art {
         }
 
     private:
-        void pre_close(error err) {
+        void pre_close(TcpError err) {
             MutexUnify mutex(cv_mutex);
             art::unique_lock<MutexUnify> lock(mutex);
             std::list<std::tuple<char*, size_t>> clear_write_queue;
@@ -871,7 +861,7 @@ namespace art {
             opcode = Opcode::INTERNAL_CLOSE;
             if (!_DisconnectEx(socket, nullptr, TF_REUSE_SOCKET, 0)) {
                 if (WSAGetLastError() != ERROR_IO_PENDING)
-                    invalid_reason = error::local_close;
+                    invalid_reason = TcpError::local_close;
                 cv.wait(lock);
             } else
                 closesocket(socket);
@@ -884,17 +874,17 @@ namespace art {
             else {
                 switch (error) {
                 case WSAECONNRESET:
-                    invalid_reason = error::remote_close;
+                    invalid_reason = TcpError::remote_close;
                     break;
                 case WSAECONNABORTED:
                 case WSA_OPERATION_ABORTED:
                 case WSAENETRESET:
-                    invalid_reason = error::local_close;
+                    invalid_reason = TcpError::local_close;
                     break;
                 case WSAEWOULDBLOCK:
                     return false; //try later
                 default:
-                    invalid_reason = error::undefined_error;
+                    invalid_reason = TcpError::undefined_error;
                     break;
                 }
                 close();
@@ -947,11 +937,11 @@ namespace art {
 
 #pragma region TcpNetworkStream
 
-    class TcpNetworkStream {
+    class TcpNetworkStreamImpl : public TcpNetworkStream {
         friend class TcpNetworkManager;
         struct tcp_handle* handle;
         TaskMutex mutex;
-        tcp_handle::error last_error;
+        TcpError last_error;
 
         bool checkup() {
             if (!handle)
@@ -966,10 +956,10 @@ namespace art {
         }
 
     public:
-        TcpNetworkStream(tcp_handle* handle)
-            : handle(handle), last_error(tcp_handle::error::none) {}
+        TcpNetworkStreamImpl(tcp_handle* handle)
+            : handle(handle), last_error(TcpError::none) {}
 
-        ~TcpNetworkStream() {
+        ~TcpNetworkStreamImpl() {
             if (handle) {
                 std::lock_guard lg(mutex);
                 handle->close();
@@ -978,7 +968,7 @@ namespace art {
             handle = nullptr;
         }
 
-        ValueItem read_available_ref() {
+        ValueItem read_available_ref() override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -993,7 +983,7 @@ namespace art {
             return ValueItem(data, ValueMeta(VType::raw_arr_ui8, false, false, readed), as_reference);
         }
 
-        ValueItem read_available(char* buffer, int buffer_len) {
+        ValueItem read_available(char* buffer, int buffer_len) override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -1009,14 +999,14 @@ namespace art {
             return ValueItem((uint32_t)readed);
         }
 
-        bool data_available() {
+        bool data_available() override {
             std::lock_guard lg(mutex);
             if (handle)
                 return handle->data_available();
             return false;
         }
 
-        void write(char* data, size_t size) {
+        void write(const char* data, size_t size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->send_data(data, size);
@@ -1028,7 +1018,7 @@ namespace art {
             }
         }
 
-        bool write_file(char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) {
+        bool write_file(char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) override{
             std::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
@@ -1043,7 +1033,7 @@ namespace art {
             return false;
         }
 
-        bool write_file(void* fhandle, uint64_t data_len, uint64_t offset, uint32_t chunks_size) {
+        bool write_file(void* fhandle, uint64_t data_len, uint64_t offset, uint32_t chunks_size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
@@ -1057,7 +1047,7 @@ namespace art {
         }
 
         //write all data from write_queue
-        void force_write() {
+        void force_write()override {
             std::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
@@ -1067,7 +1057,7 @@ namespace art {
             }
         }
 
-        void force_write_and_close(char* data, size_t size) {
+        void force_write_and_close(const char* data, size_t size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->send_and_close(data, size);
@@ -1077,7 +1067,7 @@ namespace art {
             handle = nullptr;
         }
 
-        void close() {
+        void close() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->close();
@@ -1087,7 +1077,7 @@ namespace art {
             handle = nullptr;
         }
 
-        void reset() {
+        void reset() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->reset();
@@ -1097,13 +1087,13 @@ namespace art {
             handle = nullptr;
         }
 
-        void rebuffer(int32_t new_size) {
+        void rebuffer(int32_t new_size) override {
             std::lock_guard lg(mutex);
             if (handle)
                 handle->rebuffer(new_size);
         }
 
-        bool is_closed() {
+        bool is_closed() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 bool res = handle->valid();
@@ -1116,14 +1106,14 @@ namespace art {
             return true;
         }
 
-        tcp_handle::error error() {
+        TcpError error() override {
             std::lock_guard lg(mutex);
             if (handle)
                 return handle->invalid_reason;
             return last_error;
         }
 
-        ValueItem local_address() {
+        ValueItem local_address() override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -1134,7 +1124,7 @@ namespace art {
             return CXX::Interface::constructStructure<universal_address>(define_UniversalAddress, addr);
         }
 
-        ValueItem remote_address() {
+        ValueItem remote_address() override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -1147,21 +1137,25 @@ namespace art {
     };
 
     AttachAFun(funs_TcpNetworkStream_read_available_ref, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).read_available_ref();
-    }) AttachAFun(funs_TcpNetworkStream_read_available, 2, {
-        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+        return CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).read_available_ref();
+    });
+    AttachAFun(funs_TcpNetworkStream_read_available, 2, {
+        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream);
         if (args[1].meta.vtype != VType::raw_arr_ui8 && args[1].meta.vtype != VType::raw_arr_i8)
             throw InvalidArguments("The second argument must be a raw_arr_ui8.");
         return stream.read_available((char*)args[1].val, args[1].meta.val_len);
-    }) AttachAFun(funs_TcpNetworkStream_data_available, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).data_available();
-    }) AttachAFun(funs_TcpNetworkStream_write, 2, {
-        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+    });
+    AttachAFun(funs_TcpNetworkStream_data_available, 1, {
+        return CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).data_available();
+    });
+    AttachAFun(funs_TcpNetworkStream_write, 2, {
+        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream);
         if (args[1].meta.vtype != VType::raw_arr_ui8 && args[1].meta.vtype != VType::raw_arr_i8)
             throw InvalidArguments("The second argument must be a raw_arr_ui8.");
         stream.write((char*)args[1].val, args[1].meta.val_len);
-    }) AttachAFun(funs_TcpNetworkStream_write_file, 2, {
-        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+    });
+    AttachAFun(funs_TcpNetworkStream_write_file, 2, {
+        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream);
         ValueItem& arg1 = args[1];
         uint64_t data_len = 0;
         uint64_t offset = 0;
@@ -1187,60 +1181,70 @@ namespace art {
             art::ustring& path = *(art::ustring*)arg1.getSourcePtr();
             stream.write_file(path.data(), path.size(), data_len, offset, chunks_size);
         }
-    }) AttachAFun(funs_TcpNetworkStream_force_write, 1, {
-        CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).force_write();
-    }) AttachAFun(funs_TcpNetworkStream_force_write_and_close, 2, {
-        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+    });
+    AttachAFun(funs_TcpNetworkStream_force_write, 1, {
+        CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).force_write();
+    });
+    AttachAFun(funs_TcpNetworkStream_force_write_and_close, 2, {
+        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream);
         if (args[1].meta.vtype != VType::raw_arr_ui8 && args[1].meta.vtype != VType::raw_arr_i8)
             throw InvalidArguments("The second argument must be a raw_arr_ui8.");
         stream.force_write_and_close((char*)args[1].getSourcePtr(), args[1].meta.val_len);
-    }) AttachAFun(funs_TcpNetworkStream_close, 1, {
-        CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).close();
-    }) AttachAFun(funs_TcpNetworkStream_reset, 1, {
-        CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).reset();
-    }) AttachAFun(funs_TcpNetworkStream_rebuffer, 2, {
-        CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).rebuffer((int32_t)args[1]);
-    }) AttachAFun(funs_TcpNetworkStream_is_closed, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).is_closed();
-    }) AttachAFun(funs_TcpNetworkStream_error, 1, {
-        return (uint8_t)CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).error();
-    }) AttachAFun(funs_TcpNetworkStream_local_address, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).local_address();
-    }) AttachAFun(funs_TcpNetworkStream_remote_address, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).remote_address();
-    })
+    });
+    AttachAFun(funs_TcpNetworkStream_close, 1, {
+        CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).close();
+    });
+    AttachAFun(funs_TcpNetworkStream_reset, 1, {
+        CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).reset();
+    });
+    AttachAFun(funs_TcpNetworkStream_rebuffer, 2, {
+        CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).rebuffer((int32_t)args[1]);
+    });
+    AttachAFun(funs_TcpNetworkStream_is_closed, 1, {
+        return CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).is_closed();
+    });
+    AttachAFun(funs_TcpNetworkStream_error, 1, {
+        return (uint8_t)CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).error();
+    });
+    AttachAFun(funs_TcpNetworkStream_local_address, 1, {
+        return CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).local_address();
+    });
+    AttachAFun(funs_TcpNetworkStream_remote_address, 1, {
+        return CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).remote_address();
+    });
 
-
-        void init_define_TcpNetworkStream() {
+    void init_define_TcpNetworkStream() {
         if (define_TcpNetworkStream != nullptr)
             return;
-        define_TcpNetworkStream = CXX::Interface::createTable<TcpNetworkStream>("tcp_network_stream",
-                                                                                CXX::Interface::direct_method("read_available_ref", funs_TcpNetworkStream_read_available_ref),
-                                                                                CXX::Interface::direct_method("read_available", funs_TcpNetworkStream_read_available),
-                                                                                CXX::Interface::direct_method("data_available", funs_TcpNetworkStream_data_available),
-                                                                                CXX::Interface::direct_method("write", funs_TcpNetworkStream_write),
-                                                                                CXX::Interface::direct_method("write_file", funs_TcpNetworkStream_write_file),
-                                                                                CXX::Interface::direct_method("force_write", funs_TcpNetworkStream_force_write),
-                                                                                CXX::Interface::direct_method("force_write_and_close", funs_TcpNetworkStream_force_write_and_close),
-                                                                                CXX::Interface::direct_method("close", funs_TcpNetworkStream_close),
-                                                                                CXX::Interface::direct_method("reset", funs_TcpNetworkStream_reset),
-                                                                                CXX::Interface::direct_method("rebuffer", funs_TcpNetworkStream_rebuffer),
-                                                                                CXX::Interface::direct_method("is_closed", funs_TcpNetworkStream_is_closed),
-                                                                                CXX::Interface::direct_method("error", funs_TcpNetworkStream_error),
-                                                                                CXX::Interface::direct_method("local_address", funs_TcpNetworkStream_local_address),
-                                                                                CXX::Interface::direct_method("remote_address", funs_TcpNetworkStream_remote_address));
-        CXX::Interface::typeVTable<typed_lgr<TcpNetworkStream>>() = define_TcpNetworkStream;
+        define_TcpNetworkStream = CXX::Interface::createTable<TcpNetworkStreamImpl>(
+            "tcp_network_stream",
+            CXX::Interface::direct_method("read_available_ref", funs_TcpNetworkStream_read_available_ref),
+            CXX::Interface::direct_method("read_available", funs_TcpNetworkStream_read_available),
+            CXX::Interface::direct_method("data_available", funs_TcpNetworkStream_data_available),
+            CXX::Interface::direct_method("write", funs_TcpNetworkStream_write),
+            CXX::Interface::direct_method("write_file", funs_TcpNetworkStream_write_file),
+            CXX::Interface::direct_method("force_write", funs_TcpNetworkStream_force_write),
+            CXX::Interface::direct_method("force_write_and_close", funs_TcpNetworkStream_force_write_and_close),
+            CXX::Interface::direct_method("close", funs_TcpNetworkStream_close),
+            CXX::Interface::direct_method("reset", funs_TcpNetworkStream_reset),
+            CXX::Interface::direct_method("rebuffer", funs_TcpNetworkStream_rebuffer),
+            CXX::Interface::direct_method("is_closed", funs_TcpNetworkStream_is_closed),
+            CXX::Interface::direct_method("error", funs_TcpNetworkStream_error),
+            CXX::Interface::direct_method("local_address", funs_TcpNetworkStream_local_address),
+            CXX::Interface::direct_method("remote_address", funs_TcpNetworkStream_remote_address)
+        );
+        CXX::Interface::typeVTable<TcpNetworkStream>() = define_TcpNetworkStream;
     }
 
 #pragma endregion
 
 #pragma region TcpNetworkBlocking
 
-    class TcpNetworkBlocking {
+    class TcpNetworkBlockingImpl : public TcpNetworkBlocking {
         friend class TcpNetworkManager;
         tcp_handle* handle;
         TaskMutex mutex;
-        tcp_handle::error last_error;
+        TcpError last_error;
 
         bool checkup() {
             if (!handle)
@@ -1255,17 +1259,17 @@ namespace art {
         }
 
     public:
-        TcpNetworkBlocking(tcp_handle* handle)
-            : handle(handle), last_error(tcp_handle::error::none) {}
+        TcpNetworkBlockingImpl(tcp_handle* handle)
+            : handle(handle), last_error(TcpError::none) {}
 
-        ~TcpNetworkBlocking() {
+        ~TcpNetworkBlockingImpl() {
             std::lock_guard lg(mutex);
             if (handle)
                 delete handle;
             handle = nullptr;
         }
 
-        ValueItem read(uint32_t len) {
+        ValueItem read(uint32_t len) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
@@ -1281,14 +1285,14 @@ namespace art {
             return nullptr;
         }
 
-        ValueItem available_bytes() {
+        ValueItem available_bytes() override {
             std::lock_guard lg(mutex);
             if (handle)
                 return handle->available_bytes();
             return 0ui32;
         }
 
-        ValueItem write(char* data, uint32_t len) {
+        ValueItem write(const char* data, uint32_t len) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
@@ -1298,7 +1302,7 @@ namespace art {
             return nullptr;
         }
 
-        ValueItem write_file(char* path, size_t len, uint64_t data_len, uint64_t offset, uint32_t block_size) {
+        ValueItem write_file(char* path, size_t len, uint64_t data_len, uint64_t offset, uint32_t block_size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
@@ -1308,7 +1312,7 @@ namespace art {
             return nullptr;
         }
 
-        ValueItem write_file(void* fhandle, uint64_t data_len, uint64_t offset, uint32_t block_size) {
+        ValueItem write_file(void* fhandle, uint64_t data_len, uint64_t offset, uint32_t block_size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
@@ -1318,7 +1322,7 @@ namespace art {
             return nullptr;
         }
 
-        void close() {
+        void close() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->close();
@@ -1328,7 +1332,7 @@ namespace art {
             }
         }
 
-        void reset() {
+        void reset() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->reset();
@@ -1338,13 +1342,13 @@ namespace art {
             }
         }
 
-        void rebuffer(size_t new_size) {
+        void rebuffer(size_t new_size) override {
             std::lock_guard lg(mutex);
             if (handle)
                 handle->rebuffer(new_size);
         }
 
-        bool is_closed() {
+        bool is_closed() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 bool res = handle->valid();
@@ -1358,14 +1362,14 @@ namespace art {
             return true;
         }
 
-        tcp_handle::error error() {
+        TcpError error() override{
             std::lock_guard lg(mutex);
             if (handle)
                 return handle->invalid_reason;
             return last_error;
         }
 
-        ValueItem local_address() {
+        ValueItem local_address()override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -1376,7 +1380,7 @@ namespace art {
             return CXX::Interface::constructStructure<universal_address>(define_UniversalAddress, addr);
         }
 
-        ValueItem remote_address() {
+        ValueItem remote_address() override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -1389,21 +1393,21 @@ namespace art {
     };
 
     AttachAFun(funs_TcpNetworkBlocking_read, 2, {
-        return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).read((uint32_t)args[1]);
+        return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).read((uint32_t)args[1]);
     });
     AttachAFun(funs_TcpNetworkBlocking_available_bytes, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).available_bytes();
+        return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).available_bytes();
     });
     AttachAFun(funs_TcpNetworkBlocking_write, 2, {
         if (args[1].meta.vtype != VType::raw_arr_ui8)
             throw InvalidArguments("The third argument must be a raw_arr_ui8.");
         if (len == 2)
-            return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), args[1].meta.val_len);
+            return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), args[1].meta.val_len);
         else {
             uint32_t len = (uint32_t)args[2];
             if (len > args[1].meta.val_len)
                 throw OutOfRange("The length of the data to be sent is greater than the length of array.");
-            return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), len);
+            return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), len);
         }
     });
     AttachAFun(funs_TcpNetworkBlocking_write_file, 2, {
@@ -1424,53 +1428,57 @@ namespace art {
             auto& proxy = (Structure&)args[1];
             if (proxy.get_vtable()) {
                 if (proxy.get_vtable() == CXX::Interface::typeVTable<typed_lgr<art::files::FileHandle>>())
-                    return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
                 else if (proxy.get_vtable() == CXX::Interface::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
-                    return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
             }
             throw InvalidArguments("The second argument must be a file handle or a file path.");
         } else {
             art::ustring& path = *((art::ustring*)arg1.getSourcePtr());
-            return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write_file(path.data(), path.size(), data_len, offset, chunks_size);
+            return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file(path.data(), path.size(), data_len, offset, chunks_size);
         }
     });
     AttachAFun(funs_TcpNetworkBlocking_close, 1, {
-        CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).close();
+        CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).close();
     });
     AttachAFun(funs_TcpNetworkBlocking_reset, 1, {
-        CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).reset();
+        CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).reset();
     });
     AttachAFun(funs_TcpNetworkBlocking_rebuffer, 2, {
-        CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).rebuffer((int32_t)args[1]);
+        CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).rebuffer((int32_t)args[1]);
     });
     AttachAFun(funs_TcpNetworkBlocking_is_closed, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).is_closed();
+        return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).is_closed();
     });
     AttachAFun(funs_TcpNetworkBlocking_error, 1, {
-        return (uint8_t)CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).error();
+        return (uint8_t)CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).error();
     });
 
     AttachAFun(funs_TcpNetworkBlocking_local_address, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).local_address();
-    }) AttachAFun(funs_TcpNetworkBlocking_remote_address, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).remote_address();
-    })
+        return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).local_address();
+    });
+    AttachAFun(funs_TcpNetworkBlocking_remote_address, 1, {
+        return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).remote_address();
+    });
 
-        void init_define_TcpNetworkBlocking() {
+    void init_define_TcpNetworkBlocking() {
         if (define_TcpNetworkBlocking != nullptr)
             return;
-        define_TcpNetworkBlocking = CXX::Interface::createTable<TcpNetworkBlocking>("tcp_network_blocking",
-                                                                                    CXX::Interface::direct_method("read", funs_TcpNetworkBlocking_read),
-                                                                                    CXX::Interface::direct_method("available_bytes", funs_TcpNetworkBlocking_available_bytes),
-                                                                                    CXX::Interface::direct_method("write", funs_TcpNetworkBlocking_write),
-                                                                                    CXX::Interface::direct_method("write_file", funs_TcpNetworkBlocking_write_file),
-                                                                                    CXX::Interface::direct_method("close", funs_TcpNetworkBlocking_close),
-                                                                                    CXX::Interface::direct_method("reset", funs_TcpNetworkBlocking_reset),
-                                                                                    CXX::Interface::direct_method("rebuffer", funs_TcpNetworkBlocking_rebuffer),
-                                                                                    CXX::Interface::direct_method("is_closed", funs_TcpNetworkBlocking_is_closed),
-                                                                                    CXX::Interface::direct_method("error", funs_TcpNetworkBlocking_error),
-                                                                                    CXX::Interface::direct_method("local_address", funs_TcpNetworkBlocking_local_address),
-                                                                                    CXX::Interface::direct_method("remote_address", funs_TcpNetworkBlocking_remote_address));
+        define_TcpNetworkBlocking = CXX::Interface::createTable<TcpNetworkBlockingImpl>(
+            "tcp_network_blocking",
+            CXX::Interface::direct_method("read", funs_TcpNetworkBlocking_read),
+            CXX::Interface::direct_method("available_bytes", funs_TcpNetworkBlocking_available_bytes),
+            CXX::Interface::direct_method("write", funs_TcpNetworkBlocking_write),
+            CXX::Interface::direct_method("write_file", funs_TcpNetworkBlocking_write_file),
+            CXX::Interface::direct_method("close", funs_TcpNetworkBlocking_close),
+            CXX::Interface::direct_method("reset", funs_TcpNetworkBlocking_reset),
+            CXX::Interface::direct_method("rebuffer", funs_TcpNetworkBlocking_rebuffer),
+            CXX::Interface::direct_method("is_closed", funs_TcpNetworkBlocking_is_closed),
+            CXX::Interface::direct_method("error", funs_TcpNetworkBlocking_error),
+            CXX::Interface::direct_method("local_address", funs_TcpNetworkBlocking_local_address),
+            CXX::Interface::direct_method("remote_address", funs_TcpNetworkBlocking_remote_address)
+        );
+        CXX::Interface::typeVTable<TcpNetworkBlocking>() = define_TcpNetworkBlocking;
     }
 
 #pragma endregion
@@ -1531,9 +1539,9 @@ namespace art {
         ValueItem accept_manager_construct(tcp_handle* self) {
             switch (manage_type) {
             case TcpNetworkServer::ManageType::blocking:
-                return ValueItem(CXX::Interface::constructStructure<TcpNetworkBlocking>(define_TcpNetworkBlocking, self), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<TcpNetworkBlockingImpl>(define_TcpNetworkBlocking, self), no_copy);
             case TcpNetworkServer::ManageType::write_delayed:
-                return ValueItem(CXX::Interface::constructStructure<TcpNetworkStream>(define_TcpNetworkStream, self), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<TcpNetworkStreamImpl>(define_TcpNetworkStream, self), no_copy);
             default:
                 return nullptr;
             }
@@ -2333,15 +2341,7 @@ namespace art {
         bool force_mode;
         bool is_bound = false;
         uint32_t max_read_queue_size;
-        enum class error : uint8_t {
-            none = 0,
-            remote_close = 1,
-            local_close = 2,
-            local_reset = 3,
-            read_queue_overflow = 4,
-            invalid_state = 5,
-            undefined_error = 0xFF
-        } invalid_reason = error::none;
+        TcpError invalid_reason = TcpError::none;
         enum class Opcode : uint8_t {
             ACCEPT,
             READ,
@@ -2443,7 +2443,7 @@ namespace art {
             }
         }
 
-        int64_t write_force(char* to_write, uint32_t to_write_len) {
+        int64_t write_force(const char* to_write, uint32_t to_write_len) {
             if (!data)
                 return -1;
             if (!to_write_len)
@@ -2628,7 +2628,7 @@ namespace art {
             }
         }
 
-        void send_and_close(char* data, int len) {
+        void send_and_close(const char* data, int len) {
             if (!data)
                 return;
             buffer.len = data_len;
@@ -2673,14 +2673,14 @@ namespace art {
                 uint64_t last_block = data_len % blocks;
 
                 while (blocks--)
-                    if (!transfer_file(socket, file, blocks, chunks_size, sended + offset))
+                    if (!transfer_file(socket, file, UINT_MAX, chunks_size, sended + offset))
                         return false;
                     else
                         sended += UINT_MAX;
 
 
                 if (last_block)
-                    if (!transfer_file(socket, file, data_len, chunks_size, sended + offset))
+                    if (!transfer_file(socket, file, last_block, chunks_size, sended + offset))
                         return false;
             } else {
                 if (!transfer_file(socket, file, data_len, chunks_size, offset))
@@ -2715,7 +2715,7 @@ namespace art {
         void reset() {
             if (!data)
                 return;
-            pre_close(error::local_reset);
+            pre_close(TcpError::local_reset);
             struct linger sl;
             sl.l_onoff = 1;
             sl.l_linger = 0;
@@ -2727,7 +2727,7 @@ namespace art {
             MutexUnify mutex(cv_mutex);
             art::unique_lock<MutexUnify> lock(mutex);
             data = nullptr;
-            invalid_reason = error::remote_close;
+            invalid_reason = TcpError::remote_close;
             readed_bytes = 0;
             cv.notify_all();
         }
@@ -2744,7 +2744,7 @@ namespace art {
         }
 
     private:
-        void pre_close(error err) {
+        void pre_close(TcpError err) {
             MutexUnify mutex(cv_mutex);
             art::unique_lock<MutexUnify> lock(mutex);
             std::list<std::tuple<char*, size_t>> clear_write_queue;
@@ -2836,11 +2836,11 @@ namespace art {
 
 #pragma region TcpNetworkStream
 
-    class TcpNetworkStream {
+    class TcpNetworkStreamImpl : public TcpNetworkStream {
         friend class TcpNetworkManager;
         struct tcp_handle* handle;
         TaskMutex mutex;
-        tcp_handle::error last_error;
+        TcpError last_error;
 
         bool checkup() {
             if (!handle)
@@ -2855,10 +2855,10 @@ namespace art {
         }
 
     public:
-        TcpNetworkStream(tcp_handle* handle)
-            : handle(handle), last_error(tcp_handle::error::none) {}
+        TcpNetworkStreamImpl(tcp_handle* handle)
+            : handle(handle), last_error(TcpError::none) {}
 
-        ~TcpNetworkStream() {
+        ~TcpNetworkStreamImpl() {
             if (handle) {
                 std::lock_guard lg(mutex);
                 handle->close();
@@ -2867,7 +2867,7 @@ namespace art {
             handle = nullptr;
         }
 
-        ValueItem read_available_ref() {
+        ValueItem read_available_ref() override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -2882,7 +2882,7 @@ namespace art {
             return ValueItem(data, ValueMeta(VType::raw_arr_ui8, false, false, readed), as_reference);
         }
 
-        ValueItem read_available(char* buffer, int buffer_len) {
+        ValueItem read_available(char* buffer, int buffer_len) override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -2898,14 +2898,14 @@ namespace art {
             return ValueItem((uint32_t)readed);
         }
 
-        bool data_available() {
+        bool data_available() override {
             std::lock_guard lg(mutex);
             if (handle)
                 return handle->data_available();
             return false;
         }
 
-        void write(char* data, size_t size) {
+        void write(const char* data, size_t size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->send_data(data, size);
@@ -2917,7 +2917,7 @@ namespace art {
             }
         }
 
-        bool write_file(char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) {
+        bool write_file(char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
@@ -2932,7 +2932,7 @@ namespace art {
             return false;
         }
 
-        bool write_file(int fhandle, uint64_t data_len, uint64_t offset, uint32_t chunks_size) {
+        bool write_file(int fhandle, uint64_t data_len, uint64_t offset, uint32_t chunks_size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
@@ -2946,7 +2946,7 @@ namespace art {
         }
 
         //write all data from write_queue
-        void force_write() {
+        void force_write() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
@@ -2956,7 +2956,7 @@ namespace art {
             }
         }
 
-        void force_write_and_close(char* data, size_t size) {
+        void force_write_and_close(const char* data, size_t size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->send_and_close(data, size);
@@ -2966,7 +2966,7 @@ namespace art {
             handle = nullptr;
         }
 
-        void close() {
+        void close() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->close();
@@ -2976,7 +2976,7 @@ namespace art {
             handle = nullptr;
         }
 
-        void reset() {
+        void reset() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->reset();
@@ -2986,13 +2986,13 @@ namespace art {
             handle = nullptr;
         }
 
-        void rebuffer(int32_t new_size) {
+        void rebuffer(int32_t new_size) override {
             std::lock_guard lg(mutex);
             if (handle)
                 handle->rebuffer(new_size);
         }
 
-        bool is_closed() {
+        bool is_closed() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 bool res = handle->valid();
@@ -3005,14 +3005,14 @@ namespace art {
             return true;
         }
 
-        tcp_handle::error error() {
+        TcpError error() override {
             std::lock_guard lg(mutex);
             if (handle)
                 return handle->invalid_reason;
             return last_error;
         }
 
-        ValueItem local_address() {
+        ValueItem local_address() override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -3023,7 +3023,7 @@ namespace art {
             return CXX::Interface::constructStructure<universal_address>(define_UniversalAddress, addr);
         }
 
-        ValueItem remote_address() {
+        ValueItem remote_address() override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -3036,21 +3036,25 @@ namespace art {
     };
 
     AttachAFun(funs_TcpNetworkStream_read_available_ref, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).read_available_ref();
-    }) AttachAFun(funs_TcpNetworkStream_read_available, 2, {
-        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+        return CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).read_available_ref();
+    });
+    AttachAFun(funs_TcpNetworkStream_read_available, 2, {
+        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream);
         if (args[1].meta.vtype != VType::raw_arr_ui8 && args[1].meta.vtype != VType::raw_arr_i8)
             throw InvalidArguments("The second argument must be a raw_arr_ui8.");
         return stream.read_available((char*)args[1].val, args[1].meta.val_len);
-    }) AttachAFun(funs_TcpNetworkStream_data_available, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).data_available();
-    }) AttachAFun(funs_TcpNetworkStream_write, 2, {
-        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+    });
+    AttachAFun(funs_TcpNetworkStream_data_available, 1, {
+        return CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).data_available();
+    });
+    AttachAFun(funs_TcpNetworkStream_write, 2, {
+        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream);
         if (args[1].meta.vtype != VType::raw_arr_ui8 && args[1].meta.vtype != VType::raw_arr_i8)
             throw InvalidArguments("The second argument must be a raw_arr_ui8.");
         stream.write((char*)args[1].val, args[1].meta.val_len);
-    }) AttachAFun(funs_TcpNetworkStream_write_file, 2, {
-        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+    });
+    AttachAFun(funs_TcpNetworkStream_write_file, 2, {
+        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream);
         ValueItem& arg1 = args[1];
         uint64_t data_len = 0;
         uint64_t offset = 0;
@@ -3076,59 +3080,70 @@ namespace art {
             art::ustring& path = *(art::ustring*)arg1.getSourcePtr();
             stream.write_file(path.data(), path.size(), data_len, offset, chunks_size);
         }
-    }) AttachAFun(funs_TcpNetworkStream_force_write, 1, {
-        CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).force_write();
-    }) AttachAFun(funs_TcpNetworkStream_force_write_and_close, 2, {
-        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream);
+    });
+    AttachAFun(funs_TcpNetworkStream_force_write, 1, {
+        CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).force_write();
+    });
+    AttachAFun(funs_TcpNetworkStream_force_write_and_close, 2, {
+        auto& stream = CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream);
         if (args[1].meta.vtype != VType::raw_arr_ui8 && args[1].meta.vtype != VType::raw_arr_i8)
             throw InvalidArguments("The second argument must be a raw_arr_ui8.");
         stream.force_write_and_close((char*)args[1].getSourcePtr(), args[1].meta.val_len);
-    }) AttachAFun(funs_TcpNetworkStream_close, 1, {
-        CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).close();
-    }) AttachAFun(funs_TcpNetworkStream_reset, 1, {
-        CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).reset();
-    }) AttachAFun(funs_TcpNetworkStream_rebuffer, 2, {
-        CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).rebuffer((int32_t)args[1]);
-    }) AttachAFun(funs_TcpNetworkStream_is_closed, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).is_closed();
-    }) AttachAFun(funs_TcpNetworkStream_error, 1, {
-        return (uint8_t)CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).error();
-    }) AttachAFun(funs_TcpNetworkStream_local_address, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).local_address();
-    }) AttachAFun(funs_TcpNetworkStream_remote_address, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkStream>(args[0], define_TcpNetworkStream).remote_address();
-    })
+    });
+    AttachAFun(funs_TcpNetworkStream_close, 1, {
+        CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).close();
+    });
+    AttachAFun(funs_TcpNetworkStream_reset, 1, {
+        CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).reset();
+    });
+    AttachAFun(funs_TcpNetworkStream_rebuffer, 2, {
+        CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).rebuffer((int32_t)args[1]);
+    });
+    AttachAFun(funs_TcpNetworkStream_is_closed, 1, {
+        return CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).is_closed();
+    });
+    AttachAFun(funs_TcpNetworkStream_error, 1, {
+        return (uint8_t)CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).error();
+    });
+    AttachAFun(funs_TcpNetworkStream_local_address, 1, {
+        return CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).local_address();
+    });
+    AttachAFun(funs_TcpNetworkStream_remote_address, 1, {
+        return CXX::Interface::getExtractAs<TcpNetworkStreamImpl>(args[0], define_TcpNetworkStream).remote_address();
+    });
 
-        void init_define_TcpNetworkStream() {
+    void init_define_TcpNetworkStream() {
         if (define_TcpNetworkStream != nullptr)
             return;
-        define_TcpNetworkStream = CXX::Interface::createTable<TcpNetworkStream>("tcp_network_stream",
-                                                                                CXX::Interface::direct_method("read_available_ref", funs_TcpNetworkStream_read_available_ref),
-                                                                                CXX::Interface::direct_method("read_available", funs_TcpNetworkStream_read_available),
-                                                                                CXX::Interface::direct_method("data_available", funs_TcpNetworkStream_data_available),
-                                                                                CXX::Interface::direct_method("write", funs_TcpNetworkStream_write),
-                                                                                CXX::Interface::direct_method("write_file", funs_TcpNetworkStream_write_file),
-                                                                                CXX::Interface::direct_method("force_write", funs_TcpNetworkStream_force_write),
-                                                                                CXX::Interface::direct_method("force_write_and_close", funs_TcpNetworkStream_force_write_and_close),
-                                                                                CXX::Interface::direct_method("close", funs_TcpNetworkStream_close),
-                                                                                CXX::Interface::direct_method("reset", funs_TcpNetworkStream_reset),
-                                                                                CXX::Interface::direct_method("rebuffer", funs_TcpNetworkStream_rebuffer),
-                                                                                CXX::Interface::direct_method("is_closed", funs_TcpNetworkStream_is_closed),
-                                                                                CXX::Interface::direct_method("error", funs_TcpNetworkStream_error),
-                                                                                CXX::Interface::direct_method("local_address", funs_TcpNetworkStream_local_address),
-                                                                                CXX::Interface::direct_method("remote_address", funs_TcpNetworkStream_remote_address));
-        CXX::Interface::typeVTable<typed_lgr<TcpNetworkStream>>() = define_TcpNetworkStream;
+        define_TcpNetworkStream = CXX::Interface::createTable<TcpNetworkStreamImpl>(
+            "tcp_network_stream",
+            CXX::Interface::direct_method("read_available_ref", funs_TcpNetworkStream_read_available_ref),
+            CXX::Interface::direct_method("read_available", funs_TcpNetworkStream_read_available),
+            CXX::Interface::direct_method("data_available", funs_TcpNetworkStream_data_available),
+            CXX::Interface::direct_method("write", funs_TcpNetworkStream_write),
+            CXX::Interface::direct_method("write_file", funs_TcpNetworkStream_write_file),
+            CXX::Interface::direct_method("force_write", funs_TcpNetworkStream_force_write),
+            CXX::Interface::direct_method("force_write_and_close", funs_TcpNetworkStream_force_write_and_close),
+            CXX::Interface::direct_method("close", funs_TcpNetworkStream_close),
+            CXX::Interface::direct_method("reset", funs_TcpNetworkStream_reset),
+            CXX::Interface::direct_method("rebuffer", funs_TcpNetworkStream_rebuffer),
+            CXX::Interface::direct_method("is_closed", funs_TcpNetworkStream_is_closed),
+            CXX::Interface::direct_method("error", funs_TcpNetworkStream_error),
+            CXX::Interface::direct_method("local_address", funs_TcpNetworkStream_local_address),
+            CXX::Interface::direct_method("remote_address", funs_TcpNetworkStream_remote_address)
+        );
+        CXX::Interface::typeVTable<TcpNetworkStream>() = define_TcpNetworkStream;
     }
 
 #pragma endregion
 
 #pragma region TcpNetworkBlocking
 
-    class TcpNetworkBlocking {
+    class TcpNetworkBlockingImpl : public TcpNetworkBlocking {
         friend class TcpNetworkManager;
         tcp_handle* handle;
         TaskMutex mutex;
-        tcp_handle::error last_error;
+        TcpError last_error;
 
         bool checkup() {
             if (!handle)
@@ -3143,17 +3158,17 @@ namespace art {
         }
 
     public:
-        TcpNetworkBlocking(tcp_handle* handle)
-            : handle(handle), last_error(tcp_handle::error::none) {}
+        TcpNetworkBlockingImpl(tcp_handle* handle)
+            : handle(handle), last_error(TcpError::none) {}
 
-        ~TcpNetworkBlocking() {
+        ~TcpNetworkBlockingImpl() {
             std::lock_guard lg(mutex);
             if (handle)
                 delete handle;
             handle = nullptr;
         }
 
-        ValueItem read(uint32_t len) {
+        ValueItem read(uint32_t len) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
@@ -3169,14 +3184,14 @@ namespace art {
             return nullptr;
         }
 
-        ValueItem available_bytes() {
+        ValueItem available_bytes() override {
             std::lock_guard lg(mutex);
             if (handle)
                 return handle->available_bytes();
             return (uint32_t)0;
         }
 
-        ValueItem write(char* data, uint32_t len) {
+        ValueItem write(const char* data, uint32_t len) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
@@ -3186,7 +3201,7 @@ namespace art {
             return nullptr;
         }
 
-        ValueItem write_file(char* path, size_t len, uint64_t data_len, uint64_t offset, uint32_t block_size) {
+        ValueItem write_file(char* path, size_t len, uint64_t data_len, uint64_t offset, uint32_t block_size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
@@ -3196,7 +3211,7 @@ namespace art {
             return nullptr;
         }
 
-        ValueItem write_file(int fhandle, uint64_t data_len, uint64_t offset, uint32_t block_size) {
+        ValueItem write_file(int fhandle, uint64_t data_len, uint64_t offset, uint32_t block_size) override {
             std::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
@@ -3206,7 +3221,7 @@ namespace art {
             return nullptr;
         }
 
-        void close() {
+        void close() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->close();
@@ -3216,7 +3231,7 @@ namespace art {
             }
         }
 
-        void reset() {
+        void reset() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 handle->reset();
@@ -3226,13 +3241,13 @@ namespace art {
             }
         }
 
-        void rebuffer(size_t new_size) {
+        void rebuffer(size_t new_size) override {
             std::lock_guard lg(mutex);
             if (handle)
                 handle->rebuffer(new_size);
         }
 
-        bool is_closed() {
+        bool is_closed() override {
             std::lock_guard lg(mutex);
             if (handle) {
                 bool res = handle->valid();
@@ -3246,14 +3261,14 @@ namespace art {
             return true;
         }
 
-        tcp_handle::error error() {
+        TcpError error() override {
             std::lock_guard lg(mutex);
             if (handle)
                 return handle->invalid_reason;
             return last_error;
         }
 
-        ValueItem local_address() {
+        ValueItem local_address() override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -3264,7 +3279,7 @@ namespace art {
             return CXX::Interface::constructStructure<universal_address>(define_UniversalAddress, addr);
         }
 
-        ValueItem remote_address() {
+        ValueItem remote_address() override {
             std::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -3277,16 +3292,16 @@ namespace art {
     };
 
     AttachAFun(funs_TcpNetworkBlocking_read, 2, {
-        return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).read((uint32_t)args[1]);
+        return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).read((uint32_t)args[1]);
     });
     AttachAFun(funs_TcpNetworkBlocking_available_bytes, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).available_bytes();
+        return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).available_bytes();
     });
     AttachAFun(funs_TcpNetworkBlocking_write, 2, {
         if (args[1].meta.vtype != VType::raw_arr_ui8)
             throw InvalidArguments("The third argument must be a raw_arr_ui8.");
         if (len == 2)
-            return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), args[1].meta.val_len);
+            return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write((char*)args[1].getSourcePtr(), args[1].meta.val_len);
         else {
             uint32_t len = (uint32_t)args[2];
             if (len > args[1].meta.val_len)
@@ -3312,53 +3327,57 @@ namespace art {
             auto& proxy = (Structure&)args[1];
             if (proxy.get_vtable()) {
                 if (proxy.get_vtable() == CXX::Interface::typeVTable<typed_lgr<art::files::FileHandle>>())
-                    return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
                 else if (proxy.get_vtable() == CXX::Interface::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
-                    return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
             }
             throw InvalidArguments("The second argument must be a file handle or a file path.");
         } else {
             art::ustring& path = *((art::ustring*)arg1.getSourcePtr());
-            return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).write_file(path.data(), path.size(), data_len, offset, chunks_size);
+            return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file(path.data(), path.size(), data_len, offset, chunks_size);
         }
     });
     AttachAFun(funs_TcpNetworkBlocking_close, 1, {
-        CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).close();
+        CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).close();
     });
     AttachAFun(funs_TcpNetworkBlocking_reset, 1, {
-        CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).reset();
+        CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).reset();
     });
     AttachAFun(funs_TcpNetworkBlocking_rebuffer, 2, {
-        CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).rebuffer((int32_t)args[1]);
+        CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).rebuffer((int32_t)args[1]);
     });
     AttachAFun(funs_TcpNetworkBlocking_is_closed, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).is_closed();
+        return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).is_closed();
     });
     AttachAFun(funs_TcpNetworkBlocking_error, 1, {
-        return (uint8_t)CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).error();
+        return (uint8_t)CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).error();
     });
 
     AttachAFun(funs_TcpNetworkBlocking_local_address, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).local_address();
-    }) AttachAFun(funs_TcpNetworkBlocking_remote_address, 1, {
-        return CXX::Interface::getExtractAs<TcpNetworkBlocking>(args[0], define_TcpNetworkBlocking).remote_address();
-    })
+        return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).local_address();
+    });
+    AttachAFun(funs_TcpNetworkBlocking_remote_address, 1, {
+        return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).remote_address();
+    });
 
-        void init_define_TcpNetworkBlocking() {
+    void init_define_TcpNetworkBlocking() {
         if (define_TcpNetworkBlocking != nullptr)
             return;
-        define_TcpNetworkBlocking = CXX::Interface::createTable<TcpNetworkBlocking>("tcp_network_blocking",
-                                                                                    CXX::Interface::direct_method("read", funs_TcpNetworkBlocking_read),
-                                                                                    CXX::Interface::direct_method("available_bytes", funs_TcpNetworkBlocking_available_bytes),
-                                                                                    CXX::Interface::direct_method("write", funs_TcpNetworkBlocking_write),
-                                                                                    CXX::Interface::direct_method("write_file", funs_TcpNetworkBlocking_write_file),
-                                                                                    CXX::Interface::direct_method("close", funs_TcpNetworkBlocking_close),
-                                                                                    CXX::Interface::direct_method("reset", funs_TcpNetworkBlocking_reset),
-                                                                                    CXX::Interface::direct_method("rebuffer", funs_TcpNetworkBlocking_rebuffer),
-                                                                                    CXX::Interface::direct_method("is_closed", funs_TcpNetworkBlocking_is_closed),
-                                                                                    CXX::Interface::direct_method("error", funs_TcpNetworkBlocking_error),
-                                                                                    CXX::Interface::direct_method("local_address", funs_TcpNetworkBlocking_local_address),
-                                                                                    CXX::Interface::direct_method("remote_address", funs_TcpNetworkBlocking_remote_address));
+        define_TcpNetworkBlocking = CXX::Interface::createTable<TcpNetworkBlockingImpl>(
+            "tcp_network_blocking",
+            CXX::Interface::direct_method("read", funs_TcpNetworkBlocking_read),
+            CXX::Interface::direct_method("available_bytes", funs_TcpNetworkBlocking_available_bytes),
+            CXX::Interface::direct_method("write", funs_TcpNetworkBlocking_write),
+            CXX::Interface::direct_method("write_file", funs_TcpNetworkBlocking_write_file),
+            CXX::Interface::direct_method("close", funs_TcpNetworkBlocking_close),
+            CXX::Interface::direct_method("reset", funs_TcpNetworkBlocking_reset),
+            CXX::Interface::direct_method("rebuffer", funs_TcpNetworkBlocking_rebuffer),
+            CXX::Interface::direct_method("is_closed", funs_TcpNetworkBlocking_is_closed),
+            CXX::Interface::direct_method("error", funs_TcpNetworkBlocking_error),
+            CXX::Interface::direct_method("local_address", funs_TcpNetworkBlocking_local_address),
+            CXX::Interface::direct_method("remote_address", funs_TcpNetworkBlocking_remote_address)
+        );
+        CXX::Interface::typeVTable<TcpNetworkBlocking>() = define_TcpNetworkBlocking;
     }
 
 #pragma endregion
@@ -3390,9 +3409,9 @@ namespace art {
         ValueItem accept_manager_construct(tcp_handle* self) {
             switch (manage_type) {
             case TcpNetworkServer::ManageType::blocking:
-                return ValueItem(CXX::Interface::constructStructure<TcpNetworkBlocking>(define_TcpNetworkBlocking, self), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<TcpNetworkBlockingImpl>(define_TcpNetworkBlocking, self), no_copy);
             case TcpNetworkServer::ManageType::write_delayed:
-                return ValueItem(CXX::Interface::constructStructure<TcpNetworkStream>(define_TcpNetworkStream, self), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<TcpNetworkStreamImpl>(define_TcpNetworkStream, self), no_copy);
             default:
                 return nullptr;
             }
@@ -4158,7 +4177,7 @@ namespace art {
 #error Unsupported platform
 #endif
 
-    TcpNetworkServer::TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, ValueItem& ip_port, ManageType mt, size_t acceptors, TcpConfiguration config) {
+    TcpNetworkServer::TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, const ValueItem& ip_port, ManageType mt, size_t acceptors, TcpConfiguration config) {
         if (!inited)
             throw InternalException("Network module not initialized");
         sockaddr_storage address;
@@ -4240,7 +4259,7 @@ namespace art {
         handle = nullptr;
     }
 
-    TcpClientSocket* TcpClientSocket::connect(ValueItem& ip_port, TcpConfiguration configuration) {
+    TcpClientSocket* TcpClientSocket::connect(const ValueItem& ip_port, TcpConfiguration configuration) {
         if (!inited)
             throw InternalException("Network module not initialized");
         sockaddr_storage address;
@@ -4251,7 +4270,7 @@ namespace art {
         return result.release();
     }
 
-    TcpClientSocket* TcpClientSocket::connect(ValueItem& ip_port, char* data, uint32_t size, TcpConfiguration configuration) {
+    TcpClientSocket* TcpClientSocket::connect(const ValueItem& ip_port, char* data, uint32_t size, TcpConfiguration configuration) {
         if (!inited)
             throw InternalException("Network module not initialized");
         sockaddr_storage address;
@@ -4323,7 +4342,7 @@ namespace art {
             handle->rebuffer(size);
     }
 
-    udp_socket::udp_socket(ValueItem& ip_port, uint32_t timeout_ms) {
+    udp_socket::udp_socket(const ValueItem& ip_port, uint32_t timeout_ms) {
         sockaddr_storage address;
         get_address_from_valueItem(ip_port, address);
         handle = new udp_handle((sockaddr_in6&)address, timeout_ms);

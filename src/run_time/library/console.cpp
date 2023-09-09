@@ -116,189 +116,189 @@ namespace art {
                     return (int64_t)args[0];
                 else
                     throw InvalidOperation("operator d can be applied only to integer types");
-            })
-                //u - unsigned integer
-                AttachAFun(u, 1, {
-                    if (integer_unsigned(args[0].meta.vtype))
-                        return (uint64_t)args[0];
+            });
+            //u - unsigned integer
+            AttachAFun(u, 1, {
+                if (integer_unsigned(args[0].meta.vtype))
+                    return (uint64_t)args[0];
+                else
+                    throw InvalidOperation("operator i can be applied only to integer types");
+            });
+            //o - octal
+            AttachAFun(o, 1, {
+                if (integer_unsigned(args[0].meta.vtype)) {
+                    art::ustring tmp;
+                    tmp.reserve(22);
+                    tmp += "0o";
+                    uint64_t val = (uint64_t)args[0];
+                    do {
+                        tmp += (char)('0' + (val & 7));
+                        val >>= 3;
+                    } while (val);
+                    return tmp;
+                } else
+                    throw InvalidOperation("operator o can be applied only to integer types");
+            });
+            //x - hex
+            AttachAFun(x, 1, {
+                if (integer_unsigned(args[0].meta.vtype)) {
+                    art::ustring tmp;
+                    tmp.set_unsafe_state(true, false);
+                    tmp.reserve(22);
+                    tmp += "0x";
+                    uint64_t val = (uint64_t)args[0];
+                    do {
+                        uint8_t c = val & 15;
+                        tmp += (char)(c < 10 ? '0' + c : 'a' + c - 10);
+                        val >>= 4;
+                    } while (val);
+                    tmp.set_unsafe_state(false, false);
+                    return tmp;
+                } else
+                    throw InvalidOperation("operator x can be applied only to integer types");
+            });
+            //X - HEX
+            AttachAFun(X, 1, {
+                if (integer_unsigned(args[0].meta.vtype)) {
+                    art::ustring tmp;
+                    tmp.reserve(22);
+                    tmp += "0x";
+                    uint64_t val = (uint64_t)args[0];
+                    do {
+                        uint8_t c = val & 15;
+                        tmp += (char)(c < 10 ? '0' + c : 'A' + c - 10);
+                        val >>= 4;
+                    } while (val);
+                    tmp.set_unsafe_state(false, false);
+                    return tmp;
+                } else
+                    throw InvalidOperation("operator X can be applied only to integer types");
+            });
+            //f - float
+            AttachAFun(f, 1, {
+                if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub)
+                    return (double)args[0];
+                else
+                    throw InvalidOperation("operator f can be applied only to float types");
+            });
+            //F - float
+            AttachAFun(F, 1, {
+                if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
+                    art::ustring tmp = std::to_string((double)args[0]);
+                    for (auto& it : tmp)
+                        if (it >= 'a' && it <= 'z')
+                            it -= 32;
+                } else
+                    throw InvalidOperation("operator F can be applied only to float types");
+            });
+            //e - float
+            AttachAFun(e, 1, {
+                if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
+                    auto tmp = (double)args[0];
+                    art::ustring res;
+                    res.resize(22);
+                    auto len = sprintf(res.data(), "%e", tmp);
+                    res.resize(len);
+                    return res;
+                } else
+                    throw InvalidOperation("operator e can be applied only to float types");
+            });
+            //E - float
+            AttachAFun(E, 1, {
+                if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
+                    auto tmp = (double)args[0];
+                    art::ustring res;
+                    res.resize(22);
+                    auto len = sprintf(res.data(), "%E", tmp);
+                    res.resize(len);
+                    return res;
+                } else
+                    throw InvalidOperation("operator E can be applied only to float types");
+            });
+            //g - float
+            AttachAFun(g, 1, {
+                if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
+                    auto tmp = (double)args[0];
+                    art::ustring res;
+                    res.resize(22);
+                    auto len = sprintf(res.data(), "%g", tmp);
+                    res.resize(len);
+                    return res;
+                } else
+                    throw InvalidOperation("operator g can be applied only to float types");
+            });
+            //G - float
+            AttachAFun(G, 1, {
+                if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
+                    auto tmp = (double)args[0];
+                    art::ustring res;
+                    res.resize(22);
+                    auto len = sprintf(res.data(), "%G", tmp);
+                    res.resize(len);
+                    return res;
+                } else
+                    throw InvalidOperation("operator G can be applied only to float types");
+            });
+            //a - float
+            AttachAFun(a, 1, {
+                if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
+                    auto tmp = (double)args[0];
+                    art::ustring res;
+                    res.resize(22);
+                    auto len = sprintf(res.data(), "%a", tmp);
+                    res.resize(len);
+                    return res;
+                } else
+                    throw InvalidOperation("operator a can be applied only to float types");
+            });
+            //A - float
+            AttachAFun(A, 1, {
+                if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
+                    auto tmp = (double)args[0];
+                    art::ustring res;
+                    res.resize(22);
+                    auto len = sprintf(res.data(), "%A", tmp);
+                    res.resize(len);
+                    return res;
+                } else
+                    throw InvalidOperation("operator A can be applied only to float types");
+            });
+            //c - char
+            AttachAFun(c, 1, {
+                if (args[0].meta.vtype == VType::string) {
+                    auto tmp = (art::ustring)args[0];
+                    if (tmp.size() == 1)
+                        return tmp[0];
                     else
-                        throw InvalidOperation("operator i can be applied only to integer types");
-                })
-                //o - octal
-                AttachAFun(o, 1, {
-                    if (integer_unsigned(args[0].meta.vtype)) {
-                        art::ustring tmp;
-                        tmp.reserve(22);
-                        tmp += "0o";
-                        uint64_t val = (uint64_t)args[0];
-                        do {
-                            tmp += (char)('0' + (val & 7));
-                            val >>= 3;
-                        } while (val);
-                        return tmp;
-                    } else
-                        throw InvalidOperation("operator o can be applied only to integer types");
-                })
-                //x - hex
-                AttachAFun(x, 1, {
-                    if (integer_unsigned(args[0].meta.vtype)) {
-                        art::ustring tmp;
-                        tmp.set_unsafe_state(true, false);
-                        tmp.reserve(22);
-                        tmp += "0x";
-                        uint64_t val = (uint64_t)args[0];
-                        do {
-                            uint8_t c = val & 15;
-                            tmp += (char)(c < 10 ? '0' + c : 'a' + c - 10);
-                            val >>= 4;
-                        } while (val);
-                        tmp.set_unsafe_state(false, false);
-                        return tmp;
-                    } else
-                        throw InvalidOperation("operator x can be applied only to integer types");
-                })
-                //X - HEX
-                AttachAFun(X, 1, {
-                    if (integer_unsigned(args[0].meta.vtype)) {
-                        art::ustring tmp;
-                        tmp.reserve(22);
-                        tmp += "0x";
-                        uint64_t val = (uint64_t)args[0];
-                        do {
-                            uint8_t c = val & 15;
-                            tmp += (char)(c < 10 ? '0' + c : 'A' + c - 10);
-                            val >>= 4;
-                        } while (val);
-                        tmp.set_unsafe_state(false, false);
-                        return tmp;
-                    } else
-                        throw InvalidOperation("operator X can be applied only to integer types");
-                })
-                //f - float
-                AttachAFun(f, 1, {
-                    if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub)
-                        return (double)args[0];
-                    else
-                        throw InvalidOperation("operator f can be applied only to float types");
-                })
-                //F - float
-                AttachAFun(F, 1, {
-                    if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
-                        art::ustring tmp = std::to_string((double)args[0]);
-                        for (auto& it : tmp)
-                            if (it >= 'a' && it <= 'z')
-                                it -= 32;
-                    } else
-                        throw InvalidOperation("operator F can be applied only to float types");
-                })
-                //e - float
-                AttachAFun(e, 1, {
-                    if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
-                        auto tmp = (double)args[0];
-                        art::ustring res;
-                        res.resize(22);
-                        auto len = sprintf(res.data(), "%e", tmp);
-                        res.resize(len);
-                        return res;
-                    } else
-                        throw InvalidOperation("operator e can be applied only to float types");
-                })
-                //E - float
-                AttachAFun(E, 1, {
-                    if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
-                        auto tmp = (double)args[0];
-                        art::ustring res;
-                        res.resize(22);
-                        auto len = sprintf(res.data(), "%E", tmp);
-                        res.resize(len);
-                        return res;
-                    } else
-                        throw InvalidOperation("operator E can be applied only to float types");
-                })
-                //g - float
-                AttachAFun(g, 1, {
-                    if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
-                        auto tmp = (double)args[0];
-                        art::ustring res;
-                        res.resize(22);
-                        auto len = sprintf(res.data(), "%g", tmp);
-                        res.resize(len);
-                        return res;
-                    } else
-                        throw InvalidOperation("operator g can be applied only to float types");
-                })
-                //G - float
-                AttachAFun(G, 1, {
-                    if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
-                        auto tmp = (double)args[0];
-                        art::ustring res;
-                        res.resize(22);
-                        auto len = sprintf(res.data(), "%G", tmp);
-                        res.resize(len);
-                        return res;
-                    } else
-                        throw InvalidOperation("operator G can be applied only to float types");
-                })
-                //a - float
-                AttachAFun(a, 1, {
-                    if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
-                        auto tmp = (double)args[0];
-                        art::ustring res;
-                        res.resize(22);
-                        auto len = sprintf(res.data(), "%a", tmp);
-                        res.resize(len);
-                        return res;
-                    } else
-                        throw InvalidOperation("operator a can be applied only to float types");
-                })
-                //A - float
-                AttachAFun(A, 1, {
-                    if (args[0].meta.vtype == VType::flo || args[0].meta.vtype == VType::doub) {
-                        auto tmp = (double)args[0];
-                        art::ustring res;
-                        res.resize(22);
-                        auto len = sprintf(res.data(), "%A", tmp);
-                        res.resize(len);
-                        return res;
-                    } else
-                        throw InvalidOperation("operator A can be applied only to float types");
-                })
-                //c - char
-                AttachAFun(c, 1, {
-                    if (args[0].meta.vtype == VType::string) {
-                        auto tmp = (art::ustring)args[0];
-                        if (tmp.size() == 1)
-                            return tmp[0];
-                        else
-                            throw InvalidOperation("operator c can be applied only to char types");
-                    } else
                         throw InvalidOperation("operator c can be applied only to char types");
-                })
-                //s - string
-                AttachAFun(s, 1, {
-                    if (args[0].meta.vtype == VType::string)
-                        return (art::ustring)args[0];
-                    else
-                        throw InvalidOperation("operator s can be applied only to string types");
-                })
-                //p - pointer
-                AttachAFun(p, 1, {
-                    if (args[0].meta.vtype == VType::undefined_ptr)
-                        return (void*)args[0];
-                    else
-                        throw InvalidOperation("operator p can be applied only to pointer types");
-                })
-                //n - pointer
-                AttachAFun(n, 1, {
-                    if (args[0].meta.vtype == VType::undefined_ptr)
-                        return (void*)args[0];
-                    else
-                        throw InvalidOperation("operator n can be applied only to pointer types");
-                })
-                //%
-                AttachAFun(percent, 0, {
-                    return "%";
-                })
+                } else
+                    throw InvalidOperation("operator c can be applied only to char types");
+            });
+            //s - string
+            AttachAFun(s, 1, {
+                if (args[0].meta.vtype == VType::string)
+                    return (art::ustring)args[0];
+                else
+                    throw InvalidOperation("operator s can be applied only to string types");
+            });
+            //p - pointer
+            AttachAFun(p, 1, {
+                if (args[0].meta.vtype == VType::undefined_ptr)
+                    return (void*)args[0];
+                else
+                    throw InvalidOperation("operator p can be applied only to pointer types");
+            });
+            //n - pointer
+            AttachAFun(n, 1, {
+                if (args[0].meta.vtype == VType::undefined_ptr)
+                    return (void*)args[0];
+                else
+                    throw InvalidOperation("operator n can be applied only to pointer types");
+            });
+            //%
+            AttachAFun(percent, 0, {
+                return "%";
+            });
         }
 
         std::unordered_map<art::ustring, art::shared_ptr<FuncEnvironment>, art::hash<art::ustring>> printf_operators = {

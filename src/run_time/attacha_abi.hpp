@@ -7,12 +7,13 @@
 #pragma once
 #ifndef SRC_RUN_TIME_ATTACHA_ABI
 #define SRC_RUN_TIME_ATTACHA_ABI
-#include <base/run_time.hpp>
-#include <run_time/attacha_abi_structs.hpp>
-#include <util/cxxException.hpp>
-#include <util/link_garbage_remover.hpp>
-#include <util/string_help.hpp>
-#include <util/ustring.hpp>
+    #include <base/run_time.hpp>
+    #include <run_time/AttachA_CXX_struct.hpp>
+    #include <run_time/attacha_abi_structs.hpp>
+    #include <util/cxxException.hpp>
+    #include <util/link_garbage_remover.hpp>
+    #include <util/string_help.hpp>
+    #include <util/ustring.hpp>
 
 namespace art {
     bool needAlloc(ValueMeta type);
@@ -248,7 +249,7 @@ namespace art {
 
         template <class T>
         ValueItem BVcast(const T& val) {
-            if constexpr (std::is_same_v<std::remove_cvref_t<T>, std::nullptr_t>)
+            if constexpr (std::is_same_v<std::remove_cvref_t<T>, std::nullptr_t> || std::is_same_v<std::remove_cvref_t<T>, void>)
                 return ValueItem();
             if constexpr (std::is_same_v<std::remove_cvref_t<T>, bool>)
                 return ValueItem((void*)(0ull + val), VType::boolean);
@@ -288,7 +289,9 @@ namespace art {
                 return val;
             else if constexpr (std::is_same_v<std::remove_cvref_t<T>, void*>)
                 return val;
-            else {
+            else if constexpr (std::is_reference_v<T> && (std::is_aggregate<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>)) {
+                throw NotImplementedException(); //TODO: implement
+            } else {
                 static_assert(
                     (
                         std::is_arithmetic_v<std::remove_cvref_t<T>> ||
@@ -300,11 +303,15 @@ namespace art {
                         std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
                         std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>> ||
                         std::is_same_v<std::remove_cvref_t<T>, std::nullptr_t> ||
+                        std::is_same_v<std::remove_cvref_t<T>, void> ||
                         std::is_same_v<std::remove_cvref_t<T>, art::shared_ptr<FuncEnvironment>> ||
                         std::is_same_v<std::remove_cvref_t<T>, Environment> ||
                         std::is_same_v<std::remove_cvref_t<T>, bool> ||
-                        std::is_same_v<std::remove_cvref_t<T>, void*>),
-                    "Invalid type for convert");
+                        std::is_same_v<std::remove_cvref_t<T>, void*> ||
+                        (std::is_reference_v<T> && (std::is_aggregate<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>))
+                    ),
+                    "Invalid type for convert"
+                );
                 throw CompileTimeException("Invalid compiler, use correct compiler for compile AttachA, //ignored static_assert//");
             }
         }
@@ -317,6 +324,7 @@ namespace art {
         template <class T>
         T Vcast(const void* const& ref_val, const ValueMeta& meta) {
             const void* val = getValue(ref_val, meta);
+
             if constexpr (std::is_same_v<T, art::ustring>) {
                 return Scast(val, meta);
             } else {
@@ -329,7 +337,7 @@ namespace art {
                         return const_cast<void*>(val);
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
-                    else if constexpr (std::is_arithmetic_v<T>)
+                    else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
                         return (T)(int8_t)(ptrdiff_t)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, int8_t>(val);
@@ -342,7 +350,7 @@ namespace art {
                         return const_cast<void*>(val);
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
-                    else if constexpr (std::is_arithmetic_v<T>)
+                    else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
                         return (T)(int16_t)(ptrdiff_t)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, int16_t>(val);
@@ -355,7 +363,7 @@ namespace art {
                         return const_cast<void*>(val);
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
-                    else if constexpr (std::is_arithmetic_v<T>)
+                    else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
                         return (T)(int32_t)(ptrdiff_t)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, int32_t>(val);
@@ -368,7 +376,7 @@ namespace art {
                         return const_cast<void*>(val);
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
-                    else if constexpr (std::is_arithmetic_v<T>)
+                    else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
                         return (T)(int64_t)(ptrdiff_t)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, int64_t>(val);
@@ -381,7 +389,7 @@ namespace art {
                         return const_cast<void*>(val);
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
-                    else if constexpr (std::is_arithmetic_v<T>)
+                    else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
                         return (T)(uint8_t)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, uint8_t>(val);
@@ -394,7 +402,7 @@ namespace art {
                         return const_cast<void*>(val);
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
-                    else if constexpr (std::is_arithmetic_v<T>)
+                    else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
                         return (T)(uint16_t)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, uint16_t>(val);
@@ -407,7 +415,7 @@ namespace art {
                         return const_cast<void*>(val);
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
-                    else if constexpr (std::is_arithmetic_v<T>)
+                    else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
                         return (T)(uint32_t)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, uint32_t>(val);
@@ -420,7 +428,7 @@ namespace art {
                         return const_cast<void*>(val);
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
-                    else if constexpr (std::is_arithmetic_v<T>)
+                    else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
                         return (T)(uint64_t)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, uint64_t>(val);
@@ -433,7 +441,7 @@ namespace art {
                         return const_cast<void*>(val);
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
-                    else if constexpr (std::is_arithmetic_v<T>)
+                    else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
                         return (T) * (float*)&val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, float>(val);
@@ -446,7 +454,7 @@ namespace art {
                         return const_cast<void*>(val);
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
-                    else if constexpr (std::is_arithmetic_v<T>)
+                    else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
                         return (T) * (double*)&val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, double>(val);
@@ -843,6 +851,29 @@ namespace art {
                     throw InvalidCast("Fail cast undefined type");
                 }
             }
+        }
+
+        template <class T>
+        T Vcast(ValueItem& it) {
+            static constexpr bool is_aggregate_or_class = std::is_reference_v<T> && (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>);
+            if constexpr (
+                is_aggregate_or_class && !std::is_same_v<std::remove_cvref_t<T>, art::ustring> && !std::is_same_v<std::remove_cvref_t<T>, ValueMeta> && !std::is_same_v<std::remove_cvref_t<T>, ValueItem> && !std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>> && !std::is_same_v<std::remove_cvref_t<T>, Structure>
+            ) {
+                auto& struct_ = (Structure&)it;
+                switch (struct_.get_vtable_mode()) {
+                case Structure::VTableMode::disabled:
+                    throw InvalidCast("Fail cast structure (vtable disabled)");
+                case Structure::VTableMode::AttachAVirtualTable:
+                    return CXX::Interface::getExtractAsStatic<std::remove_cvref_t<T>>(struct_);
+                case Structure::VTableMode::AttachADynamicVirtualTable:
+                    return CXX::Interface::getExtractAsDynamic<std::remove_cvref_t<T>>(struct_);
+                case Structure::VTableMode::CXX:
+                    throw InvalidCast("Fail cast structure (CXX vtable not implemented)");
+                default:
+                    throw InvalidCast("Fail cast structure (unknown vtable mode)");
+                }
+            } else
+                return Vcast<T>(it.val, it.meta);
         }
     }
 

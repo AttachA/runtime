@@ -4,8 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#ifndef SRC_RUN_TIME_UTIL_SHARED_PTR
-#define SRC_RUN_TIME_UTIL_SHARED_PTR
+#ifndef SRC_UTIL_SHARED_PTR
+#define SRC_UTIL_SHARED_PTR
 #include <memory>
 
 namespace art {
@@ -48,4 +48,4 @@ namespace art {
     };
 }
 
-#endif /* SRC_RUN_TIME_UTIL_SHARED_PTR */
+#endif /* SRC_UTIL_SHARED_PTR */

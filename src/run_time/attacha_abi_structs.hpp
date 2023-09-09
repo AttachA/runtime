@@ -713,6 +713,7 @@ namespace art {
         ValueItem(array_t<bool>&& val);
         ValueItem(array_t<int8_t>&& val);
         ValueItem(array_t<uint8_t>&& val);
+        ValueItem(array_t<char>&& val);
         ValueItem(array_t<int16_t>&& val);
         ValueItem(array_t<uint16_t>&& val);
         ValueItem(array_t<int32_t>&& val);
@@ -726,6 +727,7 @@ namespace art {
         ValueItem(const array_t<bool>& val);
         ValueItem(const array_t<int8_t>& val);
         ValueItem(const array_t<uint8_t>& val);
+        ValueItem(const array_t<char>& val);
         ValueItem(const array_t<int16_t>& val);
         ValueItem(const array_t<uint16_t>& val);
         ValueItem(const array_t<int32_t>& val);
@@ -739,6 +741,7 @@ namespace art {
         ValueItem(const array_ref_t<bool>& val);
         ValueItem(const array_ref_t<int8_t>& val);
         ValueItem(const array_ref_t<uint8_t>& val);
+        ValueItem(const array_ref_t<char>& val);
         ValueItem(const array_ref_t<int16_t>& val);
         ValueItem(const array_ref_t<uint16_t>& val);
         ValueItem(const array_ref_t<int32_t>& val);
@@ -833,6 +836,7 @@ namespace art {
         explicit operator const array_t<bool>() const;
         explicit operator const array_t<int8_t>() const;
         explicit operator const array_t<uint8_t>() const;
+        explicit operator const array_t<char>() const;
         explicit operator const array_t<int16_t>() const;
         explicit operator const array_t<uint16_t>() const;
         explicit operator const array_t<int32_t>() const;
@@ -848,6 +852,7 @@ namespace art {
         explicit operator const array_ref_t<bool>() const;
         explicit operator const array_ref_t<int8_t>() const;
         explicit operator const array_ref_t<uint8_t>() const;
+        explicit operator const array_ref_t<char>() const;
         explicit operator const array_ref_t<int16_t>() const;
         explicit operator const array_ref_t<uint16_t>() const;
         explicit operator const array_ref_t<int32_t>() const;
@@ -876,7 +881,7 @@ namespace art {
     #endif
         explicit operator array_ref_t<ValueItem>();
         ValueItem* operator()(ValueItem* arguments, uint32_t arguments_size);
-        void getAsync();
+        ValueItem& getAsync();
         void getGeneratorResult(ValueItem* res, uint64_t result_id);
         void*& getSourcePtr();
         const void*& getSourcePtr() const;

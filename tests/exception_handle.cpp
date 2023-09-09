@@ -5,10 +5,13 @@
 using namespace art;
 
 void exceptionThrower() {
-    //throw 123;
+    throw 123;
 }
 
 TEST(EXCEPTION, tunnel) {
+#ifndef PLATFORM_WINDOWS
+    GTEST_SKIP_("Exception unwinding implemented only in windows");
+#endif
     FuncEnvironment::AddNative(exceptionThrower, "exceptionThrower");
     {
         FuncEnviroBuilder builder;

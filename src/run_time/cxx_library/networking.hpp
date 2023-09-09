@@ -4,8 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#ifndef RUN_TIME_CXX_LIBRARY_NETWORKING
-#define RUN_TIME_CXX_LIBRARY_NETWORKING
+#ifndef SRC_RUN_TIME_CXX_LIBRARY_NETWORKING
+#define SRC_RUN_TIME_CXX_LIBRARY_NETWORKING
 #include <run_time/attacha_abi_structs.hpp>
 #include <util/link_garbage_remover.hpp>
 #include <util/ustring.hpp>
@@ -38,6 +38,134 @@ namespace art {
         } keep_alive_settings;
     };
 
+
+    enum class TcpError : uint8_t {
+        none = 0,
+        remote_close = 1,
+        local_close = 2,
+        local_reset = 3,
+        read_queue_overflow = 4,
+        invalid_state = 5,
+        undefined_error = 0xFF
+    };
+
+    class TcpNetworkStream {
+    public:
+        virtual ~TcpNetworkStream(){};
+        virtual ValueItem read_available_ref() = 0;
+        virtual ValueItem read_available(char* buffer, int buffer_len) = 0;
+        virtual bool data_available() = 0;
+        virtual void write(const char* data, size_t size) = 0;
+        virtual bool write_file(char* path, size_t path_len, uint64_t data_len = 0, uint64_t offset = 0, uint32_t chunks_size = 0) = 0;
+#ifdef PLATFORM_WINDOWS
+        virtual bool write_file(void* fhandle, uint64_t data_len = 0, uint64_t offset = 0, uint32_t chunks_size = 0) = 0;
+#elif defined(PLATFORM_LINUX)
+        virtual bool write_file(int fhandle, uint64_t data_len = 0, uint64_t offset = 0, uint32_t chunks_size = 0) = 0;
+#endif
+        virtual void force_write() = 0;
+        virtual void force_write_and_close(const char* data, size_t size) = 0;
+        virtual void close() = 0;
+        virtual void reset() = 0;
+        virtual void rebuffer(int32_t new_size) = 0;
+        virtual bool is_closed() = 0;
+        virtual TcpError error() = 0;
+        virtual ValueItem local_address() = 0;
+        virtual ValueItem remote_address() = 0;
+
+        void write(const array_t<char>& arr) {
+            write(arr.begin(), arr.size());
+        }
+
+        void write(const array_ref_t<char>& arr) {
+            write(arr.begin(), arr.size());
+        }
+
+        void write(const array_t<uint8_t>& arr) {
+            write((const char*)arr.begin(), arr.size());
+        }
+
+        void write(const array_ref_t<uint8_t>& arr) {
+            write((const char*)arr.begin(), arr.size());
+        }
+
+        void write(const array_t<int8_t>& arr) {
+            write((const char*)arr.begin(), arr.size());
+        }
+
+        void write(const array_ref_t<int8_t>& arr) {
+            write((const char*)arr.begin(), arr.size());
+        }
+
+        void force_write_and_close(const array_t<char>& arr) {
+            force_write_and_close(arr.begin(), arr.size());
+        }
+
+        void force_write_and_close(const array_ref_t<char>& arr) {
+            force_write_and_close(arr.begin(), arr.size());
+        }
+
+        void force_write_and_close(const array_t<uint8_t>& arr) {
+            force_write_and_close((const char*)arr.begin(), arr.size());
+        }
+
+        void force_write_and_close(const array_ref_t<uint8_t>& arr) {
+            force_write_and_close((const char*)arr.begin(), arr.size());
+        }
+
+        void force_write_and_close(const array_t<int8_t>& arr) {
+            force_write_and_close((const char*)arr.begin(), arr.size());
+        }
+
+        void force_write_and_close(const array_ref_t<int8_t>& arr) {
+            force_write_and_close((const char*)arr.begin(), arr.size());
+        }
+    };
+
+    class TcpNetworkBlocking {
+    public:
+        virtual ~TcpNetworkBlocking(){};
+        virtual ValueItem read(uint32_t len) = 0;
+        virtual ValueItem available_bytes() = 0;
+        virtual ValueItem write(const char* data, uint32_t len) = 0;
+        virtual ValueItem write_file(char* path, size_t len, uint64_t data_len = 0, uint64_t offset = 0, uint32_t block_size = 0) = 0;
+#ifdef PLATFORM_WINDOWS
+        virtual ValueItem write_file(void* fhandle, uint64_t data_len = 0, uint64_t offset = 0, uint32_t block_size = 0) = 0;
+#elif defined(PLATFORM_LINUX)
+        virtual ValueItem write_file(int fhandle, uint64_t data_len = 0, uint64_t offset = 0, uint32_t block_size = 0) = 0;
+#endif
+        virtual void close() = 0;
+        virtual void reset() = 0;
+        virtual void rebuffer(size_t new_size) = 0;
+        virtual bool is_closed() = 0;
+        virtual TcpError error() = 0;
+        virtual ValueItem local_address() = 0;
+        virtual ValueItem remote_address() = 0;
+
+        void write(const array_t<char>& arr) {
+            write(arr.begin(), arr.size());
+        }
+
+        void write(const array_ref_t<char>& arr) {
+            write(arr.begin(), arr.size());
+        }
+
+        void write(const array_t<uint8_t>& arr) {
+            write((const char*)arr.begin(), arr.size());
+        }
+
+        void write(const array_ref_t<uint8_t>& arr) {
+            write((const char*)arr.begin(), arr.size());
+        }
+
+        void write(const array_t<int8_t>& arr) {
+            write((const char*)arr.begin(), arr.size());
+        }
+
+        void write(const array_ref_t<int8_t>& arr) {
+            write((const char*)arr.begin(), arr.size());
+        }
+    };
+
     class TcpNetworkServer {
         struct TcpNetworkManager* handle;
 
@@ -47,7 +175,7 @@ namespace art {
             write_delayed
         };
 
-        TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10, TcpConfiguration config = {});
+        TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, const ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10, TcpConfiguration config = {});
         ~TcpNetworkServer();
         void start();
         void pause();
@@ -74,8 +202,8 @@ namespace art {
 
     public:
         ~TcpClientSocket();
-        static TcpClientSocket* connect(ValueItem& ip_port, TcpConfiguration config = {});
-        static TcpClientSocket* connect(ValueItem& ip_port, char* data, uint32_t size, TcpConfiguration config = {});
+        static TcpClientSocket* connect(const ValueItem& ip_port, TcpConfiguration config = {});
+        static TcpClientSocket* connect(const ValueItem& ip_port, char* data, uint32_t size, TcpConfiguration config = {});
         //apply to current connection
         void set_configuration(TcpConfiguration config);
         int32_t recv(uint8_t* data, int32_t size);
@@ -90,7 +218,7 @@ namespace art {
 
     struct udp_socket {
         class udp_handle* handle;
-        udp_socket(ValueItem& ip_port, uint32_t timeout_ms);
+        udp_socket(const ValueItem& ip_port, uint32_t timeout_ms);
         ~udp_socket();
 
         uint32_t recv(uint8_t* data, uint32_t size, ValueItem& sender);
@@ -112,4 +240,4 @@ namespace art {
     ValueItem makeIP_port(const char* ip_port);  //ip:port
     ValueItem construct_TcpConfiguration();
 }
-#endif /* RUN_TIME_CXX_LIBRARY_NETWORKING */
+#endif /* SRC_RUN_TIME_CXX_LIBRARY_NETWORKING */

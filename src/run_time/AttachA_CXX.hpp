@@ -953,97 +953,6 @@ namespace art {
                 str->fully_constructed = true;
                 return str;
             }
-
-            template <class Class_>
-            Class_& getAs(Structure& str) {
-                return *(Class_*)str.get_data_no_vtable();
-            }
-
-            template <class Class_>
-            Class_& getAs(ValueItem& str) {
-                if (str.meta.vtype == VType::struct_) {
-                    return *(Class_*)((Structure&)str).get_data_no_vtable();
-                } else
-                    throw InvalidArguments("getAs: ValueItem is not a struct");
-            }
-
-            template <class Class_>
-            Class_& getExtractAs(Structure& proxy, AttachADynamicVirtualTable* vtable) {
-                if (proxy.get_vtable() != vtable) {
-                    if (proxy.get_name() != vtable->name)
-                        throw InvalidArguments(vtable->name + ", excepted " + vtable->name + ", got " + proxy.get_name());
-                    else
-                        throw InvalidArguments(vtable->name + ", excepted " + vtable->name + ", got non native" + vtable->name);
-                }
-                return art::CXX::Interface::getAs<Class_>(proxy);
-            }
-
-            template <class Class_>
-            Class_& getExtractAs(ValueItem& str, AttachADynamicVirtualTable* vtable) {
-                if (str.meta.vtype == VType::struct_) {
-                    Structure& proxy = (Structure&)str;
-                    if (proxy.get_vtable() != vtable) {
-                        if (proxy.get_name() != vtable->name)
-                            throw InvalidArguments(vtable->name + ", excepted " + vtable->name + ", got " + proxy.get_name());
-                        else
-                            throw InvalidArguments(vtable->name + ", excepted " + vtable->name + ", got non native" + vtable->name);
-                    }
-                    return art::CXX::Interface::getAs<Class_>(proxy);
-                } else
-                    throw InvalidArguments(vtable->name + ", type missmatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
-            }
-
-            template <class Class_>
-            Class_& getExtractAs(Structure& proxy, AttachAVirtualTable* vtable) {
-                if (proxy.get_vtable() != vtable) {
-                    if (proxy.get_name() != vtable->getName())
-                        throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got " + proxy.get_name());
-                    else
-                        throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got non native" + vtable->getName());
-                }
-                return art::CXX::Interface::getAs<Class_>(proxy);
-            }
-
-            template <class Class_>
-            Class_& getExtractAs(ValueItem& str, AttachAVirtualTable* vtable) {
-                if (str.meta.vtype == VType::struct_) {
-                    Structure& proxy = (Structure&)str;
-                    if (proxy.get_vtable() != vtable) {
-                        if (proxy.get_name() != vtable->getName())
-                            throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got " + proxy.get_name());
-                        else
-                            throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got non native" + vtable->getName());
-                    }
-                    return art::CXX::Interface::getAs<Class_>(proxy);
-                } else
-                    throw InvalidArguments(vtable->getName() + ", type missmatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
-            }
-
-            template <class Class_>
-            void*& typeVTable() {
-                static void* hold = nullptr;
-                return hold;
-            }
-
-            template <class Class_>
-            Class_& getExtractAsDynamic(Structure& proxy) {
-                return art::CXX::Interface::getExtractAs<Class_>(proxy, (AttachADynamicVirtualTable*)typeVTable<Class_>());
-            }
-
-            template <class Class_>
-            Class_& getExtractAsDynamic(ValueItem& str) {
-                return art::CXX::Interface::getExtractAs<Class_>(str, (AttachADynamicVirtualTable*)typeVTable<Class_>());
-            }
-
-            template <class Class_>
-            Class_& getExtractAsStatic(Structure& proxy) {
-                return art::CXX::Interface::getExtractAs<Class_>(proxy, (AttachAVirtualTable*)typeVTable<Class_>());
-            }
-
-            template <class Class_>
-            Class_& getExtractAsStatic(ValueItem& str) {
-                return art::CXX::Interface::getExtractAs<Class_>(str, (AttachAVirtualTable*)typeVTable<Class_>());
-            }
         }
 
         template <class>
@@ -1057,10 +966,12 @@ namespace art {
                 arguments_range(len, sizeof...(Argumetns));
                 size_t arg_i = 0;
                 if constexpr (std::is_same_v<ReturmTyp, void>) {
-                    fn(((Argumetns)args[arg_i++])...);
+                    fn((ABI_IMPL::Vcast<Argumetns>(args[arg_i++]))...);
                     return nullptr;
-                } else
-                    return new ValueItem((ReturmTyp)fn(((Argumetns)args[arg_i++])...));
+                } else if constexpr (std::is_same_v<ReturmTyp, ValueItem*>)
+                    return fn((ABI_IMPL::Vcast<Argumetns>(args[arg_i++]))...);
+                else
+                    return new ValueItem((ReturmTyp)fn((ABI_IMPL::Vcast<Argumetns>(args[arg_i++]))...));
             }
 
             static ValueItem* abstract_Proxy(void* fn, ValueItem* args, uint32_t len) {
@@ -1078,10 +989,12 @@ namespace art {
                 arguments_range(len, sizeof...(Argumetns) + 1);
                 size_t arg_i = 1;
                 if constexpr (std::is_same_v<ReturmTyp, void>) {
-                    Interface::getAs<Class_>(args[0]).*fn(((Argumetns)args[arg_i++])...);
+                    Interface::getAs<Class_>(args[0]).*fn((ABI_IMPL::Vcast<Argumetns>(args[arg_i++]))...);
                     return nullptr;
-                } else
-                    return new ValueItem((ReturmTyp)(Interface::getAs<Class_>(args[0]).*fn)(((Argumetns)args[arg_i++])...));
+                } else if constexpr (std::is_same_v<ReturmTyp, void>)
+                    return Interface::getAs<Class_>(args[0]).*fn((ABI_IMPL::Vcast<Argumetns>(args[arg_i++]))...);
+                else
+                    return new ValueItem((ReturmTyp)(Interface::getAs<Class_>(args[0]).*fn)((ABI_IMPL::Vcast<Argumetns>(args[arg_i++]))...));
             }
 
             static ValueItem* abstract_Proxy(void* fn, ValueItem* args, uint32_t len) {
@@ -1093,13 +1006,16 @@ namespace art {
 
         template <class _FN>
         inline art::shared_ptr<FuncEnvironment> MakeNative(_FN env, bool can_be_unloaded = true, bool is_cheap = true) {
-            return new FuncEnvironment((void*)env, CXX::Proxy<_FN>::abstract_Proxy, can_be_unloaded, is_cheap);
+            if constexpr (std::is_same_v<_FN, Environment>)
+                return new FuncEnvironment(env, can_be_unloaded, is_cheap);
+            else
+                return new FuncEnvironment((void*)env, CXX::Proxy<_FN>::abstract_Proxy, can_be_unloaded, is_cheap);
         }
     }
 
     template <class _FN>
     inline void FuncEnvironment::AddNative(_FN env, const art::ustring& func_name, bool can_be_unloaded, bool is_cheap) {
-        FuncEnvironment::Load(new FuncEnvironment((void*)env, CXX::Proxy<_FN>::abstract_Proxy, can_be_unloaded, is_cheap), func_name);
+        FuncEnvironment::Load(CXX::MakeNative(env, can_be_unloaded, is_cheap), func_name);
     }
 
 #define AttachAFun(name, min_args, content)             \
@@ -1124,3 +1040,5 @@ namespace art {
         return nullptr;                                 \
     }
 }
+
+#include <run_time/AttachA_CXX_struct.hpp>
