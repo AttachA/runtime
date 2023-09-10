@@ -70,7 +70,7 @@ namespace art {
                 bool sequential_scan : 1; //hint to cache manager
             };
 
-            uint8_t value;
+            uint8_t value = 0;
         };
 
         union _sync_flags {
@@ -83,7 +83,7 @@ namespace art {
                 bool write_through : 1;   //hint to cache manager
             };
 
-            uint8_t value;
+            uint8_t value = 0;
         };
 
         enum class io_errors : uint8_t {

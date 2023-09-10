@@ -291,6 +291,7 @@ namespace art {
     }
 
     void internal_makeIP4(universal_address& addr_storage, const char* ip, uint16_t port) {
+        memset(&addr_storage, 0, sizeof(addr_storage));
         sockaddr_in6 addr6;
         memset(&addr6, 0, sizeof(addr6));
         addr6.sin6_family = AF_INET6;
@@ -304,6 +305,7 @@ namespace art {
     }
 
     void internal_makeIP6(universal_address& addr_storage, const char* ip, uint16_t port) {
+        memset(&addr_storage, 0, sizeof(addr_storage));
         sockaddr_in6 addr6;
         memset(&addr6, 0, sizeof(addr6));
         addr6.sin6_family = AF_INET6;
@@ -315,6 +317,7 @@ namespace art {
     }
 
     void internal_makeIP(universal_address& addr_storage, const char* ip, uint16_t port) {
+        memset(&addr_storage, 0, sizeof(addr_storage));
         sockaddr_in6 addr6;
         memset(&addr6, 0, sizeof(addr6));
         addr6.sin6_family = AF_INET6;
@@ -324,7 +327,7 @@ namespace art {
         if (inet_pton(AF_INET, ip, &addr6.sin6_addr + 12) == 1)
             ;
         else if (inet_pton(AF_INET6, ip, &addr6.sin6_addr) != 1)
-            throw InvalidArguments("Invalid ip4 address");
+            throw InvalidArguments("Invalid ip address");
         memcpy(&addr_storage, &addr6, sizeof(addr6));
     }
 
@@ -3405,7 +3408,7 @@ namespace art {
 
         void make_acceptEx(void) {
             tcp_handle* pClientContext = new tcp_handle(0, config.buffer_size, this);
-            NativeWorkersSingleton::post_accept(pClientContext, main_socket, (sockaddr*)&pClientContext->clientAddress, &pClientContext->clientAddressLen, 0);
+            NativeWorkersSingleton::post_accept(pClientContext, main_socket, nullptr, nullptr, 0);
         }
 
         ValueItem accept_manager_construct(tcp_handle* self) {
@@ -3696,7 +3699,7 @@ namespace art {
             unique_lock lock(mutex);
             data->is_bound = true;
             data->opcode = tcp_handle::Opcode::ACCEPT;
-            NativeWorkersSingleton::post_accept(data, main_socket, (sockaddr*)&data->clientAddress, &data->clientAddressLen, 0);
+            NativeWorkersSingleton::post_accept(data, main_socket, nullptr, nullptr, 0);
             data->cv.wait(lock);
             return accept_manager_construct(data);
         }

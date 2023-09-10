@@ -189,7 +189,8 @@ namespace art {
 
 }
 #else
-#include <liburing.h>
+    #include <bitset>
+    #include <liburing.h>
 
 namespace art {
     class NativeWorkerManager {
@@ -217,40 +218,28 @@ namespace art {
 
     //not consume resources if not used
     class NativeWorkersSingleton {
-        class CancellationNotify {};
-
-        class CancellationManager : public NativeWorkerManager {
-        public:
-            virtual void handle(class NativeWorkerHandle* overlapped, io_uring_cqe*) override {
-                delete overlapped;
-                throw CancellationNotify();
-            }
-
-            CancellationManager() = default;
-            ~CancellationManager() = default;
-        };
-
-        class CancellationHandle : public NativeWorkerHandle {
-        public:
-            CancellationHandle(CancellationManager& ref)
-                : NativeWorkerHandle(&ref) {}
-        };
-
-        static inline CancellationManager cancellation_manager_instance;
         static inline NativeWorkersSingleton* instance = nullptr;
         static inline art::mutex instance_mutex;
         io_uring m_ring;
+        unsigned cqe_count = 0;
+        std::bitset<IORING_OP_LAST> probe_ops;
 
         NativeWorkersSingleton() {
             struct io_uring_params params;
             memset(&params, 0, sizeof(params));
             params.flags |= IORING_SETUP_IOPOLL;
-            params.sq_thread_idle = 2000;
+
             if (int res = io_uring_queue_init_params(2048, &m_ring, &params) < 0) {
                 ValueItem notify{"io_uring_queue_init failed with error ", res};
                 errors.sync_notify(notify);
                 return;
             }
+            auto* probe = io_uring_get_probe_ring(&m_ring);
+            for (int i = 0; i < probe->ops_len && i < IORING_OP_LAST; ++i) {
+                if (probe->ops[i].flags & IO_URING_OP_SUPPORTED)
+                    probe_ops.set(i);
+            }
+            io_uring_free_probe(probe);
             art::thread(&NativeWorkersSingleton::dispatch, this).detach();
         }
 
@@ -261,44 +250,22 @@ namespace art {
         void dispatch() {
             if (enable_thread_naming)
                 _set_name_thread_dbg("NativeWorker Dispatch");
+
             while (true) {
-                uint64_t handle = 0;
-                io_uring_cqe* cqe = nullptr;
-                //liburing wait to complete any work, io_uring m_ring
-                int res = io_uring_wait_cqe(&m_ring, &cqe);
-                if (res < 0) {
-                    ValueItem notify{"io_uring_wait_cqe failed with error ", res};
-                    errors.sync_notify(notify);
+                io_uring_submit_and_wait(&m_ring, 1);
+
+                io_uring_cqe* cqe;
+                unsigned head;
+
+                io_uring_for_each_cqe(&m_ring, head, cqe) {
+                    ++cqe_count;
+                    auto handle = static_cast<NativeWorkerHandle*>(io_uring_cqe_get_data(cqe));
+                    if (handle->manager)
+                        handle->manager->handle(handle, cqe);
                 }
-                handle = cqe->user_data;
-                NativeWorkerHandle* completion = reinterpret_cast<NativeWorkerHandle*>(handle);
-                if (!completion) {
-                    io_uring_cqe_seen(&m_ring, cqe);
-                    ValueItem notify{"io_uring_wait_cqe returned undefined completion, skip"};
-                    warning.async_notify(notify);
-                    continue;
-                }
-                if (completion->manager == &cancellation_manager_instance) {
-                    io_uring_cqe_seen(&m_ring, cqe);
-                    delete completion;
-                    break;
-                }
-                if (!completion->manager) {
-                    io_uring_cqe_seen(&m_ring, cqe);
-                    ValueItem notify{"io_uring_wait_cqe returned completion with undefined manager, skip", completion};
-                    warning.async_notify(notify);
-                    continue;
-                }
-                try {
-                    completion->manager->handle(completion, cqe);
-                } catch (CancellationNotify&) {
-                    io_uring_cqe_seen(&m_ring, cqe);
-                    break;
-                } catch (...) {
-                    io_uring_cqe_seen(&m_ring, cqe);
-                    throw;
-                }
-                io_uring_cqe_seen(&m_ring, cqe);
+
+                io_uring_cq_advance(&m_ring, cqe_count);
+                cqe_count = 0;
             }
         }
 
@@ -313,11 +280,23 @@ namespace art {
             }
         }
 
-        static void sumbmit(NativeWorkersSingleton& instance) {
-            if (int res = io_uring_submit(&instance.m_ring); res < 0) {
-                ValueItem notify{"io_uring_submit failed with error ", res};
-                errors.sync_notify(notify);
+        static auto get_sqe(NativeWorkersSingleton& self) {
+            auto* sqe = io_uring_get_sqe(&self.m_ring);
+            if (sqe != nullptr) {
+                return sqe;
+            } else {
+                io_uring_cq_advance(&self.m_ring, self.cqe_count);
+                self.cqe_count = 0;
+                if (int res = io_uring_submit(&self.m_ring); res < 0) {
+                    ValueItem notify{"io_uring_submit failed with error ", res};
+                    errors.sync_notify(notify);
+                }
+                sqe = io_uring_get_sqe(&self.m_ring);
+                if (sqe != nullptr)
+                    return sqe;
+                throw NoMemoryException();
             }
+            return sqe;
         }
 
         class AwaitCancel : public NativeWorkerHandle, NativeWorkerManager {
@@ -359,79 +338,90 @@ namespace art {
 
         static void post_readv(NativeWorkerHandle* handle, int hFile, const iovec* pVec, uint32_t nVec, uint64_t offset) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_READV))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_readv(sqe, hFile, pVec, nVec, offset);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_readv2(NativeWorkerHandle* handle, int hFile, const iovec* pVec, uint32_t nVec, uint64_t offset, int32_t flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_READV))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_readv2(sqe, hFile, pVec, nVec, offset, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_writev(NativeWorkerHandle* handle, int hFile, const iovec* pVec, uint32_t nVec, uint64_t offset) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_WRITEV))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_writev(sqe, hFile, pVec, nVec, offset);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_writev2(NativeWorkerHandle* handle, int hFile, const iovec* pVec, uint32_t nVec, uint64_t offset, int32_t flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_WRITEV))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_writev2(sqe, hFile, pVec, nVec, offset, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_read(NativeWorkerHandle* handle, int hFile, void* pBuffer, uint32_t nBuffer, uint64_t offset) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_READ))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_read(sqe, hFile, pBuffer, nBuffer, offset);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_write(NativeWorkerHandle* handle, int hFile, const void* pBuffer, uint32_t nBuffer, uint64_t offset) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_WRITE))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_write(sqe, hFile, pBuffer, nBuffer, offset);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_read_fixed(NativeWorkerHandle* handle, int hFile, void* pBuffer, uint32_t nBuffer, uint64_t offset, int32_t buf_index) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_READ_FIXED))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_read_fixed(sqe, hFile, pBuffer, nBuffer, offset, buf_index);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_write_fixed(NativeWorkerHandle* handle, int hFile, const void* pBuffer, uint32_t nBuffer, uint64_t offset, int32_t buf_index) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_WRITE_FIXED))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_write_fixed(sqe, hFile, pBuffer, nBuffer, offset, buf_index);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_fsync(NativeWorkerHandle* handle, int hFile, int32_t flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_FSYNC))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_fsync(sqe, hFile, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_fsync_range(NativeWorkerHandle* handle, int hFile, uint64_t offset, uint64_t nbytes, int32_t flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_FSYNC))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_rw(IORING_OP_SYNC_FILE_RANGE, sqe, hFile, nullptr, offset, nbytes);
             sqe->sync_range_flags = flags;
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
@@ -443,7 +433,9 @@ namespace art {
 
         static void post_recvmsg(NativeWorkerHandle* handle, int hSocket, msghdr* pMsg, int32_t flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_RECVMSG))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_recvmsg(sqe, hSocket, pMsg, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
             if (int res = io_uring_submit(&instance.m_ring); res < 0) {
@@ -454,7 +446,9 @@ namespace art {
 
         static void post_sendmsg(NativeWorkerHandle* handle, int hSocket, const msghdr* pMsg, int32_t flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_SENDMSG))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_sendmsg(sqe, hSocket, pMsg, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
             if (int res = io_uring_submit(&instance.m_ring); res < 0) {
@@ -465,10 +459,11 @@ namespace art {
 
         static void post_recv(NativeWorkerHandle* handle, int hSocket, void* pBuffer, uint32_t nBuffer, int32_t flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_RECV))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_recv(sqe, hSocket, pBuffer, nBuffer, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_recvfrom(NativeWorkerHandle* handle, int hSocket, const void* pBuffer, uint32_t nBuffer, int32_t flags, sockaddr* addr, socklen_t* addr_len) {
@@ -477,10 +472,11 @@ namespace art {
 
         static void post_send(NativeWorkerHandle* handle, int hSocket, const void* pBuffer, uint32_t nBuffer, int32_t flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_SEND))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_send(sqe, hSocket, pBuffer, nBuffer, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_sendto(NativeWorkerHandle* handle, int hSocket, const void* pBuffer, uint32_t nBuffer, int32_t flags, sockaddr* addr, socklen_t addr_len) {
@@ -489,168 +485,190 @@ namespace art {
 
         static void post_pool(NativeWorkerHandle* handle, int hSocket, short mask) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_POLL_ADD))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_poll_add(sqe, hSocket, mask);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_yield(NativeWorkerHandle* handle) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_NOP))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_nop(sqe);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_accept(NativeWorkerHandle* handle, int hSocket, sockaddr* pAddr, socklen_t* pAddrLen, int32_t flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_ACCEPT))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_accept(sqe, hSocket, pAddr, pAddrLen, flags);
+            io_uring_sqe_set_flags(sqe, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_connect(NativeWorkerHandle* handle, int hSocket, const sockaddr* pAddr, socklen_t addrLen) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_CONNECT))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_connect(sqe, hSocket, pAddr, addrLen);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_shutdown(NativeWorkerHandle* handle, int hSocket, int how) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_SHUTDOWN))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_shutdown(sqe, hSocket, how);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_close(NativeWorkerHandle* handle, int hSocket) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_CLOSE))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_close(sqe, hSocket);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_timeout(NativeWorkerHandle* handle, __kernel_timespec* pTimeSpec) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_TIMEOUT))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_timeout(sqe, pTimeSpec, 0, 0);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_openat(NativeWorkerHandle* handle, int hDir, const char* pPath, int flags, mode_t mode) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_OPENAT))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_openat(sqe, hDir, pPath, flags, mode);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_statx(NativeWorkerHandle* handle, int hDir, const char* pPath, int flags, unsigned int mask, struct statx* pStatxbuf) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_STATX))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_statx(sqe, hDir, pPath, flags, mask, pStatxbuf);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_splice(NativeWorkerHandle* handle, int hIn, loff_t pOffIn, int hOut, loff_t pOffOut, size_t nBytes, unsigned int flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_SPLICE))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_splice(sqe, hIn, pOffIn, hOut, pOffOut, nBytes, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_tee(NativeWorkerHandle* handle, int hIn, int hOut, size_t nBytes, unsigned int flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_TEE))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_tee(sqe, hIn, hOut, nBytes, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_renameat(NativeWorkerHandle* handle, int hOldDir, const char* pOldPath, int hNewDir, const char* pNewPath, unsigned int flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_RENAMEAT))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_renameat(sqe, hOldDir, pOldPath, hNewDir, pNewPath, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_mkdirat(NativeWorkerHandle* handle, int hDir, const char* pPath, mode_t mode) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_MKDIRAT))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_mkdirat(sqe, hDir, pPath, mode);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_symlinkat(NativeWorkerHandle* handle, const char* pPath, int hDir, const char* pLink) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_SYMLINKAT))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_symlinkat(sqe, pPath, hDir, pLink);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_linkat(NativeWorkerHandle* handle, int hOldDir, const char* pOldPath, int hNewDir, const char* pNewPath, int flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_LINKAT))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_linkat(sqe, hOldDir, pOldPath, hNewDir, pNewPath, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_unlinkat(NativeWorkerHandle* handle, int hDir, const char* pPath, int flags) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_UNLINKAT))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_unlinkat(sqe, hDir, pPath, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_fallocate(NativeWorkerHandle* handle, int hFile, int mode, off_t pOffset, off_t nBytes) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_FALLOCATE))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_fallocate(sqe, hFile, mode, pOffset, nBytes);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_cancel(NativeWorkerHandle* handle) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_ASYNC_CANCEL))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_cancel(sqe, handle, 0);
-            sumbmit(instance);
         }
 
         static void post_cancel_all(NativeWorkerHandle* handle) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_ASYNC_CANCEL))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_cancel(sqe, handle, IORING_ASYNC_CANCEL_ALL);
-            sumbmit(instance);
         }
 
         static void post_cancel_fd(NativeWorkerHandle* handle, int hIn) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_ASYNC_CANCEL))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_cancel_fd(sqe, hIn, 0);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static void post_cancel_fd_all(NativeWorkerHandle* handle, int hIn) {
             auto& instance = get_instance();
-            io_uring_sqe* sqe = io_uring_get_sqe(&instance.m_ring);
+            if (!instance.probe_ops.test(IORING_OP_ASYNC_CANCEL))
+                throw NotImplementedException();
+            io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_cancel_fd(sqe, hIn, IORING_ASYNC_CANCEL_ALL);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            sumbmit(instance);
         }
 
         static bool await_cancel_fd(int hIn) {
