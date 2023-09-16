@@ -2589,145 +2589,111 @@ namespace art {
     }
 
     ValueItem::ValueItem(ValueItem* vals, uint32_t len)
-        : val(0) {
-        *this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len));
-    }
+        : ValueItem(vals, ValueMeta(VType::faarr, false, true, len)) {}
 
-    ValueItem::ValueItem(ValueItem* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(ValueItem* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::faarr, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(ValueItem* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::faarr, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(ValueItem* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::faarr, false, true, len), as_reference) {}
 
     ValueItem::ValueItem(void* undefined_ptr) {
         val = undefined_ptr;
         meta = VType::undefined_ptr;
     }
 
-    ValueItem::ValueItem(const int8_t* vals, uint32_t len) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len));
-    }
+    ValueItem::ValueItem(const int8_t* vals, uint32_t len)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len)) {}
 
-    ValueItem::ValueItem(const uint8_t* vals, uint32_t len) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len));
-    }
+    ValueItem::ValueItem(const uint8_t* vals, uint32_t len)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len)) {}
 
-    ValueItem::ValueItem(const int16_t* vals, uint32_t len) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len));
-    }
+    ValueItem::ValueItem(const int16_t* vals, uint32_t len)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len)) {}
 
-    ValueItem::ValueItem(const uint16_t* vals, uint32_t len) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len));
-    }
+    ValueItem::ValueItem(const uint16_t* vals, uint32_t len)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len)) {}
 
-    ValueItem::ValueItem(const int32_t* vals, uint32_t len) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len));
-    }
+    ValueItem::ValueItem(const int32_t* vals, uint32_t len)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len)) {}
 
-    ValueItem::ValueItem(const uint32_t* vals, uint32_t len) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len));
-    }
+    ValueItem::ValueItem(const uint32_t* vals, uint32_t len)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len)) {}
 
-    ValueItem::ValueItem(const int64_t* vals, uint32_t len) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len));
-    }
+    ValueItem::ValueItem(const int64_t* vals, uint32_t len)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len)) {}
 
-    ValueItem::ValueItem(const uint64_t* vals, uint32_t len) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len));
-    }
+    ValueItem::ValueItem(const uint64_t* vals, uint32_t len)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len)) {}
 
-    ValueItem::ValueItem(const float* vals, uint32_t len) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len));
-    }
+    ValueItem::ValueItem(const float* vals, uint32_t len)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len)) {}
 
-    ValueItem::ValueItem(const double* vals, uint32_t len) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len));
-    }
+    ValueItem::ValueItem(const double* vals, uint32_t len)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len)) {}
 
     ValueItem::ValueItem(Structure* str, no_copy_t)
         : ValueItem(str, VType::struct_, no_copy) {}
 
-    ValueItem::ValueItem(int8_t* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(int8_t* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(uint8_t* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(uint8_t* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(int16_t* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(int16_t* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(uint16_t* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(uint16_t* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(int32_t* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(int32_t* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(uint32_t* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(uint32_t* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(int64_t* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(int64_t* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(uint64_t* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(uint64_t* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(float* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(float* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(double* vals, uint32_t len, no_copy_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), no_copy);
-    }
+    ValueItem::ValueItem(double* vals, uint32_t len, no_copy_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), no_copy) {}
 
-    ValueItem::ValueItem(int8_t* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(int8_t* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(uint8_t* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(uint8_t* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui8, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(int16_t* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(int16_t* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i16, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(uint16_t* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(uint16_t* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui16, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(int32_t* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(int32_t* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i32, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(uint32_t* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(uint32_t* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui32, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(int64_t* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(int64_t* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_i64, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(uint64_t* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(uint64_t* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_ui64, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(float* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(float* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_flo, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(double* vals, uint32_t len, as_reference_t) {
-        *this = ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), as_reference);
-    }
+    ValueItem::ValueItem(double* vals, uint32_t len, as_reference_t)
+        : ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), as_reference) {}
 
     ValueItem::ValueItem(const art::shared_ptr<Task>& task) {
         val = new art::shared_ptr<Task>(task);
@@ -2761,24 +2727,16 @@ namespace art {
     }
 
     ValueItem::ValueItem(const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& map)
-        : val(0) {
-        *this = ValueItem(new std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>(map), VType::map);
-    }
+        : ValueItem(new std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>(map), VType::map) {}
 
     ValueItem::ValueItem(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&& map)
-        : val(0) {
-        *this = ValueItem(new std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>(std::move(map)), VType::map);
-    }
+        : ValueItem(new std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>(std::move(map)), VType::map) {}
 
     ValueItem::ValueItem(const std::unordered_set<ValueItem, art::hash<ValueItem>>& set)
-        : val(0) {
-        *this = ValueItem(new std::unordered_set<ValueItem, art::hash<ValueItem>>(set), VType::set);
-    }
+        : ValueItem(new std::unordered_set<ValueItem, art::hash<ValueItem>>(set), VType::set) {}
 
     ValueItem::ValueItem(std::unordered_set<ValueItem, art::hash<ValueItem>>&& set)
-        : val(0) {
-        *this = ValueItem(new std::unordered_set<ValueItem, art::hash<ValueItem>>(std::move(set)), VType::set);
-    }
+        : ValueItem(new std::unordered_set<ValueItem, art::hash<ValueItem>>(std::move(set)), VType::set) {}
 
     ValueItem::ValueItem(const art::shared_ptr<FuncEnvironment>& fun) {
         val = new art::shared_ptr<FuncEnvironment>(fun);

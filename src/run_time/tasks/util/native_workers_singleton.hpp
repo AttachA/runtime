@@ -227,9 +227,8 @@ namespace art {
         NativeWorkersSingleton() {
             struct io_uring_params params;
             memset(&params, 0, sizeof(params));
-            params.flags |= IORING_SETUP_IOPOLL;
 
-            if (int res = io_uring_queue_init_params(2048, &m_ring, &params) < 0) {
+            if (int res = io_uring_queue_init_params(1024, &m_ring, &params) < 0) {
                 ValueItem notify{"io_uring_queue_init failed with error ", res};
                 errors.sync_notify(notify);
                 return;
@@ -260,8 +259,17 @@ namespace art {
                 io_uring_for_each_cqe(&m_ring, head, cqe) {
                     ++cqe_count;
                     auto handle = static_cast<NativeWorkerHandle*>(io_uring_cqe_get_data(cqe));
-                    if (handle->manager)
-                        handle->manager->handle(handle, cqe);
+                    if (!handle) {
+                        ValueItem notify{"io_uring_wait_cqe returned undefined completion, skip"};
+                        warning.async_notify(notify);
+                        continue;
+                    }
+                    if (!handle->manager) {
+                        ValueItem notify{"io_uring_wait_cqe returned completion with undefined manager, skip", handle};
+                        warning.async_notify(notify);
+                        continue;
+                    }
+                    handle->manager->handle(handle, cqe);
                 }
 
                 io_uring_cq_advance(&m_ring, cqe_count);
@@ -287,16 +295,20 @@ namespace art {
             } else {
                 io_uring_cq_advance(&self.m_ring, self.cqe_count);
                 self.cqe_count = 0;
-                if (int res = io_uring_submit(&self.m_ring); res < 0) {
-                    ValueItem notify{"io_uring_submit failed with error ", res};
-                    errors.sync_notify(notify);
-                }
+                sumbmit(self);
                 sqe = io_uring_get_sqe(&self.m_ring);
                 if (sqe != nullptr)
                     return sqe;
                 throw NoMemoryException();
             }
             return sqe;
+        }
+
+        static void sumbmit(NativeWorkersSingleton& instance) {
+            if (int res = io_uring_submit(&instance.m_ring); res < 0) {
+                ValueItem notify{"io_uring_submit failed with error ", res};
+                errors.sync_notify(notify);
+            }
         }
 
         class AwaitCancel : public NativeWorkerHandle, NativeWorkerManager {
@@ -352,6 +364,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_readv2(sqe, hFile, pVec, nVec, offset, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_writev(NativeWorkerHandle* handle, int hFile, const iovec* pVec, uint32_t nVec, uint64_t offset) {
@@ -361,6 +374,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_writev(sqe, hFile, pVec, nVec, offset);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_writev2(NativeWorkerHandle* handle, int hFile, const iovec* pVec, uint32_t nVec, uint64_t offset, int32_t flags) {
@@ -370,6 +384,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_writev2(sqe, hFile, pVec, nVec, offset, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_read(NativeWorkerHandle* handle, int hFile, void* pBuffer, uint32_t nBuffer, uint64_t offset) {
@@ -379,6 +394,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_read(sqe, hFile, pBuffer, nBuffer, offset);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_write(NativeWorkerHandle* handle, int hFile, const void* pBuffer, uint32_t nBuffer, uint64_t offset) {
@@ -388,6 +404,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_write(sqe, hFile, pBuffer, nBuffer, offset);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_read_fixed(NativeWorkerHandle* handle, int hFile, void* pBuffer, uint32_t nBuffer, uint64_t offset, int32_t buf_index) {
@@ -397,6 +414,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_read_fixed(sqe, hFile, pBuffer, nBuffer, offset, buf_index);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_write_fixed(NativeWorkerHandle* handle, int hFile, const void* pBuffer, uint32_t nBuffer, uint64_t offset, int32_t buf_index) {
@@ -406,6 +424,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_write_fixed(sqe, hFile, pBuffer, nBuffer, offset, buf_index);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_fsync(NativeWorkerHandle* handle, int hFile, int32_t flags) {
@@ -415,6 +434,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_fsync(sqe, hFile, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_fsync_range(NativeWorkerHandle* handle, int hFile, uint64_t offset, uint64_t nbytes, int32_t flags) {
@@ -425,10 +445,7 @@ namespace art {
             io_uring_prep_rw(IORING_OP_SYNC_FILE_RANGE, sqe, hFile, nullptr, offset, nbytes);
             sqe->sync_range_flags = flags;
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            if (int res = io_uring_submit(&instance.m_ring); res < 0) {
-                ValueItem notify{"io_uring_submit failed with error ", res};
-                errors.sync_notify(notify);
-            }
+            sumbmit(instance);
         }
 
         static void post_recvmsg(NativeWorkerHandle* handle, int hSocket, msghdr* pMsg, int32_t flags) {
@@ -438,10 +455,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_recvmsg(sqe, hSocket, pMsg, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            if (int res = io_uring_submit(&instance.m_ring); res < 0) {
-                ValueItem notify{"io_uring_submit failed with error ", res};
-                errors.sync_notify(notify);
-            }
+            sumbmit(instance);
         }
 
         static void post_sendmsg(NativeWorkerHandle* handle, int hSocket, const msghdr* pMsg, int32_t flags) {
@@ -451,10 +465,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_sendmsg(sqe, hSocket, pMsg, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
-            if (int res = io_uring_submit(&instance.m_ring); res < 0) {
-                ValueItem notify{"io_uring_submit failed with error ", res};
-                errors.sync_notify(notify);
-            }
+            sumbmit(instance);
         }
 
         static void post_recv(NativeWorkerHandle* handle, int hSocket, void* pBuffer, uint32_t nBuffer, int32_t flags) {
@@ -464,6 +475,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_recv(sqe, hSocket, pBuffer, nBuffer, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_recvfrom(NativeWorkerHandle* handle, int hSocket, const void* pBuffer, uint32_t nBuffer, int32_t flags, sockaddr* addr, socklen_t* addr_len) {
@@ -477,6 +489,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_send(sqe, hSocket, pBuffer, nBuffer, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_sendto(NativeWorkerHandle* handle, int hSocket, const void* pBuffer, uint32_t nBuffer, int32_t flags, sockaddr* addr, socklen_t addr_len) {
@@ -490,6 +503,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_poll_add(sqe, hSocket, mask);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_yield(NativeWorkerHandle* handle) {
@@ -499,6 +513,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_nop(sqe);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_accept(NativeWorkerHandle* handle, int hSocket, sockaddr* pAddr, socklen_t* pAddrLen, int32_t flags) {
@@ -509,6 +524,7 @@ namespace art {
             io_uring_prep_accept(sqe, hSocket, pAddr, pAddrLen, flags);
             io_uring_sqe_set_flags(sqe, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_connect(NativeWorkerHandle* handle, int hSocket, const sockaddr* pAddr, socklen_t addrLen) {
@@ -518,6 +534,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_connect(sqe, hSocket, pAddr, addrLen);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_shutdown(NativeWorkerHandle* handle, int hSocket, int how) {
@@ -527,6 +544,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_shutdown(sqe, hSocket, how);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_close(NativeWorkerHandle* handle, int hSocket) {
@@ -536,6 +554,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_close(sqe, hSocket);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_timeout(NativeWorkerHandle* handle, __kernel_timespec* pTimeSpec) {
@@ -545,6 +564,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_timeout(sqe, pTimeSpec, 0, 0);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_openat(NativeWorkerHandle* handle, int hDir, const char* pPath, int flags, mode_t mode) {
@@ -554,6 +574,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_openat(sqe, hDir, pPath, flags, mode);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_statx(NativeWorkerHandle* handle, int hDir, const char* pPath, int flags, unsigned int mask, struct statx* pStatxbuf) {
@@ -563,6 +584,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_statx(sqe, hDir, pPath, flags, mask, pStatxbuf);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_splice(NativeWorkerHandle* handle, int hIn, loff_t pOffIn, int hOut, loff_t pOffOut, size_t nBytes, unsigned int flags) {
@@ -572,6 +594,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_splice(sqe, hIn, pOffIn, hOut, pOffOut, nBytes, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_tee(NativeWorkerHandle* handle, int hIn, int hOut, size_t nBytes, unsigned int flags) {
@@ -581,6 +604,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_tee(sqe, hIn, hOut, nBytes, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_renameat(NativeWorkerHandle* handle, int hOldDir, const char* pOldPath, int hNewDir, const char* pNewPath, unsigned int flags) {
@@ -590,6 +614,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_renameat(sqe, hOldDir, pOldPath, hNewDir, pNewPath, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_mkdirat(NativeWorkerHandle* handle, int hDir, const char* pPath, mode_t mode) {
@@ -599,6 +624,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_mkdirat(sqe, hDir, pPath, mode);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_symlinkat(NativeWorkerHandle* handle, const char* pPath, int hDir, const char* pLink) {
@@ -608,6 +634,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_symlinkat(sqe, pPath, hDir, pLink);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_linkat(NativeWorkerHandle* handle, int hOldDir, const char* pOldPath, int hNewDir, const char* pNewPath, int flags) {
@@ -617,6 +644,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_linkat(sqe, hOldDir, pOldPath, hNewDir, pNewPath, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_unlinkat(NativeWorkerHandle* handle, int hDir, const char* pPath, int flags) {
@@ -626,6 +654,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_unlinkat(sqe, hDir, pPath, flags);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_fallocate(NativeWorkerHandle* handle, int hFile, int mode, off_t pOffset, off_t nBytes) {
@@ -635,6 +664,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_fallocate(sqe, hFile, mode, pOffset, nBytes);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_cancel(NativeWorkerHandle* handle) {
@@ -643,6 +673,7 @@ namespace art {
                 throw NotImplementedException();
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_cancel(sqe, handle, 0);
+            sumbmit(instance);
         }
 
         static void post_cancel_all(NativeWorkerHandle* handle) {
@@ -651,6 +682,7 @@ namespace art {
                 throw NotImplementedException();
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_cancel(sqe, handle, IORING_ASYNC_CANCEL_ALL);
+            sumbmit(instance);
         }
 
         static void post_cancel_fd(NativeWorkerHandle* handle, int hIn) {
@@ -660,6 +692,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_cancel_fd(sqe, hIn, 0);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static void post_cancel_fd_all(NativeWorkerHandle* handle, int hIn) {
@@ -669,6 +702,7 @@ namespace art {
             io_uring_sqe* sqe = get_sqe(instance);
             io_uring_prep_cancel_fd(sqe, hIn, IORING_ASYNC_CANCEL_ALL);
             io_uring_sqe_set_data(sqe, reinterpret_cast<void*>(handle));
+            sumbmit(instance);
         }
 
         static bool await_cancel_fd(int hIn) {

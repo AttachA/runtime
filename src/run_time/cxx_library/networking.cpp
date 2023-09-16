@@ -2340,7 +2340,7 @@ namespace art {
         int sent_bytes;
         int readed_bytes;
         int data_len;
-        int aerrno;
+        int aerrno = 0;
         bool force_mode;
         bool is_bound = false;
         uint32_t max_read_queue_size;
@@ -3648,7 +3648,7 @@ namespace art {
                 return;
             tcp_handle* data = new tcp_handle(main_socket, 0, this, 0);
             MutexUnify mutex(data->cv_mutex);
-            unique_lock lock2(mutex);
+            art::unique_lock lock2(mutex);
             NativeWorkersSingleton::post_shutdown(data, main_socket, SHUT_RDWR);
             data->cv.wait(lock2);
             allow_new_connections = false;
@@ -3696,7 +3696,7 @@ namespace art {
 
             tcp_handle* data = new tcp_handle(0, config.buffer_size, this, 0);
             MutexUnify mutex(data->cv_mutex);
-            unique_lock lock(mutex);
+            art::unique_lock lock(mutex);
             data->is_bound = true;
             data->opcode = tcp_handle::Opcode::ACCEPT;
             NativeWorkersSingleton::post_accept(data, main_socket, nullptr, nullptr, 0);

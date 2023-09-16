@@ -57,14 +57,14 @@ namespace art {
         art::lock_guard guard(no_race);
         if (args.meta.vtype == VType::async_res)
             args.getAsync();
-        if (args.meta.vtype == VType::noting)
+        if (args.meta.vtype == VType::noting) {
             for (art::shared_ptr<FuncEnvironment>& it : list)
                 if ((bool)CXX::cxxCall(it))
                     return true;
-                else
-                    for (art::shared_ptr<FuncEnvironment>& it : list)
-                        if ((bool)CXX::aCall(it, args))
-                            return true;
+        } else
+            for (art::shared_ptr<FuncEnvironment>& it : list)
+                if ((bool)CXX::aCall(it, args))
+                    return true;
         return false;
     }
 

@@ -43,6 +43,13 @@
                 "moduleLoad": false
             },
             "showDisplayString": true,
+            "setupCommands": [
+                {
+                  "description": "Enable pretty-printing for gdb",
+                  "text": "-enable-pretty-printing",
+                  "ignoreFailures": true
+                }
+            ],
             "visualizerFile": [
                 "${workspaceFolder}/src/run_time/link_garbage_remover.natvis",
                 "${workspaceFolder}/src/run_time/attacha_abi_structs.natvis",
