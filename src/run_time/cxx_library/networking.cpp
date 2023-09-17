@@ -2799,8 +2799,6 @@ namespace art {
         }
 
         bool transfer_file(SOCKET sock, int file, uint32_t total_size, uint32_t chunks_size, uint64_t offset) {
-            MutexUnify mutex(cv_mutex);
-            art::unique_lock<MutexUnify> lock(mutex);
             uint64_t sent_bytes = 0;
             struct stat file_stat;
             bool result = true;
@@ -2821,6 +2819,8 @@ namespace art {
                         result = false;
                         break;
                     }
+                    if (sent >= file_stat.st_size + offset)
+                        break;
                     offset += sent;
                 }
             } else {
@@ -2832,6 +2832,8 @@ namespace art {
                         break;
                     }
                     offset += sent;
+                    if (sent >= total_size)
+                        break;
                     total_size -= sent;
                 }
             }
