@@ -27,6 +27,8 @@ namespace art {
             loc.curr_task->time_end_flag = false;
 
             art::lock_guard lg(no_race);
+            if (current_task == loc.curr_task.getPtr())
+                throw InvalidLock("Tried lock mutex twice");
             while (current_task) {
                 resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
                 swapCtxRelock(no_race);
@@ -35,6 +37,9 @@ namespace art {
         } else {
             art::unique_lock ul(no_race);
             art::typed_lgr<Task> task;
+
+            if (current_task == reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag))
+                throw InvalidLock("Tried lock mutex twice");
             while (current_task) {
                 art::condition_variable_any cd;
                 bool has_res = false;
