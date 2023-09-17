@@ -135,7 +135,7 @@ namespace art {
         }
     }
 
-    void Task::auto_bind_worker_enable(bool enable) {
+    void Task::set_auto_bind_worker(bool enable) {
         auto_bind_worker = enable;
         if (enable)
             bind_to_worker_id = -1;
@@ -146,23 +146,56 @@ namespace art {
         auto_bind_worker = false;
     }
 
-    void Task::start(list_array<art::shared_ptr<Task>>& lgr_task) {
+    void Task::schedule(art::typed_lgr<Task>&& task, size_t milliseconds) {
+        schedule_until(task, std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(milliseconds));
+    }
+
+    void Task::schedule(const art::typed_lgr<Task>& task, size_t milliseconds) {
+        schedule_until(task, std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(milliseconds));
+    }
+
+    void Task::schedule_until(art::typed_lgr<Task>&& task, std::chrono::high_resolution_clock::time_point time_point) {
+        schedule_until(task, time_point);
+    }
+
+    void Task::schedule_until(const art::typed_lgr<Task>& task, std::chrono::high_resolution_clock::time_point time_point) {
+        art::typed_lgr<Task> lgr_task = task;
+        if (lgr_task->started)
+            return;
+        {
+            art::unique_lock guard(glob.task_thread_safety);
+            if (lgr_task->started)
+                return;
+        }
+        art::unique_lock guard(glob.task_timer_safety);
+        if (can_be_scheduled_task_to_hot())
+            unsafe_put_task_to_timed_queue(glob.timed_tasks, time_point, lgr_task);
+        else
+            unsafe_put_task_to_timed_queue(glob.cold_timed_tasks, time_point, lgr_task);
+        lgr_task->started = true;
+        glob.tasks_notifier.notify_one();
+        guard.unlock();
+        if (!glob.time_control_enabled)
+            startTimeController();
+    }
+
+    void Task::start(list_array<art::typed_lgr<Task>>& lgr_task) {
         for (auto& it : lgr_task)
             start(it);
     }
 
-    void Task::start(art::shared_ptr<Task>&& lgr_task) {
+    void Task::start(art::typed_lgr<Task>&& lgr_task) {
         start(lgr_task);
     }
 
-    bool Task::yield_iterate(art::shared_ptr<Task>& lgr_task) {
+    bool Task::yield_iterate(art::typed_lgr<Task>& lgr_task) {
         bool res = (!lgr_task->started || lgr_task->is_yield_mode) && lgr_task->_task_local != (ValueEnvironment*)-1;
         if (res)
             Task::start(lgr_task);
         return res;
     }
 
-    ValueItem* Task::get_result(art::shared_ptr<Task>& lgr_task, size_t yield_res) {
+    ValueItem* Task::get_result(art::typed_lgr<Task>& lgr_task, size_t yield_res) {
         if (!lgr_task->started && lgr_task->_task_local != (ValueEnvironment*)-1)
             Task::start(lgr_task);
         MutexUnify uni(lgr_task->no_race);
@@ -180,15 +213,15 @@ namespace art {
             return lgr_task->fres.getResult(yield_res, l);
     }
 
-    ValueItem* Task::get_result(art::shared_ptr<Task>&& lgr_task, size_t yield_res) {
+    ValueItem* Task::get_result(art::typed_lgr<Task>&& lgr_task, size_t yield_res) {
         return get_result(lgr_task, yield_res);
     }
 
-    bool Task::has_result(art::shared_ptr<Task>& lgr_task, size_t yield_res) {
+    bool Task::has_result(art::typed_lgr<Task>& lgr_task, size_t yield_res) {
         return lgr_task->fres.results.size() > yield_res;
     }
 
-    void Task::await_task(art::shared_ptr<Task>& lgr_task, bool make_start) {
+    void Task::await_task(art::typed_lgr<Task>& lgr_task, bool make_start) {
         if (!lgr_task->started && make_start && lgr_task->_task_local != (ValueEnvironment*)-1)
             Task::start(lgr_task);
         MutexUnify uni(lgr_task->no_race);
@@ -204,27 +237,27 @@ namespace art {
         }
     }
 
-    list_array<ValueItem> Task::await_results(art::shared_ptr<Task>& task) {
+    list_array<ValueItem> Task::await_results(art::typed_lgr<Task>& task) {
         await_task(task);
         return task->fres.results;
     }
 
-    list_array<ValueItem> Task::await_results(list_array<art::shared_ptr<Task>>& tasks) {
+    list_array<ValueItem> Task::await_results(list_array<art::typed_lgr<Task>>& tasks) {
         list_array<ValueItem> res;
         for (auto& it : tasks)
             res.push_back(await_results(it));
         return res;
     }
 
-    void Task::start(const art::shared_ptr<Task>& tsk) {
-        art::shared_ptr<Task> lgr_task = tsk;
+    void Task::start(const art::typed_lgr<Task>& tsk) {
+        art::typed_lgr<Task> lgr_task = tsk;
         if (lgr_task->started && !lgr_task->is_yield_mode)
             return;
         {
             art::lock_guard guard(glob.task_thread_safety);
             if (lgr_task->started && !lgr_task->is_yield_mode)
                 return;
-            if (Task::max_running_tasks > (glob.in_run_tasks + glob.tasks.size()) || !Task::max_running_tasks)
+            if (can_be_scheduled_task_to_hot())
                 glob.tasks.push(lgr_task);
             else
                 glob.cold_tasks.push(lgr_task);
@@ -256,7 +289,7 @@ namespace art {
     void Task::close_bind_only_executor(uint16_t id) {
         MutexUnify unify(glob.binded_workers_safety);
         art::unique_lock guard(unify);
-        std::list<art::shared_ptr<Task>> transfer_tasks;
+        std::list<art::typed_lgr<Task>> transfer_tasks;
         if (!glob.binded_workers.contains(id)) {
             throw InternalException("Binded worker not found");
         } else {
@@ -281,7 +314,7 @@ namespace art {
             context_lock.unlock();
             glob.binded_workers.erase(id);
         }
-        for (art::shared_ptr<Task>& task : transfer_tasks) {
+        for (art::typed_lgr<Task>& task : transfer_tasks) {
             task->bind_to_worker_id = -1;
             transfer_task(task);
         }
@@ -323,7 +356,7 @@ namespace art {
         else {
             MutexUnify uni(glob.task_thread_safety);
             art::unique_lock l(uni);
-            while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size())
+            while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.cold_timed_tasks.size())
                 glob.no_tasks_notifier.wait(l);
         }
     }
@@ -332,7 +365,7 @@ namespace art {
         if (be_executor && !loc.is_task_thread) {
             art::unique_lock l(glob.task_thread_safety);
         binded_workers:
-            while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.in_exec || glob.tasks_in_swap) {
+            while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.cold_timed_tasks.size() || glob.in_exec || glob.tasks_in_swap) {
                 l.unlock();
                 try {
                     taskExecutor(true);
@@ -355,10 +388,10 @@ namespace art {
             art::unique_lock l(uni);
 
             if (loc.is_task_thread)
-                while ((glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size()) && glob.in_exec != 1 && glob.tasks_in_swap != 1)
+                while ((glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.cold_timed_tasks.size()) && glob.in_exec != 1 && glob.tasks_in_swap != 1)
                     glob.no_tasks_execute_notifier.wait(l);
             else
-                while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.in_exec || glob.tasks_in_swap)
+                while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.cold_timed_tasks.size() || glob.in_exec || glob.tasks_in_swap)
                     glob.no_tasks_execute_notifier.wait(l);
         }
             {
@@ -374,7 +407,7 @@ namespace art {
         }
     }
 
-    void Task::await_multiple(list_array<art::shared_ptr<Task>>& tasks, bool pre_started, bool release) {
+    void Task::await_multiple(list_array<art::typed_lgr<Task>>& tasks, bool pre_started, bool release) {
         if (!pre_started) {
             for (auto& it : tasks) {
                 if (it->_task_local != (ValueEnvironment*)-1)
@@ -391,9 +424,9 @@ namespace art {
                 await_task(it, false);
     }
 
-    void Task::await_multiple(art::shared_ptr<Task>* tasks, size_t len, bool pre_started, bool release) {
+    void Task::await_multiple(art::typed_lgr<Task>* tasks, size_t len, bool pre_started, bool release) {
         if (!pre_started) {
-            art::shared_ptr<Task>* iter = tasks;
+            art::typed_lgr<Task>* iter = tasks;
             size_t count = len;
             while (count--) {
                 if ((*iter)->_task_local != (ValueEnvironment*)-1)
@@ -437,14 +470,14 @@ namespace art {
             throw EnvironmentRuinException("Thread attempted cancel self, like task");
     }
 
-    void Task::notify_cancel(art::shared_ptr<Task>& lgr_task) {
+    void Task::notify_cancel(art::typed_lgr<Task>& lgr_task) {
         if (lgr_task->_task_local == (ValueEnvironment*)-1)
             task_callback::cancel(*lgr_task);
         else
             lgr_task->make_cancel = true;
     }
 
-    void Task::notify_cancel(list_array<art::shared_ptr<Task>>& tasks) {
+    void Task::notify_cancel(list_array<art::typed_lgr<Task>>& tasks) {
         for (auto& it : tasks)
             notify_cancel(it);
     }
@@ -471,14 +504,14 @@ namespace art {
 
     void Task::clean_up() {
         Task::await_no_tasks();
-        std::queue<art::shared_ptr<Task>> e0;
-        std::queue<art::shared_ptr<Task>> e1;
+        std::queue<art::typed_lgr<Task>> e0;
+        std::queue<art::typed_lgr<Task>> e1;
         glob.tasks.swap(e0);
         glob.cold_tasks.swap(e1);
         glob.timed_tasks.shrink_to_fit();
     }
 
-    art::shared_ptr<Task> Task::dummy_task() {
+    art::typed_lgr<Task> Task::dummy_task() {
         return new Task(empty_func, ValueItem());
     }
 
@@ -497,11 +530,11 @@ namespace art {
 
     art::shared_ptr<FuncEnvironment> notify_native_thread(new FuncEnvironment(_notify_native_thread, false, true));
 
-    art::shared_ptr<Task> Task::cxx_native_bridge(bool& checker, art::condition_variable_any& cd) {
+    art::typed_lgr<Task> Task::cxx_native_bridge(bool& checker, art::condition_variable_any& cd) {
         return new Task(notify_native_thread, ValueItem{ValueItem(&checker, VType::undefined_ptr), ValueItem(std::addressof(cd), VType::undefined_ptr)});
     }
 
-    art::shared_ptr<Task> Task::fullifed_task(const list_array<ValueItem>& results) {
+    art::typed_lgr<Task> Task::fullifed_task(const list_array<ValueItem>& results) {
         auto task = new Task(empty_func, nullptr);
         task->func = nullptr;
         task->fres.results = results;
@@ -511,7 +544,7 @@ namespace art {
         return task;
     }
 
-    art::shared_ptr<Task> Task::fullifed_task(list_array<ValueItem>&& results) {
+    art::typed_lgr<Task> Task::fullifed_task(list_array<ValueItem>&& results) {
         auto task = new Task(empty_func, nullptr);
         task->func = nullptr;
         task->fres.results = std::move(results);
@@ -521,7 +554,7 @@ namespace art {
         return task;
     }
 
-    art::shared_ptr<Task> Task::fullifed_task(const ValueItem& result) {
+    art::typed_lgr<Task> Task::fullifed_task(const ValueItem& result) {
         auto task = new Task(empty_func, nullptr);
         task->func = nullptr;
         task->fres.results = {result};
@@ -531,7 +564,7 @@ namespace art {
         return task;
     }
 
-    art::shared_ptr<Task> Task::fullifed_task(ValueItem&& result) {
+    art::typed_lgr<Task> Task::fullifed_task(ValueItem&& result) {
         auto task = new Task(empty_func, nullptr);
         task->func = nullptr;
         task->fres.results = {std::move(result)};
@@ -547,7 +580,7 @@ namespace art {
         bool started = false;
 
     public:
-        art::shared_ptr<Task> task;
+        art::typed_lgr<Task> task;
 
         native_task_schedule(art::shared_ptr<FuncEnvironment> func)
             : NativeWorkerHandle(this) {
@@ -633,7 +666,7 @@ namespace art {
         }
     };
 
-    art::shared_ptr<Task> Task::create_native_task(art::shared_ptr<FuncEnvironment> func) {
+    art::typed_lgr<Task> Task::create_native_task(art::shared_ptr<FuncEnvironment> func) {
         native_task_schedule* schedule = new native_task_schedule(func);
         if (!schedule->start()) {
             delete schedule;
@@ -642,7 +675,7 @@ namespace art {
         return schedule->task;
     }
 
-    art::shared_ptr<Task> Task::create_native_task(art::shared_ptr<FuncEnvironment> func, const ValueItem& arguments) {
+    art::typed_lgr<Task> Task::create_native_task(art::shared_ptr<FuncEnvironment> func, const ValueItem& arguments) {
         native_task_schedule* schedule = new native_task_schedule(func, arguments);
         if (!schedule->start()) {
             delete schedule;
@@ -651,7 +684,7 @@ namespace art {
         return schedule->task;
     }
 
-    art::shared_ptr<Task> Task::create_native_task(art::shared_ptr<FuncEnvironment> func, ValueItem&& arguments) {
+    art::typed_lgr<Task> Task::create_native_task(art::shared_ptr<FuncEnvironment> func, ValueItem&& arguments) {
         native_task_schedule* schedule = new native_task_schedule(func, std::move(arguments));
         if (!schedule->start()) {
             delete schedule;
@@ -660,7 +693,7 @@ namespace art {
         return schedule->task;
     }
 
-    art::shared_ptr<Task> Task::create_native_task(art::shared_ptr<FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void (*on_await)(ValueItem&), void (*on_cancel)(ValueItem&), void (*on_timeout)(ValueItem&), void (*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout) {
+    art::typed_lgr<Task> Task::create_native_task(art::shared_ptr<FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void (*on_await)(ValueItem&), void (*on_cancel)(ValueItem&), void (*on_timeout)(ValueItem&), void (*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout) {
         native_task_schedule* schedule = new native_task_schedule(func, arguments, dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
         if (!schedule->start()) {
             delete schedule;
@@ -669,7 +702,7 @@ namespace art {
         return schedule->task;
     }
 
-    art::shared_ptr<Task> Task::create_native_task(art::shared_ptr<FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void (*on_await)(ValueItem&), void (*on_cancel)(ValueItem&), void (*on_timeout)(ValueItem&), void (*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout) {
+    art::typed_lgr<Task> Task::create_native_task(art::shared_ptr<FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void (*on_await)(ValueItem&), void (*on_cancel)(ValueItem&), void (*on_timeout)(ValueItem&), void (*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout) {
         native_task_schedule* schedule = new native_task_schedule(func, std::move(arguments), dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
         if (!schedule->start()) {
             delete schedule;
@@ -697,13 +730,14 @@ namespace art {
         glob.time_notifier.notify_all();
     }
 
-    art::shared_ptr<Task> Task::callback_dummy(ValueItem& dummy_data, void (*on_start)(ValueItem&), void (*on_await)(ValueItem&), void (*on_cancel)(ValueItem&), void (*on_timeout)(ValueItem&), void (*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout) {
-        art::shared_ptr<Task> tsk = new Task(
+    art::typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void (*on_start)(ValueItem&), void (*on_await)(ValueItem&), void (*on_cancel)(ValueItem&), void (*on_timeout)(ValueItem&), void (*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout) {
+        art::typed_lgr<Task> tsk = new Task(
             empty_func,
             nullptr,
             false,
             nullptr,
-            timeout);
+            timeout
+        );
         tsk->args = new task_callback(dummy_data, on_await, on_cancel, on_timeout, on_start, on_destruct);
         tsk->_task_local = (ValueEnvironment*)-1;
         if (timeout != std::chrono::high_resolution_clock::time_point::min()) {
@@ -715,13 +749,14 @@ namespace art {
         return tsk;
     }
 
-    art::shared_ptr<Task> Task::callback_dummy(ValueItem& dummy_data, void (*on_await)(ValueItem&), void (*on_cancel)(ValueItem&), void (*on_timeout)(ValueItem&), void (*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout) {
-        art::shared_ptr<Task> tsk = new Task(
+    art::typed_lgr<Task> Task::callback_dummy(ValueItem& dummy_data, void (*on_await)(ValueItem&), void (*on_cancel)(ValueItem&), void (*on_timeout)(ValueItem&), void (*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout) {
+        art::typed_lgr<Task> tsk = new Task(
             empty_func,
             nullptr,
             false,
             nullptr,
-            timeout);
+            timeout
+        );
         tsk->args = new task_callback(dummy_data, on_await, on_cancel, on_timeout, nullptr, on_destruct),
         tsk->_task_local = (ValueEnvironment*)-1;
 

@@ -43,7 +43,7 @@ namespace art {
                         timer_reinit();
                         return;
                     } else {
-                        if (Task::max_running_tasks && glob.in_run_tasks >= Task::max_running_tasks) {
+                        if (Task::max_running_tasks && !can_be_scheduled_task_to_hot()) {
                             timer_reinit();
                             return;
                         }
@@ -57,7 +57,7 @@ namespace art {
                         timer_reinit();
                         return;
                     } else {
-                        if (Task::max_running_tasks && glob.in_run_tasks >= Task::max_running_tasks) {
+                        if (Task::max_running_tasks && !can_be_scheduled_task_to_hot()) {
                             timer_reinit();
                             return;
                         }
@@ -132,57 +132,43 @@ namespace art {
                 timer_reinit();
             }
             loc.context_in_swap = true;
-            loc.curr_task->relock_0.relock_end();
-            loc.curr_task->relock_1.relock_end();
-            loc.curr_task->relock_2.relock_end();
+            auto relock_state_0 = loc.curr_task->relock_0;
+            auto relock_state_1 = loc.curr_task->relock_1;
+            auto relock_state_2 = loc.curr_task->relock_2;
+            loc.curr_task->relock_0 = nullptr;
+            loc.curr_task->relock_1 = nullptr;
+            loc.curr_task->relock_2 = nullptr;
+            relock_state_0.relock_end();
+            relock_state_1.relock_end();
+            relock_state_2.relock_end();
             loc.curr_task->awake_check++;
             --glob.tasks_in_swap;
             loc.context_in_swap = false;
             checkCancellation();
+            if (loc.curr_task->invalid_switch_caught) {
+                loc.curr_task->invalid_switch_caught = false;
+                throw InvalidContextSwitchException("Caught task that switched context but not scheduled or finalized self");
+            }
         } else
             throw InternalException("swapCtx() not allowed call in non-task thread or in dispatcher");
     }
 
     void swapCtxRelock(const MutexUnify& mut0) {
         loc.curr_task->relock_0 = mut0;
-        try {
-            swapCtx();
-        } catch (...) {
-            loc.curr_task->relock_0 = nullptr;
-            throw;
-        }
-        loc.curr_task->relock_0 = nullptr;
+        swapCtx();
     }
 
     void swapCtxRelock(const MutexUnify& mut0, const MutexUnify& mut1, const MutexUnify& mut2) {
         loc.curr_task->relock_0 = mut0;
         loc.curr_task->relock_1 = mut1;
         loc.curr_task->relock_2 = mut2;
-        try {
-            swapCtx();
-        } catch (...) {
-            loc.curr_task->relock_0 = nullptr;
-            loc.curr_task->relock_1 = nullptr;
-            loc.curr_task->relock_2 = nullptr;
-            throw;
-        }
-        loc.curr_task->relock_0 = nullptr;
-        loc.curr_task->relock_1 = nullptr;
-        loc.curr_task->relock_2 = nullptr;
+        swapCtx();
     }
 
     void swapCtxRelock(const MutexUnify& mut0, const MutexUnify& mut1) {
         loc.curr_task->relock_0 = mut0;
         loc.curr_task->relock_1 = mut1;
-        try {
-            swapCtx();
-        } catch (...) {
-            loc.curr_task->relock_0 = nullptr;
-            loc.curr_task->relock_1 = nullptr;
-            throw;
-        }
-        loc.curr_task->relock_0 = nullptr;
-        loc.curr_task->relock_1 = nullptr;
+        swapCtx();
     }
 
     void warmUpTheTasks() {
@@ -222,6 +208,8 @@ namespace art {
         }
         try {
             loc.curr_task->args = nullptr;
+            if (loc.curr_task->_task_local)
+                delete loc.curr_task->_task_local;
         } catch (...) {
         };
         art::lock_guard l(loc.curr_task->no_race);
@@ -254,6 +242,8 @@ namespace art {
         }
         try {
             loc.curr_task->args = nullptr;
+            if (loc.curr_task->_task_local)
+                delete loc.curr_task->_task_local;
         } catch (...) {
         };
 
@@ -268,7 +258,7 @@ namespace art {
         return std::move(*loc.stack_current_context);
     }
 
-    void transfer_task(art::shared_ptr<Task>& task) {
+    void transfer_task(art::typed_lgr<Task>& task) {
         if (task->bind_to_worker_id == (uint16_t)-1) {
             art::lock_guard guard(glob.task_thread_safety);
             glob.tasks.push(std::move(task));
@@ -292,7 +282,7 @@ namespace art {
         }
     }
 
-    void awake_task(art::shared_ptr<Task>& task) {
+    void awake_task(art::typed_lgr<Task>& task) {
         if (task->bind_to_worker_id == (uint16_t)-1) {
             if (task->auto_bind_worker) {
                 art::unique_lock guard(glob.binded_workers_safety);
@@ -327,13 +317,8 @@ namespace art {
 
 #if _configuration_tasks_enable_preemptive_scheduler_preview
         bool interrupt = loc.current_interrupted && !glob.tasks.empty();
-        if (!interrupt) {
-            if (Task::max_running_tasks) {
-                if (Task::max_running_tasks > (glob.in_run_tasks + glob.tasks_in_swap))
-                    interrupt = true;
-            } else
-                interrupt = true;
-        }
+        if (!interrupt)
+            interrupt = can_be_scheduled_task_to_hot();
         if (interrupt || loc.interrupted_tasks.empty()) {
 #endif
             loc.current_interrupted = false;
@@ -345,8 +330,9 @@ namespace art {
             if (len == 1)
                 glob.no_tasks_notifier.notify_all();
             loc.curr_task = std::move(tmp);
+
             if (Task::max_running_tasks) {
-                if (Task::max_running_tasks > (glob.in_run_tasks + glob.tasks_in_swap)) {
+                if (can_be_scheduled_task_to_hot()) {
                     if (!glob.cold_tasks.empty()) {
                         glob.tasks.push(std::move(glob.cold_tasks.front()));
                         glob.cold_tasks.pop();
@@ -455,6 +441,10 @@ namespace art {
         }
     end_task:
         loc.is_task_thread = false;
+        if (!loc.curr_task->fres.end_of_life && loc.curr_task.totalLinks() == 1) {
+            loc.curr_task->invalid_switch_caught = true;
+            glob.tasks.push(loc.curr_task);
+        }
         loc.curr_task = nullptr;
         worker_mode_desk(old_name, "idle");
         return false;
@@ -468,10 +458,7 @@ namespace art {
         loc.is_task_thread = false;
         while (glob.tasks.empty()) {
             if (!glob.cold_tasks.empty()) {
-                if (!Task::max_running_tasks) {
-                    warmUpTheTasks();
-                    break;
-                } else if (Task::max_running_tasks > glob.in_run_tasks) {
+                if (can_be_scheduled_task_to_hot()) {
                     warmUpTheTasks();
                     break;
                 }
@@ -557,7 +544,7 @@ namespace art {
         uint32_t& completions = context.completions.front();
         initializer_guard.unlock();
 
-        std::list<art::shared_ptr<Task>>& queue = context.tasks;
+        std::list<art::typed_lgr<Task>>& queue = context.tasks;
         art::recursive_mutex& safety = context.no_race;
         art::condition_variable_any& notifier = context.new_task_notifier;
         bool pseudo_handle_caught_ex = false;
@@ -626,7 +613,8 @@ namespace art {
         _set_name_thread_dbg("Task time controller");
 
         art::unique_lock guard(glob.task_timer_safety);
-        list_array<art::shared_ptr<Task>> cached_wake_ups;
+        list_array<art::typed_lgr<Task>> cached_wake_ups;
+        list_array<art::typed_lgr<Task>> cached_cold;
         while (glob.time_control_enabled) {
             if (glob.timed_tasks.size()) {
                 while (glob.timed_tasks.front().wait_timepoint <= std::chrono::high_resolution_clock::now()) {
@@ -650,18 +638,45 @@ namespace art {
                         break;
                 }
             }
+            if (glob.cold_timed_tasks.size()) {
+                while (glob.cold_timed_tasks.front().wait_timepoint <= std::chrono::high_resolution_clock::now()) {
+                    timing& tmng = glob.cold_timed_tasks.front();
+                    if (tmng.check_id != tmng.awake_task->awake_check) {
+                        glob.cold_timed_tasks.pop_front();
+                        if (glob.cold_timed_tasks.empty())
+                            break;
+                        else
+                            continue;
+                    }
+                    cached_cold.push_back(std::move(tmng.awake_task));
+                    glob.cold_timed_tasks.pop_front();
+                    if (glob.cold_timed_tasks.empty())
+                        break;
+                }
+            }
             guard.unlock();
-            if (!cached_wake_ups.empty()) {
+            if (!cached_wake_ups.empty() || !cached_cold.empty()) {
                 art::lock_guard guard(glob.task_thread_safety);
-                while (!cached_wake_ups.empty())
-                    glob.tasks.push(cached_wake_ups.take_back());
+                if (!cached_wake_ups.empty())
+                    while (!cached_wake_ups.empty())
+                        glob.tasks.push(std::move(cached_wake_ups.take_back()));
+                if (!cached_cold.empty())
+                    while (!cached_cold.empty())
+                        glob.cold_tasks.push(std::move(cached_cold.take_back()));
                 glob.tasks_notifier.notify_all();
             }
             guard.lock();
-            if (glob.timed_tasks.empty())
+            if (glob.timed_tasks.empty() && glob.cold_timed_tasks.empty())
                 glob.time_notifier.wait(guard);
-            else
+            else if (glob.timed_tasks.size() && glob.cold_timed_tasks.size()) {
+                if (glob.timed_tasks.front().wait_timepoint < glob.cold_timed_tasks.front().wait_timepoint)
+                    glob.time_notifier.wait_until(guard, glob.timed_tasks.front().wait_timepoint);
+                else
+                    glob.time_notifier.wait_until(guard, glob.cold_timed_tasks.front().wait_timepoint);
+            } else if (glob.timed_tasks.size())
                 glob.time_notifier.wait_until(guard, glob.timed_tasks.front().wait_timepoint);
+            else
+                glob.time_notifier.wait_until(guard, glob.cold_timed_tasks.front().wait_timepoint);
         }
     }
 
@@ -673,26 +688,30 @@ namespace art {
         glob.time_control_enabled = true;
     }
 
-    void makeTimeWait(std::chrono::high_resolution_clock::time_point t) {
-        if (!glob.time_control_enabled)
-            startTimeController();
-        loc.curr_task->awaked = false;
-        loc.curr_task->time_end_flag = false;
+    void unsafe_put_task_to_timed_queue(std::deque<timing>& queue, std::chrono::high_resolution_clock::time_point t, art::typed_lgr<Task>& task) {
         size_t i = 0;
-
-        art::lock_guard guard(glob.task_timer_safety);
-        auto it = glob.timed_tasks.begin();
-        auto end = glob.timed_tasks.end();
+        auto it = queue.begin();
+        auto end = queue.end();
         while (it != end) {
             if (it->wait_timepoint >= t) {
-                glob.timed_tasks.insert(it, timing(t, loc.curr_task, loc.curr_task->awake_check));
+                queue.insert(it, timing(t, task, task->awake_check));
                 i = -1;
                 break;
             }
             ++it;
         }
         if (i != -1)
-            glob.timed_tasks.push_back(timing(t, loc.curr_task, loc.curr_task->awake_check));
+            queue.push_back(timing(t, task, task->awake_check));
+    }
+
+    void makeTimeWait(std::chrono::high_resolution_clock::time_point t) {
+        if (!glob.time_control_enabled)
+            startTimeController();
+        loc.curr_task->awaked = false;
+        loc.curr_task->time_end_flag = false;
+
+        art::lock_guard guard(glob.task_timer_safety);
+        unsafe_put_task_to_timed_queue(glob.timed_tasks, t, loc.curr_task);
         glob.time_notifier.notify_one();
     }
 }

@@ -74,7 +74,7 @@ namespace art {
             bool fullifed = false;
 
         public:
-            art::shared_ptr<Task> awaiter;
+            art::typed_lgr<Task> awaiter;
             uint32_t fullifed_bytes = 0;
             const uint32_t buffer_size;
             const uint64_t offset;
@@ -104,7 +104,7 @@ namespace art {
             }
 
             void cancel() {
-                if (buffer) {
+                if (buffer && !awaiter->fres.end_of_life) {
                     if (CancelIoEx(handle, &overlapped))
                         return;
                     MutexUnify unify(mutex);
@@ -2409,7 +2409,7 @@ namespace art {
             bool fullifed = false;
 
         public:
-            art::shared_ptr<Task> awaiter;
+            art::typed_lgr<Task> awaiter;
             uint32_t fullifed_bytes = 0;
             const uint32_t buffer_size;
             const uint64_t offset;
@@ -2433,7 +2433,7 @@ namespace art {
             }
 
             void cancel() {
-                if (buffer) {
+                if (buffer && !awaiter->fres.end_of_life) {
                     if (NativeWorkersSingleton::await_cancel_fd_all(handle)) {
                         MutexUnify unify(mutex);
                         art::unique_lock<MutexUnify> lock(unify);

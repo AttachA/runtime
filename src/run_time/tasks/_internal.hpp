@@ -93,8 +93,8 @@ namespace art {
         boost::context::continuation* stack_current_context = nullptr;
         struct task_context* current_context = nullptr;
         std::exception_ptr ex_ptr;
-        std::queue<art::shared_ptr<Task>> interrupted_tasks;
-        art::shared_ptr<Task> curr_task = nullptr;
+        std::queue<art::typed_lgr<Task>> interrupted_tasks;
+        art::typed_lgr<Task> curr_task = nullptr;
         bool is_task_thread = false;
         bool context_in_swap = false;
 
@@ -102,16 +102,20 @@ namespace art {
         bool current_interrupted = false;
     };
 
+    struct cold_hot_queue {
+    };
+
+
     struct timing {
         std::chrono::high_resolution_clock::time_point wait_timepoint;
-        art::shared_ptr<Task> awake_task;
+        art::typed_lgr<Task> awake_task;
         uint16_t check_id;
     };
 
     struct binded_context {
         art::util::hill_climb executor_manager_hill_climb;
         std::list<uint32_t> completions;
-        std::list<art::shared_ptr<Task>> tasks;
+        std::list<art::typed_lgr<Task>> tasks;
         TaskConditionVariable on_closed_notifier;
         art::recursive_mutex no_race;
         art::condition_variable_any new_task_notifier;
@@ -125,9 +129,10 @@ namespace art {
         TaskConditionVariable no_tasks_notifier;
         TaskConditionVariable no_tasks_execute_notifier;
 
-        std::queue<art::shared_ptr<Task>> tasks;
-        std::queue<art::shared_ptr<Task>> cold_tasks;
+        std::queue<art::typed_lgr<Task>> tasks;
+        std::queue<art::typed_lgr<Task>> cold_tasks;
         std::deque<timing> timed_tasks;
+        std::deque<timing> cold_timed_tasks;
 
         art::recursive_mutex task_thread_safety;
         art::mutex task_timer_safety;
@@ -140,7 +145,6 @@ namespace art {
         size_t in_exec = 0;
         bool time_control_enabled = false;
 
-        bool in_time_swap = false;
         std::atomic_size_t tasks_in_swap = 0;
         std::atomic_size_t in_run_tasks = 0;
         std::atomic_size_t planned_tasks = 0;
@@ -222,10 +226,12 @@ namespace art {
     void swapCtxRelock(const MutexUnify& mut0);
     void swapCtxRelock(const MutexUnify& mut0, const MutexUnify& mut1, const MutexUnify& mut2);
     void swapCtxRelock(const MutexUnify& mut0, const MutexUnify& mut1);
-    void transfer_task(art::shared_ptr<Task>& task);
+    void transfer_task(art::typed_lgr<Task>& task);
     void makeTimeWait(std::chrono::high_resolution_clock::time_point t);
     void taskExecutor(bool end_in_task_out = false);
     void bindedTaskExecutor(uint16_t id);
+    void unsafe_put_task_to_timed_queue(std::deque<timing>& queue, std::chrono::high_resolution_clock::time_point t, art::typed_lgr<Task>& task);
+    bool can_be_scheduled_task_to_hot(); //returns if task can be scheduled to hot queue
 
 
     extern thread_local executors_local loc;

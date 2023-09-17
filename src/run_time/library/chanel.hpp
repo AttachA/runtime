@@ -32,8 +32,8 @@ namespace art {
         class Chanel;
 
         struct AutoNotifyChanel {
-            art::shared_ptr<Task> notifier_task;
-            art::shared_ptr<Task> handle_task;
+            art::typed_lgr<Task> notifier_task;
+            art::typed_lgr<Task> handle_task;
             Chanel* chanel;
             bool end_of_life;
             TaskMutex no_race;
@@ -63,9 +63,9 @@ namespace art {
             void notify(ValueItem&& val);
             void notify(const ValueItem& val);
             void notify(ValueItem* vals, uint32_t len);
-            typed_lgr<AutoNotifyChanel> auto_notify(art::shared_ptr<Task>& val);
-            typed_lgr<AutoNotifyChanel> auto_notify_continue(art::shared_ptr<Task>& val);
-            typed_lgr<AutoNotifyChanel> auto_notify_skip(art::shared_ptr<Task>& val, size_t start_from);
+            typed_lgr<AutoNotifyChanel> auto_notify(art::typed_lgr<Task>& val);
+            typed_lgr<AutoNotifyChanel> auto_notify_continue(art::typed_lgr<Task>& val);
+            typed_lgr<AutoNotifyChanel> auto_notify_skip(art::typed_lgr<Task>& val, size_t start_from);
 
             typed_lgr<AutoEventChanel> auto_event(typed_lgr<EventSystem>& val, AutoEventChanel::NotifyType type);
 

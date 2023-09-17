@@ -28,11 +28,11 @@ namespace art {
     }
 
     bool EventSystem::awaitCall(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args) {
-        std::list<art::shared_ptr<Task>> wait_tasks;
+        std::list<art::typed_lgr<Task>> wait_tasks;
         {
             art::lock_guard guard(no_race);
             for (auto& it : list) {
-                art::shared_ptr<Task> tsk(new Task(it, args));
+                art::typed_lgr<Task> tsk(new Task(it, args));
                 wait_tasks.push_back(tsk);
                 Task::start(tsk);
             }
@@ -250,8 +250,8 @@ namespace art {
 
     art::shared_ptr<FuncEnvironment> _async_notify(new FuncEnvironment(__async_notify, false, false));
 
-    art::shared_ptr<Task> EventSystem::async_notify(ValueItem& args) {
-        art::shared_ptr<Task> res = new Task(_async_notify, ValueItem{ValueItem(this, VType::undefined_ptr), args});
+    art::typed_lgr<Task> EventSystem::async_notify(ValueItem& args) {
+        art::typed_lgr<Task> res = new Task(_async_notify, ValueItem{ValueItem(this, VType::undefined_ptr), args});
         Task::start(res);
         return res;
     }

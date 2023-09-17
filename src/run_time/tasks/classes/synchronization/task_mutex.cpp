@@ -34,7 +34,7 @@ namespace art {
             current_task = &*loc.curr_task;
         } else {
             art::unique_lock ul(no_race);
-            art::shared_ptr<Task> task;
+            art::typed_lgr<Task> task;
             while (current_task) {
                 art::condition_variable_any cd;
                 bool has_res = false;
@@ -94,7 +94,7 @@ namespace art {
             art::condition_variable_any cd;
             while (current_task) {
                 has_res = false;
-                art::shared_ptr<Task> task = Task::cxx_native_bridge(has_res, cd);
+                art::typed_lgr<Task> task = Task::cxx_native_bridge(has_res, cd);
                 resume_task.emplace_back(task, task->awake_check);
                 while (has_res)
                     cd.wait_until(ul, time_point);
@@ -119,7 +119,7 @@ namespace art {
 
         current_task = nullptr;
         if (resume_task.size()) {
-            art::shared_ptr<Task> it = resume_task.front().task;
+            art::typed_lgr<Task> it = resume_task.front().task;
             uint16_t awake_check = resume_task.front().awake_check;
             resume_task.pop_front();
             art::lock_guard lg1(it->no_race);
@@ -151,7 +151,7 @@ namespace art {
     }
 
     ValueItem* _TaskMutex_lock_holder(ValueItem* args, uint32_t len) {
-        art::shared_ptr<Task>& task = *(art::shared_ptr<Task>*)args[0].val;
+        art::typed_lgr<Task>& task = *(art::typed_lgr<Task>*)args[0].val;
         TaskMutex* mut = (TaskMutex*)args[1].val;
         bool lock_sequence = args[2].val;
         art::unique_lock guard(*mut, art::defer_lock);
@@ -172,11 +172,11 @@ namespace art {
 
     art::shared_ptr<FuncEnvironment> TaskMutex_lock_holder = new FuncEnvironment(_TaskMutex_lock_holder, false, false);
 
-    void TaskMutex::lifecycle_lock(art::shared_ptr<Task> task) {
-        Task::start(new Task(TaskMutex_lock_holder, ValueItem{ValueItem(new art::shared_ptr(task), VType::async_res), this, false}));
+    void TaskMutex::lifecycle_lock(art::typed_lgr<Task> task) {
+        Task::start(new Task(TaskMutex_lock_holder, ValueItem{ValueItem(new art::typed_lgr<Task>(task), VType::async_res), this, false}));
     }
 
-    void TaskMutex::sequence_lock(art::shared_ptr<Task> task) {
-        Task::start(new Task(TaskMutex_lock_holder, ValueItem{ValueItem(new art::shared_ptr(task), VType::async_res), this, true}));
+    void TaskMutex::sequence_lock(art::typed_lgr<Task> task) {
+        Task::start(new Task(TaskMutex_lock_holder, ValueItem{ValueItem(new art::typed_lgr<Task>(task), VType::async_res), this, true}));
     }
 }

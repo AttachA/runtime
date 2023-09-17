@@ -62,14 +62,14 @@ namespace art {
 
     art::shared_ptr<FuncEnvironment> _TaskQuery_add_task(new FuncEnvironment(__TaskQuery_add_task, false, false));
 
-    art::shared_ptr<Task> TaskQuery::add_task(art::shared_ptr<FuncEnvironment> call_func, ValueItem& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point timeout) {
+    art::typed_lgr<Task> TaskQuery::add_task(art::shared_ptr<FuncEnvironment> call_func, ValueItem& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point timeout) {
         ValueItem copy;
         if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
             copy = ValueItem((ValueItem*)arguments.getSourcePtr(), arguments.meta.val_len);
         else
             copy = ValueItem({arguments});
 
-        art::shared_ptr<Task> res = new Task(_TaskQuery_add_task, ValueItem{(void*)handle, new art::shared_ptr<FuncEnvironment>(call_func), copy}, used_task_local, exception_handler, timeout);
+        art::typed_lgr<Task> res = new Task(_TaskQuery_add_task, ValueItem{(void*)handle, new art::shared_ptr<FuncEnvironment>(call_func), copy}, used_task_local, exception_handler, timeout);
         art::lock_guard lock(handle->no_race);
         if (is_running && handle->now_at_execution <= handle->at_execution_max) {
             Task::start(res);
@@ -96,7 +96,7 @@ namespace art {
         is_running = false;
     }
 
-    bool TaskQuery::in_query(art::shared_ptr<Task> task) {
+    bool TaskQuery::in_query(art::typed_lgr<Task> task) {
         if (task->started)
             return false; //started task can't be in query
         art::lock_guard lock(handle->no_race);

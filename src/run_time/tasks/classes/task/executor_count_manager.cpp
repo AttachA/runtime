@@ -50,7 +50,7 @@ namespace art {
                 for (uint32_t i = 0; i < workers_diff; i++)
                     art::thread(taskExecutor, false).detach();
             } else {
-                art::shared_ptr<Task> task(new Task(nullptr, nullptr));
+                art::typed_lgr<Task> task(new Task(nullptr, nullptr));
                 for (uint32_t i = 0; i < workers_diff; i++)
                     glob.tasks.push(task);
             }
@@ -69,7 +69,7 @@ namespace art {
                         for (uint32_t i = 0; i < workers_diff; i++)
                             art::thread(bindedTaskExecutor, contexts.first).detach();
                     } else {
-                        art::shared_ptr<Task> task(new Task(nullptr, nullptr));
+                        art::typed_lgr<Task> task(new Task(nullptr, nullptr));
                         task->bind_to_worker_id = contexts.first;
                         for (uint32_t i = 0; i < workers_diff; i++)
                             contexts.second.tasks.push_back(task);

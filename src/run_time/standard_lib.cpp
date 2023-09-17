@@ -1064,6 +1064,8 @@ namespace art {
         FuncEnvironment::AddNative(parallel::task_runtime::explicitStartTimer, "parallel task_runtime explicitStartTimer", false);
         FuncEnvironment::AddNative(parallel::task_runtime::reduce_executor, "parallel task_runtime reduce_executor", false);
         FuncEnvironment::AddNative(parallel::task_runtime::total_executors, "parallel task_runtime total_executors", false);
+        FuncEnvironment::AddNative(parallel::task_runtime::create_bind_only_executor, "parallel task_runtime create_bind_only_executor", false);
+        FuncEnvironment::AddNative(parallel::task_runtime::close_bind_only_executor, "parallel task_runtime close_bind_only_executor", false);
 
         FuncEnvironment::AddNative(parallel::this_task::check_cancellation, "parallel this_task check_cancellation", false);
         FuncEnvironment::AddNative(parallel::this_task::is_task, "parallel this_task is_task", false);

@@ -106,7 +106,7 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
         Task::await_end_tasks(true);
     }
 
-    list_array<art::shared_ptr<Task>> tasks;
+    list_array<art::typed_lgr<Task>> tasks;
 
     // for (size_t i = 0; i < 10000; i++) {
     //	tasks.push_back(new Task(FuncEnvironment::environment("start"), noting));
@@ -173,7 +173,7 @@ int smain() {
     Task::max_planned_tasks = 0;
     Task::enable_task_naming = false;
 
-    art::shared_ptr<Task> main_task = new Task(new FuncEnvironment(attacha_main, false, false), {});
+    art::typed_lgr<Task> main_task = new Task(new FuncEnvironment(attacha_main, false, false), {});
     main_task->bind_to_worker_id = Task::create_bind_only_executor(1, true);
     Task::create_executor(2);
     Task::start(main_task);

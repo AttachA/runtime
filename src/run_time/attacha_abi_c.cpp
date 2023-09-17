@@ -90,7 +90,7 @@ namespace art {
             delete (art::ustring*)*value;
             break;
         case VType::async_res:
-            delete (art::shared_ptr<Task>*)*value;
+            delete (art::typed_lgr<Task>*)*value;
             break;
         case VType::undefined_ptr:
             break;
@@ -251,7 +251,7 @@ namespace art {
                 throw InvalidOperation("Fail allocate local stack value");
                 break;
             case VType::async_res:
-                destructor = defaultDestructor<art::shared_ptr<Task>>;
+                destructor = defaultDestructor<art::typed_lgr<Task>>;
                 break;
             case VType::function:
                 destructor = defaultDestructor<art::shared_ptr<FuncEnvironment>>;
@@ -271,7 +271,7 @@ namespace art {
     ValueItem* getAsyncValueItem(void* val) {
         if (!val)
             return nullptr;
-        art::shared_ptr<Task>& tmp = *(art::shared_ptr<Task>*)val;
+        art::typed_lgr<Task>& tmp = *(art::typed_lgr<Task>*)val;
         if(!tmp){
             return nullptr;
         }
@@ -368,7 +368,7 @@ namespace art {
             case VType::string:
                 return new art::ustring(*(art::ustring*)actual_val);
             case VType::async_res:
-                return new art::shared_ptr<Task>(*(art::shared_ptr<Task>*)actual_val);
+                return new art::typed_lgr<Task>(*(art::typed_lgr<Task>*)actual_val);
             case VType::except_value:
                 return new std::exception_ptr(*(std::exception_ptr*)actual_val);
             case VType::saarr:
@@ -2695,8 +2695,8 @@ namespace art {
     ValueItem::ValueItem(double* vals, uint32_t len, as_reference_t)
         : ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(const art::shared_ptr<Task>& task) {
-        val = new art::shared_ptr<Task>(task);
+    ValueItem::ValueItem(const art::typed_lgr<Task>& task) {
+        val = new art::typed_lgr<Task>(task);
         meta = VType::async_res;
     }
 
@@ -2933,7 +2933,7 @@ namespace art {
         meta.as_ref = true;
     }
 
-    ValueItem::ValueItem(class art::shared_ptr<Task>& val, as_reference_t) {
+    ValueItem::ValueItem(class art::typed_lgr<Task>& val, as_reference_t) {
         this->val = &val;
         meta = VType::async_res;
         meta.as_ref = true;
@@ -3084,7 +3084,7 @@ namespace art {
         meta.allow_edit = false;
     }
 
-    ValueItem::ValueItem(const art::shared_ptr<Task>& val, as_reference_t) {
+    ValueItem::ValueItem(const art::typed_lgr<Task>& val, as_reference_t) {
         this->val = (void*)&val;
         meta = VType::async_res;
         meta.as_ref = true;
@@ -4241,9 +4241,9 @@ namespace art {
             throw InvalidCast("This type is not set");
     }
 
-    ValueItem::operator art::shared_ptr<Task>&() {
+    ValueItem::operator art::typed_lgr<Task>&() {
         if (meta.vtype == VType::async_res)
-            return *(art::shared_ptr<Task>*)getSourcePtr();
+            return *(art::typed_lgr<Task>*)getSourcePtr();
         throw InvalidCast("This type is not async_res");
     }
 
@@ -4357,9 +4357,9 @@ namespace art {
             throw InvalidCast("This type is not set");
     }
 
-    ValueItem::operator const class art::shared_ptr<Task> &() const {
+    ValueItem::operator const class art::typed_lgr<Task> &() const {
         if (meta.vtype == VType::async_res)
-            return *(const art::shared_ptr<Task>*)getSourcePtr();
+            return *(const art::typed_lgr<Task>*)getSourcePtr();
         throw InvalidCast("This type is not async_res");
 
     } ValueItem::operator const art::shared_ptr<FuncEnvironment>&() const {
@@ -5330,7 +5330,7 @@ namespace art {
     void ValueItem::getGeneratorResult(ValueItem* result, uint64_t index) {
         if (val)
             while (meta.vtype == VType::async_res) {
-                art::shared_ptr<Task>& task = *(art::shared_ptr<Task>*)getSourcePtr();
+                art::typed_lgr<Task>& task = *(art::typed_lgr<Task>*)getSourcePtr();
                 ValueItem* res = Task::get_result(task, index);
                 if (res) {
                     *result = *res;
@@ -5422,7 +5422,7 @@ namespace art {
                 destructor = (void (*)(void*))Structure::destruct;
                 break;
             case VType::async_res:
-                destructor = defaultDestructor<art::shared_ptr<Task>>;
+                destructor = defaultDestructor<art::typed_lgr<Task>>;
                 break;
             case VType::function:
                 destructor = defaultDestructor<art::shared_ptr<FuncEnvironment>>;

@@ -88,7 +88,7 @@ namespace art {
                 return VType::uarr;
             else if constexpr (std::is_same_v<T, art::ustring>)
                 return VType::string;
-            else if constexpr (std::is_same_v<T, art::shared_ptr<Task>>)
+            else if constexpr (std::is_same_v<T, art::typed_lgr<Task>>)
                 return VType::async_res;
             else if constexpr (std::is_same_v<T, void*>)
                 return VType::undefined_ptr;

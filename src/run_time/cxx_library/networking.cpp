@@ -2198,7 +2198,7 @@ namespace art {
 #pragma endregion
 
     class udp_handle : public NativeWorkerHandle, public NativeWorkerManager {
-        art::shared_ptr<Task> notify_task;
+        art::typed_lgr<Task> notify_task;
         SOCKET socket;
         sockaddr_in6 server_address;
 
@@ -4110,7 +4110,7 @@ namespace art {
     };
 
     class udp_handle : public NativeWorkerHandle, public NativeWorkerManager {
-        art::shared_ptr<Task> notify_task;
+        art::typed_lgr<Task> notify_task;
         SOCKET socket;
         sockaddr_in6 server_address;
 

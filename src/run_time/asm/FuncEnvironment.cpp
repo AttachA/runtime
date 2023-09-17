@@ -468,7 +468,7 @@ namespace art {
         ValueItem* res = new ValueItem();
         res->meta = ValueMeta(VType::async_res, false, false).encoded;
         res->val = new typed_lgr(new Task(f, ValueItem(args, ValueMeta(VType::saarr, false, true, args_len), no_copy)));
-        Task::start(*(art::shared_ptr<Task>*)res->val);
+        Task::start(*(art::typed_lgr<Task>*)res->val);
         return res;
     }
 

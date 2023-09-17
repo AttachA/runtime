@@ -23,12 +23,12 @@ namespace art {
             } else {
                 art::lock_guard guard(no_race);
                 resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
-                swapCtxRelock(*mut.mutex(), no_race);
+                swapCtxRelock(no_race, *mut.mutex());
             }
         } else {
             art::condition_variable_any cd;
             bool has_res = false;
-            art::shared_ptr<Task> task = Task::cxx_native_bridge(has_res, cd);
+            art::typed_lgr<Task> task = Task::cxx_native_bridge(has_res, cd);
             if (mut.mutex()->nmut == &no_race) {
                 resume_task.emplace_back(task, task->awake_check);
                 while (!has_res)
@@ -69,7 +69,7 @@ namespace art {
         } else {
             art::condition_variable_any cd;
             bool has_res = false;
-            art::shared_ptr<Task> task = Task::cxx_native_bridge(has_res, cd);
+            art::typed_lgr<Task> task = Task::cxx_native_bridge(has_res, cd);
 
             if (mut.mutex()->nmut == &no_race) {
                 resume_task.emplace_back(task, task->awake_check);
@@ -120,7 +120,7 @@ namespace art {
             }
             glob.tasks_notifier.notify_one();
             if (Task::max_running_tasks && loc.is_task_thread) {
-                if (Task::max_running_tasks <= glob.in_run_tasks && loc.curr_task && !loc.curr_task->end_of_life)
+                if (can_be_scheduled_task_to_hot() && loc.curr_task && !loc.curr_task->end_of_life)
                     to_yield = true;
             }
         }
@@ -129,7 +129,7 @@ namespace art {
     }
 
     void TaskConditionVariable::notify_one() {
-        art::shared_ptr<Task> tsk;
+        art::typed_lgr<Task> tsk;
         {
             art::lock_guard guard(no_race);
             while (resume_task.size()) {
@@ -152,7 +152,7 @@ namespace art {
             tsk->awaked = true;
             art::lock_guard guard(glob.task_thread_safety);
             if (Task::max_running_tasks && loc.is_task_thread) {
-                if (Task::max_running_tasks <= glob.in_run_tasks && loc.curr_task && !loc.curr_task->end_of_life)
+                if (can_be_scheduled_task_to_hot() && loc.curr_task && !loc.curr_task->end_of_life)
                     to_yield = true;
             }
             transfer_task(tsk);
@@ -161,7 +161,7 @@ namespace art {
             Task::yield();
     }
 
-    void TaskConditionVariable::dummy_wait(art::shared_ptr<Task> task, art::unique_lock<MutexUnify>& lock) {
+    void TaskConditionVariable::dummy_wait(art::typed_lgr<Task> task, art::unique_lock<MutexUnify>& lock) {
         if (lock.mutex()->nmut == &no_race)
             resume_task.emplace_back(task, task->awake_check);
         else {
@@ -170,12 +170,12 @@ namespace art {
         }
     }
 
-    void TaskConditionVariable::dummy_wait_for(art::shared_ptr<Task> task, art::unique_lock<MutexUnify>& lock, size_t milliseconds) {
+    void TaskConditionVariable::dummy_wait_for(art::typed_lgr<Task> task, art::unique_lock<MutexUnify>& lock, size_t milliseconds) {
         dummy_wait_until(task, lock, std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(milliseconds));
     }
 
     ValueItem* _TaskConditionVariable_dummy_awaiter(ValueItem* args, uint32_t len) {
-        art::shared_ptr<Task>& task = *(art::shared_ptr<Task>*)args[0].val;
+        art::typed_lgr<Task>& task = *(art::typed_lgr<Task>*)args[0].val;
         TaskConditionVariable* cv = (TaskConditionVariable*)args[1].val;
         std::chrono::high_resolution_clock::time_point& time_point = (std::chrono::high_resolution_clock::time_point&)args[2];
         art::unique_lock<MutexUnify> lock(*(MutexUnify*)args[3].val, art::defer_lock);
@@ -194,14 +194,9 @@ namespace art {
         return nullptr;
     }
 
-    void TaskConditionVariable::dummy_wait_until(art::shared_ptr<Task> task, art::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point) {
+    void TaskConditionVariable::dummy_wait_until(art::typed_lgr<Task> task, art::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point) {
         static art::shared_ptr<FuncEnvironment> TaskConditionVariable_dummy_awaiter(new FuncEnvironment(_TaskConditionVariable_dummy_awaiter, false, false));
-        delete Task::get_result(new Task(TaskConditionVariable_dummy_awaiter,
-                                         ValueItem{
-                                             ValueItem(new art::shared_ptr<Task>(task), VType::async_res),
-                                             this,
-                                             time_point,
-                                             lock.mutex()}));
+        delete Task::get_result(new Task(TaskConditionVariable_dummy_awaiter, ValueItem{ValueItem(new art::typed_lgr<Task>(task), VType::async_res), this, time_point, lock.mutex()}));
     }
 
     bool TaskConditionVariable::has_waiters() {

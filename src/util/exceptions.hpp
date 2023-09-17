@@ -483,6 +483,19 @@ namespace art {
         art::ustring full_info() const override;
     };
 
+    class InvalidContextSwitchException : public InternalException {
+    public:
+        InvalidContextSwitchException(const art::ustring& msq)
+            : InternalException(msq) {}
+
+        InvalidContextSwitchException(const art::ustring& msq, std::exception_ptr inner_exception)
+            : InternalException(msq, inner_exception) {}
+
+        const char* name() const override {
+            return "invalid_context_switch_exception";
+        }
+    };
+
     class RoutineHandleExceptions : public AttachARuntimeException {
         std::exception_ptr second_exception;
 

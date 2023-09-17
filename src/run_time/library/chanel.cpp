@@ -241,7 +241,7 @@ namespace art {
 
         art::shared_ptr<FuncEnvironment> auto_notify_task = new FuncEnvironment(_auto_notify_task, false);
 
-        typed_lgr<AutoNotifyChanel> Chanel::auto_notify(art::shared_ptr<Task>& val) {
+        typed_lgr<AutoNotifyChanel> Chanel::auto_notify(art::typed_lgr<Task>& val) {
             AutoNotifyChanel* res = new AutoNotifyChanel();
             {
                 std::lock_guard guard(val->no_race);
@@ -257,7 +257,7 @@ namespace art {
             return res;
         }
 
-        typed_lgr<AutoNotifyChanel> Chanel::auto_notify_continue(art::shared_ptr<Task>& val) {
+        typed_lgr<AutoNotifyChanel> Chanel::auto_notify_continue(art::typed_lgr<Task>& val) {
             AutoNotifyChanel* res = new AutoNotifyChanel();
             res->chanel = this;
             res->notifier_task = new Task(auto_notify_task, ValueItem(res, VType::undefined_ptr));
@@ -269,7 +269,7 @@ namespace art {
             return res;
         }
 
-        typed_lgr<AutoNotifyChanel> Chanel::auto_notify_skip(art::shared_ptr<Task>& val, size_t start_from) {
+        typed_lgr<AutoNotifyChanel> Chanel::auto_notify_skip(art::typed_lgr<Task>& val, size_t start_from) {
             AutoNotifyChanel* res = new AutoNotifyChanel();
             res->chanel = this;
             res->notifier_task = new Task(auto_notify_task, ValueItem(res, VType::undefined_ptr));
@@ -349,10 +349,10 @@ namespace art {
         });
 
         AttachAFun(funs_Chanel_auto_notify, 2, {
-            art::shared_ptr<Task> task;
+            art::typed_lgr<Task> task;
             switch (args[1].meta.vtype) {
             case VType::async_res:
-                task = *(art::shared_ptr<Task>*)args[1].getSourcePtr();
+                task = *(art::typed_lgr<Task>*)args[1].getSourcePtr();
                 break;
             case VType::function:
                 task = new Task(*args[1].funPtr(), {});
@@ -366,10 +366,10 @@ namespace art {
         });
 
         AttachAFun(funs_Chanel_auto_notify_continue, 2, {
-            art::shared_ptr<Task> task;
+            art::typed_lgr<Task> task;
             switch (args[1].meta.vtype) {
             case VType::async_res:
-                task = *(art::shared_ptr<Task>*)args[1].getSourcePtr();
+                task = *(art::typed_lgr<Task>*)args[1].getSourcePtr();
                 break;
             case VType::function:
                 task = new Task(*args[1].funPtr(), {});
@@ -383,10 +383,10 @@ namespace art {
         });
 
         AttachAFun(funs_Chanel_auto_notify_skip, 3, {
-            art::shared_ptr<Task> task;
+            art::typed_lgr<Task> task;
             switch (args[1].meta.vtype) {
             case VType::async_res:
-                task = *(art::shared_ptr<Task>*)args[1].getSourcePtr();
+                task = *(art::typed_lgr<Task>*)args[1].getSourcePtr();
                 break;
             case VType::function:
                 task = new Task(*args[1].funPtr(), {});

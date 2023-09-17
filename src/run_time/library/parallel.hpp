@@ -46,6 +46,9 @@ namespace art {
             ValueItem* await_no_tasks(ValueItem*, uint32_t);
             ValueItem* await_end_tasks(ValueItem*, uint32_t);
             ValueItem* explicitStartTimer(ValueItem*, uint32_t);
+
+            ValueItem* create_bind_only_executor(ValueItem*, uint32_t);
+            ValueItem* close_bind_only_executor(ValueItem*, uint32_t);
         }
 
         namespace atomic {

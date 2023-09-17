@@ -104,7 +104,7 @@ namespace art {
             case VType::async_res: {
                 BuildCall b(compiler.a, 1);
                 b.mov_valindex({compiler.static_map, compiler.values}, value_index);
-                b.finalize(defaultDestructor<art::shared_ptr<Task>>);
+                b.finalize(defaultDestructor<art::typed_lgr<Task>>);
                 break;
             }
             case VType::struct_: {
@@ -153,7 +153,7 @@ namespace art {
                         BuildCall b(compiler.a, 2);
                         b.mov_valindex({compiler.static_map, compiler.values}, to);
                         b.mov_valindex({compiler.static_map, compiler.values}, from);
-                        b.finalize((art::shared_ptr<Task> & (art::shared_ptr<Task>::*)(art::shared_ptr<Task>&&)) & art::shared_ptr<Task>::operator=);
+                        b.finalize((art::typed_lgr<Task> & (art::typed_lgr<Task>::*)(art::typed_lgr<Task>&&)) & art::typed_lgr<Task>::operator=);
                         break;
                     }
                     case VType::except_value: {

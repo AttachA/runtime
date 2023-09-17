@@ -9,4 +9,11 @@
 namespace art {
     thread_local executors_local loc;
     executor_global glob;
+
+    bool can_be_scheduled_task_to_hot() {
+        if (Task::max_running_tasks)
+            if (Task::max_running_tasks <= (glob.tasks_in_swap + glob.tasks.size()))
+                return false;
+        return true;
+    }
 }

@@ -169,6 +169,10 @@ namespace art {
         type = MutexUnifyType::noting;
     }
 
+    MutexUnify::~MutexUnify() {
+        type = MutexUnifyType::noting;
+    }
+
     MutexUnify& MutexUnify::operator=(const MutexUnify& mut) {
         type = mut.type;
         nmut = mut.nmut;
