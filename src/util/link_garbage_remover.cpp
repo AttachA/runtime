@@ -162,6 +162,8 @@ namespace art {
         return *this;
     }
 
+#pragma GCC push_options
+#pragma GCC optimize("O0")
     lgr& lgr::operator=(const lgr& copy) {
         if (this == &copy)
             return *this;
@@ -191,6 +193,8 @@ namespace art {
         mov.weak = nullptr;
         return *this;
     }
+
+#pragma GCC pop_options
 
     void*& lgr::operator*() {
         if (total)

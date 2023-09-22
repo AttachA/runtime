@@ -98,13 +98,11 @@ namespace art {
     }
 
     void TaskConditionVariable::notify_all() {
-        std::list<__::resume_task> revive_tasks;
-        {
-            art::lock_guard guard(no_race);
-            std::swap(revive_tasks, resume_task);
-            if (revive_tasks.empty())
-                return;
-        }
+        art::unique_lock no_rece_guard(no_race);
+        std::list<__::resume_task> revive_tasks(std::move(resume_task));
+        no_rece_guard.unlock();
+        if (revive_tasks.empty())
+            return;
         bool to_yield = false;
         {
             art::lock_guard guard(glob.task_thread_safety);
@@ -143,7 +141,7 @@ namespace art {
                     break;
                 }
             }
-            if (resume_task.empty())
+            if (resume_task.empty() && !tsk)
                 return;
         }
         bool to_yield = false;

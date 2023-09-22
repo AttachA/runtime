@@ -770,6 +770,8 @@ namespace art {
     }
 
 #pragma optimize("", off)
+#pragma GCC push_options
+#pragma GCC optimize("O0")
 
     void Task::sleep_until(std::chrono::high_resolution_clock::time_point time_point) {
         if (loc.is_task_thread) {
@@ -789,5 +791,6 @@ namespace art {
             throw EnvironmentRuinException("Thread attempt return yield task in non task enviro");
     }
 
+#pragma GCC pop_options
 #pragma optimize("", on)
 }

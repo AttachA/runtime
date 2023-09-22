@@ -323,7 +323,7 @@ namespace art {
 
         template <class T>
         T Vcast(const void* const& ref_val, const ValueMeta& meta) {
-            const void* val = getValue(ref_val, meta);
+            const void* const& val = getValue(ref_val, meta);
 
             if constexpr (std::is_same_v<T, art::ustring>) {
                 return Scast(val, meta);
@@ -390,7 +390,7 @@ namespace art {
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
                     else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
-                        return (T)(uint8_t)val;
+                        return (T)(uint8_t&)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, uint8_t>(val);
                     else
@@ -403,7 +403,7 @@ namespace art {
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
                     else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
-                        return (T)(uint16_t)val;
+                        return (T)(uint16_t&)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, uint16_t>(val);
                     else
@@ -416,7 +416,7 @@ namespace art {
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
                     else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
-                        return (T)(uint32_t)val;
+                        return (T)(uint32_t&)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, uint32_t>(val);
                     else
@@ -429,7 +429,7 @@ namespace art {
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
                     else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
-                        return (T)(uint64_t)val;
+                        return (T)(uint64_t&)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, uint64_t>(val);
                     else
@@ -442,7 +442,7 @@ namespace art {
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
                     else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
-                        return (T) * (float*)&val;
+                        return (T)(float&)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, float>(val);
                     else
@@ -455,7 +455,7 @@ namespace art {
                     else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
                         return {ValueItem(val, meta)};
                     else if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>)
-                        return (T) * (double*)&val;
+                        return (T)(double&)val;
                     else if constexpr (std::is_arithmetic_v<std::remove_pointer_t<T>> || std::is_same_v<T, ValueItem*>)
                         return AsPointer<std::remove_pointer_t<T>, double>(val);
                     else
@@ -480,7 +480,7 @@ namespace art {
                             list_array<ValueItem> res;
                             res.resize(meta.val_len);
                             for (uint32_t i = 0; i < meta.val_len; i++)
-                                res[i] = ValueItem((void*)reinterpret_cast<const int8_t*>(val)[i], VType::i8);
+                                res[i] = ValueItem(reinterpret_cast<const int8_t*>(val)[i]);
                             return res;
                         } else
                             return {ValueItem(val, meta)};
@@ -506,7 +506,7 @@ namespace art {
                             list_array<ValueItem> res;
                             res.resize(meta.val_len);
                             for (uint32_t i = 0; i < meta.val_len; i++)
-                                res[i] = ValueItem((void*)reinterpret_cast<const int16_t*>(val)[i], VType::i16);
+                                res[i] = ValueItem(reinterpret_cast<const int16_t*>(val)[i]);
                             return res;
                         } else
                             return {ValueItem(val, meta)};
@@ -584,7 +584,7 @@ namespace art {
                             list_array<ValueItem> res;
                             res.resize(meta.val_len);
                             for (uint32_t i = 0; i < meta.val_len; i++)
-                                res[i] = ValueItem((void*)reinterpret_cast<const uint8_t*>(val)[i], VType::ui8);
+                                res[i] = ValueItem(reinterpret_cast<const uint8_t*>(val)[i]);
                             return res;
                         } else
                             return {ValueItem(val, meta)};
@@ -610,7 +610,7 @@ namespace art {
                             list_array<ValueItem> res;
                             res.resize(meta.val_len);
                             for (uint32_t i = 0; i < meta.val_len; i++)
-                                res[i] = ValueItem((void*)reinterpret_cast<const uint16_t*>(val)[i], VType::ui16);
+                                res[i] = ValueItem(reinterpret_cast<const uint16_t*>(val)[i]);
                             return res;
                         } else
                             return {ValueItem(val, meta)};
@@ -636,7 +636,7 @@ namespace art {
                             list_array<ValueItem> res;
                             res.resize(meta.val_len);
                             for (uint32_t i = 0; i < meta.val_len; i++)
-                                res[i] = ValueItem((void*)(size_t) reinterpret_cast<const uint32_t*>(val)[i], VType::ui32);
+                                res[i] = ValueItem(reinterpret_cast<const uint32_t*>(val)[i]);
                             return res;
                         } else
                             return {ValueItem(val, meta)};
@@ -662,7 +662,7 @@ namespace art {
                             list_array<ValueItem> res;
                             res.resize(meta.val_len);
                             for (uint32_t i = 0; i < meta.val_len; i++)
-                                res[i] = ValueItem((void*)reinterpret_cast<const uint64_t*>(val)[i], VType::ui64);
+                                res[i] = ValueItem(reinterpret_cast<const uint64_t*>(val)[i]);
                             return res;
                         } else
                             return {ValueItem(val, meta)};
@@ -688,7 +688,7 @@ namespace art {
                             list_array<ValueItem> res;
                             res.resize(meta.val_len);
                             for (uint32_t i = 0; i < meta.val_len; i++)
-                                res[i] = ValueItem(*(void**)&reinterpret_cast<const float*>(val)[i], VType::flo);
+                                res[i] = ValueItem(reinterpret_cast<const float*>(val)[i]);
                             return res;
                         } else
                             return {ValueItem(val, meta)};
@@ -714,7 +714,7 @@ namespace art {
                             list_array<ValueItem> res;
                             res.resize(meta.val_len);
                             for (uint32_t i = 0; i < meta.val_len; i++)
-                                res[i] = ValueItem(*(void**)&(reinterpret_cast<const double*>(val)[i]), VType::doub);
+                                res[i] = ValueItem(reinterpret_cast<const double*>(val)[i]);
                             return res;
                         } else
                             return {ValueItem(val, meta)};

@@ -1231,22 +1231,20 @@ namespace art {
         static void release_code(uint8_t* res, asmjit::JitAllocator* alloc);
     };
 
-    namespace {
-        struct UWINFO_head {
-            uint8_t Version : 3 = 1;
-            uint8_t Flags : 5 = 0;
-            uint8_t SizeOfProlog = 0;
-            uint8_t CountOfUnwindCodes = 0;
-            uint8_t FrameRegister : 4 = 5;
-            uint8_t FrameOffset : 4 = 0;
-        };
-    }
-
     struct StackTraceItem {
         art::ustring fn_name;
         art::ustring file_path;
         size_t line;
         constexpr static size_t nline = -1;
+    };
+
+    struct UWINFO_head {
+        uint8_t Version : 3 = 1;
+        uint8_t Flags : 5 = 0;
+        uint8_t SizeOfProlog = 0;
+        uint8_t CountOfUnwindCodes = 0;
+        uint8_t FrameRegister : 4 = 5;
+        uint8_t FrameOffset : 4 = 0;
     };
 
     struct ScopeAction {

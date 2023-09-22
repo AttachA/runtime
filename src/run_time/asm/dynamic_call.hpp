@@ -20,18 +20,14 @@ namespace art {
         public:
             struct ArgumentItem {
                 void* ptr;
+                void (*destructor)(void*);
                 size_t value_size : sizeof(size_t) * 4 - 3;
                 size_t value_len : sizeof(size_t) * 4;
                 size_t need_delete : 1;
-                size_t delete_type : 1;
                 size_t is_8bit : 1;
 
-                enum {
-                    dt_standard = 0,
-                    dt_array = 1
-                };
-
-                explicit ArgumentItem(void* set_ptr = nullptr, bool delete_ty = dt_standard, bool need_remove = true, size_t set_value_size = 0, size_t set_value_len = 0, bool value_is_8bit = false) {
+                explicit ArgumentItem(void* set_ptr = nullptr, bool need_remove = true, size_t set_value_size = 0, size_t set_value_len = 0, bool value_is_8bit = false, void (*destructor)(void*) = nullptr)
+                    : destructor(destructor) {
                     ptr = set_ptr;
                     value_size = set_value_size;
                     value_len = set_value_len;
@@ -40,15 +36,14 @@ namespace art {
                     else
                         is_8bit = 0;
                     need_delete = need_remove;
-                    delete_type = delete_ty;
+                }
+
+                ArgumentItem(ArgumentItem&& copy) {
+                    *this = copy;
                 }
 
                 ArgumentItem(const ArgumentItem& copy) {
                     *this = copy;
-                }
-
-                ArgumentItem(ArgumentItem&& copy) {
-                    *this = std::move(copy);
                 }
 
                 ArgumentItem& operator=(const ArgumentItem& copy) {
@@ -56,24 +51,28 @@ namespace art {
                     value_size = copy.value_size;
                     value_len = copy.value_len;
                     need_delete = copy.need_delete;
-                    delete_type = copy.delete_type;
                     is_8bit = copy.is_8bit;
+                    destructor = copy.destructor;
                     return *this;
                 }
 
                 ArgumentItem& operator=(ArgumentItem&& copy) {
-                    ptr = copy.ptr;
-                    value_size = copy.value_size;
-                    value_len = copy.value_len;
-                    need_delete = copy.need_delete;
-                    delete_type = copy.delete_type;
-                    is_8bit = copy.is_8bit;
-                    return *this;
+                    return operator=(copy);
                 }
             };
 
         private:
             list_array<DynamicCall::ArgumentsHolder::ArgumentItem> arguments;
+
+            template <class T>
+            static void arrayDestructor(void* arr) {
+                delete[] (T*)arr;
+            }
+
+            template <class T>
+            static void valueDestructor(void* arr) {
+                delete (T*)arr;
+            }
 
         public:
             ArgumentsHolder() {}
@@ -85,11 +84,11 @@ namespace art {
             template <class T>
             void push_value(const T& value) {
                 if constexpr (sizeof(uint64_t) != sizeof(void*) && sizeof(uint64_t) == sizeof(T))
-                    arguments.push_back(ArgumentItem(new T(value), ArgumentItem::dt_standard, true, sizeof(T), true));
+                    arguments.push_back(ArgumentItem(new T(value), true, sizeof(T), true, false, valueDestructor<T>));
                 else if constexpr (sizeof(T) > sizeof(void*))
-                    arguments.push_back(ArgumentItem(new T(value), ArgumentItem::dt_standard, true, sizeof(T)));
+                    arguments.push_back(ArgumentItem(new T(value), true, sizeof(T), false, valueDestructor<T>));
                 else
-                    arguments.push_back(ArgumentItem(*(void**)&value, ArgumentItem::dt_standard, false, sizeof(T)));
+                    arguments.push_back(ArgumentItem(*(void**)&value, false, sizeof(T)));
             }
 
             template <class T>
@@ -115,7 +114,7 @@ namespace art {
                 char* arg = new char[siz];
                 for (size_t i = 0; i < siz; i++)
                     arg[i] = value[i];
-                arguments.push_back(ArgumentItem(arg, ArgumentItem::dt_array, true, siz));
+                arguments.push_back(ArgumentItem((void*)arg, true, siz, 0, false, arrayDestructor<char>));
             }
 
             template <class T>
@@ -124,18 +123,16 @@ namespace art {
                 T* arg = new T[siz];
                 for (size_t i = 0; i < siz; i++)
                     arg[i] = value[i];
-                arguments.push_back(ArgumentItem(arg, ArgumentItem::dt_array, true, sizeof(T), siz));
+                arguments.push_back(ArgumentItem((void*)arg, true, sizeof(T), siz, false, arrayDestructor<T>));
             }
 
             void clear() {
-                for (ArgumentItem& a : arguments)
+                for (ArgumentItem& a : arguments) {
                     if (a.need_delete) {
-                        if (a.delete_type)
-                            delete[] a.ptr;
-                        else
-                            delete a.ptr;
+                        a.destructor((void*)a.ptr);
                         a.ptr = nullptr;
                     }
+                }
                 arguments.clear();
             }
 

@@ -21,6 +21,10 @@ namespace art {
         }
     }
 
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+#pragma optimize("", off)
+
     void TaskMutex::lock() {
         if (loc.is_task_thread) {
             loc.curr_task->awaked = false;
@@ -113,6 +117,9 @@ namespace art {
             return true;
         }
     }
+
+#pragma optimize("", on)
+#pragma GCC pop_options
 
     void TaskMutex::unlock() {
         art::lock_guard lg0(no_race);

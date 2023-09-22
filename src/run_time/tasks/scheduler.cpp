@@ -5,6 +5,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <base/run_time.hpp>
+#include <run_time/ValueEnvironment.hpp>
 #include <run_time/asm/FuncEnvironment.hpp>
 #include <run_time/asm/exception.hpp>
 #include <run_time/tasks.hpp>
@@ -104,6 +105,8 @@ namespace art {
 #define pre_startup_check() false
 #endif
 #pragma optimize("", off)
+#pragma GCC push_options
+#pragma GCC optimize("O0")
 #pragma region TaskExecutor
 
     void swapCtx() {
@@ -112,9 +115,6 @@ namespace art {
         if (loc.is_task_thread) {
             loc.context_in_swap = true;
             ++glob.tasks_in_swap;
-            loc.curr_task->relock_0.relock_start();
-            loc.curr_task->relock_1.relock_start();
-            loc.curr_task->relock_2.relock_start();
             if (exception::has_exception()) {
                 CXXExInfo cxx = exception::take_current_exception();
                 try {
@@ -415,6 +415,9 @@ namespace art {
             if (pre_startup_check())
                 return false;
             *loc.stack_current_context = std::move(*loc.stack_current_context).resume();
+            loc.curr_task->relock_0.relock_start();
+            loc.curr_task->relock_1.relock_start();
+            loc.curr_task->relock_2.relock_start();
         } else {
             ++glob.in_run_tasks;
             --glob.planned_tasks;
@@ -423,6 +426,9 @@ namespace art {
             if (pre_startup_check())
                 return false;
             *loc.stack_current_context = boost::context::callcc(std::allocator_arg, light_stack(1048576 /*1 mb*/), context_exec);
+            loc.curr_task->relock_0.relock_start();
+            loc.curr_task->relock_1.relock_start();
+            loc.curr_task->relock_2.relock_start();
         }
     caught_ex:
         if (loc.ex_ptr) {
@@ -606,7 +612,6 @@ namespace art {
     }
 
 #pragma endregion
-#pragma optimize("", on)
 
     void taskTimer() {
         glob.time_control_enabled = true;
@@ -680,6 +685,8 @@ namespace art {
         }
     }
 
+#pragma GCC pop_options
+#pragma optimize("", on)
     void startTimeController() {
         art::lock_guard guard(glob.task_timer_safety);
         if (glob.time_control_enabled)

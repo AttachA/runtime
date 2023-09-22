@@ -113,7 +113,8 @@ namespace art {
             break;
         default:
             if (needAlloc(meta))
-                delete *value;
+                throw InvalidOperation("Fail free value, notify dev's via github, reason: used function for free value but value type is " + enum_to_string(meta.vtype) + " and it's not supported");
+            break;
         }
         *value = nullptr;
         return;
@@ -2355,16 +2356,16 @@ namespace art {
         case VType::boolean:
         case VType::i8:
         case VType::ui8:
-            return (uint8_t)*val;
+            return *(uint8_t*)val;
         case VType::i16:
         case VType::ui16:
-            return (uint16_t)*val;
+            return *(uint16_t*)val;
         case VType::i32:
         case VType::ui32:
-            return (uint32_t)*value;
+            return *(uint32_t*)value;
         case VType::ui64:
         case VType::i64:
-            return (uint64_t)*value;
+            return *(uint64_t*)value;
         case VType::flo:
             return *(float*)value;
         case VType::doub:
@@ -2412,40 +2413,40 @@ namespace art {
     }
 
     size_t getSize(void** value) {
-        void* res = getValue(*value, *(ValueMeta*)(value + 1));
+        void** res = &getValue(*value, *(ValueMeta*)(value + 1));
         ValueMeta& meta = *(ValueMeta*)(value + 1);
         int64_t sig;
         size_t actual;
         switch (meta.vtype) {
         case VType::i8:
-            actual = sig = (int8_t)res;
+            actual = sig = *(int8_t*)res;
             break;
         case VType::i16:
-            actual = sig = (int16_t)res;
+            actual = sig = *(int16_t*)res;
             break;
         case VType::i32:
-            actual = sig = (int32_t)res;
+            actual = sig = *(int32_t*)res;
             break;
         case VType::i64:
-            actual = sig = (int64_t)res;
+            actual = sig = *(int64_t*)res;
             break;
         case VType::ui8:
-            return (uint8_t)res;
+            return *(uint8_t*)res;
         case VType::ui16:
-            return (uint16_t)res;
+            return *(uint16_t*)res;
         case VType::ui32:
-            return (uint32_t)res;
+            return *(uint32_t*)res;
         case VType::ui64:
-            return (uint64_t)res;
+            return *(uint64_t*)res;
         case VType::flo: {
-            float tmp = *(float*)&res;
+            float tmp = *(float*)res;
             actual = (size_t)tmp;
             if (tmp != actual)
                 throw NumericUndererflowException();
             return actual;
         }
         case VType::doub: {
-            double tmp = *(double*)&res;
+            double tmp = *(double*)res;
             actual = (size_t)tmp;
             if (tmp != actual)
                 throw NumericUndererflowException();

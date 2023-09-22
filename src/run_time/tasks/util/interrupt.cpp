@@ -155,6 +155,32 @@ void uninstall_timer_handle_local() {
     });
 }
 
+void* operator new(std::size_t n) noexcept(false) {
+    art::interrupt::interrupt_unsafe_region region;
+    void* ptr = malloc(n);
+    if (ptr == nullptr)
+        throw std::bad_alloc();
+    return ptr;
+}
+
+void operator delete(void* p) noexcept {
+    art::interrupt::interrupt_unsafe_region region;
+    free(p);
+}
+
+void* operator new[](std::size_t s) noexcept(false) {
+    art::interrupt::interrupt_unsafe_region region;
+    void* ptr = malloc(s);
+    if (ptr == nullptr)
+        throw std::bad_alloc();
+    return ptr;
+}
+
+void operator delete[](void* p) noexcept {
+    art::interrupt::interrupt_unsafe_region region;
+    free(p);
+}
+
 #else
 #include <signal.h>
 #include <sys/time.h>
@@ -183,29 +209,3 @@ void uninstall_timer_handle_local() {
 }
 
 #endif
-
-void* operator new(std::size_t n) noexcept(false) {
-    art::interrupt::interrupt_unsafe_region region;
-    void* ptr = malloc(n);
-    if (ptr == nullptr)
-        throw std::bad_alloc();
-    return ptr;
-}
-
-void operator delete(void* p) noexcept {
-    art::interrupt::interrupt_unsafe_region region;
-    free(p);
-}
-
-void* operator new[](std::size_t s) noexcept(false) {
-    art::interrupt::interrupt_unsafe_region region;
-    void* ptr = malloc(s);
-    if (ptr == nullptr)
-        throw std::bad_alloc();
-    return ptr;
-}
-
-void operator delete[](void* p) noexcept {
-    art::interrupt::interrupt_unsafe_region region;
-    free(p);
-}

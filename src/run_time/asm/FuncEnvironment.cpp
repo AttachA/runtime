@@ -35,10 +35,10 @@ namespace art {
         void* fn_ptr;
         switch (env->_type) {
         case FuncHandle::inner_handle::FuncType::own:
-            fn_ptr = env->env;
+            fn_ptr = (void*)env->env;
             break;
         case FuncHandle::inner_handle::FuncType::native_c:
-            fn_ptr = env->frame;
+            fn_ptr = (void*)env->frame;
             break;
         case FuncHandle::inner_handle::FuncType::static_native_c:
             fn_ptr = (void*)env->values[0];
@@ -137,7 +137,7 @@ namespace art {
 
     FuncHandle::inner_handle::~inner_handle() {
         if (frame != nullptr && _type == FuncType::own) {
-            if (!FrameResult::deinit(frame, env, *art)) {
+            if (!FrameResult::deinit(frame, (void*)env, *art)) {
                 ValueItem result{"Failed unload function:", frame};
                 errors.async_notify(result);
             }
@@ -348,7 +348,7 @@ namespace art {
         char* function_ptr = (char*)code_data + trampoline_code.labelOffset(compile_call_label) + 8; //8
 
 
-        auto func_ptr = &compile_call;
+        auto func_ptr = &art::FuncHandle::compile_call;
         if (handle ? (bool)handle->env : false)
             *(void**)trampoline_jump = (char*)handle->env;
         else
@@ -388,7 +388,7 @@ namespace art {
 
             if (handle->env != nullptr) {
                 if (trampoline_jump != nullptr)
-                    *trampoline_jump = handle->env;
+                    *trampoline_jump = (void*)handle->env;
             } else {
                 if (trampoline_jump != nullptr)
                     *trampoline_jump = trampoline_not_compiled_fallback;
@@ -426,7 +426,7 @@ namespace art {
             if (handle->_type == inner_handle::FuncType::own) {
                 if (trampoline_jump != nullptr && handle->env != nullptr) {
                     if (*trampoline_jump != handle->env) {
-                        *trampoline_jump = handle->env;
+                        *trampoline_jump = (void*)handle->env;
                         goto not_need_compile;
                     }
                 }
@@ -434,7 +434,7 @@ namespace art {
                 compile_handle->compile();
                 lock.lock();
                 if (trampoline_jump != nullptr)
-                    *trampoline_jump = compile_handle->env;
+                    *trampoline_jump = (void*)compile_handle->env;
             }
         not_need_compile:
             lock.unlock();
@@ -457,7 +457,7 @@ namespace art {
         if (handle)
             if (!handle->is_patchable)
                 if (handle->_type == inner_handle::FuncType::own)
-                    return handle->env;
+                    return (void*)handle->env;
         return trampoline_code;
     }
 
@@ -491,10 +491,10 @@ namespace art {
         void* fn_ptr;
         switch (func_->handle->_type) {
         case FuncHandle::inner_handle::FuncType::own:
-            fn_ptr = func_->handle->env;
+            fn_ptr = (void*)func_->handle->env;
             break;
         case FuncHandle::inner_handle::FuncType::native_c:
-            fn_ptr = func_->handle->frame;
+            fn_ptr = (void*)func_->handle->frame;
             break;
         case FuncHandle::inner_handle::FuncType::static_native_c:
             fn_ptr = (void*)func_->handle->values[0];

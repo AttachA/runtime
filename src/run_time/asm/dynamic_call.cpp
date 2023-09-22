@@ -71,25 +71,26 @@ extern "C" uint64_t CallTypeCall(art::DynamicCall::PROC proc, list_array<art::Dy
 #elif (defined(LINUX) || defined(__linux__) || defined(__linux) || defined(__gnu_linux__)) && defined(__x86_64__)
 extern "C" uint64_t ArgumentsPrepareCallFor_V_AMD64(void* rsi, void* rdi, void* rcx, void* rdx, void* r8, void* r9, art::DynamicCall::PROC proc, size_t values_count, void* args) {
     uint64_t result;
-    __asm__ volatile("mov %0, %%rax"
-                     : "=r"(values_count));
-    __asm__ volatile("mov %0, %%r10"
-                     : "=r"(args));
-    __asm__ volatile("shl $3, %rax");
-    __asm__ volatile("repeat:");
-    __asm__ volatile("cmp $0, %rax");
-    __asm__ volatile("jne not_end");
-    __asm__ volatile("jmp end_proc");
-    __asm__ volatile("not_end:");
-    __asm__ volatile("sub $8, %rax");
-    __asm__ volatile("push (%r10,%rax)");
-    __asm__ volatile("jmp repeat");
-    __asm__ volatile("end_proc:");
-    __asm__ volatile("mov %0, %%rax"
-                     : "=r"(proc));
-    __asm__ volatile("call (%rax)");
-    __asm__ volatile("mov %%rax, %0"
-                     : "=r"(result));
+    __asm__ volatile(
+        "mov %0, %%rax\n"
+        "mov %1, %%r10\n"
+        "shl $3, %%rax\n"
+        "repeat%=:\n"
+        "cmp $0, %%rax\n"
+        "jne not_end%=\n"
+        "jmp end_proc%=\n"
+        "not_end%=:\n"
+        "sub $8, %%rax\n"
+        "push (%%r10,%%rax)\n"
+        "jmp repeat%=\n"
+        "end_proc%=:\n"
+        "mov %2, %%rax\n"
+        "call *%%rax\n"
+        "mov %%rax, %3\n"
+        : "=r"(values_count), "=r"(args), "=r"(proc), "=r"(result)
+        : /* Input operands */
+        : "rax", "r10"
+    );
     return result;
 }
 

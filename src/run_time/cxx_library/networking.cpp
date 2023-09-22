@@ -2626,7 +2626,6 @@ namespace art {
                 }
                 break;
             case Opcode::INTERNAL_CLOSE:
-                socket = INVALID_SOCKET;
                 cv.notify_all();
                 break;
             default:
@@ -2721,21 +2720,23 @@ namespace art {
         void reset() {
             if (!data)
                 return;
-            pre_close(TcpError::local_reset);
             struct linger sl;
             sl.l_onoff = 1;
             sl.l_linger = 0;
             setsockopt(socket, SOL_SOCKET, SO_LINGER, &sl, sizeof(sl));
+            pre_close(TcpError::local_reset);
             internal_close();
         }
 
         void connection_reset() {
             MutexUnify mutex(cv_mutex);
             art::unique_lock<MutexUnify> lock(mutex);
+            char* old_data = data;
             data = nullptr;
             invalid_reason = TcpError::remote_close;
             readed_bytes = 0;
             cv.notify_all();
+            delete[] data;
         }
 
         void rebuffer(int32_t buffer_len) {
@@ -2753,6 +2754,9 @@ namespace art {
         void pre_close(TcpError err) {
             MutexUnify mutex(cv_mutex);
             art::unique_lock<MutexUnify> lock(mutex);
+            opcode = Opcode::INTERNAL_CLOSE;
+            NativeWorkersSingleton::post_shutdown(this, socket, SHUT_RDWR);
+            cv.wait(lock);
             std::list<std::tuple<char*, size_t>> clear_write_queue;
             std::list<std::tuple<char*, size_t>> clear_read_queue;
             readed_bytes = 0;
@@ -2777,6 +2781,7 @@ namespace art {
             opcode = Opcode::INTERNAL_CLOSE;
             NativeWorkersSingleton::post_close(this, socket);
             cv.wait(lock);
+            socket = INVALID_SOCKET;
         }
 
         void read() {

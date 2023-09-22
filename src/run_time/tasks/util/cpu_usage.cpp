@@ -48,10 +48,10 @@ namespace art {
 namespace art {
     namespace cpu {
         double get_usage(usage_prev_stat& prev_stat) {
-            uint64_t cpu_use = 0;
-            uint64_t cpu_nic = 0;
-            uint64_t cpu_sys = 0;
-            uint64_t cpu_idl = 0;
+            unsigned long long cpu_use = 0;
+            unsigned long long cpu_nic = 0;
+            unsigned long long cpu_sys = 0;
+            unsigned long long cpu_idl = 0;
 
             static int proc_stat = 0;
             static char buffer[UINT16_MAX + 1];

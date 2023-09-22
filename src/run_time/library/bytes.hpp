@@ -4,24 +4,17 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#ifndef RUN_TIME_LIBRARY_BYTES
-#define RUN_TIME_LIBRARY_BYTES
+#ifndef SRC_RUN_TIME_LIBRARY_BYTES
+#define SRC_RUN_TIME_LIBRARY_BYTES
+#include <bit>
 #include <stdint.h>
 
 #include <run_time/attacha_abi_structs.hpp>
 
 namespace art {
     namespace bytes {
-        enum class Endian : uint8_t {
-            little,
-            big,
-            native =
-#if 'AABB' == 0x41414242
-                little
-#else
-                big
-#endif
-        };
+        using Endian = std::endian;
+
         inline void swap_bytes(void* value_ptr, size_t len) {
             char* tmp = new char[len];
             char* prox = (char*)value_ptr;
@@ -100,4 +93,4 @@ namespace art {
         ValueItem* to_bytes(ValueItem* args, uint32_t len);
     }
 }
-#endif /* RUN_TIME_LIBRARY_BYTES */
+#endif /* SRC_RUN_TIME_LIBRARY_BYTES */

@@ -81,7 +81,7 @@ namespace art {
 
             ~UnifiedData() {}
         } _data;
-        enum class type : uint8_t {
+        enum class Type : uint8_t {
             def,
             short_def,
             constant,
@@ -93,11 +93,11 @@ namespace art {
             bool has_length : 1; //if not set, count of bytes in string is unknown
             bool has_data : 1;   //if not set, same as empty string
             bool as_unsafe : 1;  //string not validated, act like raw array, all operations is direct(can even modify constant pool value)(use ony if you know what you do)
-            type type : 3;
+            Type type : 3;
         } flags;
 
         void cleanup_current();
-        void switch_to_type(type);
+        void switch_to_type(Type);
         char* direct_ptr();
 
     public:
