@@ -121,6 +121,7 @@ namespace art {
 
         class Compiler {
         public:
+            virtual ~Compiler() = default;
             virtual void decode(const art::ustring&) = 0; //path to file
             virtual void decode(files::FileHandle&) = 0;
             virtual void decode(files::BlockingFileHandle&) = 0;

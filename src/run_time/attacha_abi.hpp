@@ -273,7 +273,7 @@ namespace art {
                 return ValueItem(*(void**)&val, VType::flo);
             else if constexpr (std::is_same_v<std::remove_cvref_t<T>, double>)
                 return ValueItem(*(void**)&val, VType::doub);
-            else if constexpr (std::is_same_v<std::remove_cvref_t<T>, art::ustring> || std::is_same_v<T, const char*>)
+            else if constexpr (std::is_same_v<std::remove_cvref_t<T>, art::ustring> || std::is_same_v<T, const char*> || std::is_same_v<std::remove_cvref_t<T>, std::string>)
                 return ValueItem(new art::ustring(val), VType::string, no_copy);
             else if constexpr (std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>>)
                 return ValueItem(new list_array<ValueItem>(val), VType::uarr, no_copy);
@@ -297,6 +297,7 @@ namespace art {
                         std::is_arithmetic_v<std::remove_cvref_t<T>> ||
                         std::is_same_v<std::remove_cv_t<T>, char*> ||
                         std::is_same_v<std::remove_cvref_t<T>, art::ustring> ||
+                        std::is_same_v<std::remove_cvref_t<T>, std::string> ||
                         std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
                         std::is_same_v<std::remove_cvref_t<T>, ValueMeta> ||
                         std::is_same_v<std::remove_cvref_t<T>, Structure> ||
@@ -739,7 +740,7 @@ namespace art {
                             const list_array<ValueItem>& ref = reinterpret_cast<const list_array<ValueItem>&>(val);
                             std::remove_pointer_t<T>* res = new std::remove_pointer_t<T>[meta.val_len];
                             for (uint32_t i = 0; i < meta.val_len; i++) {
-                                ValueItem& tmp = ref[i];
+                                const ValueItem& tmp = ref[i];
                                 res[i] = (std::remove_pointer_t<T>)tmp;
                             }
                             return res;

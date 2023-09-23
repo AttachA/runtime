@@ -185,6 +185,8 @@ namespace art {
             case VType::saarr:
                 throw InvalidOperation("Fail allocate local stack value");
                 break;
+            default:
+                break;
             }
         }
         if (meta.use_gc) {
@@ -314,6 +316,8 @@ namespace art {
         while (meta.vtype == VType::async_res) {
             ValueItem* vaal = (ValueItem*)&value;
             ValueItem* res = nullptr;
+            if (!value)
+                return;
             try {
                 res = getAsyncValueItem(meta.use_gc ? ((lgr*)value)->getPtr() : value);
                 if (res) {
@@ -409,31 +413,33 @@ namespace art {
     void*& getValue(void*& value, ValueMeta& meta) {
         if (meta.vtype == VType::async_res)
             getAsyncResult(value, meta);
-        if (meta.use_gc)
+        if (meta.use_gc) {
+            if (!value) {
+                meta = ValueMeta(0);
+                return value;
+            }
             if (((lgr*)value)->is_deleted()) {
                 universalRemove(&value);
                 meta = ValueMeta(0);
             }
+        }
         return meta.use_gc ? (**(lgr*)value) : value;
     }
 
     const void* const& getValue(const void* const& value, const ValueMeta& meta) {
-        if (meta.use_gc)
+        if (meta.use_gc) {
+            if (!value) {
+                return value;
+            }
             if (((lgr*)value)->is_deleted())
                 universalRemove((void**)&value);
+        }
         return meta.use_gc ? (**(const lgr*)value) : value;
     }
 
     void*& getValue(void** value) {
         ValueMeta& meta = *(ValueMeta*)(value + 1);
-        if (meta.vtype == VType::async_res)
-            getAsyncResult(*value, meta);
-        if (meta.use_gc)
-            if (((lgr*)value)->is_deleted()) {
-                universalRemove(value);
-                meta = 0;
-            }
-        return meta.use_gc ? (**(lgr*)value) : *value;
+        return getValue(*value, meta);
     }
 
     void* getSpecificValue(void** value, VType typ) {
@@ -2471,8 +2477,8 @@ namespace art {
             meta = move.meta;
             meta.vtype = VType::faarr;
             move.val = nullptr;
+            return;
         }
-
         val = move.val;
         meta = move.meta;
         move.val = nullptr;
@@ -5490,6 +5496,8 @@ namespace art {
                 *this = ValueItem((ValueItem*)val, meta.val_len);
                 make_gc();
                 return;
+            default:
+                break;
             }
             val = new lgr(new_val, nullptr, destructor);
         }
@@ -6152,6 +6160,8 @@ namespace art {
     }
 
     MethodInfo& MethodInfo::operator=(const MethodInfo& copy) {
+        if (this == &copy)
+            return *this;
         ref = copy.ref;
         name = copy.name;
         owner_name = copy.owner_name;
@@ -6163,6 +6173,8 @@ namespace art {
     }
 
     MethodInfo& MethodInfo::operator=(MethodInfo&& move) {
+        if (this == &move)
+            return *this;
         ref = std::move(move.ref);
         name = std::move(move.name);
         owner_name = std::move(move.owner_name);

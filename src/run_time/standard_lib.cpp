@@ -735,9 +735,12 @@ namespace art {
         case VType::i32:
         case VType::ui32:
         case VType::i64:
-        case VType::ui64:
+        case VType::ui64: {
             ValueItem tmp((double)val);
             return math_trigonometric_impl<fn>(tmp);
+        }
+        default:
+            break;
         }
         switch (val.meta.vtype) {
         case VType::flo:

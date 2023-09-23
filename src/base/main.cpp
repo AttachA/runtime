@@ -223,7 +223,18 @@ void test_fast_server_http(TcpNetworkStream& stream) {
     }
 }
 
+AttachAFun(test_arguments_passing_, 0, {
+    return console::printLine(args, len);
+});
+
+void test_arguments_passing(int one, int two, int three, double five) {
+    CXX::cxxCall(console::printLine, "one: " + std::to_string(one) + " two: " + std::to_string(two) + " three: " + std::to_string(three) + " five: " + std::to_string(five));
+}
+
 int main() {
+    auto test_native = CXX::MakeNative(test_arguments_passing, false, false);
+    CXX::cxxCall(test_native, 1, 2, 3, 5.5);
+    CXX::cxxCall(test_arguments_passing_, 1, 2, 3, 5.5);
     Task::create_executor(1);
     init_networking();
     initStandardLib_file();

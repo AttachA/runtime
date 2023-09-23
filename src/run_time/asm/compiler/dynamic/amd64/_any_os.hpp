@@ -183,8 +183,8 @@ namespace art {
                 a.jmp_signed_more_or_eq(no_exception_label);
             }
             BuildCall b(a, 2);
-            b.addArg(&exception_name);
-            b.addArg(&exception_description);
+            b.addArg((void*)&exception_name);
+            b.addArg((void*)&exception_description);
             b.finalize(helper_functions::throwEx);
             a.label_bind(no_exception_label);
             break;

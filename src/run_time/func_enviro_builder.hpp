@@ -51,6 +51,8 @@ namespace art {
                     static_values = val.index;
                 flags.used_static = true;
                 break;
+            case ValuePos::in_constants:
+                break;
             }
         }
 

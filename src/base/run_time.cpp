@@ -316,10 +316,9 @@ namespace art {
     }
 
     void ini_current() {
-        bool cur_siz = SetThreadStackGuarantee(&stack_size_tmp);
+        SetThreadStackGuarantee(&stack_size_tmp);
         stack_size_tmp += fault_reserved_stack_size;
-        bool setted = SetThreadStackGuarantee(&stack_size_tmp);
-        auto err = GetLastError();
+        SetThreadStackGuarantee(&stack_size_tmp);
 
         AddVectoredExceptionHandler(0, win_exception_handler);
         SetUnhandledExceptionFilter(win_fault_handler);

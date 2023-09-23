@@ -11,7 +11,7 @@ namespace art {
     TaskCancellation::TaskCancellation()
         : AttachARuntimeException("This task received cancellation token") {}
 
-    TaskCancellation::~TaskCancellation() {
+    TaskCancellation::~TaskCancellation() noexcept(false) {
         if (!in_landing) {
             abort();
         }

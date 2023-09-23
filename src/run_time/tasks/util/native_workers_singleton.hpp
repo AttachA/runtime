@@ -108,7 +108,7 @@ namespace art {
                 for (ptrdiff_t i = diff; i < 0; i++)
                     post_work(new CancellationHandle(cancellation_manager_instance), 0);
             }
-            return {recommended_thread_count, 1};
+            return {recommended_thread_count, recommended_sleep_count};
         }
 
         void dispatch() {

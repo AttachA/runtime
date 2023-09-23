@@ -402,9 +402,13 @@ namespace art {
                 throw InvalidOperation("Tried patch unpatchable function");
             this->handle->reduce_usage();
         }
-        handle->increase_usage();
-        this->handle = handle;
-        handle->parent = this;
+        if (handle) {
+            handle->increase_usage();
+            this->handle = handle;
+            handle->parent = this;
+        } else {
+            this->handle = nullptr;
+        }
     }
 
     bool FuncHandle::is_cheap() {

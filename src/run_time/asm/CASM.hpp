@@ -1284,7 +1284,8 @@ namespace art {
         size_t function_begin_off;
         size_t function_end_off;
 
-        ScopeAction() {}
+        ScopeAction()
+            : action(Action::not_action), function_begin_off(0), function_end_off(0) {}
 
         ScopeAction(const ScopeAction& copy) {
             *this = copy;

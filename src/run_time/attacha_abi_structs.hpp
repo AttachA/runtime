@@ -197,8 +197,6 @@ namespace art {
         is_zero
     );
 
-    
-
     struct Command {
         Command() {
             code = Opcode::noting;
@@ -465,7 +463,7 @@ namespace art {
         using iterator_category = std::forward_iterator_tag;
         ValueItemIterator(ValueItem& item, bool end = false);
 
-        ValueItemIterator(ValueItemIterator&& move)
+        ValueItemIterator(ValueItemIterator&& move) noexcept
             : item(move.item) {
             iterator_data = move.iterator_data;
             move.iterator_data = nullptr;
@@ -496,7 +494,7 @@ namespace art {
         ValueItemConstIterator(const ValueItem& item, bool end = false)
             : iterator(const_cast<ValueItem&>(item), end) {}
 
-        ValueItemConstIterator(ValueItemConstIterator&& move)
+        ValueItemConstIterator(ValueItemConstIterator&& move) noexcept
             : iterator(std::move(move.iterator)) {}
 
         ValueItemConstIterator(const ValueItemConstIterator& copy)
@@ -1185,8 +1183,12 @@ namespace art {
                 return *(T*)ptr;
             uint8_t bit_offset2 = bit_offset % 8;
 
-            uint16_t used_bytes = bit_used ? bit_used / 8 : sizeof(T);
             uint8_t used_bits = bit_used ? bit_used % 8 : 0;
+            uint16_t used_bytes = bit_used ? bit_used / 8 : sizeof(T);
+            if (used_bytes >= sizeof(T)) {
+                used_bytes = sizeof(T);
+                used_bits = 0;
+            }
 
             char buffer[sizeof(T)]{0};
             for (uint8_t i = 0; i < used_bytes - 1; i++)
@@ -1230,7 +1232,11 @@ namespace art {
             uint8_t bit_offset2 = bit_offset % 8;
 
             uint8_t used_bits = bit_used ? bit_used % 8 : 0;
-            uint16_t used_bytes = bit_used ? bit_used / 8 : sizeof(T) + (used_bits ? 1 : 0);
+            uint16_t used_bytes = bit_used ? bit_used / 8 : sizeof(T);
+            if (used_bytes >= sizeof(T)) {
+                used_bytes = sizeof(T);
+                used_bits = 0;
+            }
 
             char buffer[sizeof(T)]{0};
             (*(T*)buffer) = value;

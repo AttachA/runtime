@@ -38,7 +38,7 @@ namespace art {
                     need_delete = need_remove;
                 }
 
-                ArgumentItem(ArgumentItem&& copy) {
+                ArgumentItem(ArgumentItem&& copy) noexcept {
                     *this = copy;
                 }
 
@@ -46,7 +46,7 @@ namespace art {
                     *this = copy;
                 }
 
-                ArgumentItem& operator=(const ArgumentItem& copy) {
+                ArgumentItem& operator=(const ArgumentItem& copy) noexcept {
                     ptr = copy.ptr;
                     value_size = copy.value_size;
                     value_len = copy.value_len;
@@ -56,7 +56,7 @@ namespace art {
                     return *this;
                 }
 
-                ArgumentItem& operator=(ArgumentItem&& copy) {
+                ArgumentItem& operator=(ArgumentItem&& copy) noexcept {
                     return operator=(copy);
                 }
             };
@@ -211,7 +211,8 @@ namespace art {
                     return ptype == PlaceType::as_ptr && vtype == ValueType::integer && !is_modifiable && !vsize;
                 }
 
-                ValueT() {}
+                ValueT()
+                    : ptype(PlaceType ::as_ptr), vtype(ValueType::integer), is_modifiable(false), vsize(0) {}
 
                 ValueT(PlaceType ptype, ValueType vtype, size_t is_modifiable, size_t vsize)
                     : ptype(ptype), vtype(vtype), is_modifiable(is_modifiable), vsize(vsize) {}

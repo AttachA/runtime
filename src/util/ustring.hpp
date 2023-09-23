@@ -66,8 +66,8 @@ namespace art {
 
             struct default_ {
                 list_array<char> larr;
-                size_t hash;
-                size_t symbols;
+                size_t hash = 0;
+                size_t symbols = 0;
 
                 default_() {}
 

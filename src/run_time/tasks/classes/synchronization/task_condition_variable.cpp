@@ -98,9 +98,9 @@ namespace art {
     }
 
     void TaskConditionVariable::notify_all() {
-        art::unique_lock no_rece_guard(no_race);
+        art::unique_lock no_race_guard(no_race);
         std::list<__::resume_task> revive_tasks(std::move(resume_task));
-        no_rece_guard.unlock();
+        no_race_guard.unlock();
         if (revive_tasks.empty())
             return;
         bool to_yield = false;
@@ -109,7 +109,7 @@ namespace art {
             for (auto& resumer : revive_tasks) {
                 auto& it = resumer.task;
                 art::lock_guard guard_loc(it->no_race);
-                if (resumer.awake_check != resumer.awake_check)
+                if (resumer.task->awake_check != resumer.awake_check)
                     continue;
                 if (!it->time_end_flag) {
                     it->awaked = true;

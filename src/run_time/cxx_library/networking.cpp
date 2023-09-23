@@ -1911,10 +1911,10 @@ namespace art {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
 
-            sockaddr_storage* addr = new sockaddr_storage;
-            memcpy(addr, &connectionAddress, sizeof(sockaddr_in6));
-            memset(((char*)addr) + sizeof(sockaddr_in6), 0, sizeof(sockaddr_storage) - sizeof(sockaddr_in6));
-            return ValueItem(CXX::Interface::constructStructure<universal_address>(define_UniversalAddress, *addr), no_copy);
+            sockaddr_storage addr;
+            memcpy(&addr, &connectionAddress, sizeof(sockaddr_in6));
+            memset(((char*)&addr) + sizeof(sockaddr_in6), 0, sizeof(sockaddr_storage) - sizeof(sockaddr_in6));
+            return ValueItem(CXX::Interface::constructStructure<universal_address>(define_UniversalAddress, addr), no_copy);
         }
 
         bool is_paused() {
@@ -2120,10 +2120,11 @@ namespace art {
         void set_configuration(const TcpConfiguration& config) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::read, corrupted");
-            if (_handle)
+            if (_handle) {
                 set_configuration(_handle->socket, config);
-            if (!corrupted)
-                _handle->rebuffer(config.buffer_size);
+                if (!corrupted)
+                    _handle->rebuffer(config.buffer_size);
+            }
         }
 
         int32_t read(char* data, int32_t len) {

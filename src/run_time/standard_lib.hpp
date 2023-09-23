@@ -8,7 +8,7 @@ namespace art {
     //functions starting with symbol '#' is constructors
     //functions starting with symbol '\1' is special functions that used by compilers and should not called by user
     //symbol '#' in names represent multiple constructors ex '# net ip#v6' is constructor for
-    //L>   '# net ip' that recuive only ip6 address in string, btw what contains afetr '#' is not important, that can be just numbers
+    //L>   '# net ip' that receive only ip6 address in string, btw what contains after '#' is not important, that can be just numbers
 
     void initStandardLib();      //init all,except CMath and debug
     void initStandardLib_safe(); //init all,except CMath, internal, debug and start_debug

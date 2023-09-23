@@ -14,6 +14,7 @@ namespace art {
     namespace il_compiler {
         class basic {
         public:
+            virtual ~basic() = default;
             virtual void build(
                 const std::vector<uint8_t>& data,
                 size_t start,

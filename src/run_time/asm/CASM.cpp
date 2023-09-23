@@ -312,22 +312,28 @@ namespace art {
 
         uint32_t frame;
         for (frame = 0; frame < max_frames; frame++) {
-            ULONG64 image_base;
-            PRUNTIME_FUNCTION rt_func = RtlLookupFunctionEntry(context.Rip, &image_base, &history);
+            try {
+                ULONG64 image_base;
+                PRUNTIME_FUNCTION rt_func = RtlLookupFunctionEntry(context.Rip, &image_base, &history);
 
-            KNONVOLATILE_CONTEXT_POINTERS nv_context;
-            memset(&nv_context, 0, sizeof(KNONVOLATILE_CONTEXT_POINTERS));
-            if (!rt_func) {
-                context.Rip = (ULONG64)(*(PULONG64)context.Rsp);
-                context.Rsp += 8;
-            } else
-                RtlVirtualUnwind(UNW_FLAG_NHANDLER, image_base, context.Rip, rt_func, &context, &handler_data, &establisher_frame, &nv_context);
+                KNONVOLATILE_CONTEXT_POINTERS nv_context;
+                memset(&nv_context, 0, sizeof(KNONVOLATILE_CONTEXT_POINTERS));
+                if (!rt_func) {
+                    if (!context.Rsp)
+                        break;
+                    context.Rip = (ULONG64)(*(PULONG64)context.Rsp);
+                    context.Rsp += 8;
+                } else
+                    RtlVirtualUnwind(UNW_FLAG_NHANDLER, image_base, context.Rip, rt_func, &context, &handler_data, &establisher_frame, &nv_context);
 
 
-            if (!context.Rip)
+                if (!context.Rip)
+                    break;
+
+                out_frames[frame] = (void*)context.Rip;
+            } catch (const SegmentationFaultException& e) {
                 break;
-
-            out_frames[frame] = (void*)context.Rip;
+            }
         }
         return frame;
     }

@@ -862,8 +862,8 @@ namespace art {
         case ustring::Type::short_def: {
             if (len <= short_array_size) {
                 size_t old_len = size();
-                for (size_t i = 0; i < len; len++)
-                    _data.short_data[i] = ' ';
+                if(old_len < len)
+                    memset(_data.short_data + old_len, ' ', len - old_len);
                 _data.short_data[len - 1] = 0;
                 break;
             }

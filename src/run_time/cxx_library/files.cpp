@@ -449,8 +449,9 @@ namespace art {
                         delete res;
                         return 0;
                     } else {
+                        VType actual_type = res->meta.vtype;
                         delete res;
-                        throw InternalException("Caught invalid value type, excepted raw_arr_ui8, noting or except_value, but got " + std::to_string((int)res->meta.vtype));
+                        throw InternalException("Caught invalid value type, excepted raw_arr_ui8, noting or except_value, but got " + enum_to_string(actual_type));
                     }
                 } catch (...) {
                     delete file;
@@ -1787,7 +1788,7 @@ namespace art {
             }
 
             ~FolderChangesMonitorImpl() {
-                stop();
+                FolderChangesMonitorImpl::stop();
                 if (_directory != INVALID_HANDLE_VALUE)
                     CloseHandle(_directory);
             }
@@ -1939,7 +1940,7 @@ namespace art {
                 }
             }
 
-            void start() noexcept(false) {
+            void start() noexcept(false) override {
                 if (_is_running)
                     return;
                 if (_directory == INVALID_HANDLE_VALUE)
@@ -1953,7 +1954,7 @@ namespace art {
                 _is_running = true;
             }
 
-            void lazy_start() noexcept(false) {
+            void lazy_start() noexcept(false) override {
                 if (_is_running)
                     return;
                 if (_directory == INVALID_HANDLE_VALUE)
@@ -1966,13 +1967,13 @@ namespace art {
                 _is_running = true;
             }
 
-            void once_scan() noexcept(false) {
+            void once_scan() noexcept(false) override {
                 if (_is_running)
                     return;
                 manually_iterate();
             }
 
-            void stop() noexcept(false) {
+            void stop() noexcept(false) override {
                 if (!_is_running)
                     return;
                 if (_directory != INVALID_HANDLE_VALUE)
@@ -1982,39 +1983,39 @@ namespace art {
                 watcher_shutdown->async_notify(noting);
             }
 
-            ValueItem get_event_folder_name_change() const {
+            ValueItem get_event_folder_name_change() const override {
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_name_change), no_copy);
             }
 
-            ValueItem get_event_file_name_change() const {
+            ValueItem get_event_file_name_change() const override {
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_name_change), no_copy);
             }
 
-            ValueItem get_event_folder_size_change() const {
+            ValueItem get_event_folder_size_change() const override {
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_size_change), no_copy);
             }
 
-            ValueItem get_event_file_size_change() const {
+            ValueItem get_event_file_size_change() const override {
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_size_change), no_copy);
             }
 
-            ValueItem get_event_folder_creation() const {
+            ValueItem get_event_folder_creation() const override {
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_creation), no_copy);
             }
 
-            ValueItem get_event_file_creation() const {
+            ValueItem get_event_file_creation() const override {
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_creation), no_copy);
             }
 
-            ValueItem get_event_folder_removed() const {
+            ValueItem get_event_folder_removed() const override {
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_removed), no_copy);
             }
 
-            ValueItem get_event_file_removed() const {
+            ValueItem get_event_file_removed() const override {
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_removed), no_copy);
             }
 
-            ValueItem get_event_watcher_shutdown() const {
+            ValueItem get_event_watcher_shutdown() const override {
                 return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), watcher_shutdown), no_copy);
             }
 

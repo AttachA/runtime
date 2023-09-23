@@ -318,7 +318,6 @@ namespace art {
         CONTEXT context;
         context.ContextFlags = CONTEXT_CONTROL;
         if (GetThreadContext(thread_handle.handle, &context) == 0) {
-            DWORD error = GetLastError();
             ResumeThread(thread_handle.handle);
             return false;
         }

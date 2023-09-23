@@ -277,7 +277,7 @@ namespace art {
             try_count++;
             id++;
         }
-        if (id == -1)
+        if (id == (uint16_t)-1)
             goto is_not_id;
         glob.binded_workers[id].allow_implicit_start = allow_implicit_start;
         glob.binded_workers[id].fixed_size = (bool)fixed_count;

@@ -1425,6 +1425,7 @@ namespace art {
         builder::write(handler_data, (uint64_t)exception_name_env_ids.size());
         for (uint16_t id : exception_name_env_ids)
             builder::write(handler_data, id);
+        compiler.scope.setExceptionHandle(handle, exception::_attacha_filter, handler_data.data(), handler_data.size());
     }
 
     void Compiler::DynamicCompiler::handle_catch_3(uint64_t exception_scope, const std::vector<art::ustring>& catch_names, const std::vector<uint16_t>& exception_name_env_ids) {
@@ -1442,6 +1443,7 @@ namespace art {
             handler_data.push_back(1);
             builder::write(handler_data, id);
         }
+        compiler.scope.setExceptionHandle(handle, exception::_attacha_filter, handler_data.data(), handler_data.size());
     }
 
     void Compiler::DynamicCompiler::handle_catch_4(uint64_t exception_scope) {
