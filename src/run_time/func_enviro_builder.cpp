@@ -1070,6 +1070,134 @@ void FuncEnviroBuilder::remove_qualifiers(ValueIndexPos res) {
 }
 
 #pragma endregion
+#pragma region except
+
+FuncEnviroBuilder::_except_build::_except_build(FuncEnviroBuilder& build)
+    : build(build) {}
+
+void FuncEnviroBuilder::_except_build::handle_begin(uint64_t id) {
+    if (build.except_ids_watch.contains(id))
+        throw InvalidOperation("This exception handle id already defined and in use");
+    builder::write(build.code, Command(Opcode::handle_begin));
+    builder::write(build.code, id);
+    build.except_ids_watch.emplace(id);
+}
+
+void FuncEnviroBuilder::_except_build::handle_catch(uint64_t id, const std::initializer_list<ValueIndexPos>& filter_strings) {
+    if (!build.except_ids_watch.contains(id))
+        throw InvalidOperation("This exception handle id is not defined");
+    bool is_mixed = false;
+    bool on_constants = false;
+    bool on_enviro = false;
+    for (auto& i : filter_strings) {
+        if (i.pos == ValuePos::in_constants)
+            on_constants = true;
+        else if (i.pos != ValuePos::in_enviro)
+            throw InvalidArguments("All filter strings must be in environment or constants");
+        else
+            on_enviro = true;
+
+        if (on_constants && on_enviro) {
+            is_mixed = true;
+            break;
+        }
+    }
+    builder::write(build.code, Command(Opcode::handle_catch));
+    builder::write(build.code, id);
+
+    if (is_mixed) {
+        builder::write<char>(build.code, 3);
+        builder::writePackedLen(build.code, filter_strings.size());
+        for (auto& i : filter_strings) {
+            builder::write<bool>(build.code, i.pos == ValuePos::in_enviro);
+            if (i.pos == ValuePos::in_enviro)
+                builder::write(build.code, i.index);
+            else
+                builder::writeString(build.code, (art::ustring)build.all_constants[i.index]);
+        }
+    } else {
+        if (on_enviro) {
+            if (filter_strings.size() == 1) {
+                builder::write<char>(build.code, 1);
+                builder::write(build.code, filter_strings.begin()->index);
+            }
+            builder::write<char>(build.code, 2);
+            builder::writePackedLen(build.code, filter_strings.size());
+            for (auto& i : filter_strings)
+                builder::write(build.code, i.index);
+        } else { //on_constants
+            builder::write<char>(build.code, 0);
+            builder::writePackedLen(build.code, filter_strings.size());
+            for (auto& i : filter_strings)
+                builder::writeString(build.code, (art::ustring)build.all_constants[i.index]);
+        }
+    }
+}
+
+void FuncEnviroBuilder::_except_build::handle_catch_all(uint64_t id) {
+    if (!build.except_ids_watch.contains(id))
+        throw InvalidOperation("This exception handle id is not defined");
+    builder::write(build.code, Command(Opcode::handle_catch));
+    builder::write(build.code, id);
+    builder::write<char>(build.code, 4);
+}
+
+void FuncEnviroBuilder::_except_build::handle_catch_filter(uint64_t id, ValueIndexPos filter_fn_mem, uint16_t filter_enviro_slice_begin, uint16_t filter_enviro_slice_end) {
+    if (!build.except_ids_watch.contains(id))
+        throw InvalidOperation("This exception handle id is not defined");
+    builder::write(build.code, Command(Opcode::handle_catch));
+    builder::write(build.code, id);
+    builder::write<char>(build.code, 5);
+    builder::writeIndexPos(build.code, filter_fn_mem);
+    builder::write(build.code, filter_enviro_slice_begin);
+    builder::write(build.code, filter_enviro_slice_end);
+}
+
+void FuncEnviroBuilder::_except_build::handle_finally(uint64_t id, ValueIndexPos fn_mem) {
+    if (!build.except_ids_watch.contains(id))
+        throw InvalidOperation("This exception handle id is not defined");
+    builder::write(build.code, Command(Opcode::handle_finally));
+    builder::writeIndexPos(build.code, fn_mem);
+    builder::write(build.code, id);
+}
+
+void FuncEnviroBuilder::_except_build::handle_end(uint64_t id) {
+    if (!build.except_ids_watch.contains(id))
+        throw InvalidOperation("This exception handle id is not defined");
+    builder::write(build.code, Command(Opcode::handle_end));
+    builder::write(build.code, id);
+    build.except_ids_watch.erase(id);
+}
+
+FuncEnviroBuilder::_except_build FuncEnviroBuilder::except() {
+    return _except_build(*this);
+}
+
+#pragma endregion
+#pragma region life_time
+
+FuncEnviroBuilder::_life_specifier::_life_specifier(FuncEnviroBuilder& build)
+    : build(build) {}
+
+FuncEnviroBuilder::_life_specifier& FuncEnviroBuilder::_life_specifier::hold(uint64_t id, ValueIndexPos enviro_val) {
+    if (enviro_val.pos != ValuePos::in_enviro)
+        throw InvalidArguments("Function must be in environment");
+    builder::write(build.code, Command(Opcode::value_hold));
+    builder::write(build.code, id);
+    builder::write(build.code, enviro_val.index);
+    return *this;
+}
+
+FuncEnviroBuilder::_life_specifier& FuncEnviroBuilder::_life_specifier::release(uint64_t id) {
+    builder::write(build.code, Command(Opcode::value_unhold));
+    builder::write(build.code, id);
+    return *this;
+}
+
+FuncEnviroBuilder::_life_specifier FuncEnviroBuilder::life_time() {
+    return _life_specifier(*this);
+}
+#pragma endregion
 #pragma endregion
 
 art::shared_ptr<FuncEnvironment> FuncEnviroBuilder::O_prepare_func() {

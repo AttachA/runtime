@@ -55,7 +55,7 @@ namespace art {
         bool unmapHandle(uint64_t id) {
             auto it = handle_id_map.find(id);
             if (it != handle_id_map.end()) {
-                manager.endValueLifetime(it->second);
+                manager.endExceptionScope(it->second);
                 handle_id_map.erase(it);
                 return true;
             }
@@ -159,6 +159,16 @@ namespace art {
             if (value_index.pos != ValuePos::in_constants)
                 return 0;
             return (uint64_t)values[value_index.index + static_map.size()];
+        }
+
+        ValueItem& get_constant(const ValueIndexPos& value_index) {
+            if (value_index.pos != ValuePos::in_constants)
+                return values[value_index.index + static_map.size()];
+            return values[value_index.index];
+        }
+
+        Environment get_local_function(size_t i) {
+            return Environment(build_func->local_funcs[i]->get_func_ptr());
         }
 
         struct DynamicCompiler {
@@ -291,11 +301,9 @@ namespace art {
             void handle_catch_2(uint64_t exception_scope, const std::vector<uint16_t>& exception_name_env_ids);
             void handle_catch_3(uint64_t exception_scope, const std::vector<art::ustring>& catch_names, const std::vector<uint16_t>& exception_name_env_ids);
             void handle_catch_4(uint64_t exception_scope);
-            void handle_catch_5(uint64_t exception_scope, uint64_t local_fun_id, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
-            void handle_catch_5(uint64_t exception_scope, const art::ustring& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
+            void handle_catch_5(uint64_t exception_scope, const ValueIndexPos& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
 
-            void handle_finally(uint64_t exception_scope, uint64_t local_fun_id, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
-            void handle_finally(uint64_t exception_scope, const art::ustring& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
+            void handle_finally(uint64_t exception_scope, const ValueIndexPos& function, uint16_t enviro_slice_begin, uint16_t enviro_slice_end);
 
             void handle_end(uint64_t exception_scope);
 

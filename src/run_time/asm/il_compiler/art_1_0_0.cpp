@@ -607,17 +607,10 @@ namespace art {
                         compiler.dynamic().handle_catch_4(handle_id);
                         break;
                     case 5: {
-                        if (readData<bool>(data, data_len, i)) {
-                            uint64_t local_function = readData<uint64_t>(data, data_len, i);
-                            uint16_t enviro_slice_begin = readData<uint16_t>(data, data_len, i);
-                            uint16_t enviro_slice_end = readData<uint16_t>(data, data_len, i);
-                            compiler.dynamic().handle_catch_5(handle_id, local_function, enviro_slice_begin, enviro_slice_end);
-                        } else {
-                            art::ustring global_function = readString(data, data_len, i);
-                            uint16_t enviro_slice_begin = readData<uint16_t>(data, data_len, i);
-                            uint16_t enviro_slice_end = readData<uint16_t>(data, data_len, i);
-                            compiler.dynamic().handle_catch_5(handle_id, global_function, enviro_slice_begin, enviro_slice_end);
-                        }
+                        ValueIndexPos fn_handle = readIndexPos(data, data_len, i);
+                        uint16_t enviro_slice_begin = readData<uint16_t>(data, data_len, i);
+                        uint16_t enviro_slice_end = readData<uint16_t>(data, data_len, i);
+                        compiler.dynamic().handle_catch_5(handle_id, fn_handle, enviro_slice_begin, enviro_slice_end);
                         break;
                     }
                     default:
@@ -626,18 +619,11 @@ namespace art {
                 }
 
                 void dynamic_handle_finally() {
+                    ValueIndexPos fn_handle = readIndexPos(data, data_len, i);
                     uint64_t handle_id = readData<uint64_t>(data, data_len, i);
-                    if (readData<bool>(data, data_len, i)) {
-                        uint64_t local_function = readData<uint64_t>(data, data_len, i);
-                        uint16_t enviro_slice_begin = readData<uint16_t>(data, data_len, i);
-                        uint16_t enviro_slice_end = readData<uint16_t>(data, data_len, i);
-                        compiler.dynamic().handle_finally(handle_id, local_function, enviro_slice_begin, enviro_slice_end);
-                    } else {
-                        art::ustring global_function = readString(data, data_len, i);
-                        uint16_t enviro_slice_begin = readData<uint16_t>(data, data_len, i);
-                        uint16_t enviro_slice_end = readData<uint16_t>(data, data_len, i);
-                        compiler.dynamic().handle_finally(handle_id, global_function, enviro_slice_begin, enviro_slice_end);
-                    }
+                    uint16_t enviro_slice_begin = readData<uint16_t>(data, data_len, i);
+                    uint16_t enviro_slice_end = readData<uint16_t>(data, data_len, i);
+                    compiler.dynamic().handle_finally(handle_id, fn_handle, enviro_slice_begin, enviro_slice_end);
                 }
 
                 void dynamic_handle_end() {

@@ -22,8 +22,10 @@ namespace art {
         std::vector<uint64_t> jump_pos;
         std::unordered_map<art::ustring, size_t, art::hash<art::ustring>> jump_pos_map;
         list_array<ValueItem> dynamic_values;
-        std::forward_list<ValueItem> all_constants;
+        list_array<ValueItem> all_constants;
         std::vector<art::shared_ptr<FuncEnvironment>> local_funs;
+        std::unordered_set<uint64_t> except_ids_watch;
+        std::unordered_set<uint64_t> life_ids_watch;
         uint64_t cop = 0;
         uint16_t values = 0;
         uint16_t static_values = 0;
@@ -290,6 +292,30 @@ namespace art {
         void move_un_reference(ValueIndexPos res, ValueIndexPos val);
         void remove_qualifiers(ValueIndexPos res); //same as ungc and remove_const_protect
 
+        struct _except_build {
+            FuncEnviroBuilder& build;
+
+            _except_build(FuncEnviroBuilder& build);
+            void handle_begin(uint64_t id);
+            void handle_catch(uint64_t id, const std::initializer_list<ValueIndexPos>& filter_strings);
+            void handle_catch_all(uint64_t id);
+            void handle_catch_filter(uint64_t id, ValueIndexPos filter_fn_mem, uint16_t filter_enviro_slice_begin = 0, uint16_t filter_enviro_slice_end = 0);
+            void handle_finally(uint64_t id, ValueIndexPos fn_mem);
+
+            void handle_end(uint64_t id);
+        };
+
+        _except_build except();
+
+        struct _life_specifier {
+            FuncEnviroBuilder& build;
+
+            _life_specifier(FuncEnviroBuilder& build);
+            _life_specifier& hold(uint64_t id, ValueIndexPos enviro_val);
+            _life_specifier& release(uint64_t id);
+        };
+
+        _life_specifier life_time();
 
         FuncEnviroBuilder& O_flag_can_be_unloaded(bool can_be_unloaded);
         FuncEnviroBuilder& O_flag_is_translated(bool is_translated);

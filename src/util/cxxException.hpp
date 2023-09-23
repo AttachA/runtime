@@ -18,6 +18,16 @@ namespace art {
             const std::type_info* ty_info;
             const void* copy_fn;
             bool is_bad_alloc;
+
+            Tys() = default;
+            Tys(const Tys&);
+            Tys(Tys&&);
+
+            Tys(const std::type_info* ty_info, const void* copy_fn, bool is_bad_alloc)
+                : ty_info(ty_info), copy_fn(copy_fn), is_bad_alloc(is_bad_alloc) {}
+
+            Tys& operator=(const Tys&);
+            Tys& operator=(Tys&&);
         };
 
         list_array<Tys> ty_arr;
@@ -28,6 +38,12 @@ namespace art {
         uint64_t ex_data_1 = 0;
         uint64_t ex_data_2 = 0;
         uint64_t ex_data_3 = 0;
+
+        CXXExInfo() = default;
+        CXXExInfo(const CXXExInfo&);
+        CXXExInfo(CXXExInfo&&);
+        CXXExInfo& operator=(const CXXExInfo&);
+        CXXExInfo& operator=(CXXExInfo&&);
     };
 
     void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex);

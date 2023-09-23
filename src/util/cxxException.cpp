@@ -12,6 +12,74 @@
 #include <windows.h>
 
 namespace art {
+
+
+    CXXExInfo::Tys::Tys(const Tys& copy) {
+        *this = copy;
+    }
+
+    CXXExInfo::Tys::Tys(Tys&& move) {
+        *this = std::move(move);
+    }
+
+    CXXExInfo::Tys& CXXExInfo::Tys::operator=(const Tys& copy) {
+        ty_info = copy.ty_info;
+        copy_fn = copy.copy_fn;
+        is_bad_alloc = copy.is_bad_alloc;
+        return *this;
+    }
+
+    CXXExInfo::Tys& CXXExInfo::Tys::operator=(Tys&& move) {
+        ty_info = move.ty_info;
+        copy_fn = move.copy_fn;
+        is_bad_alloc = move.is_bad_alloc;
+
+        move.ty_info = nullptr;
+        move.copy_fn = nullptr;
+        move.is_bad_alloc = false;
+        return *this;
+    }
+
+    CXXExInfo::CXXExInfo(const CXXExInfo& copy) {
+        *this = copy;
+    }
+
+    CXXExInfo::CXXExInfo(CXXExInfo&& move) {
+        *this = std::move(move);
+    }
+
+    CXXExInfo& CXXExInfo::operator=(const CXXExInfo& copy) {
+
+        ty_arr = copy.ty_arr;
+        cleanup_fn = copy.cleanup_fn;
+        ex_ptr = copy.ex_ptr;
+        native_id = copy.native_id;
+        ex_data_0 = copy.ex_data_0;
+        ex_data_1 = copy.ex_data_1;
+        ex_data_2 = copy.ex_data_2;
+        ex_data_3 = copy.ex_data_3;
+        return *this;
+    }
+
+    CXXExInfo& CXXExInfo::operator=(CXXExInfo&& move) {
+        ty_arr = std::move(move.ty_arr);
+        cleanup_fn = move.cleanup_fn;
+        ex_ptr = move.ex_ptr;
+        native_id = move.native_id;
+        ex_data_0 = move.ex_data_0;
+        ex_data_1 = move.ex_data_1;
+        ex_data_2 = move.ex_data_2;
+        ex_data_3 = move.ex_data_3;
+
+        move.cleanup_fn = nullptr;
+        move.ex_ptr = nullptr;
+        move.native_id = 0;
+        move.ex_data_0 = 0;
+        move.ex_data_1 = 0;
+        move.ex_data_2 = 0;
+        move.ex_data_3 = 0;
+        return *this;
+    }
     namespace except_abi {
         namespace {
             struct ExThrowInfo {
@@ -41,6 +109,7 @@ namespace art {
             };
         }
 
+
         CXXExInfo exceptCXXDetails(LPEXCEPTION_RECORD e) {
             CXXExInfo ex;
             if (e->ExceptionCode != 0xe06d7363) {
@@ -56,8 +125,8 @@ namespace art {
             const ExCatchableTypeArray* cArray = (const ExCatchableTypeArray*)(e->ExceptionInformation[3] + throwInfo->catchable_type_array);
             ex.ex_ptr = (const void*)e->ExceptionInformation[1];
             uint32_t count = cArray->catchable_types;
-            while (count--) {
-                const ExCatchableType* ss = (const ExCatchableType*)(e->ExceptionInformation[3] + cArray->array_of_catchable_types(0));
+            for (uint32_t i = 0; i < count; i++) {
+                const ExCatchableType* ss = (const ExCatchableType*)(e->ExceptionInformation[3] + cArray->array_of_catchable_types(i));
                 CXXExInfo::Tys tys{
                     (const std::type_info*)(e->ExceptionInformation[3] + ss->type_info),
                     (const void*)(e->ExceptionInformation[3] + ss->copy_function),

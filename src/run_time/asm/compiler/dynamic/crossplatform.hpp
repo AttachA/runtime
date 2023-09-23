@@ -1399,6 +1399,7 @@ namespace art {
         size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
         std::vector<uint8_t> handler_data;
         handler_data.reserve(40);
+        builder::write(handler_data, (uint64_t)compiler.a.offset());
         handler_data.push_back(0);
         builder::write(handler_data, (uint64_t)catch_names.size());
         for (art::ustring name : catch_names) {
@@ -1412,6 +1413,7 @@ namespace art {
         size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
         std::vector<uint8_t> handler_data;
         handler_data.reserve(40);
+        builder::write(handler_data, (uint64_t)compiler.a.offset());
         handler_data.push_back(1);
         builder::write(handler_data, exception_name_env_id);
         compiler.scope.setExceptionHandle(handle, exception::_attacha_filter, handler_data.data(), handler_data.size());
@@ -1421,6 +1423,7 @@ namespace art {
         size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
         std::vector<uint8_t> handler_data;
         handler_data.reserve(40);
+        builder::write(handler_data, (uint64_t)compiler.a.offset());
         handler_data.push_back(2);
         builder::write(handler_data, (uint64_t)exception_name_env_ids.size());
         for (uint16_t id : exception_name_env_ids)
@@ -1432,6 +1435,7 @@ namespace art {
         size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
         std::vector<uint8_t> handler_data;
         handler_data.reserve(40);
+        builder::write(handler_data, (uint64_t)compiler.a.offset());
         handler_data.push_back(3);
         builder::write(handler_data, (uint64_t)(catch_names.size() + exception_name_env_ids.size()));
         for (art::ustring name : catch_names) {
@@ -1449,49 +1453,37 @@ namespace art {
     void Compiler::DynamicCompiler::handle_catch_4(uint64_t exception_scope) {
         size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
         std::vector<uint8_t> handler_data;
+        builder::write(handler_data, (uint64_t)compiler.a.offset());
         handler_data.push_back(4);
         compiler.scope.setExceptionHandle(handle, exception::_attacha_filter, handler_data.data(), handler_data.size());
     }
 
-    void Compiler::DynamicCompiler::handle_catch_5(uint64_t exception_scope, uint64_t local_fun_id, uint16_t enviro_slice_begin, uint16_t enviro_slice_end) {
+    void write_symbol_catch(std::vector<uint8_t>& handler_data, Compiler& compiler, const ValueIndexPos& fn_symbol) {
+        if (fn_symbol.pos == ValuePos::in_constants) {
+            auto& constant = compiler.get_constant(fn_symbol);
+            if (constant.meta.vtype == VType::function)
+                builder::write(handler_data, (*constant.funPtr())->get_func_ptr());
+            else if (integer_unsigned(constant.meta.vtype))
+                builder::write(handler_data, compiler.get_local_function((size_t)constant));
+            else
+                builder::write(handler_data, FuncEnvironment::environment((art::ustring)constant)->get_func_ptr());
+        } else
+            throw InvalidArguments("fn_symbol must be a constant");
+    }
+
+    void Compiler::DynamicCompiler::handle_catch_5(uint64_t exception_scope, const ValueIndexPos& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end) {
         size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
         std::vector<uint8_t> handler_data;
         handler_data.reserve(40);
+        builder::write(handler_data, (uint64_t)compiler.a.offset());
         handler_data.push_back(5);
-        handler_data.push_back(0);
-        builder::write(handler_data, compiler.build_func->localFn(local_fun_id)->get_func_ptr());
+        write_symbol_catch(handler_data, compiler, function_symbol);
         builder::write(handler_data, enviro_slice_begin);
         builder::write(handler_data, enviro_slice_end);
         compiler.scope.setExceptionHandle(handle, exception::_attacha_filter, handler_data.data(), handler_data.size());
     }
 
-    void Compiler::DynamicCompiler::handle_catch_5(uint64_t exception_scope, const art::ustring& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end) {
-        size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
-        std::vector<uint8_t> handler_data;
-        handler_data.reserve(40);
-        handler_data.push_back(5);
-        handler_data.push_back(1);
-
-        builder::write(handler_data, FuncEnvironment::environment(function_symbol)->get_func_ptr());
-        builder::write(handler_data, enviro_slice_begin);
-        builder::write(handler_data, enviro_slice_end);
-        compiler.scope.setExceptionHandle(handle, exception::_attacha_filter, handler_data.data(), handler_data.size());
-    }
-
-    void Compiler::DynamicCompiler::handle_finally(uint64_t exception_scope, uint64_t local_fun_id, uint16_t enviro_slice_begin, uint16_t enviro_slice_end) {
-        size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
-        if (handle == -1)
-            throw InvalidArguments("Undefined handle");
-        std::vector<uint8_t> handler_data;
-        handler_data.reserve(sizeof(Environment) + sizeof(uint16_t) * 2 + 1);
-        handler_data.push_back(0);
-        builder::write(handler_data, compiler.build_func->localFn(local_fun_id)->get_func_ptr());
-        builder::write(handler_data, enviro_slice_begin);
-        builder::write(handler_data, enviro_slice_end);
-        compiler.scope.setExceptionFinal(handle, exception::_attacha_finally, handler_data.data(), handler_data.size());
-    }
-
-    void Compiler::DynamicCompiler::handle_finally(uint64_t exception_scope, const art::ustring& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end) {
+    void Compiler::DynamicCompiler::handle_finally(uint64_t exception_scope, const ValueIndexPos& function_symbol, uint16_t enviro_slice_begin, uint16_t enviro_slice_end) {
         size_t handle = compiler.scope_map.try_mapHandle(exception_scope);
         if (handle == -1)
             throw InvalidArguments("Undefined handle");
@@ -1499,7 +1491,7 @@ namespace art {
         handler_data.reserve(sizeof(Environment) + sizeof(uint16_t) * 2 + 1);
         handler_data.push_back(0);
 
-        builder::write(handler_data, FuncEnvironment::environment(function_symbol)->get_func_ptr());
+        write_symbol_catch(handler_data, compiler, function_symbol);
         builder::write(handler_data, enviro_slice_begin);
         builder::write(handler_data, enviro_slice_end);
         compiler.scope.setExceptionFinal(handle, exception::_attacha_finally, handler_data.data(), handler_data.size());

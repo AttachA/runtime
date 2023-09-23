@@ -1259,7 +1259,7 @@ namespace art {
         union {
             void (*destruct)(void**);
             void (*destruct_register)(void*);
-            bool (*filter)(CXXExInfo& info, void** handle_address, void* filter_data, size_t len, void* rsp);
+            bool (*filter)(CXXExInfo& info, void** handle_address, void* filter_data, size_t len, void* rsp, uint8_t* image_base);
             void (*finally)(void*, size_t len, void* rsp);
         };
 
@@ -1873,7 +1873,7 @@ namespace art {
             return &res.scope_actions.back();
         }
 
-        ScopeAction* create_filter(bool (*func)(CXXExInfo&, void**, void*, size_t, void*)) {
+        ScopeAction* create_filter(bool (*func)(CXXExInfo&, void**, void*, size_t, void*, uint8_t*)) {
             ScopeAction action;
             action.action = ScopeAction::Action::filter;
             action.filter = func;
@@ -1986,7 +1986,7 @@ namespace art {
             return id;
         }
 
-        ScopeAction* setExceptionHandle(size_t id, bool (*filter_fun)(CXXExInfo&, void**, void*, size_t, void* rsp), void* data, size_t data_size) {
+        ScopeAction* setExceptionHandle(size_t id, bool (*filter_fun)(CXXExInfo&, void**, void*, size_t, void* rsp, uint8_t* image_base), void* data, size_t data_size) {
             auto it = scope_actions.find(id);
             if (it == scope_actions.end())
                 throw CompileTimeException("invalid exception scope");

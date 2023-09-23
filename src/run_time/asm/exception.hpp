@@ -21,12 +21,13 @@ namespace art {
         void unpack_current_exception();
         void current_exception_catched();
         CXXExInfo take_current_exception();
+        CXXExInfo& peek_current_exception();
         void load_current_exception(CXXExInfo& cxx);
         bool try_catch_all(CXXExInfo& cxx);
         bool has_exception();
         list_array<art::ustring> map_native_exception_names(CXXExInfo& cxx);
 
-        bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro);
+        bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro, uint8_t* image_base);
         void _attacha_finally(void* data, size_t size, void* enviro);
     }
 }

@@ -6,7 +6,9 @@
 
 #include <base/run_time.hpp>
 #include <run_time/AttachA_CXX.hpp>
+#include <run_time/asm/exception.hpp>
 #include <run_time/library/console.hpp>
+#include <run_time/library/internal.hpp>
 #include <run_time/standard_lib.hpp>
 #include <run_time/tasks/util/interrupt.hpp>
 
@@ -29,9 +31,47 @@ ValueItem* busyWorker(ValueItem* args, uint32_t argc) {
     return new ValueItem(i);
 }
 
+void throw_test() {
+    throw std::invalid_argument("test");
+}
+
+bool catch_test() {
+    if (art::exception::has_exception()) {
+        CXX::cxxCall(console::printLine, "Hello from filter");
+        return art::exception::map_native_exception_names(art::exception::peek_current_exception())
+            .contains("class std::exception");
+    }
+    return false;
+}
+
+void catched() {
+    CXX::cxxCall(console::printLine, "catched");
+}
+
 #pragma optimize("", on)
 
 ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
+    {
+        FuncEnvironment::AddNative(throw_test, "throw_test", false, false);
+        FuncEnvironment::AddNative(catch_test, "catch_test", false, false);
+        FuncEnvironment::AddNative(catched, "catched", false, false);
+        FuncEnviroBuilder build;
+        auto _throw_test = build.create_constant("throw_test");
+        auto _catch_test = build.create_constant("catch_test");
+        auto _catched = build.create_constant("catched");
+        build.except().handle_begin(0);
+        build.call_and_ret(_throw_test);
+        build.except().handle_catch_filter(0, _catch_test);
+        build.except().handle_end(0);
+        build.call_and_ret(_catched);
+        build.O_load_func("except_test");
+        try {
+            CXX::cxxCall("except_test");
+        } catch (...) {
+            CXX::cxxCall(console::printLine, "not_catched");
+        }
+    }
+
     ValueItem noting;
     Task::start(new Task(FuncEnvironment::environment("busy_worker"), noting));
 
@@ -158,7 +198,7 @@ const char _WARN[] = "WARN";
 const char _INFO[] = "INFO";
 #include <run_time/ValueEnvironment.hpp>
 
-int smain() {
+int mmain() {
     unhandled_exception.join(new FuncEnvironment(logger<_FATAL>, false, false));
     errors.join(new FuncEnvironment(logger<_ERROR>, false, false));
     warning.join(new FuncEnvironment(logger<_WARN>, false, false));
@@ -231,7 +271,7 @@ void test_arguments_passing(int one, int two, int three, double five) {
     CXX::cxxCall(console::printLine, "one: " + std::to_string(one) + " two: " + std::to_string(two) + " three: " + std::to_string(three) + " five: " + std::to_string(five));
 }
 
-int main() {
+int ymain() {
     auto test_native = CXX::MakeNative(test_arguments_passing, false, false);
     CXX::cxxCall(test_native, 1, 2, 3, 5.5);
     CXX::cxxCall(test_arguments_passing_, 1, 2, 3, 5.5);
@@ -252,4 +292,8 @@ int main() {
     server._await();
     server2._await();
     return 0;
+}
+
+int main() {
+    return mmain();
 }

@@ -204,7 +204,6 @@ namespace art {
         b_prolog.pushReg(arg_ptr);
         b_prolog.pushReg(arg_len);
         b_prolog.alignPush();
-        b_prolog.stackAlloc(0x20); //c++ abi
         b_prolog.setFrame();
         b_prolog.end_prolog();
         //OS dependent prolog end

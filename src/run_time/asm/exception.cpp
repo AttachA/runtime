@@ -10,9 +10,10 @@
 #ifdef PLATFORM_WINDOWS
 #include <dbgeng.h>
 
-#include <base/run_time.hpp>
-#include <run_time/asm/CASM.hpp>
-#include <run_time/util/tools.hpp>
+    #include <base/run_time.hpp>
+    #include <run_time/AttachA_CXX.hpp>
+    #include <run_time/asm/CASM.hpp>
+    #include <run_time/util/tools.hpp>
 
 namespace art {
     struct CXXExInfo;
@@ -32,6 +33,9 @@ namespace art {
             bool execute = false;
             bool on_unwind = ExceptionRecord->ExceptionFlags & EXCEPTION_UNWINDING;
             std::exception_ptr current_ex = std::current_exception(); //internally use same pointer as ExceptionRecord in thread local storage when used EH runtime
+            CXXExInfo info;
+            getCxxExInfoFromNative1(info, ExceptionRecord);
+            current_ex_info = info;
             try {
                 while (true) {
                     ScopeAction::Action action = (ScopeAction::Action)*data++;
@@ -109,7 +113,7 @@ namespace art {
                         }
                     }
                     case ScopeAction::Action::filter: {
-                        auto filter = readFromArrayAsValue<bool (*)(CXXExInfo&, void*&, void*, size_t, void*)>(data);
+                        auto filter = readFromArrayAsValue<bool (*)(CXXExInfo&, void*&, void*, size_t, void*, uint8_t*)>(data);
                         if (!execute) {
                             skipArray<char>(data);
                             continue;
@@ -117,12 +121,9 @@ namespace art {
                         size_t size = 0;
                         std::unique_ptr<char[]> stack;
                         stack.reset(readFromArrayAsArray<char>(data, size));
-                        CXXExInfo info;
-                        getCxxExInfoFromNative1(info, ExceptionRecord);
                         void* continue_from = nullptr;
                         if (!on_unwind) {
-                            if (filter(info, continue_from, stack.get(), size, (void*)ContextRecord->Rsp)) {
-                                current_ex_info = info;
+                            if (filter(info, continue_from, stack.get(), size, (void*)ContextRecord->Rsp, function_start)) {
                                 RtlUnwindEx(
                                     (void*)EstablisherFrame,
                                     continue_from,
@@ -315,6 +316,10 @@ namespace art {
             return ret;
         }
 
+        CXXExInfo& peek_current_exception() {
+            return current_ex_info;
+        }
+
         bool try_catch_all(CXXExInfo& cxx) {
             //.NET CLR exception, we not support it
             return cxx.native_id != 0xE0434F4D && cxx.native_id != 0XE0434352;
@@ -332,7 +337,6 @@ namespace art {
         }
 
         list_array<art::ustring> map_native_exception_names(CXXExInfo& info) {
-            list_array<art::ustring> ret;
             if (info.ex_ptr == nullptr) {
                 switch (info.native_id) {
                 case EXCEPTION_ACCESS_VIOLATION:
@@ -375,10 +379,10 @@ namespace art {
             }
         }
 
-        bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro) {
+        bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro, uint8_t* image_base) {
             uint8_t* data_info = (uint8_t*)data;
             list_array<art::ustring> exceptions;
-            *continue_from = internal::readFromArrayAsValue<void*>(data_info);
+            *continue_from = image_base + readFromArrayAsValue<size_t>(data_info);
             switch (*data_info++) {
             case 0: {
                 uint64_t handle_count = internal::readFromArrayAsValue<uint64_t>(data_info);
@@ -437,14 +441,7 @@ namespace art {
                 if (filter_enviro_slice_begin >= filter_enviro_slice_end)
                     throw InvalidIL("Invalid environment slice");
                 uint16_t filter_enviro_size = filter_enviro_slice_end - filter_enviro_slice_begin;
-                auto env_res = env_filter((ValueItem*)enviro + filter_enviro_slice_begin, filter_enviro_size);
-                if (env_res == nullptr)
-                    return false;
-                else {
-                    bool res = (bool)*env_res;
-                    delete env_res;
-                    return res;
-                }
+                return (bool)CXX::aCall(env_filter, (ValueItem*)enviro + filter_enviro_slice_begin, filter_enviro_size);
             }
             default:
                 throw BadOperationException();
@@ -462,9 +459,7 @@ namespace art {
             if (finalizer_enviro_slice_begin >= finalizer_enviro_slice_end)
                 throw InvalidIL("Invalid environment slice");
             uint16_t finalizer_enviro_size = finalizer_enviro_slice_end - finalizer_enviro_slice_begin;
-            auto tmp = env_finalizer((ValueItem*)enviro + finalizer_enviro_slice_begin, finalizer_enviro_size);
-            if (tmp != nullptr)
-                delete tmp;
+            CXX::aCall(env_finalizer, (ValueItem*)enviro + finalizer_enviro_slice_begin, finalizer_enviro_size);
         }
     }
 }
@@ -569,6 +564,10 @@ namespace art {
             CXXExInfo ret = current_ex_info;
             current_ex_info = CXXExInfo();
             return ret;
+        }
+
+        CXXExInfo& peek_current_exception() {
+            return current_ex_info;
         }
 
         bool try_catch_all(CXXExInfo& cxx) {
