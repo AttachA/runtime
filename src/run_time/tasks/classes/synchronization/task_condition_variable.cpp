@@ -118,7 +118,7 @@ namespace art {
             }
             glob.tasks_notifier.notify_one();
             if (Task::max_running_tasks && loc.is_task_thread) {
-                if (can_be_scheduled_task_to_hot() && loc.curr_task && !loc.curr_task->end_of_life)
+                if (can_be_scheduled_task_to_hot() && loc.curr_task && !loc.curr_task->fres.end_of_life)
                     to_yield = true;
             }
         }

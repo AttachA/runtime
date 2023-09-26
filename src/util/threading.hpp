@@ -310,7 +310,7 @@ namespace art {
         mutex(mutex&& other) = delete;
         mutex& operator=(const mutex& other) = delete;
         mutex& operator=(mutex&& other) = delete;
-        ~mutex();
+        ~mutex() noexcept(false);
         void lock();
         void unlock();
         bool try_lock();
@@ -329,7 +329,7 @@ namespace art {
         rw_mutex(rw_mutex&& other) = delete;
         rw_mutex& operator=(const rw_mutex& other) = delete;
         rw_mutex& operator=(rw_mutex&& other) = delete;
-        ~rw_mutex();
+        ~rw_mutex() noexcept(false);
         void lock();
         void unlock();
         bool try_lock();
@@ -354,7 +354,7 @@ namespace art {
         recursive_mutex(recursive_mutex&& other) = delete;
         recursive_mutex& operator=(const recursive_mutex& other) = delete;
         recursive_mutex& operator=(recursive_mutex&& other) = delete;
-        ~recursive_mutex();
+        ~recursive_mutex() noexcept(false);
         void lock();
         void unlock();
         bool try_lock();
@@ -430,7 +430,7 @@ namespace art {
         timed_mutex(timed_mutex&& other) = delete;
         timed_mutex& operator=(const timed_mutex& other) = delete;
         timed_mutex& operator=(timed_mutex&& other) = delete;
-        ~timed_mutex();
+        ~timed_mutex() noexcept(false);
         void lock();
         void unlock();
         bool try_lock();
@@ -466,6 +466,23 @@ namespace art {
         ~full_state_relock_guard() {
             ref.lock();
             ref.relock_end(state);
+        }
+    };
+
+    template <>
+    struct full_state_relock_guard<art::unique_lock<recursive_mutex>> {
+        art::unique_lock<recursive_mutex>& ref;
+        relock_state state;
+
+        full_state_relock_guard(art::unique_lock<recursive_mutex>& ref)
+            : ref(ref) {
+            state = ref.mutex()->relock_begin();
+            ref.unlock();
+        }
+
+        ~full_state_relock_guard() {
+            ref.lock();
+            ref.mutex()->relock_end(state);
         }
     };
 

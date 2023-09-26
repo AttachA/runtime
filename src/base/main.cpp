@@ -48,30 +48,33 @@ void catched() {
     CXX::cxxCall(console::printLine, "catched");
 }
 
+void test_except() {
+    FuncEnvironment::AddNative(throw_test, "throw_test", true, false);
+    FuncEnvironment::AddNative(catch_test, "catch_test", true, false);
+    FuncEnvironment::AddNative(catched, "catched", true, false);
+    FuncEnviroBuilder build;
+    auto _throw_test = build.create_constant("throw_test");
+    auto _catch_test = build.create_constant("catch_test");
+    auto _catched = build.create_constant("catched");
+    build.except().handle_begin(0);
+    build.call_and_ret(_throw_test);
+    build.except().handle_catch_filter(0, _catch_test);
+    build.except().handle_end(0);
+    build.call_and_ret(_catched);
+    try {
+        CXX::cxxCall(build.O_prepare_func());
+    } catch (...) {
+        CXX::cxxCall(console::printLine, "not_catched");
+    }
+    FuncEnvironment::Unload("throw_test");
+    FuncEnvironment::Unload("catch_test");
+    FuncEnvironment::Unload("catched");
+}
+
 #pragma optimize("", on)
 
 ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
-    {
-        FuncEnvironment::AddNative(throw_test, "throw_test", false, false);
-        FuncEnvironment::AddNative(catch_test, "catch_test", false, false);
-        FuncEnvironment::AddNative(catched, "catched", false, false);
-        FuncEnviroBuilder build;
-        auto _throw_test = build.create_constant("throw_test");
-        auto _catch_test = build.create_constant("catch_test");
-        auto _catched = build.create_constant("catched");
-        build.except().handle_begin(0);
-        build.call_and_ret(_throw_test);
-        build.except().handle_catch_filter(0, _catch_test);
-        build.except().handle_end(0);
-        build.call_and_ret(_catched);
-        build.O_load_func("except_test");
-        try {
-            CXX::cxxCall("except_test");
-        } catch (...) {
-            CXX::cxxCall(console::printLine, "not_catched");
-        }
-    }
-
+    test_except();
     ValueItem noting;
     Task::start(new Task(FuncEnvironment::environment("busy_worker"), noting));
 
@@ -295,5 +298,6 @@ int ymain() {
 }
 
 int main() {
+    test_except();
     return mmain();
 }

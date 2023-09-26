@@ -613,6 +613,7 @@ namespace art {
     }
 
     void FuncEnvironment::clear_environs() {
+        art::lock_guard<TaskMutex> guard(environments_lock);
         environments.clear();
     }
 

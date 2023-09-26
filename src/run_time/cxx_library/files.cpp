@@ -2132,7 +2132,7 @@ namespace art {
         });
 
         void init() {
-            art::mutex m;
+            static art::mutex m;
             std::lock_guard l(m);
             if (CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
                 return;
@@ -4133,7 +4133,7 @@ namespace art {
         });
 
         void init() {
-            art::mutex m;
+            static art::mutex m;
             std::lock_guard l(m);
             if (CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
                 return;

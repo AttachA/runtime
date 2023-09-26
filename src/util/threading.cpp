@@ -39,7 +39,7 @@ namespace art {
         _mutex = SRWLOCK_INIT;
     }
 
-    mutex::~mutex() {
+    mutex::~mutex() noexcept(false) {
     }
 
     void mutex::lock() {
@@ -64,7 +64,7 @@ namespace art {
         _mutex = SRWLOCK_INIT;
     }
 
-    rw_mutex::~rw_mutex() {
+    rw_mutex::~rw_mutex() noexcept(false) {
     }
 
     void rw_mutex::lock() {
@@ -98,7 +98,9 @@ namespace art {
     timed_mutex::timed_mutex() {
     }
 
-    timed_mutex::~timed_mutex() {
+    timed_mutex::~timed_mutex() noexcept(false) {
+        if (locked != 0)
+            throw InvalidLock("Try destroy locked mutex");
     }
 
     void timed_mutex::lock() {
@@ -369,7 +371,7 @@ namespace art {
         pthread_mutex_init(_mutex, nullptr);
     }
 
-    mutex::~mutex() {
+    mutex::~mutex() noexcept(false) {
         pthread_mutex_destroy(_mutex);
         delete _mutex;
     }
@@ -407,7 +409,7 @@ namespace art {
         pthread_rwlock_init(_mutex, nullptr);
     }
 
-    rw_mutex::~rw_mutex() {
+    rw_mutex::~rw_mutex() noexcept(false) {
         pthread_rwlock_destroy(_mutex);
         delete _mutex;
     }
@@ -672,13 +674,18 @@ namespace art {
         owner = art::thread::id();
     }
 
-    recursive_mutex::~recursive_mutex() {
+    recursive_mutex::~recursive_mutex() noexcept(false) {
+        if (owner == art::this_thread::get_id())
+            throw InvalidLock("Recursive mutex destroyed while locked");
     }
 
     void recursive_mutex::lock() {
         if (owner == art::this_thread::get_id()) {
             count++;
-            return;
+            if (count == 0) {
+                count--;
+                throw InvalidLock("Recursive mutex overflow");
+            }
         }
         actual_mutex.lock();
         owner = art::this_thread::get_id();
@@ -687,7 +694,7 @@ namespace art {
 
     void recursive_mutex::unlock() {
         if (owner != art::this_thread::get_id()) {
-            return;
+            throw InvalidLock("Try unlock non-owned mutex");
         }
         count--;
         if (count == 0) {
