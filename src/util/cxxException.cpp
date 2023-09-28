@@ -12,74 +12,6 @@
 #include <windows.h>
 
 namespace art {
-
-
-    CXXExInfo::Tys::Tys(const Tys& copy) {
-        *this = copy;
-    }
-
-    CXXExInfo::Tys::Tys(Tys&& move) {
-        *this = std::move(move);
-    }
-
-    CXXExInfo::Tys& CXXExInfo::Tys::operator=(const Tys& copy) {
-        ty_info = copy.ty_info;
-        copy_fn = copy.copy_fn;
-        is_bad_alloc = copy.is_bad_alloc;
-        return *this;
-    }
-
-    CXXExInfo::Tys& CXXExInfo::Tys::operator=(Tys&& move) {
-        ty_info = move.ty_info;
-        copy_fn = move.copy_fn;
-        is_bad_alloc = move.is_bad_alloc;
-
-        move.ty_info = nullptr;
-        move.copy_fn = nullptr;
-        move.is_bad_alloc = false;
-        return *this;
-    }
-
-    CXXExInfo::CXXExInfo(const CXXExInfo& copy) {
-        *this = copy;
-    }
-
-    CXXExInfo::CXXExInfo(CXXExInfo&& move) {
-        *this = std::move(move);
-    }
-
-    CXXExInfo& CXXExInfo::operator=(const CXXExInfo& copy) {
-
-        ty_arr = copy.ty_arr;
-        cleanup_fn = copy.cleanup_fn;
-        ex_ptr = copy.ex_ptr;
-        native_id = copy.native_id;
-        ex_data_0 = copy.ex_data_0;
-        ex_data_1 = copy.ex_data_1;
-        ex_data_2 = copy.ex_data_2;
-        ex_data_3 = copy.ex_data_3;
-        return *this;
-    }
-
-    CXXExInfo& CXXExInfo::operator=(CXXExInfo&& move) {
-        ty_arr = std::move(move.ty_arr);
-        cleanup_fn = move.cleanup_fn;
-        ex_ptr = move.ex_ptr;
-        native_id = move.native_id;
-        ex_data_0 = move.ex_data_0;
-        ex_data_1 = move.ex_data_1;
-        ex_data_2 = move.ex_data_2;
-        ex_data_3 = move.ex_data_3;
-
-        move.cleanup_fn = nullptr;
-        move.ex_ptr = nullptr;
-        move.native_id = 0;
-        move.ex_data_0 = 0;
-        move.ex_data_1 = 0;
-        move.ex_data_2 = 0;
-        move.ex_data_3 = 0;
-        return *this;
-    }
     namespace except_abi {
         namespace {
             struct ExThrowInfo {
@@ -203,3 +135,71 @@ namespace art {
     }
 }
 #endif
+namespace art {
+
+    CXXExInfo::Tys::Tys(const Tys& copy) {
+        *this = copy;
+    }
+
+    CXXExInfo::Tys::Tys(Tys&& move) {
+        *this = std::move(move);
+    }
+
+    CXXExInfo::Tys& CXXExInfo::Tys::operator=(const Tys& copy) {
+        ty_info = copy.ty_info;
+        copy_fn = copy.copy_fn;
+        is_bad_alloc = copy.is_bad_alloc;
+        return *this;
+    }
+
+    CXXExInfo::Tys& CXXExInfo::Tys::operator=(Tys&& move) {
+        ty_info = move.ty_info;
+        copy_fn = move.copy_fn;
+        is_bad_alloc = move.is_bad_alloc;
+
+        move.ty_info = nullptr;
+        move.copy_fn = nullptr;
+        move.is_bad_alloc = false;
+        return *this;
+    }
+
+    CXXExInfo::CXXExInfo(const CXXExInfo& copy) {
+        *this = copy;
+    }
+
+    CXXExInfo::CXXExInfo(CXXExInfo&& move) {
+        *this = std::move(move);
+    }
+
+    CXXExInfo& CXXExInfo::operator=(const CXXExInfo& copy) {
+        ty_arr = copy.ty_arr;
+        cleanup_fn = copy.cleanup_fn;
+        ex_ptr = copy.ex_ptr;
+        native_id = copy.native_id;
+        ex_data_0 = copy.ex_data_0;
+        ex_data_1 = copy.ex_data_1;
+        ex_data_2 = copy.ex_data_2;
+        ex_data_3 = copy.ex_data_3;
+        return *this;
+    }
+
+    CXXExInfo& CXXExInfo::operator=(CXXExInfo&& move) {
+        ty_arr = std::move(move.ty_arr);
+        cleanup_fn = move.cleanup_fn;
+        ex_ptr = move.ex_ptr;
+        native_id = move.native_id;
+        ex_data_0 = move.ex_data_0;
+        ex_data_1 = move.ex_data_1;
+        ex_data_2 = move.ex_data_2;
+        ex_data_3 = move.ex_data_3;
+
+        move.cleanup_fn = nullptr;
+        move.ex_ptr = nullptr;
+        move.native_id = 0;
+        move.ex_data_0 = 0;
+        move.ex_data_1 = 0;
+        move.ex_data_2 = 0;
+        move.ex_data_3 = 0;
+        return *this;
+    }
+}

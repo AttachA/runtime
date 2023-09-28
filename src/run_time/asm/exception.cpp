@@ -604,7 +604,7 @@ namespace art {
             }
         }
 
-        bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro) {
+        bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro, uint8_t* image_base) {
             return false;
         }
 

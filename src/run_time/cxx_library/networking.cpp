@@ -3627,7 +3627,7 @@ namespace art {
             memcpy(&connectionAddress, &ip_port, sizeof(sockaddr_in6));
         }
 
-        ~TcpNetworkManager() {
+        ~TcpNetworkManager() noexcept(false) {
             shutdown();
         }
 
@@ -3975,7 +3975,7 @@ namespace art {
             _handle->data = old_buffer;
         }
 
-        ~TcpClientManager() override {
+        ~TcpClientManager() noexcept(false) override {
             if (corrupted)
                 return;
             delete _handle;

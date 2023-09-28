@@ -144,7 +144,7 @@ namespace art {
         _cond = CONDITION_VARIABLE_INIT;
     }
 
-    condition_variable::~condition_variable() {
+    condition_variable::~condition_variable() noexcept(false) {
     }
 
     void condition_variable::notify_one() {
@@ -372,7 +372,11 @@ namespace art {
     }
 
     mutex::~mutex() noexcept(false) {
-        pthread_mutex_destroy(_mutex);
+        int res = pthread_mutex_destroy(_mutex);
+        if (res == EBUSY)
+            throw InvalidLock("Try destroy locked mutex");
+        if (res == EINVAL)
+            throw InvalidArguments("Try destroy invalid mutex");
         delete _mutex;
     }
 
@@ -410,7 +414,11 @@ namespace art {
     }
 
     rw_mutex::~rw_mutex() noexcept(false) {
-        pthread_rwlock_destroy(_mutex);
+        int res = pthread_rwlock_destroy(_mutex);
+        if (res == EBUSY)
+            throw InvalidLock("Try destroy locked mutex");
+        if (res == EINVAL)
+            throw InvalidArguments("Try destroy invalid mutex");
         delete _mutex;
     }
 
@@ -447,8 +455,12 @@ namespace art {
         pthread_mutex_init(_mutex, nullptr);
     }
 
-    timed_mutex::~timed_mutex() {
-        pthread_mutex_destroy(_mutex);
+    timed_mutex::~timed_mutex() noexcept(false) {
+        int res = pthread_mutex_destroy(_mutex);
+        if (res == EBUSY)
+            throw InvalidLock("Try destroy locked mutex");
+        if (res == EINVAL)
+            throw InvalidArguments("Try destroy invalid mutex");
         delete _mutex;
     }
 
@@ -505,8 +517,12 @@ namespace art {
         pthread_cond_init(_cond, nullptr);
     }
 
-    condition_variable::~condition_variable() {
-        pthread_cond_destroy(_cond);
+    condition_variable::~condition_variable() noexcept(false) {
+        int res = pthread_cond_destroy(_cond);
+        if (res == EBUSY)
+            throw InvalidOperation("Try destroy used condition variable(ie. some thread is waiting on it)");
+        if (res == EINVAL)
+            throw InvalidArguments("Try destroy invalid condition variable");
         delete _cond;
     }
 
@@ -675,7 +691,7 @@ namespace art {
     }
 
     recursive_mutex::~recursive_mutex() noexcept(false) {
-        if (owner == art::this_thread::get_id())
+        if (owner != art::thread::id())
             throw InvalidLock("Recursive mutex destroyed while locked");
     }
 

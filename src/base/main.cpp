@@ -32,7 +32,7 @@ ValueItem* busyWorker(ValueItem* args, uint32_t argc) {
 }
 
 void throw_test() {
-    throw std::invalid_argument("test");
+    //throw std::invalid_argument("test");
 }
 
 bool catch_test() {

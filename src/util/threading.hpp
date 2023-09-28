@@ -190,7 +190,7 @@ namespace art {
         }
 
         template <class F, class... Args>
-        void start(size_t stack_allocation, bool as_resrved, F&& f, Args&&... args) {
+        void start(size_t stack_allocation, bool as_reserved, F&& f, Args&&... args) {
             using Tuple = std::tuple<std::decay_t<F>, std::decay_t<Args>...>;
 
             auto stored_args = std::make_unique<Tuple>(std::forward<F>(f), std::forward<Args>(args)...);
@@ -200,7 +200,7 @@ namespace art {
                 stored_args.get(),
                 _id,
                 stack_allocation,
-                as_resrved,
+                as_reserved,
                 error_code);
             if (_thread)
                 stored_args.release();
@@ -379,7 +379,7 @@ namespace art {
         condition_variable(condition_variable&& other) = delete;
         condition_variable& operator=(const condition_variable& other) = delete;
         condition_variable& operator=(condition_variable&& other) = delete;
-        ~condition_variable();
+        ~condition_variable() noexcept(false);
         void notify_one();
         void notify_all();
         void wait(mutex& mtx);

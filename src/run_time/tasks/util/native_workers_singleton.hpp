@@ -196,7 +196,7 @@ namespace art {
     class NativeWorkerManager {
     public:
         virtual void handle(class NativeWorkerHandle* overlapped, io_uring_cqe* cqe) = 0;
-        virtual ~NativeWorkerManager() = default;
+        virtual ~NativeWorkerManager() noexcept(false) = default;
     };
 
     class NativeWorkerHandle {
@@ -319,6 +319,8 @@ namespace art {
         public:
             AwaitCancel()
                 : NativeWorkerHandle(this) {}
+
+            ~AwaitCancel() noexcept(false) override = default;
 
             void handle(NativeWorkerHandle* self, io_uring_cqe* cqe) override {
                 art::lock_guard<TaskMutex> lock(mutex);
