@@ -128,6 +128,7 @@ namespace art {
     MutexUnify::MutexUnify(const MutexUnify& mut) {
         type = mut.type;
         nmut = mut.nmut;
+        state = mut.state;
     }
 
     MutexUnify::MutexUnify(art::mutex& smut) {
@@ -176,6 +177,7 @@ namespace art {
     MutexUnify& MutexUnify::operator=(const MutexUnify& mut) {
         type = mut.type;
         nmut = mut.nmut;
+        state = mut.state;
         return *this;
     }
 
@@ -229,8 +231,10 @@ namespace art {
     void MutexUnify::relock_start() {
         if (type == MutexUnifyType::nrec)
             state = nrec->relock_begin();
-        if (type == MutexUnifyType::urmut)
+        else if (type == MutexUnifyType::urmut)
             state = urmut->relock_begin();
+        else
+            state = {0};
         unlock();
     }
 

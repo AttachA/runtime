@@ -34,13 +34,13 @@ namespace art {
 
         dyn_pool_item::~dyn_pool_item() {
             if (item.totalLinks() == 2) { // holder + map
-                lock_guard<TaskMutex> lock(dynamic_constant_pool_mutex);
+                art::lock_guard<TaskMutex> lock(dynamic_constant_pool_mutex);
                 dynamic_constant_pool_map.erase(item->hash);
             }
         }
 
         dyn_pool_item* dynamic_constant_pool(const class ustring& string) {
-            lock_guard<TaskMutex> lock(dynamic_constant_pool_mutex);
+            art::lock_guard<TaskMutex> lock(dynamic_constant_pool_mutex);
             auto it = dynamic_constant_pool_map.find(string.hash());
             if (it != dynamic_constant_pool_map.end())
                 return it->second;
@@ -72,7 +72,7 @@ namespace art {
                 throw InvalidEncodingException("String is not valid utf8");
 
             size_t hash = art::hash<char>()(string, size);
-            lock_guard<TaskMutex> lock(dynamic_constant_pool_mutex);
+            art::lock_guard<TaskMutex> lock(dynamic_constant_pool_mutex);
             auto it = dynamic_constant_pool_map.find(hash);
             if (it != dynamic_constant_pool_map.end())
                 return it->second;
@@ -114,7 +114,7 @@ namespace art {
 
         pool_item* make_constant_pool(const ustring& string) {
             size_t hash = string.hash();
-            lock_guard<TaskMutex> lock(constant_pool_mutex);
+            art::lock_guard<TaskMutex> lock(constant_pool_mutex);
             auto it = constant_pool_map.find(hash);
             if (it != constant_pool_map.end())
                 return it->second;
@@ -143,7 +143,7 @@ namespace art {
                 throw InvalidEncodingException("String is not valid utf8");
 
             size_t hash = art::hash<char>()(string, size);
-            lock_guard<TaskMutex> lock(constant_pool_mutex);
+            art::lock_guard<TaskMutex> lock(constant_pool_mutex);
             auto it = constant_pool_map.find(hash);
             if (it != constant_pool_map.end())
                 return it->second;

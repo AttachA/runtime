@@ -98,7 +98,7 @@ namespace art {
             timer_handle* timer = (timer_handle*)callback;
             if (timer->thread_id == this_thread::get_id())
                 return;
-            std::unique_lock<art::mutex> lock(timer_signal_mutex);
+            art::lock_guard<art::mutex> lock(timer_signal_mutex);
             await_timers.push_back(timer);
             timer_signal.notify_all();
         }

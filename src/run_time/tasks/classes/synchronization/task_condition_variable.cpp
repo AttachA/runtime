@@ -23,7 +23,7 @@ namespace art {
             } else {
                 art::lock_guard guard(no_race);
                 resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
-                swapCtxRelock(no_race, *mut.mutex());
+                swapCtxRelock(*mut.mutex(), no_race);
             }
         } else {
             art::condition_variable_any cd;

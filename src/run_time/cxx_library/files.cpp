@@ -655,7 +655,7 @@ namespace art {
 
         ValueItem FileHandle::read(uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->read(size, false);
                 res.getAsync();
                 if (res.meta.vtype == VType::ui8) {
@@ -669,7 +669,7 @@ namespace art {
 
         uint32_t FileHandle::read(uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return (uint32_t)handle->read(data, size, false);
             } else
                 return (uint32_t)handle->read(data, size, false);
@@ -677,7 +677,7 @@ namespace art {
 
         ValueItem FileHandle::read_fixed(uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->read(size, true);
                 res.getAsync();
                 if (res.meta.vtype == VType::ui8) {
@@ -691,7 +691,7 @@ namespace art {
 
         uint32_t FileHandle::read_fixed(uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return (uint32_t)handle->read(data, size, true);
             } else
                 return (uint32_t)handle->read(data, size, true);
@@ -699,7 +699,7 @@ namespace art {
 
         ValueItem FileHandle::write(const uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->write(data, size);
                 res.getAsync();
                 if (res.meta.vtype == VType::ui8) {
@@ -713,7 +713,7 @@ namespace art {
 
         ValueItem FileHandle::append(const uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->append(data, size);
                 res.getAsync();
                 if (res.meta.vtype == VType::except_value)
@@ -726,7 +726,7 @@ namespace art {
 
         ValueItem FileHandle::seek_pos(uint64_t offset, pointer_offset pointer_offset, pointer pointer) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return handle->seek_pos(offset, pointer_offset, pointer);
             } else
                 return handle->seek_pos(offset, pointer_offset, pointer);
@@ -734,7 +734,7 @@ namespace art {
 
         ValueItem FileHandle::seek_pos(uint64_t offset, pointer_offset pointer_offset) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return handle->seek_pos(offset, pointer_offset);
             } else
                 return handle->seek_pos(offset, pointer_offset);
@@ -742,7 +742,7 @@ namespace art {
 
         ValueItem FileHandle::tell_pos(pointer pointer) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return handle->tell_pos(pointer);
             } else
                 return handle->tell_pos(pointer);
@@ -750,7 +750,7 @@ namespace art {
 
         ValueItem FileHandle::flush() {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return handle->flush();
             } else
                 return handle->flush();
@@ -758,7 +758,7 @@ namespace art {
 
         ValueItem FileHandle::size() {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return handle->file_size();
             } else
                 return handle->file_size();
@@ -2133,7 +2133,7 @@ namespace art {
 
         void init() {
             static art::mutex m;
-            std::lock_guard l(m);
+            art::lock_guard l(m);
             if (CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
                 return;
             define_FolderChangesMonitor = CXX::Interface::createTable<typed_lgr<FolderChangesMonitorImpl>>(
@@ -2957,7 +2957,7 @@ namespace art {
 
         ValueItem FileHandle::read(uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->read(size, false);
                 res.getAsync();
                 if (res.meta.vtype == VType::ui8) {
@@ -2971,7 +2971,7 @@ namespace art {
 
         uint32_t FileHandle::read(uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return (uint32_t)handle->read(data, size, false);
             } else
                 return (uint32_t)handle->read(data, size, false);
@@ -2979,7 +2979,7 @@ namespace art {
 
         ValueItem FileHandle::read_fixed(uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->read(size, true);
                 res.getAsync();
                 if (res.meta.vtype == VType::ui8) {
@@ -2993,7 +2993,7 @@ namespace art {
 
         uint32_t FileHandle::read_fixed(uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return (uint32_t)handle->read(data, size, true);
             } else
                 return (uint32_t)handle->read(data, size, true);
@@ -3001,7 +3001,7 @@ namespace art {
 
         ValueItem FileHandle::write(const uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->write(data, size);
                 res.getAsync();
                 if (res.meta.vtype == VType::ui8) {
@@ -3015,7 +3015,7 @@ namespace art {
 
         ValueItem FileHandle::append(const uint8_t* data, uint32_t size) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 ValueItem res = handle->append(data, size);
                 res.getAsync();
                 if (res.meta.vtype == VType::except_value)
@@ -3028,7 +3028,7 @@ namespace art {
 
         ValueItem FileHandle::seek_pos(uint64_t offset, pointer_offset pointer_offset, pointer pointer) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return handle->seek_pos(offset, pointer_offset, pointer);
             } else
                 return handle->seek_pos(offset, pointer_offset, pointer);
@@ -3036,7 +3036,7 @@ namespace art {
 
         ValueItem FileHandle::seek_pos(uint64_t offset, pointer_offset pointer_offset) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return handle->seek_pos(offset, pointer_offset);
             } else
                 return handle->seek_pos(offset, pointer_offset);
@@ -3044,7 +3044,7 @@ namespace art {
 
         ValueItem FileHandle::tell_pos(pointer pointer) {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return handle->tell_pos(pointer);
             } else
                 return handle->tell_pos(pointer);
@@ -3052,7 +3052,7 @@ namespace art {
 
         ValueItem FileHandle::flush() {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return handle->flush();
             } else
                 return handle->flush();
@@ -3060,7 +3060,7 @@ namespace art {
 
         ValueItem FileHandle::size() {
             if (mimic_non_async.has_value()) {
-                std::lock_guard<TaskMutex> lock(*mimic_non_async);
+                art::lock_guard<TaskMutex> lock(*mimic_non_async);
                 return handle->file_size();
             } else
                 return handle->file_size();
@@ -4134,7 +4134,7 @@ namespace art {
 
         void init() {
             static art::mutex m;
-            std::lock_guard l(m);
+            art::lock_guard l(m);
             if (CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
                 return;
             define_FolderChangesMonitor = CXX::Interface::createTable<typed_lgr<FolderChangesMonitorImpl>>(

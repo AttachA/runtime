@@ -76,7 +76,7 @@ void test_except() {
 ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
     test_except();
     ValueItem noting;
-    Task::start(new Task(FuncEnvironment::environment("busy_worker"), noting));
+    //Task::start(new Task(FuncEnvironment::environment("busy_worker"), noting));
 
     console::setBgColor(123, 21, 2);
     console::setTextColor(0, 230, 0);

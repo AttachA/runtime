@@ -22,7 +22,7 @@ namespace art {
     class NativeWorkerManager {
     public:
         virtual void handle(void* data, class NativeWorkerHandle* overlapped, unsigned long dwBytesTransferred, bool status) = 0;
-        virtual ~NativeWorkerManager() = default;
+        virtual ~NativeWorkerManager() noexcept(false) = default;
     };
 
     class NativeWorkerHandle {
@@ -84,7 +84,7 @@ namespace art {
 
         std::pair<uint32_t, uint32_t> proceed_hill_climb(double sample_seconds) {
             const uint32_t max_threads = art::thread::hardware_concurrency();
-            std::lock_guard<art::mutex> lock(hill_climb_mutex);
+            art::lock_guard<art::mutex> lock(hill_climb_mutex);
             uint32_t recommended_thread_count = 0;
             uint32_t recommended_sleep_count = 0;
             if (hill_climb_processed.empty()) {
@@ -160,7 +160,7 @@ namespace art {
             if (instance)
                 return *instance;
             else {
-                std::lock_guard<art::mutex> lock(instance_mutex);
+                art::lock_guard<art::mutex> lock(instance_mutex);
                 if (!instance)
                     instance = new NativeWorkersSingleton();
                 return *instance;
@@ -179,7 +179,7 @@ namespace art {
         }
 
         static std::pair<uint32_t, uint32_t> hill_climb_proceed(std::chrono::high_resolution_clock::duration sample_time) {
-            std::lock_guard<art::mutex> lock(instance_mutex);
+            art::lock_guard<art::mutex> lock(instance_mutex);
             if (!instance)
                 return {0, 0};
             else
@@ -281,7 +281,7 @@ namespace art {
             if (instance)
                 return *instance;
             else {
-                std::lock_guard<art::mutex> lock(instance_mutex);
+                art::lock_guard<art::mutex> lock(instance_mutex);
                 if (!instance)
                     instance = new NativeWorkersSingleton();
                 return *instance;
@@ -321,14 +321,14 @@ namespace art {
                 : NativeWorkerHandle(this) {}
 
             void handle(NativeWorkerHandle* self, io_uring_cqe* cqe) override {
-                lock_guard<TaskMutex> lock(mutex);
+                art::lock_guard<TaskMutex> lock(mutex);
                 success = cqe->res >= 0;
                 awaiter.notify_all();
             }
 
             bool await_fd(int handle) {
                 MutexUnify unify(mutex);
-                unique_lock lock(unify);
+                art::unique_lock lock(unify);
                 post_cancel_fd(this, handle);
                 awaiter.wait(lock);
                 return success;
@@ -336,7 +336,7 @@ namespace art {
 
             bool await_fd_all(int handle) {
                 MutexUnify unify(mutex);
-                unique_lock lock(unify);
+                art::unique_lock lock(unify);
                 post_cancel_fd_all(this, handle);
                 awaiter.wait(lock);
                 return success;
@@ -716,7 +716,7 @@ namespace art {
         }
 
         static std::pair<uint32_t, uint32_t> hill_climb_proceed(std::chrono::high_resolution_clock::duration sample_time) {
-            std::lock_guard<art::mutex> lock(instance_mutex);
+            art::lock_guard<art::mutex> lock(instance_mutex);
             if (!instance)
                 return {0, 0};
             else

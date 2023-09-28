@@ -373,14 +373,14 @@ namespace art {
     }
 
     FuncHandle::~FuncHandle() {
-        lock_guard lock(compile_lock);
+        art::lock_guard lock(compile_lock);
         if (handle)
             handle->reduce_usage();
         delete (art::shared_ptr<asmjit::JitRuntime>*)art_ref;
     }
 
     void FuncHandle::patch(inner_handle* handle) {
-        lock_guard lock(compile_lock);
+        art::lock_guard lock(compile_lock);
         if (handle) {
             if (handle->parent != nullptr)
                 throw InvalidArguments("Handle already in use");
@@ -411,18 +411,18 @@ namespace art {
     }
 
     bool FuncHandle::is_cheap() {
-        lock_guard lock(compile_lock);
+        art::lock_guard lock(compile_lock);
         return handle ? handle->is_cheap : false;
     }
 
     const std::vector<uint8_t>& FuncHandle::code() {
-        lock_guard lock(compile_lock);
+        art::lock_guard lock(compile_lock);
         static std::vector<uint8_t> empty;
         return handle ? handle->cross_code : empty;
     }
 
     ValueItem* FuncHandle::compile_call(ValueItem* arguments, uint32_t arguments_size) {
-        unique_lock lock(compile_lock);
+        art::unique_lock lock(compile_lock);
         if (handle) {
             inner_handle::usage_scope scope(handle);
             inner_handle* compile_handle = handle;
@@ -456,7 +456,7 @@ namespace art {
     }
 
     void* FuncHandle::get_trampoline_code() {
-        unique_lock lock(compile_lock);
+        art::unique_lock lock(compile_lock);
         if (handle)
             if (!handle->is_patchable)
                 if (handle->_type == inner_handle::FuncType::own)
@@ -506,7 +506,7 @@ namespace art {
             fn_ptr = nullptr;
         }
         {
-            unique_lock guard(environments_lock);
+            art::unique_lock guard(environments_lock);
             for (auto& it : environments)
                 if (&*it.second == this)
                     return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)fn_ptr);
@@ -522,7 +522,7 @@ namespace art {
     }
 
     void FuncEnvironment::fastHotPatch(const art::ustring& func_name, FuncHandle::inner_handle* new_enviro) {
-        unique_lock guard(environments_lock);
+        art::unique_lock guard(environments_lock);
         auto& tmp = environments[func_name];
         guard.unlock();
         tmp->patch(new_enviro);
@@ -541,7 +541,7 @@ namespace art {
     }
 
     ValueItem* FuncEnvironment::callFunc(const art::ustring& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
-        unique_lock guard(environments_lock);
+        art::unique_lock guard(environments_lock);
         auto found = environments.find(func_name);
         guard.unlock();
         if (found != environments.end()) {

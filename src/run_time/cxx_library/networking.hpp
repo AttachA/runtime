@@ -51,7 +51,7 @@ namespace art {
 
     class TcpNetworkStream {
     public:
-        virtual ~TcpNetworkStream(){};
+        virtual ~TcpNetworkStream() noexcept(false){};
         virtual ValueItem read_available_ref() = 0;
         virtual ValueItem read_available(char* buffer, int buffer_len) = 0;
         virtual bool data_available() = 0;
@@ -123,7 +123,7 @@ namespace art {
 
     class TcpNetworkBlocking {
     public:
-        virtual ~TcpNetworkBlocking(){};
+        virtual ~TcpNetworkBlocking() noexcept(false){};
         virtual ValueItem read(uint32_t len) = 0;
         virtual ValueItem available_bytes() = 0;
         virtual ValueItem write(const char* data, uint32_t len) = 0;

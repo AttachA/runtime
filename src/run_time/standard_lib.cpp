@@ -918,11 +918,11 @@ namespace art {
 
 #pragma endregion
 #pragma endregion
-#define INIT_CHECK               \
-    static bool is_init = false; \
-    if (is_init)                 \
-        return;                  \
-    is_init = true;
+#define INIT_CHECK                 \
+    static bool is_inited = false; \
+    if (is_inited)                 \
+        return;                    \
+    is_inited = true;
 
     void initStandardLib_exception() {
         INIT_CHECK
@@ -933,7 +933,7 @@ namespace art {
         FuncEnvironment::AddNative(exceptions::unpack_current_exception, "exception current_unpack", false);
         FuncEnvironment::AddNative(exceptions::in_exception, "exception now_in_exception", false);
         FuncEnvironment::AddNative(exceptions::current_exception_catched, "exception set_as_catched", false);
-        //print full stacktrace if used in filter function
+        //print full stacktrace if used in filter function, in unwound frame can return either full or partial stacktrace
         FuncEnvironment::AddNative(internal::stack::trace, "exception filter stacktrace", false);
     }
 

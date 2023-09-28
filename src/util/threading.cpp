@@ -104,7 +104,7 @@ namespace art {
     }
 
     void timed_mutex::lock() {
-        std::lock_guard<mutex> lock(_mutex);
+        art::lock_guard<mutex> lock(_mutex);
         while (locked != 0)
             _cond.wait(_mutex);
         locked = UINT_MAX;
@@ -112,14 +112,14 @@ namespace art {
 
     void timed_mutex::unlock() {
         {
-            std::lock_guard<mutex> lock(_mutex);
+            art::lock_guard<mutex> lock(_mutex);
             locked = 0;
         }
         _cond.notify_one();
     }
 
     bool timed_mutex::try_lock() {
-        std::lock_guard<mutex> lock(_mutex);
+        art::lock_guard<mutex> lock(_mutex);
         if (locked == 0) {
             locked = UINT_MAX;
             return true;
@@ -132,7 +132,7 @@ namespace art {
     }
 
     bool timed_mutex::try_lock_until(std::chrono::high_resolution_clock::time_point time) {
-        std::lock_guard<mutex> lock(_mutex);
+        art::lock_guard<mutex> lock(_mutex);
         while (locked != 0)
             if (_cond.wait_until(_mutex, time) == cv_status::timeout)
                 return false;
@@ -686,6 +686,7 @@ namespace art {
                 count--;
                 throw InvalidLock("Recursive mutex overflow");
             }
+            return;
         }
         actual_mutex.lock();
         owner = art::this_thread::get_id();
@@ -732,12 +733,12 @@ namespace art {
     }
 
     void condition_variable_any::notify_one() {
-        std::lock_guard<mutex> lock(_mutex);
+        art::lock_guard<mutex> lock(_mutex);
         _cond.notify_one();
     }
 
     void condition_variable_any::notify_all() {
-        std::lock_guard<mutex> lock(_mutex);
+        art::lock_guard<mutex> lock(_mutex);
         _cond.notify_all();
     }
 

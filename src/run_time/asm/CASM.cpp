@@ -695,7 +695,7 @@ namespace art {
 
     std::vector<StackTraceItem> FrameResult::JitCaptureStackTrace(uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
 #ifdef _WIN64
-        std::lock_guard lg(DbgHelp_lock); //in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+        art::lock_guard lg(DbgHelp_lock); //in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
@@ -716,7 +716,7 @@ namespace art {
 
     std::vector<void*> FrameResult::JitCaptureStackChainTrace(uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
 #ifdef _WIN64
-        std::lock_guard lg(DbgHelp_lock); //in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+        art::lock_guard lg(DbgHelp_lock); //in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
@@ -732,7 +732,7 @@ namespace art {
 
     std::vector<StackTraceItem> FrameResult::JitCaptureExternStackTrace(void* rip, uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
 #ifdef _WIN64
-        std::lock_guard lg(DbgHelp_lock); //in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+        art::lock_guard lg(DbgHelp_lock); //in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
@@ -753,7 +753,7 @@ namespace art {
 
     std::vector<void*> FrameResult::JitCaptureExternStackChainTrace(void* rip, uint32_t framesToSkip, bool includeNativeFrames, uint32_t max_frames) {
 #ifdef _WIN64
-        lock_guard lg(DbgHelp_lock); //in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+        art::lock_guard lg(DbgHelp_lock); //in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
@@ -770,7 +770,7 @@ namespace art {
     StackTraceItem FrameResult::JitResolveFrame(void* rip, bool include_native) {
         if (include_native) {
 #ifdef _WIN64
-            lock_guard lg(DbgHelp_lock); //in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
+            art::lock_guard lg(DbgHelp_lock); //in windows NativeSymbolResolver class and CaptureStackTrace function use single thread DbgHelp functions
 #endif
             std::unique_ptr<NativeSymbolResolver> nativeSymbols;
             nativeSymbols.reset(new NativeSymbolResolver());

@@ -13,6 +13,7 @@
 #include <utf8cpp/utf8.h>
 
 #include <run_time/AttachA_CXX.hpp>
+#include <run_time/tasks/util/interrupt.hpp>
 #include <util/exceptions.hpp>
 
 namespace art {
@@ -62,12 +63,15 @@ namespace art {
         thread_local RW_CONS rw_switcher = RW_CONS::R;
 
         void was_w_mode() {
-            if (rw_switcher == RW_CONS::R)
+            if (rw_switcher == RW_CONS::R) {
+                interrupt::interrupt_unsafe_region region;
                 fflush(_stdin);
+            }
         }
 
         void was_r_mode() {
             if (rw_switcher == RW_CONS::W) {
+                interrupt::interrupt_unsafe_region region;
                 fflush(_stdout);
                 fflush(_stderr);
             }
@@ -75,6 +79,7 @@ namespace art {
 
         template <size_t N>
         inline void print(const char (&chars)[N]) {
+            interrupt::interrupt_unsafe_region region;
             if (rw_switcher != RW_CONS::W)
                 fflush(_stdin);
             fwrite(chars, 1, N, _stdout);
@@ -82,6 +87,7 @@ namespace art {
         };
 
         ValueItem* printLine(ValueItem* args, uint32_t len) {
+            interrupt::interrupt_unsafe_region region;
             was_w_mode();
             if (args == nullptr)
                 fwrite("\n", 1, 1, _stdout);
@@ -98,6 +104,7 @@ namespace art {
 
         ValueItem* print(ValueItem* args, uint32_t len) {
             if (args != nullptr) {
+                interrupt::interrupt_unsafe_region region;
                 was_w_mode();
                 while (len--) {
                     auto& it = *args++;
@@ -532,6 +539,7 @@ namespace art {
         }
 
         ValueItem* printf(ValueItem* args, uint32_t len) {
+            interrupt::interrupt_unsafe_region region;
             auto res = _format(args, len);
             was_w_mode();
             fwrite(res.c_str(), 1, res.size(), _stdout);
@@ -588,14 +596,17 @@ namespace art {
         }
 
         void setTextColor(uint8_t r, uint8_t g, uint8_t b) {
+            interrupt::interrupt_unsafe_region region;
             ::printf("\033[38;2;%d;%d;%dm", r, g, b);
         }
 
         void setBgColor(uint8_t r, uint8_t g, uint8_t b) {
+            interrupt::interrupt_unsafe_region region;
             ::printf("\033[48;2;%d;%d;%dm", r, g, b);
         }
 
         void setPos(uint16_t row, uint16_t col) {
+            interrupt::interrupt_unsafe_region region;
             ::printf("\033[%d;%dH", row + 1, col + 1);
         }
 
@@ -610,8 +621,10 @@ namespace art {
         void setLine(uint32_t y) {
             if (y == 0)
                 print("\033[999999D");
-            else
+            else {
+                interrupt::interrupt_unsafe_region region;
                 ::printf("\033[999999D\033[%dC", y);
+            }
         }
 
         void showCursor() {
@@ -623,6 +636,7 @@ namespace art {
         }
 
         ValueItem* readWord(ValueItem* args, uint32_t len) {
+            interrupt::interrupt_unsafe_region region;
             was_r_mode();
             art::ustring str;
             str.set_unsafe_state(true, false);
@@ -645,6 +659,7 @@ namespace art {
         }
 
         ValueItem* readLine(ValueItem* args, uint32_t len) {
+            interrupt::interrupt_unsafe_region region;
             was_r_mode();
             art::ustring str;
             str.set_unsafe_state(true, false);
@@ -663,6 +678,7 @@ namespace art {
         }
 
         ValueItem* readInput(ValueItem* args, uint32_t len) {
+            interrupt::interrupt_unsafe_region region;
             was_r_mode();
             art::ustring str;
             str.set_unsafe_state(true, false);
@@ -674,6 +690,7 @@ namespace art {
         }
 
         ValueItem* readValue(ValueItem* args, uint32_t len) {
+            interrupt::interrupt_unsafe_region region;
             was_r_mode();
             art::ustring str;
             str.set_unsafe_state(true, false);
@@ -695,6 +712,7 @@ namespace art {
         }
 
         ValueItem* readInt(ValueItem* args, uint32_t len) {
+            interrupt::interrupt_unsafe_region region;
             was_r_mode();
             bool first = true;
             bool minus = false;

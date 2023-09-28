@@ -119,17 +119,22 @@ namespace art {
                 CXXExInfo cxx = exception::take_current_exception();
                 try {
                     *loc.stack_current_context = std::move(*loc.stack_current_context).resume();
-                    timer_reinit();
                 } catch (const boost::context::detail::forced_unwind&) {
-                    timer_reinit();
+                    auto relock_state_0 = loc.curr_task->relock_0;
+                    auto relock_state_1 = loc.curr_task->relock_1;
+                    auto relock_state_2 = loc.curr_task->relock_2;
+                    loc.curr_task->relock_0 = nullptr;
+                    loc.curr_task->relock_1 = nullptr;
+                    loc.curr_task->relock_2 = nullptr;
+                    relock_state_0.relock_end();
+                    relock_state_1.relock_end();
+                    relock_state_2.relock_end();
                     exception::load_current_exception(cxx);
                     throw;
                 }
-                timer_reinit();
                 exception::load_current_exception(cxx);
             } else {
                 *loc.stack_current_context = std::move(*loc.stack_current_context).resume();
-                timer_reinit();
             }
             loc.context_in_swap = true;
             auto relock_state_0 = loc.curr_task->relock_0;
@@ -151,6 +156,7 @@ namespace art {
             }
         } else
             throw InternalException("swapCtx() not allowed call in non-task thread or in dispatcher");
+        timer_reinit();
     }
 
     void swapCtxRelock(const MutexUnify& mut0) {

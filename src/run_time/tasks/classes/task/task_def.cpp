@@ -375,7 +375,7 @@ namespace art {
                 }
                 l.lock();
             }
-            std::lock_guard lock(glob.binded_workers_safety);
+            art::lock_guard lock(glob.binded_workers_safety);
             bool binded_tasks_empty = true;
             for (auto& contexts : glob.binded_workers)
                 if (contexts.second.tasks.size())
@@ -395,7 +395,7 @@ namespace art {
                     glob.no_tasks_execute_notifier.wait(l);
         }
             {
-                std::lock_guard lock(glob.binded_workers_safety);
+                art::lock_guard lock(glob.binded_workers_safety);
                 bool binded_tasks_empty = true;
                 for (auto& contexts : glob.binded_workers)
                     if (contexts.second.tasks.size())

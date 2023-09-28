@@ -88,35 +88,35 @@ namespace art {
             case 1: {
                 mutex mt;
                 MutexUnify unify(mt);
-                unique_lock lock(unify);
+                art::unique_lock lock(unify);
                 class_.wait(lock);
                 break;
             }
             case 2: {
                 if (args[1].meta.vtype == VType::struct_) {
                     MutexUnify unify = getMutex(args[1]);
-                    unique_lock lock(unify, adopt_lock);
+                    art::unique_lock lock(unify, adopt_lock);
                     class_.wait(lock);
                     lock.release();
                     break;
                 } else if (args[1].meta.vtype == VType::time_point) {
                     mutex mt;
                     MutexUnify unify(mt);
-                    unique_lock lock(unify);
+                    art::unique_lock lock(unify);
                     auto res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[1]);
                     lock.release();
                     return res;
                 } else {
                     mutex mt;
                     MutexUnify unify(mt);
-                    unique_lock lock(unify);
+                    art::unique_lock lock(unify);
                     return class_.wait_for(lock, (size_t)args[1]);
                 }
             }
             case 3:
             default: {
                 MutexUnify unify = getMutex(args[1]);
-                unique_lock lock(unify, adopt_lock);
+                art::unique_lock lock(unify, adopt_lock);
                 bool res;
                 if (args[2].meta.vtype == VType::time_point)
                     res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[2]);
@@ -134,13 +134,13 @@ namespace art {
             case 2: {
                 mutex mt;
                 MutexUnify unify(mt);
-                unique_lock lock(unify);
+                art::unique_lock lock(unify);
                 return class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[1]);
             }
             case 3:
             default: {
                 MutexUnify unify = getMutex(args[1]);
-                unique_lock lock(unify, adopt_lock);
+                art::unique_lock lock(unify, adopt_lock);
                 auto res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[2]);
                 lock.release();
                 return res;
@@ -638,7 +638,7 @@ namespace art {
 
         AttachAFun(funs_Task_size, 1, {
             Task& task = *CXX::Interface::getExtractAs<art::typed_lgr<Task>>(args[0], define_Task);
-            lock_guard lock(task.no_race);
+            art::lock_guard lock(task.no_race);
             return task.fres.results.size();
         });
 
@@ -1316,73 +1316,73 @@ namespace art {
                 }
 
                 AtomicObject& operator=(const AtomicObject& other) {
-                    unique_lock<TaskRecursiveMutex> object_lock(const_cast<AtomicObject&>(other).mutex);
+                    art::unique_lock<TaskRecursiveMutex> object_lock(const_cast<AtomicObject&>(other).mutex);
                     ValueItem get(other.value);
                     object_lock.unlock();
-                    lock_guard<TaskRecursiveMutex> lock(mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(mutex);
                     value = std::move(get);
                     return *this;
                 }
 
                 AtomicObject& operator=(AtomicObject&& other) {
-                    unique_lock<TaskRecursiveMutex> object_lock(other.mutex);
+                    art::unique_lock<TaskRecursiveMutex> object_lock(other.mutex);
                     ValueItem get(std::move(other.value));
                     object_lock.unlock();
-                    lock_guard<TaskRecursiveMutex> lock(mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(mutex);
                     value = std::move(get);
                     return *this;
                 }
 
                 AtomicObject& operator=(const ValueItem& other) {
-                    lock_guard<TaskRecursiveMutex> lock(mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(mutex);
                     value = other;
                     return *this;
                 }
 
                 AtomicObject& operator=(ValueItem&& other) {
-                    lock_guard<TaskRecursiveMutex> lock(mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(mutex);
                     value = std::move(other);
                     return *this;
                 }
 
                 static AttachAFun(__less, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& cmp = args[1];
                     return self.value < cmp;
                 });
 
                 static AttachAFun(__greater, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& cmp = args[1];
                     return self.value > cmp;
                 });
 
                 static AttachAFun(__equal, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& cmp = args[1];
                     return self.value == cmp;
                 });
 
                 static AttachAFun(__not_equal, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& cmp = args[1];
                     return self.value != cmp;
                 });
 
                 static AttachAFun(__greater_equal, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& cmp = args[1];
                     return self.value >= cmp;
                 });
 
                 static AttachAFun(__less_equal, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& cmp = args[1];
                     return self.value <= cmp;
                 });
@@ -1390,28 +1390,28 @@ namespace art {
 
                 static AttachAFun(__add, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& set = args[1];
                     self.value += set;
                 });
 
                 static AttachAFun(__sub, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& set = args[1];
                     self.value -= set;
                 });
 
                 static AttachAFun(__mul, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& set = args[1];
                     self.value *= set;
                 });
 
                 static AttachAFun(__div, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& set = args[1];
                     self.value /= set;
                 });
@@ -1419,13 +1419,13 @@ namespace art {
                 static AttachAFun(__mod, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
                     auto& set = args[1];
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     self.value %= set;
                 });
 
                 static AttachAFun(__xor, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     auto& set = args[1];
                     self.value ^= set;
                 });
@@ -1433,268 +1433,268 @@ namespace art {
                 static AttachAFun(__and, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
                     auto& set = args[1];
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     self.value &= set;
                 });
 
                 static AttachAFun(__or, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
                     auto& set = args[1];
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     self.value |= set;
                 });
 
                 static AttachAFun(__lshift, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
                     auto& set = args[1];
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     self.value <<= set;
                 });
 
                 static AttachAFun(__rshift, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
                     auto& set = args[1];
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     self.value >>= set;
                 });
 
                 static AttachAFun(__inc, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     ++self.value;
                 });
 
                 static AttachAFun(__dec, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     --self.value;
                 });
 
                 static AttachAFun(__not, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return !self.value;
                 });
 
 
                 static AttachAFun(__to_boolean, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (bool)self.value;
                 });
 
                 static AttachAFun(__to_i8, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (int8_t)self.value;
                 });
                 static AttachAFun(__to_i16, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (int16_t)self.value;
                 });
 
                 static AttachAFun(__to_i32, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (int32_t)self.value;
                 });
 
                 static AttachAFun(__to_i64, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (int64_t)self.value;
                 });
 
                 static AttachAFun(__to_u8, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (uint8_t)self.value;
                 });
 
                 static AttachAFun(__to_u16, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (uint16_t)self.value;
                 });
 
                 static AttachAFun(__to_u32, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (uint32_t)self.value;
                 });
 
                 static AttachAFun(__to_u64, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (uint64_t)self.value;
                 });
 
                 static AttachAFun(__to_float, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (float)self.value;
                 });
 
                 static AttachAFun(__to_double, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (double)self.value;
                 });
 
                 static AttachAFun(__to_i8_arr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<int8_t>)self.value;
                 });
 
                 static AttachAFun(__to_i16_arr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<int16_t>)self.value;
                 });
 
                 static AttachAFun(__to_i32_arr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<int32_t>)self.value;
                 });
 
                 static AttachAFun(__to_i64_arr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<int64_t>)self.value;
                 });
 
                 static AttachAFun(__to_ui8_arr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<uint8_t>)self.value;
                 });
 
                 static AttachAFun(__to_ui16_arr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<uint16_t>)self.value;
                 });
 
                 static AttachAFun(__to_ui32_arr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<uint32_t>)self.value;
                 });
 
                 static AttachAFun(__to_ui64_arr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<uint64_t>)self.value;
                 });
 
                 static AttachAFun(__to_float_arr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<float>)self.value;
                 });
 
                 static AttachAFun(__to_double_arr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<double>)self.value;
                 });
 
                 static AttachAFun(__to_faarr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (array_t<ValueItem>)self.value;
                 });
 
                 static AttachAFun(__to_undefined_pointer, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (void*)self.value;
                 });
 
                 static AttachAFun(__to_string, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (art::ustring)self.value;
                 });
 
                 static AttachAFun(__to_uarr, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (list_array<ValueItem>)self.value;
                 });
 
                 static AttachAFun(__to_type_identifier, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (ValueMeta)self.value;
                 });
 
                 static AttachAFun(__to_timepoint, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (std::chrono::high_resolution_clock::time_point)self.value;
                 });
 
                 static AttachAFun(__to_map, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&)self.value;
                 });
 
                 static AttachAFun(__to_set, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (std::unordered_set<ValueItem, art::hash<ValueItem>>&)self.value;
                 });
 
                 static AttachAFun(__to_function, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return (art::shared_ptr<FuncEnvironment>&)self.value;
                 });
 
                 static AttachAFun(__explicit_await, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     self.value.getAsync();
                 });
 
                 static AttachAFun(__make_gc, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     self.value.make_gc();
                 });
 
                 static AttachAFun(__localize_gc, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     self.value.localize_gc();
                 });
 
                 static AttachAFun(__ungc, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     self.value.ungc();
                 });
 
                 static AttachAFun(__is_gc, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return self.value.is_gc();
                 });
 
                 static AttachAFun(__hash, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return self.value.hash();
                 });
 
                 static AttachAFun(__make_slice, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     if (len == 2)
                         return self.value.make_slice((uint32_t)args[1], self.value.meta.val_len);
                     else
@@ -1703,19 +1703,19 @@ namespace art {
 
                 static AttachAFun(__size, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return self.value.meta.val_len;
                 });
 
                 static AttachAFun(__get, 1, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     return self.value;
                 });
 
                 static AttachAFun(__set, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicObject>(args[0], virtual_table);
-                    lock_guard<TaskRecursiveMutex> lock(self.mutex);
+                    art::lock_guard<TaskRecursiveMutex> lock(self.mutex);
                     self.value = args[1];
                 });
 
@@ -2086,12 +2086,12 @@ namespace art {
                                 std::unique_ptr<ValueItem[]> args_hold(args);
                                 try {
                                     auto tmp = FuncEnvironment::sync_call(func, args, len);
-                                    unique_lock ul(handle->mtx);
+                                    art::unique_lock ul(handle->mtx);
                                     handle->res = tmp;
                                     handle->end = true;
                                     handle->cv.notify_all();
                                 } catch (...) {
-                                    unique_lock ul(handle->mtx);
+                                    art::unique_lock ul(handle->mtx);
                                     try {
                                         handle->res = new ValueItem(std::current_exception());
                                     } catch (...) {
@@ -2115,12 +2115,12 @@ namespace art {
                             [handle](art::shared_ptr<FuncEnvironment> func) {
                                 try {
                                     auto tmp = FuncEnvironment::sync_call(func, nullptr, 0);
-                                    unique_lock ul(handle->mtx);
+                                    art::unique_lock ul(handle->mtx);
                                     handle->res = tmp;
                                     handle->end = true;
                                     handle->cv.notify_all();
                                 } catch (...) {
-                                    unique_lock ul(handle->mtx);
+                                    art::unique_lock ul(handle->mtx);
                                     try {
                                         handle->res = new ValueItem(std::current_exception());
                                     } catch (...) {

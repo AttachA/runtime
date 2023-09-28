@@ -85,7 +85,7 @@ namespace art {
 
             if (leave_after_finish)
                 if (!(!glob.tasks.empty() || !glob.cold_tasks.empty() || !glob.timed_tasks.empty() || glob.in_exec || glob.tasks_in_swap || glob.in_run_tasks)) {
-                    std::lock_guard lock(glob.binded_workers_safety);
+                    art::lock_guard lock(glob.binded_workers_safety);
                     bool binded_tasks_empty = true;
                     for (auto& contexts : glob.binded_workers)
                         if (contexts.second.tasks.size())

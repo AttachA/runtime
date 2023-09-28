@@ -962,9 +962,9 @@ namespace art {
         TcpNetworkStreamImpl(tcp_handle* handle)
             : handle(handle), last_error(TcpError::none) {}
 
-        ~TcpNetworkStreamImpl() {
+        ~TcpNetworkStreamImpl() override {
             if (handle) {
-                std::lock_guard lg(mutex);
+                art::lock_guard lg(mutex);
                 handle->close();
                 delete handle;
             }
@@ -972,7 +972,7 @@ namespace art {
         }
 
         ValueItem read_available_ref() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             while (!handle->data_available()) {
@@ -987,7 +987,7 @@ namespace art {
         }
 
         ValueItem read_available(char* buffer, int buffer_len) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             while (!handle->data_available()) {
@@ -1003,14 +1003,14 @@ namespace art {
         }
 
         bool data_available() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 return handle->data_available();
             return false;
         }
 
         void write(const char* data, size_t size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->send_data(data, size);
                 while (!handle->data_available()) {
@@ -1022,7 +1022,7 @@ namespace art {
         }
 
         bool write_file(char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) override{
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
                     if (!handle->send_queue_item())
@@ -1037,7 +1037,7 @@ namespace art {
         }
 
         bool write_file(void* fhandle, uint64_t data_len, uint64_t offset, uint32_t chunks_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
                     if (!handle->send_queue_item())
@@ -1051,7 +1051,7 @@ namespace art {
 
         //write all data from write_queue
         void force_write()override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
                     if (!handle->send_queue_item())
@@ -1061,7 +1061,7 @@ namespace art {
         }
 
         void force_write_and_close(const char* data, size_t size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->send_and_close(data, size);
                 last_error = handle->invalid_reason;
@@ -1071,7 +1071,7 @@ namespace art {
         }
 
         void close() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->close();
                 last_error = handle->invalid_reason;
@@ -1081,7 +1081,7 @@ namespace art {
         }
 
         void reset() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->reset();
                 last_error = handle->invalid_reason;
@@ -1091,13 +1091,13 @@ namespace art {
         }
 
         void rebuffer(int32_t new_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 handle->rebuffer(new_size);
         }
 
         bool is_closed() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 bool res = handle->valid();
                 if (!res) {
@@ -1110,14 +1110,14 @@ namespace art {
         }
 
         TcpError error() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 return handle->invalid_reason;
             return last_error;
         }
 
         ValueItem local_address() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             universal_address addr;
@@ -1128,7 +1128,7 @@ namespace art {
         }
 
         ValueItem remote_address() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             universal_address addr;
@@ -1265,15 +1265,15 @@ namespace art {
         TcpNetworkBlockingImpl(tcp_handle* handle)
             : handle(handle), last_error(TcpError::none) {}
 
-        ~TcpNetworkBlockingImpl() {
-            std::lock_guard lg(mutex);
+        ~TcpNetworkBlockingImpl() override {
+            art::lock_guard lg(mutex);
             if (handle)
                 delete handle;
             handle = nullptr;
         }
 
         ValueItem read(uint32_t len) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
                     return nullptr;
@@ -1289,14 +1289,14 @@ namespace art {
         }
 
         ValueItem available_bytes() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 return handle->available_bytes();
             return 0ui32;
         }
 
         ValueItem write(const char* data, uint32_t len) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
                     return nullptr;
@@ -1306,7 +1306,7 @@ namespace art {
         }
 
         ValueItem write_file(char* path, size_t len, uint64_t data_len, uint64_t offset, uint32_t block_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
                     return nullptr;
@@ -1316,7 +1316,7 @@ namespace art {
         }
 
         ValueItem write_file(void* fhandle, uint64_t data_len, uint64_t offset, uint32_t block_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
                     return nullptr;
@@ -1326,7 +1326,7 @@ namespace art {
         }
 
         void close() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->close();
                 last_error = handle->invalid_reason;
@@ -1336,7 +1336,7 @@ namespace art {
         }
 
         void reset() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->reset();
                 last_error = handle->invalid_reason;
@@ -1346,13 +1346,13 @@ namespace art {
         }
 
         void rebuffer(size_t new_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 handle->rebuffer(new_size);
         }
 
         bool is_closed() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 bool res = handle->valid();
                 if (!res) {
@@ -1366,14 +1366,14 @@ namespace art {
         }
 
         TcpError error() override{
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 return handle->invalid_reason;
             return last_error;
         }
 
         ValueItem local_address()override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             universal_address addr;
@@ -1384,7 +1384,7 @@ namespace art {
         }
 
         ValueItem remote_address() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             universal_address addr;
@@ -1555,7 +1555,7 @@ namespace art {
                 delete self;
                 return;
             }
-            std::lock_guard guard(safety);
+            art::lock_guard guard(safety);
             Task::start(new Task(handler_fn, ValueItem{accept_manager_construct(self), std::move(clientAddr), std::move(localAddr)}));
         }
 
@@ -1604,7 +1604,7 @@ namespace art {
 #endif
             setsockopt(data.socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&main_socket, sizeof(main_socket));
             {
-                std::lock_guard lock(safety);
+                art::lock_guard lock(safety);
                 if (!NativeWorkersSingleton::register_handle((HANDLE)data.socket, &data)) {
                     closesocket(data.socket);
 #ifndef DISABLE_RUNTIME_INFO
@@ -1621,7 +1621,7 @@ namespace art {
                 }
             }
             if (data.is_bound) {
-                lock_guard guard(data.cv_mutex);
+                art::lock_guard guard(data.cv_mutex);
                 data.cv.notify_all();
             } else
                 accepted(&data, std::move(clientAddress), std::move(localAddress));
@@ -1765,8 +1765,9 @@ namespace art {
             memcpy(&connectionAddress, &ip_port, sizeof(sockaddr_in6));
         }
 
-        ~TcpNetworkManager() {
-            shutdown();
+        ~TcpNetworkManager() override {
+            if (!corrupted)
+                shutdown();
         }
 
         void handle(void* _data, NativeWorkerHandle* overlapped, unsigned long dwBytesTransferred, bool status) override {
@@ -1789,14 +1790,14 @@ namespace art {
         void set_configuration(const TcpConfiguration& tcp) {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
-            std::lock_guard lock(safety);
+            art::lock_guard lock(safety);
             config = tcp;
         }
 
         void set_on_connect(art::shared_ptr<FuncEnvironment> handler_fn, TcpNetworkServer::ManageType manage_type) {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
-            std::lock_guard lock(safety);
+            art::lock_guard lock(safety);
             this->handler_fn = handler_fn;
             this->manage_type = manage_type;
         }
@@ -1804,7 +1805,7 @@ namespace art {
         void shutdown() {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
-            std::lock_guard lock(safety);
+            art::lock_guard lock(safety);
             if (disabled)
                 return;
             if (closesocket(main_socket) == SOCKET_ERROR)
@@ -1829,7 +1830,7 @@ namespace art {
         void start() {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
-            std::lock_guard lock(safety);
+            art::lock_guard lock(safety);
             allow_new_connections = true;
             if (!disabled)
                 return;
@@ -1853,7 +1854,7 @@ namespace art {
                 throw AttachARuntimeException("TcpNetworkManager is paused");
             tcp_handle* data = new tcp_handle(0, config.buffer_size, this);
             MutexUnify um(data->cv_mutex);
-            unique_lock lock(um);
+            art::unique_lock lock(um);
             data->opcode = tcp_handle::Opcode::ACCEPT;
             data->is_bound = true;
             make_acceptEx(data);
@@ -1873,7 +1874,7 @@ namespace art {
         void set_accept_filter(art::shared_ptr<FuncEnvironment> filter) {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
-            std::lock_guard lock(safety);
+            art::lock_guard lock(safety);
             this->accept_filter = filter;
         }
 
@@ -2130,7 +2131,7 @@ namespace art {
         int32_t read(char* data, int32_t len) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::read, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             int32_t readed = 0;
             while (!_handle->available_bytes())
                 if (!_handle->send_queue_item())
@@ -2142,7 +2143,7 @@ namespace art {
         bool write(const char* data, int32_t len) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::write, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             _handle->send_data(data, len);
             while (!_handle->available_bytes())
                 if (!_handle->send_queue_item())
@@ -2153,7 +2154,7 @@ namespace art {
         bool write_file(const char* path, size_t len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::write_file, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             while (!_handle->available_bytes())
                 if (!_handle->send_queue_item())
                     break;
@@ -2163,7 +2164,7 @@ namespace art {
         bool write_file(void* handle, uint64_t data_len, uint64_t offset, uint32_t chunks_size) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::write_file, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             while (!_handle->available_bytes())
                 if (!_handle->send_queue_item())
                     break;
@@ -2173,14 +2174,14 @@ namespace art {
         void close() {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::close, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             _handle->close();
         }
 
         void reset() {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::close, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             _handle->reset();
         }
 
@@ -2191,7 +2192,7 @@ namespace art {
         void rebuffer(uint32_t size) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::rebuffer, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             _handle->rebuffer(size);
         }
     };
@@ -2874,7 +2875,7 @@ namespace art {
 
         ~TcpNetworkStreamImpl() {
             if (handle) {
-                std::lock_guard lg(mutex);
+                art::lock_guard lg(mutex);
                 handle->close();
                 delete handle;
             }
@@ -2882,7 +2883,7 @@ namespace art {
         }
 
         ValueItem read_available_ref() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             while (!handle->data_available()) {
@@ -2897,7 +2898,7 @@ namespace art {
         }
 
         ValueItem read_available(char* buffer, int buffer_len) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             while (!handle->data_available()) {
@@ -2913,14 +2914,14 @@ namespace art {
         }
 
         bool data_available() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 return handle->data_available();
             return false;
         }
 
         void write(const char* data, size_t size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->send_data(data, size);
                 while (!handle->data_available()) {
@@ -2932,7 +2933,7 @@ namespace art {
         }
 
         bool write_file(char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
                     if (!handle->send_queue_item())
@@ -2947,7 +2948,7 @@ namespace art {
         }
 
         bool write_file(int fhandle, uint64_t data_len, uint64_t offset, uint32_t chunks_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
                     if (!handle->send_queue_item())
@@ -2961,7 +2962,7 @@ namespace art {
 
         //write all data from write_queue
         void force_write() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
                     if (!handle->send_queue_item())
@@ -2971,7 +2972,7 @@ namespace art {
         }
 
         void force_write_and_close(const char* data, size_t size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->send_and_close(data, size);
                 last_error = handle->invalid_reason;
@@ -2981,7 +2982,7 @@ namespace art {
         }
 
         void close() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->close();
                 last_error = handle->invalid_reason;
@@ -2991,7 +2992,7 @@ namespace art {
         }
 
         void reset() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->reset();
                 last_error = handle->invalid_reason;
@@ -3001,13 +3002,13 @@ namespace art {
         }
 
         void rebuffer(int32_t new_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 handle->rebuffer(new_size);
         }
 
         bool is_closed() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 bool res = handle->valid();
                 if (!res) {
@@ -3020,14 +3021,14 @@ namespace art {
         }
 
         TcpError error() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 return handle->invalid_reason;
             return last_error;
         }
 
         ValueItem local_address() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             universal_address addr;
@@ -3038,7 +3039,7 @@ namespace art {
         }
 
         ValueItem remote_address() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             universal_address addr;
@@ -3176,14 +3177,14 @@ namespace art {
             : handle(handle), last_error(TcpError::none) {}
 
         ~TcpNetworkBlockingImpl() {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 delete handle;
             handle = nullptr;
         }
 
         ValueItem read(uint32_t len) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
                     return nullptr;
@@ -3199,14 +3200,14 @@ namespace art {
         }
 
         ValueItem available_bytes() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 return handle->available_bytes();
             return (uint32_t)0;
         }
 
         ValueItem write(const char* data, uint32_t len) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
                     return nullptr;
@@ -3216,7 +3217,7 @@ namespace art {
         }
 
         ValueItem write_file(char* path, size_t len, uint64_t data_len, uint64_t offset, uint32_t block_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
                     return nullptr;
@@ -3226,7 +3227,7 @@ namespace art {
         }
 
         ValueItem write_file(int fhandle, uint64_t data_len, uint64_t offset, uint32_t block_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 if (!checkup())
                     return nullptr;
@@ -3236,7 +3237,7 @@ namespace art {
         }
 
         void close() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->close();
                 last_error = handle->invalid_reason;
@@ -3246,7 +3247,7 @@ namespace art {
         }
 
         void reset() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 handle->reset();
                 last_error = handle->invalid_reason;
@@ -3256,13 +3257,13 @@ namespace art {
         }
 
         void rebuffer(size_t new_size) override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 handle->rebuffer(new_size);
         }
 
         bool is_closed() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle) {
                 bool res = handle->valid();
                 if (!res) {
@@ -3276,14 +3277,14 @@ namespace art {
         }
 
         TcpError error() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (handle)
                 return handle->invalid_reason;
             return last_error;
         }
 
         ValueItem local_address() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             universal_address addr;
@@ -3294,7 +3295,7 @@ namespace art {
         }
 
         ValueItem remote_address() override {
-            std::lock_guard lg(mutex);
+            art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
             universal_address addr;
@@ -3440,13 +3441,13 @@ namespace art {
                 delete self;
                 return;
             }
-            std::lock_guard guard(safety);
+            art::lock_guard guard(safety);
             Task::start(
                 new Task(handler_fn, ValueItem{accept_manager_construct(self), std::move(clientAddr), std::move(localAddr)}));
         }
 
         void accept_bounded(tcp_handle& data, SOCKET client_socket) {
-            std::lock_guard guard(data.cv_mutex);
+            art::lock_guard guard(data.cv_mutex);
             data.socket = client_socket;
             data.cv.notify_all();
         }
@@ -3643,7 +3644,7 @@ namespace art {
         void set_on_connect(art::shared_ptr<FuncEnvironment> handler_fn, TcpNetworkServer::ManageType manage_type) {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
-            std::lock_guard lock(safety);
+            art::lock_guard lock(safety);
             this->handler_fn = handler_fn;
             this->manage_type = manage_type;
         }
@@ -3651,7 +3652,7 @@ namespace art {
         void shutdown() {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
-            std::lock_guard lock(safety);
+            art::lock_guard lock(safety);
             if (disabled)
                 return;
             tcp_handle* data = new tcp_handle(main_socket, 0, this, 0);
@@ -3679,7 +3680,7 @@ namespace art {
         void start() {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
-            std::lock_guard lock(safety);
+            art::lock_guard lock(safety);
             allow_new_connections = true;
             if (!disabled)
                 return;
@@ -3730,7 +3731,7 @@ namespace art {
         void set_accept_filter(art::shared_ptr<FuncEnvironment> filter) {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
-            std::lock_guard lock(safety);
+            art::lock_guard lock(safety);
             this->accept_filter = filter;
         }
 
@@ -4051,7 +4052,7 @@ namespace art {
         int32_t read(char* data, int32_t len) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::read, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             int32_t readed = 0;
             while (!_handle->available_bytes())
                 if (!_handle->send_queue_item())
@@ -4063,7 +4064,7 @@ namespace art {
         bool write(const char* data, int32_t len) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::write, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             _handle->send_data(data, len);
             while (!_handle->available_bytes())
                 if (!_handle->send_queue_item())
@@ -4074,7 +4075,7 @@ namespace art {
         bool write_file(const char* path, size_t len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::write_file, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             while (!_handle->available_bytes())
                 if (!_handle->send_queue_item())
                     break;
@@ -4084,7 +4085,7 @@ namespace art {
         bool write_file(int handle, uint64_t data_len, uint64_t offset, uint32_t chunks_size) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::write_file, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             while (!_handle->available_bytes())
                 if (!_handle->send_queue_item())
                     break;
@@ -4094,14 +4095,14 @@ namespace art {
         void close() {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::close, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             _handle->close();
         }
 
         void reset() {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::close, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             _handle->reset();
         }
 
@@ -4112,7 +4113,7 @@ namespace art {
         void rebuffer(uint32_t size) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::rebuffer, corrupted");
-            std::lock_guard<TaskMutex> lock(mutex);
+            art::lock_guard<TaskMutex> lock(mutex);
             _handle->rebuffer(size);
         }
     };
