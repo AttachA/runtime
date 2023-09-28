@@ -436,9 +436,9 @@ namespace art {
                 return exception::try_catch_all(info);
             case 5: { //attacha filter function
                 Environment env_filter = internal::readFromArrayAsValue<Environment>(data_info);
-                uint16_t filter_enviro_slice_begin = internal::readFromArrayAsValue<uint32_t>(data_info);
-                uint16_t filter_enviro_slice_end = internal::readFromArrayAsValue<uint32_t>(data_info);
-                if (filter_enviro_slice_begin >= filter_enviro_slice_end)
+                uint16_t filter_enviro_slice_begin = internal::readFromArrayAsValue<uint16_t>(data_info);
+                uint16_t filter_enviro_slice_end = internal::readFromArrayAsValue<uint16_t>(data_info);
+                if (filter_enviro_slice_begin > filter_enviro_slice_end)
                     throw InvalidIL("Invalid environment slice");
                 uint16_t filter_enviro_size = filter_enviro_slice_end - filter_enviro_slice_begin;
                 return (bool)CXX::aCall(env_filter, (ValueItem*)enviro + filter_enviro_slice_begin, filter_enviro_size);
