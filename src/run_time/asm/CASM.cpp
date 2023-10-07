@@ -390,7 +390,7 @@ namespace art {
         std::vector<uint16_t> info((sizeof(UWINFO_head) >> 1));
         info.reserve(codes.size() + codes.size() & 1);
 
-        frame.head.Flags = frame.use_handle ? UNW_FLAG_EHANDLER : 0;
+        frame.head.Flags = frame.use_handle ? UNW_FLAG_EHANDLER | UNW_FLAG_UHANDLER : 0;
         *(UWINFO_head*)(info.data()) = frame.head;
 
         for (size_t i = codes.size(); i > 0; i--)

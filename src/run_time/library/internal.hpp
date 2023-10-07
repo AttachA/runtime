@@ -50,6 +50,8 @@ namespace art {
 
             //returns [{file_path, fun_name, line},...], args: framesToSkip, include_native, max_frames
             ValueItem* trace(ValueItem*, uint32_t);
+            //returns [{file_path, fun_name, line},...], args: framesToSkip, include_native, max_frames
+            ValueItem* clean_trace(ValueItem*, uint32_t);
             //returns [rip,...], args: framesToSkip, include_native, max_frames
             ValueItem* trace_frames(ValueItem*, uint32_t);
             //returns {file_path, fun_name, line}, args: frame,(optional include_native)

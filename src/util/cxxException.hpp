@@ -17,14 +17,16 @@ namespace art {
         struct Tys {
             const std::type_info* ty_info;
             const void* copy_fn;
+            uint32_t size;
             bool is_bad_alloc;
+            bool is_refrence_only;
 
             Tys() = default;
             Tys(const Tys&);
             Tys(Tys&&);
 
-            Tys(const std::type_info* ty_info, const void* copy_fn, bool is_bad_alloc)
-                : ty_info(ty_info), copy_fn(copy_fn), is_bad_alloc(is_bad_alloc) {}
+            Tys(const std::type_info* ty_info, const void* copy_fn, uint32_t size, bool is_bad_alloc, bool is_refrence_only)
+                : ty_info(ty_info), copy_fn(copy_fn), size(size), is_bad_alloc(is_bad_alloc), is_refrence_only(is_refrence_only) {}
 
             Tys& operator=(const Tys&);
             Tys& operator=(Tys&&);
@@ -44,6 +46,7 @@ namespace art {
         CXXExInfo(CXXExInfo&&);
         CXXExInfo& operator=(const CXXExInfo&);
         CXXExInfo& operator=(CXXExInfo&&);
+        void make_cleanup();
     };
 
     void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex);
@@ -51,5 +54,6 @@ namespace art {
     void getCxxExInfoFromNative1(CXXExInfo& res, void*);
     bool hasClassInEx(CXXExInfo& cxx, const char* class_nam);
     bool isBadAlloc(CXXExInfo& cxx);
+    void* getExPtrFromException(const std::exception_ptr& ex);
 }
 #endif /* SRC_RUN_TIME_CXXEXCEPTION */

@@ -20,9 +20,9 @@ namespace art {
         ValueItem* has_current_exception_inner_exception();
         void unpack_current_exception();
         void current_exception_catched();
-        CXXExInfo take_current_exception();
-        CXXExInfo& peek_current_exception();
-        void load_current_exception(CXXExInfo& cxx);
+        void* take_current_exception();
+        CXXExInfo& lookup_meta();
+        void load_current_exception(void*);
         bool try_catch_all(CXXExInfo& cxx);
         bool has_exception();
         list_array<art::ustring> map_native_exception_names(CXXExInfo& cxx);

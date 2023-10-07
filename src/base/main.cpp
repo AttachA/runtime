@@ -31,15 +31,61 @@ ValueItem* busyWorker(ValueItem* args, uint32_t argc) {
     return new ValueItem(i);
 }
 
-void throw_test() {
-    //throw std::invalid_argument("test");
+ValueItem* cuteTrace(ValueItem* args, uint32_t argc) {
+    CXX::cxxCall(console::printLine, "-----begin trace-----");
+    for (auto& i : args[0])
+        CXX::cxxCall(console::printLine, i[1] + " " + (i[2] == (SIZE_MAX) ? "null" : i[2]));
+    CXX::cxxCall(console::printLine, "------end trace------");
+    return nullptr;
 }
+
+class ExCatchTest : public std::exception {
+public:
+    ExCatchTest() {
+        CXX::cxxCall(console::printLine, "ExCatchTest begin");
+    }
+
+    ~ExCatchTest() {
+        CXX::cxxCall(console::printLine, "ExCatchTest end");
+    }
+
+    ExCatchTest(const ExCatchTest&) {
+        CXX::cxxCall(console::printLine, "ExCatchTest copy");
+    }
+
+    ExCatchTest(ExCatchTest&&) {
+        CXX::cxxCall(console::printLine, "ExCatchTest move");
+    }
+
+    ExCatchTest& operator=(const ExCatchTest&) {
+        CXX::cxxCall(console::printLine, "ExCatchTest copy assign");
+        return *this;
+    }
+
+    ExCatchTest& operator=(ExCatchTest&&) {
+        CXX::cxxCall(console::printLine, "ExCatchTest move assign");
+        return *this;
+    }
+};
+
+void throw_test() {
+    CXX::cxxCall(cuteTrace, CXX::cxxCall(art::internal::stack::clean_trace));
+    struct destruction_test {
+        ~destruction_test() {
+            CXX::cxxCall(console::printLine, "destruction_test");
+        }
+    } test;
+
+    ExCatchTest value;
+    throw value;
+}
+
 
 bool catch_test() {
     if (art::exception::has_exception()) {
         CXX::cxxCall(console::printLine, "Hello from filter");
-        return art::exception::map_native_exception_names(art::exception::peek_current_exception())
-            .contains("class std::exception");
+        return art::exception::map_native_exception_names(art::exception::lookup_meta())
+            .contains("class ExCatchTest");
     }
     return false;
 }
@@ -53,7 +99,7 @@ void test_except() {
     FuncEnvironment::AddNative(catch_test, "catch_test", true, false);
     FuncEnvironment::AddNative(catched, "catched", true, false);
     FuncEnviroBuilder build;
-    auto _throw_test = build.create_constant("throw_test");
+    auto _throw_test = build.create_constant("Inner Call");
     auto _catch_test = build.create_constant("catch_test");
     auto _catched = build.create_constant("catched");
     build.except().handle_begin(0);
@@ -61,11 +107,20 @@ void test_except() {
     build.except().handle_catch_filter(0, _catch_test);
     build.except().handle_end(0);
     build.call_and_ret(_catched);
+
+
+    FuncEnviroBuilder build_2;
+    auto _throw_test_2 = build_2.create_constant("throw_test");
+    build_2.copy(0_env, _throw_test_2);
+    build_2.call_and_ret(0_env);
+    build_2.O_load_func("Inner Call");
+
     try {
         CXX::cxxCall(build.O_prepare_func());
     } catch (...) {
         CXX::cxxCall(console::printLine, "not_catched");
     }
+    FuncEnvironment::Unload("Inner Call");
     FuncEnvironment::Unload("throw_test");
     FuncEnvironment::Unload("catch_test");
     FuncEnvironment::Unload("catched");
@@ -298,6 +353,13 @@ int ymain() {
 }
 
 int main() {
+    try {
+        throw_test();
+    } catch (const ExCatchTest& value) {
+        CXX::cxxCall(console::printLine, AttachARuntimeException(std::current_exception()).full_info());
+    }
+
+
     test_except();
     return mmain();
 }

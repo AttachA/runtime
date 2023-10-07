@@ -81,13 +81,13 @@ namespace art {
                 void dynamic_copy() {
                     ValueIndexPos to = readIndexPos(data, data_len, i);
                     ValueIndexPos from = readIndexPos(data, data_len, i);
-                    compiler.dynamic().copy(from, to);
+                    compiler.dynamic().copy(to, from);
                 }
 
                 void dynamic_move() {
                     ValueIndexPos to = readIndexPos(data, data_len, i);
                     ValueIndexPos from = readIndexPos(data, data_len, i);
-                    compiler.dynamic().move(from, to);
+                    compiler.dynamic().move(to, from);
                 }
 
 #pragma endregion

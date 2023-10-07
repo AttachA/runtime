@@ -92,6 +92,51 @@ namespace art {
                 return new ValueItem(res2, ValueMeta(VType::faarr, false, true, res.size()));
             }
 
+            ValueItem* clean_trace(ValueItem* vals, uint32_t len) {
+                uint32_t framesToSkip = 0;
+                bool include_native = true;
+                uint32_t max_frames = 32;
+                if (len >= 1)
+                    framesToSkip = (uint32_t)vals[0];
+                if (len >= 2)
+                    include_native = (bool)vals[1];
+                if (len >= 3)
+                    max_frames = (uint32_t)vals[2];
+
+                auto res = FrameResult::JitCaptureStackTrace(framesToSkip, include_native, max_frames);
+                list_array<StackTraceItem> res2;
+                for (size_t i = 0; i < res.size(); i++) {
+                    if (res[i].fn_name == "art::internal::stack::clean_trace")
+                        continue;
+                    if (res[i].fn_name.starts_with("std::invoke"))
+                        continue;
+                    if (res[i].fn_name.starts_with("std::apply"))
+                        continue;
+                    if (res[i].fn_name.starts_with("std::_Apply_impl"))
+                        continue;
+                    if (res[i].fn_name.starts_with("art::CXX::Proxy"))
+                        continue;
+                    if (res[i].fn_name.starts_with("art::FuncHandle::"))
+                        continue;
+                    if (res[i].fn_name.starts_with("art::FuncEnvironment::"))
+                        continue;
+                    if (res[i].fn_name == "art::CXX::cxxCall")
+                        continue;
+                    if (res[i].fn_name == "art::CXX::aCall")
+                        continue;
+                    if (res[i].fn_name == "invoke_main")
+                        break;
+                    if (res[i].fn_name == "art::context_exec")
+                        break;
+                    res2.push_back(std::move(res[i]));
+                }
+
+                auto res3 = new ValueItem[res2.size()];
+                for (size_t i = 0; i < res2.size(); i++)
+                    res3[i] = ValueItem{res2[i].file_path, res2[i].fn_name, (uint64_t)res2[i].line};
+                return new ValueItem(res3, ValueMeta(VType::faarr, false, true, res2.size()));
+            }
+
             ValueItem* trace_frames(ValueItem* vals, uint32_t len) {
                 uint32_t framesToSkip = 0;
                 bool include_native = true;

@@ -1595,10 +1595,10 @@ namespace art {
             reinterpret_cast<double&>(actual_val0) += (double)val1_r;
             break;
         case VType::uarr:
-            reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(val1_r);
+            reinterpret_cast<list_array<ValueItem>*>(actual_val0)->push_back(val1_r);
             break;
         case VType::string:
-            reinterpret_cast<art::ustring&>(actual_val0) += (art::ustring)val1_r;
+            *reinterpret_cast<art::ustring*>(actual_val0) += (art::ustring)val1_r;
             break;
         case VType::undefined_ptr:
             reinterpret_cast<size_t&>(actual_val0) += (size_t)val1_r;
@@ -1663,10 +1663,10 @@ namespace art {
             reinterpret_cast<double&>(actual_val0) -= (double)val1_r;
             break;
         case VType::uarr:
-            reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(val1_r);
+            reinterpret_cast<list_array<ValueItem>*>(actual_val0)->push_back(val1_r);
             break;
         case VType::string:
-            reinterpret_cast<art::ustring&>(actual_val0) = (art::ustring)val1_r + reinterpret_cast<art::ustring&>(actual_val0);
+            *reinterpret_cast<art::ustring*>(actual_val0) = (art::ustring)val1_r + *reinterpret_cast<art::ustring*>(actual_val0);
             break;
         case VType::undefined_ptr:
             reinterpret_cast<size_t&>(actual_val0) -= (size_t)val1_r;
@@ -1731,7 +1731,7 @@ namespace art {
             reinterpret_cast<double&>(actual_val0) *= (double)val1_r;
             break;
         case VType::uarr:
-            reinterpret_cast<list_array<ValueItem>&>(actual_val0).push_back(val1_r);
+            reinterpret_cast<list_array<ValueItem>*>(actual_val0)->push_back(val1_r);
             break;
         case VType::undefined_ptr:
             reinterpret_cast<size_t&>(actual_val0) *= (size_t)val1_r;
@@ -5925,8 +5925,7 @@ namespace art {
 
     ValueItemIterator& ValueItemIterator::operator++() {
         if (is_raw_array(item.meta.vtype)) {
-            size_t i = (size_t)iterator_data;
-            i++;
+            (*(size_t*)&iterator_data)++;
         } else if (item.meta.vtype == VType::uarr) {
             list_array<ValueItem>::iterator& i = *(list_array<ValueItem>::iterator*)iterator_data;
             i++;
@@ -5950,9 +5949,9 @@ namespace art {
     ValueItemIterator ValueItemIterator::operator++(int) {
         if (is_raw_array(item.meta.vtype)) {
             ValueItemIterator copy(item, iterator_data);
-            size_t i = (size_t)iterator_data;
-            i++;
-            if (i > item.meta.val_len)
+            (*(size_t*)&iterator_data)++;
+
+            if ((size_t)iterator_data > item.meta.val_len)
                 throw OutOfRange();
             return copy;
         } else if (item.meta.vtype == VType::uarr) {

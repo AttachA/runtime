@@ -116,7 +116,7 @@ namespace art {
             loc.context_in_swap = true;
             ++glob.tasks_in_swap;
             if (exception::has_exception()) {
-                CXXExInfo cxx = exception::take_current_exception();
+                void* cxx = exception::take_current_exception();
                 try {
                     *loc.stack_current_context = std::move(*loc.stack_current_context).resume();
                 } catch (const boost::context::detail::forced_unwind&) {

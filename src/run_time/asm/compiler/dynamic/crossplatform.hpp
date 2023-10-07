@@ -164,7 +164,7 @@ namespace art {
         BuildCall b(a, 0);
         if (fn_symbol.pos == ValuePos::in_constants) {
             if (flags.always_dynamic) {
-                b.setArguments(5);
+                b.setArguments(4);
                 b.addArg(compiler.get_string_constant(fn_symbol));
                 b.addArg(arg_ptr);
                 b.addArg(arg_len_32);
@@ -182,7 +182,7 @@ namespace art {
             b.lea_valindex({compiler.static_map, compiler.values}, fn_symbol);
             b.addArg(VType::string);
             b.finalize(getSpecificValue);
-            b.setArguments(5);
+            b.setArguments(4);
             b.addArg(resr);
             b.addArg(arg_ptr);
             b.addArg(arg_len_32);
@@ -197,7 +197,7 @@ namespace art {
         BuildCall b(a, 0);
         if (fn_symbol.pos == ValuePos::in_constants) {
             if (flags.always_dynamic) {
-                b.setArguments(5);
+                b.setArguments(4);
                 b.addArg(compiler.get_string_constant(fn_symbol));
                 b.addArg(arg_ptr);
                 b.addArg(arg_len_32);
@@ -215,7 +215,7 @@ namespace art {
             b.lea_valindex({compiler.static_map, compiler.values}, fn_symbol);
             b.addArg(VType::string);
             b.finalize(getSpecificValue);
-            b.setArguments(5);
+            b.setArguments(4);
             b.addArg(resr);
             b.addArg(arg_ptr);
             b.addArg(arg_len_32);
@@ -329,7 +329,7 @@ namespace art {
         BuildCall b(compiler.a, 0);
         if (fn_symbol.pos == ValuePos::in_constants) {
             if (flags.always_dynamic) {
-                b.setArguments(5);
+                b.setArguments(4);
                 b.addArg(compiler.get_string_constant(fn_symbol));
                 b.addArg(arg_ptr);
                 b.addArg(arg_len_32);
@@ -347,7 +347,7 @@ namespace art {
             b.lea_valindex({compiler.static_map, compiler.values}, fn_symbol);
             b.addArg(VType::string);
             b.finalize(getSpecificValue);
-            b.setArguments(5);
+            b.setArguments(4);
             b.addArg(resr);
             b.addArg(arg_ptr);
             b.addArg(arg_len_32);

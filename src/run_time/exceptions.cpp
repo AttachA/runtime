@@ -46,15 +46,21 @@ namespace art {
             return "\nUnknownNativeException: NATIVE EXCEPTION";
 #endif
         } else {
-            try {
-                std::rethrow_exception(inner_exception);
-            } catch (const AttachARuntimeException& e) {
-                return "\n" + e.full_info();
-            } catch (const std::exception& e) {
-                return "\nC++Exception: " + art::ustring(e.what());
-            } catch (...) {
+            art::ustring result;
+            size_t found = ex.ty_arr.find_it([&inner_exception, &result](const CXXExInfo::Tys& ty) {
+                if (*ty.ty_info == typeid(AttachARuntimeException)) {
+                    result = "\n" + ((AttachARuntimeException*)getExPtrFromException(inner_exception))->full_info();
+                    return true;
+                } else if (*ty.ty_info == typeid(std::exception)) {
+                    result = "\nC++Exception: " + art::ustring(((std::exception*)getExPtrFromException(inner_exception))->what());
+                    return true;
+                }
+                return false;
+            });
+            if (found == list_array<CXXExInfo::Tys>::npos)
                 return "\nC++Exception: UNKNOWN";
-            }
+            else
+                return result;
         }
     }
 

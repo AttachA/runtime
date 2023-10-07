@@ -1158,6 +1158,7 @@ namespace art {
         FuncEnvironment::AddNative(internal::stack::used_size, "internal stack used_size", false);
 
         FuncEnvironment::AddNative(internal::stack::trace, "internal stack trace", false);
+        FuncEnvironment::AddNative(internal::stack::clean_trace, "internal stack clean_trace", false);
         FuncEnvironment::AddNative(internal::stack::trace_frames, "internal stack trace_frames", false);
         FuncEnvironment::AddNative(internal::stack::resolve_frame, "internal stack resolve_frame", false);
     }

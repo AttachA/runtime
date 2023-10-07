@@ -39,8 +39,12 @@ namespace art {
                 uint32_t size;
                 int32_t copy_function;
             };
-        }
 
+            struct internal_exception_ptr {
+                EXCEPTION_RECORD* record;
+                int* ref;
+            };
+        }
 
         CXXExInfo exceptCXXDetails(LPEXCEPTION_RECORD e) {
             CXXExInfo ex;
@@ -62,7 +66,9 @@ namespace art {
                 CXXExInfo::Tys tys{
                     (const std::type_info*)(e->ExceptionInformation[3] + ss->type_info),
                     (const void*)(e->ExceptionInformation[3] + ss->copy_function),
-                    (bool)(ss->properties & 16)};
+                    ss->size,
+                    (bool)(ss->properties & 16),
+                    (bool)(ss->properties & 2)};
 
                 ex.ty_arr.push_back(tys);
             }
@@ -85,10 +91,7 @@ namespace art {
         }
 
         static void getCxxExInfoFromException(CXXExInfo& res, const std::exception_ptr& ex) {
-            __try {
-                ex_rethrow(ex);
-            } __except (except_abi::getCxxExInfoFromException(res, GetExceptionInformation())) {
-            }
+            res = exceptCXXDetails(reinterpret_cast<const internal_exception_ptr&>(ex).record);
         }
     }
 
@@ -117,6 +120,19 @@ namespace art {
     bool isBadAlloc(CXXExInfo& cxx) {
         return cxx.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.is_bad_alloc; });
     }
+
+    void* getExPtrFromException(const std::exception_ptr& ex) {
+        return (void*)reinterpret_cast<const except_abi::internal_exception_ptr&>(ex).record->ExceptionInformation[1];
+    }
+
+    void CXXExInfo::make_cleanup() {
+        if (cleanup_fn) {
+            if (ty_arr.size())
+                if (ty_arr[0].is_refrence_only)
+                    return;
+            ((void (*)(const void*))cleanup_fn)(ex_ptr);
+        }
+    }
 }
 #else
 namespace art {
@@ -132,6 +148,15 @@ namespace art {
 
     bool isBadAlloc(CXXExInfo& cxx) {
         return false;
+    }
+
+    void CXXExInfo::make_cleanup() {
+        if (cleanup_fn)
+            ((void (*)(const void*))cleanup_fn)(ex_ptr);
+    }
+
+    void* getExPtrFromException(const std::exception_ptr& ex) {
+        return nullptr;
     }
 }
 #endif
@@ -149,6 +174,7 @@ namespace art {
         ty_info = copy.ty_info;
         copy_fn = copy.copy_fn;
         is_bad_alloc = copy.is_bad_alloc;
+        is_refrence_only = copy.is_refrence_only;
         return *this;
     }
 
@@ -156,10 +182,12 @@ namespace art {
         ty_info = move.ty_info;
         copy_fn = move.copy_fn;
         is_bad_alloc = move.is_bad_alloc;
+        is_refrence_only = move.is_refrence_only;
 
         move.ty_info = nullptr;
         move.copy_fn = nullptr;
         move.is_bad_alloc = false;
+        move.is_refrence_only = false;
         return *this;
     }
 
