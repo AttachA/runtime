@@ -124,6 +124,9 @@ namespace art {
         AttachAFun(funs_TcpClientSocket_close, 1, {
             Ai::getExtractAs<typed_lgr<TcpClientSocket>>(args[0], define_TcpClientSocket)->close();
         });
+        AttachAFun(funs_TcpClientSocket_reset, 1, {
+            Ai::getExtractAs<typed_lgr<TcpClientSocket>>(args[0], define_TcpClientSocket)->reset();
+        });
         AttachAFun(funs_TcpClientSocket_rebuffer, 2, {
             Ai::getExtractAs<typed_lgr<TcpClientSocket>>(args[0], define_TcpClientSocket)->rebuffer((int32_t)args[1]);
         });
@@ -282,7 +285,9 @@ namespace art {
                 Ai::direct_method("recv", funs_TcpClientSocket_recv),
                 Ai::direct_method("send", funs_TcpClientSocket_send),
                 Ai::direct_method("send_file", funs_TcpClientSocket_send_file),
-                Ai::direct_method("close", funs_TcpClientSocket_close)
+                Ai::direct_method("close", funs_TcpClientSocket_close),
+                Ai::direct_method("reset", funs_TcpClientSocket_reset),
+                Ai::direct_method("rebuffer", funs_TcpClientSocket_rebuffer)
             );
 
             define_UdpSocket = Ai::createTable<typed_lgr<udp_socket>>(

@@ -1048,7 +1048,7 @@ namespace art {
             }
 
             ValueItem* createProxy_index_pos(ValueItem* args, uint32_t len) {
-                uint64_t index = len >= 1 ? (uint64_t)args[0] : 0;
+                uint16_t index = len >= 1 ? (uint16_t)args[0] : 0;
                 ValuePos pos = len >= 2 ? (ValuePos)(uint8_t)args[1] : ValuePos::in_enviro;
                 return new ValueItem(CXX::Interface::constructStructure<ValueIndexPos>(define_ValueIndexPos, index, pos));
             }

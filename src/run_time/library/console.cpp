@@ -386,6 +386,9 @@ namespace art {
                     // if found % then execute short operator and put result to string
                     if (slash) {
                         switch (ch) {
+                        case '\\':
+                            print_string += '\\';
+                            break;
                         case 'n':
                             print_string += '\n';
                             break;
@@ -408,10 +411,10 @@ namespace art {
                             print_string += '\f';
                             break;
                         default:
+                            print_string += '\\';
                             print_string += ch;
                             break;
                         }
-                        print_string += ch;
                         slash = false;
                         continue;
                     }
