@@ -15,8 +15,10 @@
 #include <run_time/library/exceptions.hpp>
 #include <run_time/library/file.hpp>
 #include <run_time/library/internal.hpp>
+#include <run_time/library/localization.hpp>
 #include <run_time/library/net.hpp>
 #include <run_time/library/parallel.hpp>
+#include <run_time/library/times.hpp>
 #include <util/exceptions.hpp>
 
 namespace art {
@@ -1176,6 +1178,95 @@ namespace art {
         FuncEnvironment::AddNative(net::tcp_client_connect, "net tcp_client_connect", false);
     }
 
+    void initStandardLib_localization() {
+        INIT_CHECK
+        FuncEnvironment::AddNative(localization::force_set_language, "localization force_set_language", false);
+        FuncEnvironment::AddNative(localization::get_current_locale_changed, "localization get_current_locale_changed", false);
+        FuncEnvironment::AddNative(localization::get_current_locale_updated, "localization get_current_locale_updated", false);
+        FuncEnvironment::AddNative(localization::get_default_language, "localization get_default_language", false);
+        FuncEnvironment::AddNative(localization::get_language, "localization get_language", false);
+        FuncEnvironment::AddNative(localization::get_languages_list, "localization get_languages_list", false);
+        FuncEnvironment::AddNative(localization::get_localized_string, "localization get_localized_string", false);
+        FuncEnvironment::AddNative(localization::remove_localization_strings, "localization remove_localization_strings", false);
+        FuncEnvironment::AddNative(localization::remove_localized_string, "localization remove_localized_string", false);
+        FuncEnvironment::AddNative(localization::set_default_language, "localization set_default_language", false);
+        FuncEnvironment::AddNative(localization::set_language, "localization set_language", false);
+        FuncEnvironment::AddNative(localization::set_localized_string, "localization set_localized_string", false);
+        FuncEnvironment::AddNative(localization::update_localization_strings, "localization update_localization_strings", false);
+        FuncEnvironment::AddNative(localization::use_local_language, "localization use_local_language", false);
+    }
+
+    void initStandardLib_times() {
+        INIT_CHECK
+        FuncEnvironment::AddNative(times::now, "times now", false);
+        FuncEnvironment::AddNative(times::now_utc, "times now_utc", false);
+        FuncEnvironment::AddNative(times::to_string, "times to_string", false);
+
+        FuncEnvironment::AddNative(times::compare::day, "times compare day", false);
+        FuncEnvironment::AddNative(times::compare::hour, "times compare hour", false);
+        FuncEnvironment::AddNative(times::compare::microsecond, "times compare microsecond", false);
+        FuncEnvironment::AddNative(times::compare::millisecond, "times compare millisecond", false);
+        FuncEnvironment::AddNative(times::compare::minute, "times compare minute", false);
+        FuncEnvironment::AddNative(times::compare::month, "times compare month", false);
+        FuncEnvironment::AddNative(times::compare::month_week, "times compare month_week", false);
+        FuncEnvironment::AddNative(times::compare::second, "times compare second", false);
+        FuncEnvironment::AddNative(times::compare::week_day, "times compare week_day", false);
+        FuncEnvironment::AddNative(times::compare::year, "times compare year", false);
+        FuncEnvironment::AddNative(times::compare::year_day, "times compare year_day", false);
+        FuncEnvironment::AddNative(times::compare::year_week, "times compare year_week", false);
+
+        FuncEnvironment::AddNative(times::get::day, "times get day", false);
+        FuncEnvironment::AddNative(times::get::hour, "times get hour", false);
+        FuncEnvironment::AddNative(times::get::microsecond, "times get microsecond", false);
+        FuncEnvironment::AddNative(times::get::millisecond, "times get millisecond", false);
+        FuncEnvironment::AddNative(times::get::minute, "times get minute", false);
+        FuncEnvironment::AddNative(times::get::month, "times get month", false);
+        FuncEnvironment::AddNative(times::get::month_week, "times get month_week", false);
+        FuncEnvironment::AddNative(times::get::second, "times get second", false);
+        FuncEnvironment::AddNative(times::get::week_day, "times get week_day", false);
+        FuncEnvironment::AddNative(times::get::year, "times get year", false);
+        FuncEnvironment::AddNative(times::get::year_day, "times get year_day", false);
+        FuncEnvironment::AddNative(times::get::year_week, "times get year_week", false);
+
+        FuncEnvironment::AddNative(times::set::day, "times set day", false);
+        FuncEnvironment::AddNative(times::set::hour, "times set hour", false);
+        FuncEnvironment::AddNative(times::set::microsecond, "times set microsecond", false);
+        FuncEnvironment::AddNative(times::set::millisecond, "times set millisecond", false);
+        FuncEnvironment::AddNative(times::set::minute, "times set minute", false);
+        FuncEnvironment::AddNative(times::set::month, "times set month", false);
+        FuncEnvironment::AddNative(times::set::second, "times set second", false);
+        FuncEnvironment::AddNative(times::set::week, "times set week", false);
+        FuncEnvironment::AddNative(times::set::year, "times set year", false);
+
+        FuncEnvironment::AddNative(times::add::day, "times add now", false);
+        FuncEnvironment::AddNative(times::add::hour, "times add hour", false);
+        FuncEnvironment::AddNative(times::add::microsecond, "times add microsecond", false);
+        FuncEnvironment::AddNative(times::add::millisecond, "times add millisecond", false);
+        FuncEnvironment::AddNative(times::add::minute, "times add minute", false);
+        FuncEnvironment::AddNative(times::add::month, "times add month", false);
+        FuncEnvironment::AddNative(times::add::second, "times add second", false);
+        FuncEnvironment::AddNative(times::add::week, "times add week", false);
+        FuncEnvironment::AddNative(times::add::year, "times add year", false);
+
+        FuncEnvironment::AddNative(times::subtract::day, "times subtract day", false);
+        FuncEnvironment::AddNative(times::subtract::hour, "times subtract hour", false);
+        FuncEnvironment::AddNative(times::subtract::microsecond, "times subtract microsecond", false);
+        FuncEnvironment::AddNative(times::subtract::millisecond, "times subtract millisecond", false);
+        FuncEnvironment::AddNative(times::subtract::minute, "times subtract minute", false);
+        FuncEnvironment::AddNative(times::subtract::month, "times subtract month", false);
+        FuncEnvironment::AddNative(times::subtract::second, "times subtract second", false);
+        FuncEnvironment::AddNative(times::subtract::week, "times subtract week", false);
+        FuncEnvironment::AddNative(times::subtract::year, "times subtract year", false);
+
+        FuncEnvironment::AddNative(times::utils::as_local, "times utils as_local", false);
+        FuncEnvironment::AddNative(times::utils::as_utc, "times utils as_utc", false);
+        FuncEnvironment::AddNative(times::utils::current_timezone_name, "times utils current_timezone_name", false);
+        FuncEnvironment::AddNative(times::utils::current_timezone_offset, "times utils current_timezone_offset", false);
+        FuncEnvironment::AddNative(times::utils::days_in_month, "times utils days_in_month", false);
+        FuncEnvironment::AddNative(times::utils::days_in_year, "times utils days_in_year", false);
+        FuncEnvironment::AddNative(times::utils::is_leap, "times utils is_leap", false);
+    }
+
     namespace configuration {
         ValueItem* modify_configuration(ValueItem* args, uint32_t len) {
             if (len < 2)
@@ -1276,6 +1367,8 @@ namespace art {
         initStandardLib_net();
         initStandardLib_start_debug();
         initStandardLib_configuration();
+        initStandardLib_localization();
+        initStandardLib_times();
     }
 
     void initStandardLib_safe() {
@@ -1288,6 +1381,8 @@ namespace art {
         initStandardLib_chanel();
         initStandardLib_net();
         initStandardLib_internal();
+        initStandardLib_localization();
+        initStandardLib_times();
     }
 
     ValueItem* cmath_frexp(ValueItem* args, uint32_t args_len) {

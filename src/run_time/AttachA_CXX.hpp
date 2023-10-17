@@ -149,7 +149,7 @@ namespace art {
         }
 
         inline void excepted_array(ValueItem& v) {
-            if (!is_raw_array(v.meta.vtype) || v.meta.vtype == VType::uarr)
+            if (!is_raw_array(v.meta.vtype) && v.meta.vtype != VType::uarr)
                 throw InvalidArguments("Expected array got " + enum_to_string(v.meta.vtype));
         }
 
@@ -161,6 +161,11 @@ namespace art {
         inline void arguments_range(uint32_t argc, uint32_t min) {
             if (argc < min)
                 throw InvalidArguments("Invalid arguments count, expected " + std::to_string(min) + " or more, got " + std::to_string(argc));
+        }
+
+        inline void array_size_min(size_t arr_len, uint32_t min) {
+            if (arr_len < min)
+                throw InvalidArguments("Excepted array with at least " + std::to_string(min) + " items, but got" + std::to_string(arr_len));
         }
 
         namespace Interface {

@@ -137,6 +137,11 @@ namespace art {
         ustring(char32_t str)
             : ustring(&str, 1) {}
 
+        ustring(char str, size_t count);
+        ustring(char8_t str, size_t count);
+        ustring(char16_t str, size_t count);
+        ustring(char32_t str, size_t count);
+
         ustring(const ustring& str);
         ustring(const std::string& str);
         ustring(const std::u16string& str);
@@ -223,6 +228,8 @@ namespace art {
         void append(const char8_t* str);
         void append(const char16_t* str);
         void append(const char32_t* str);
+
+        void insert(size_t pos, const ustring& c);
 
         template <size_t len>
         void append(const char str[len]) {

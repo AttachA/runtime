@@ -31,14 +31,6 @@ ValueItem* busyWorker(ValueItem* args, uint32_t argc) {
     return new ValueItem(i);
 }
 
-ValueItem* cuteTrace(ValueItem* args, uint32_t argc) {
-    CXX::cxxCall(console::printLine, "-----begin trace-----");
-    for (auto& i : args[0])
-        CXX::cxxCall(console::printLine, i[1] + " " + (i[2] == (SIZE_MAX) ? "null" : i[2]));
-    CXX::cxxCall(console::printLine, "------end trace------");
-    return nullptr;
-}
-
 class ExCatchTest : public std::exception {
 public:
     ExCatchTest() {
@@ -69,7 +61,7 @@ public:
 };
 
 void throw_test() {
-    CXX::cxxCall(cuteTrace, CXX::cxxCall(art::internal::stack::clean_trace));
+    CXX::cxxCall(console::printf, "Throw trace:\\>\n{trace}\\<\nEnd of throw Trace\n", CXX::cxxCall(art::internal::stack::clean_trace));
     struct destruction_test {
         ~destruction_test() {
             CXX::cxxCall(console::printLine, "destruction_test");

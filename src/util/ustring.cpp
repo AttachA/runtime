@@ -186,9 +186,18 @@ namespace art {
         case ustring::Type::dyn_constant:
             _data.dynamic_constant_data.~shared_ptr();
             break;
+        case ustring::Type::constant:
+            _data.constant_data = nullptr;
+            break;
+        case ustring::Type::short_def:
+            _data.short_data[0] = 0;
+            break;
         default:
             break;
         }
+        flags.type = ustring::Type::short_def;
+        _data.short_data[0] = 0;
+        flags.has_data = false;
     }
 
     void ustring::switch_to_type(ustring::Type type) {
@@ -316,6 +325,39 @@ namespace art {
         std::string res;
         utf8::utf32to8(str, str + size, std::back_inserter(res));
         *this = ustring(res.c_str(), res.size());
+    }
+
+    ustring::ustring(char str, size_t count)
+        : ustring() {
+        set_unsafe_state(true, false);
+        if (count < short_array_size) {
+            memset(_data.short_data, str, count);
+            _data.short_data[count] = 0;
+            flags.has_data = true;
+        } else {
+            flags.has_data = true;
+            flags.type = ustring::Type::def;
+            new (&_data.d.larr) list_array<char>();
+            _data.d.larr.resize(count + 1);
+            memset(_data.d.larr.data(), str, count);
+            _data.d.larr.data()[count] = 0;
+        }
+        set_unsafe_state(false, false);
+    }
+
+    ustring::ustring(char8_t str, size_t count)
+        : ustring((char)str, count) {}
+
+    ustring::ustring(char16_t str, size_t count)
+        : ustring() {
+        for (size_t i = 0; i < count; i++)
+            *this += str;
+    }
+
+    ustring::ustring(char32_t str, size_t count)
+        : ustring() {
+        for (size_t i = 0; i < count; i++)
+            *this += str;
     }
 
     ustring::ustring(const ustring& str)
@@ -464,7 +506,7 @@ namespace art {
             _data.dynamic_constant_data = constant_pool::dynamic_constant_pool(new_data, old_size + str.size());
             delete[] new_data;
         } else if (flags.type == ustring::Type::short_def) {
-            if (size() + str.size() < short_array_size) {
+            if (old_size + str.size() < short_array_size) {
                 memcpy(_data.short_data + old_size, str.c_str(), str.size());
                 _data.short_data[old_size + str.size()] = 0;
             } else {
@@ -474,6 +516,10 @@ namespace art {
         } else {
             switch_to_type(ustring::Type::def);
             _data.d.larr.push_back(str.c_str(), str.size());
+        }
+        if (!str.empty()) {
+            flags.has_hash = false;
+            flags.has_data = true;
         }
         return *this;
     }
@@ -490,8 +536,8 @@ namespace art {
             _data.dynamic_constant_data = constant_pool::dynamic_constant_pool(new_data, size() + str.size());
             delete[] new_data;
         } else if (flags.type == ustring::Type::short_def) {
-            if (size() + str.size() < short_array_size) {
-                size_t old_size = size();
+            size_t old_size = size();
+            if (old_size + str.size() < short_array_size) {
                 memmove(_data.short_data + str.size(), _data.short_data, old_size);
                 memcpy(_data.short_data, str.c_str(), str.size());
                 _data.short_data[old_size + str.size()] = 0;
@@ -502,6 +548,10 @@ namespace art {
         } else {
             switch_to_type(ustring::Type::def);
             _data.d.larr.push_front(str.c_str(), str.size());
+        }
+        if (!str.empty()) {
+            flags.has_hash = false;
+            flags.has_data = true;
         }
         return *this;
     }
@@ -661,6 +711,7 @@ namespace art {
                 switch_to_type(ustring::Type::def);
                 _data.d.larr.remove(begin - direct_ptr(), remove_points);
                 _data.d.larr.insert(begin - direct_ptr(), buff, insert_points);
+                flags.has_hash = false;
             } else {
                 char* new_data = new char[size() - remove_points + insert_points];
                 memcpy(new_data, direct_ptr(), begin - direct_ptr());
@@ -694,6 +745,7 @@ namespace art {
                 switch_to_type(ustring::Type::def);
                 _data.d.larr.remove(begin - direct_ptr(), remove_points);
                 _data.d.larr.insert(begin - direct_ptr(), &c, 1);
+                flags.has_hash = false;
             } else {
                 char* new_data = new char[size() - remove_points + c];
                 memcpy(new_data, direct_ptr(), begin - direct_ptr());
@@ -813,6 +865,10 @@ namespace art {
             if (!utf8::is_valid(str, str + len))
                 throw InvalidEncodingException("String is not valid utf8");
         _data.d.larr.push_back(str, len);
+        if (len) {
+            flags.has_data = true;
+            flags.has_hash = false;
+        }
     }
 
     void ustring::append(const char8_t* str, size_t len) {
@@ -821,12 +877,18 @@ namespace art {
             if (!utf8::is_valid(str, str + len))
                 throw InvalidEncodingException("String is not valid utf8");
         _data.d.larr.push_back((const char*)str, len);
+        if (len)
+            flags.has_data = true;
     }
 
     void ustring::append(const char16_t* str, size_t len) {
         switch_to_type(ustring::Type::def);
         try {
             utf8::utf16to8(str, str + len, std::back_inserter(_data.d.larr));
+            if (len) {
+                flags.has_data = true;
+                flags.has_hash = false;
+            }
         } catch (const utf8::invalid_utf16& ex) {
             throw InvalidEncodingException("String is not valid utf16, fail cast to utf8");
         }
@@ -836,6 +898,10 @@ namespace art {
         switch_to_type(ustring::Type::def);
         try {
             utf8::utf32to8(str, str + len, std::back_inserter(_data.d.larr));
+            if (len) {
+                flags.has_data = true;
+                flags.has_hash = false;
+            }
         } catch (const utf8::invalid_code_point& ex) {
             throw InvalidEncodingException("String is not valid utf32, fail cast to utf8");
         }
@@ -857,6 +923,12 @@ namespace art {
         append(str, std::char_traits<char32_t>::length(str));
     }
 
+    void ustring::insert(size_t pos, const ustring& c) {
+        switch_to_type(ustring::Type::def);
+        _data.d.larr.insert(pos, c.c_str(), c.size());
+        flags.has_hash = false;
+        flags.has_data = true;
+    }
     void ustring::resize(size_t len) {
         switch (flags.type) {
         case ustring::Type::short_def: {
@@ -874,8 +946,10 @@ namespace art {
             [[fallthrough]];
         case ustring::Type::def:
             _data.d.larr.resize(len);
+            flags.has_hash = false;
             break;
         }
+        flags.has_data = (bool)len;
     }
 
     bool ustring::starts_with(const ustring& c) const {

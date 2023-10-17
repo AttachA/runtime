@@ -27,6 +27,8 @@ namespace art {
     void initStandardLib_internal_run_time_native();
     void initStandardLib_internal_stack();
     void initStandardLib_net();
+    void initStandardLib_localization();
+    void initStandardLib_times();
     void initStandardLib_debug();       //debug tools
     void initStandardLib_start_debug(); //allow enable debug tools
 
