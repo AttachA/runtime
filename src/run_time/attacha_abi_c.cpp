@@ -3320,11 +3320,11 @@ namespace art {
     }
 
     inline int64_t get_sinteger(void* ref, bool in_memory) {
-        return in_memory ? *(int64_t*)ref : *(int64_t*)(&ref);
+        return in_memory ? *(int64_t*)(&ref) : *(int64_t*)ref;
     }
 
     inline uint64_t get_uinteger(void* ref, bool in_memory) {
-        return in_memory ? *(uint64_t*)ref : *(uint64_t*)(&ref);
+        return in_memory ? *(uint64_t*)(&ref) : *(uint64_t*)ref;
     }
 
     int8_t ValueItem::compare(const ValueItem& cmp) const {

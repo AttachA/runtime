@@ -18,6 +18,7 @@
 #include <run_time/library/localization.hpp>
 #include <run_time/library/net.hpp>
 #include <run_time/library/parallel.hpp>
+#include <run_time/library/strings.hpp>
 #include <run_time/library/times.hpp>
 #include <util/exceptions.hpp>
 
@@ -952,10 +953,7 @@ namespace art {
         INIT_CHECK
         FuncEnvironment::AddNative(console::printLine, "console print_line", false);
         FuncEnvironment::AddNative(console::print, "console print", false);
-
-        FuncEnvironment::AddNative(console::register_format_operator, "console register_format_operator", false);
-        FuncEnvironment::AddNative(console::format, "console format", false); //return string, not print
-        FuncEnvironment::AddNative(console::printf, "console printf", false); //format and print
+        FuncEnvironment::AddNative(console::printf, "console printf", false);
 
         FuncEnvironment::AddNative(console::resetModifiers, "console reset_modifiers", false);
         FuncEnvironment::AddNative(console::boldText, "console bold_text", false);
@@ -1194,6 +1192,12 @@ namespace art {
         FuncEnvironment::AddNative(localization::set_localized_string, "localization set_localized_string", false);
         FuncEnvironment::AddNative(localization::update_localization_strings, "localization update_localization_strings", false);
         FuncEnvironment::AddNative(localization::use_local_language, "localization use_local_language", false);
+    }
+
+    void initStandardLib_strings() {
+        INIT_CHECK
+        FuncEnvironment::AddNative(strings::register_format_operator, "strings register_format_operator", false);
+        FuncEnvironment::AddNative(strings::format, "strings format", false);
     }
 
     void initStandardLib_times() {

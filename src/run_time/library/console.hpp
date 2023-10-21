@@ -6,7 +6,6 @@
 
 #pragma once
 #include <cstdint>
-#include <library/list_array.hpp>
 
 namespace art {
     struct ValueItem;
@@ -15,9 +14,6 @@ namespace art {
         extern const bool is_loaded;
         ValueItem* printLine(ValueItem* args, uint32_t len);
         ValueItem* print(ValueItem* args, uint32_t len);
-
-        ValueItem* register_format_operator(ValueItem* args, uint32_t len);
-        ValueItem* format(ValueItem* args, uint32_t len);
         ValueItem* printf(ValueItem* args, uint32_t len);
 
         void resetModifiers();

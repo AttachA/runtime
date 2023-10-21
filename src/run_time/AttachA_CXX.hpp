@@ -1083,4 +1083,16 @@ namespace art {
     }
 }
 
+#define AttachAFunc(name, min_args)                               \
+    ValueItem __art_native_##name(ValueItem* args, uint32_t len); \
+    ValueItem* name(ValueItem* args, uint32_t len) {              \
+        if (len >= min_args)                                      \
+            return new ValueItem(__art_native_##name(args, len)); \
+        else                                                      \
+            ::art::CXX::arguments_range(len, min_args);           \
+        return nullptr;                                           \
+    }                                                             \
+    ValueItem __art_native_##name(ValueItem* args, uint32_t len)
+
+
 #include <run_time/AttachA_CXX_struct.hpp>
