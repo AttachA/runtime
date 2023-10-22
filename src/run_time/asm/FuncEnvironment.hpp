@@ -63,7 +63,7 @@ namespace art {
     public:
         FuncEnvironment(Environment env, bool can_be_unloaded = false, bool is_cheap = false);
         FuncEnvironment(void* func, const DynamicCall::FunctionTemplate& template_func, bool can_be_unloaded = false, bool is_cheap = false);
-        FuncEnvironment(void* func, FuncHandle::ProxyFunction proxy_func, bool can_be_unloaded = false, bool is_cheap = false);
+        FuncEnvironment(void* func, void* clean_up, FuncHandle::ProxyFunction proxy_func, bool can_be_unloaded = false, bool is_cheap = false);
         FuncEnvironment(const std::vector<uint8_t>& code, bool can_be_unloaded = false, bool is_cheap = false, art::ustring* cross_code_compiler_name_version = nullptr);
         FuncEnvironment(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool can_be_unloaded = false, bool is_cheap = false, art::ustring* cross_code_compiler_name_version = nullptr);
         FuncEnvironment(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<art::shared_ptr<FuncEnvironment>>& local_funcs, bool can_be_unloaded = false, bool is_cheap = false, art::ustring* cross_code_compiler_name_version = nullptr);
@@ -171,7 +171,7 @@ namespace art {
 
         inner_handle(Environment env, bool is_cheap);
         inner_handle(void* func, const DynamicCall::FunctionTemplate& template_func, bool is_cheap);
-        inner_handle(void* func, ProxyFunction proxy_func, bool is_cheap);
+        inner_handle(void* func, void* clean_up, ProxyFunction proxy_func, bool is_cheap);
         inner_handle(const std::vector<uint8_t>& code, bool is_cheap, art::ustring* cross_code_compiler_name_version);
         inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool is_cheap, art::ustring* cross_code_compiler_name_version);
         inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<art::shared_ptr<FuncEnvironment>>& local_funcs, bool is_cheap, art::ustring* cross_code_compiler_name_version);

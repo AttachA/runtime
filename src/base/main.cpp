@@ -30,98 +30,9 @@ ValueItem* busyWorker(ValueItem* args, uint32_t argc) {
         ;
     return new ValueItem(i);
 }
-
-class ExCatchTest : public std::exception {
-public:
-    ExCatchTest() {
-        CXX::cxxCall(console::printLine, "ExCatchTest begin");
-    }
-
-    ~ExCatchTest() {
-        CXX::cxxCall(console::printLine, "ExCatchTest end");
-    }
-
-    ExCatchTest(const ExCatchTest&) {
-        CXX::cxxCall(console::printLine, "ExCatchTest copy");
-    }
-
-    ExCatchTest(ExCatchTest&&) {
-        CXX::cxxCall(console::printLine, "ExCatchTest move");
-    }
-
-    ExCatchTest& operator=(const ExCatchTest&) {
-        CXX::cxxCall(console::printLine, "ExCatchTest copy assign");
-        return *this;
-    }
-
-    ExCatchTest& operator=(ExCatchTest&&) {
-        CXX::cxxCall(console::printLine, "ExCatchTest move assign");
-        return *this;
-    }
-};
-
-void throw_test() {
-    CXX::cxxCall(console::printf, "Throw trace:\\>\n{trace}\\<\nEnd of throw Trace\n", CXX::cxxCall(art::internal::stack::clean_trace));
-    struct destruction_test {
-        ~destruction_test() {
-            CXX::cxxCall(console::printLine, "destruction_test");
-        }
-    } test;
-
-    ExCatchTest value;
-    throw value;
-}
-
-
-bool catch_test() {
-    if (art::exception::has_exception()) {
-        CXX::cxxCall(console::printLine, "Hello from filter");
-        return art::exception::map_native_exception_names(art::exception::lookup_meta())
-            .contains("class ExCatchTest");
-    }
-    return false;
-}
-
-void catched() {
-    CXX::cxxCall(console::printLine, "catched");
-}
-
-void test_except() {
-    FuncEnvironment::AddNative(throw_test, "throw_test", true, false);
-    FuncEnvironment::AddNative(catch_test, "catch_test", true, false);
-    FuncEnvironment::AddNative(catched, "catched", true, false);
-    FuncEnviroBuilder build;
-    auto _throw_test = build.create_constant("Inner Call");
-    auto _catch_test = build.create_constant("catch_test");
-    auto _catched = build.create_constant("catched");
-    build.except().handle_begin(0);
-    build.call_and_ret(_throw_test);
-    build.except().handle_catch_filter(0, _catch_test);
-    build.except().handle_end(0);
-    build.call_and_ret(_catched);
-
-
-    FuncEnviroBuilder build_2;
-    auto _throw_test_2 = build_2.create_constant("throw_test");
-    build_2.copy(0_env, _throw_test_2);
-    build_2.call_and_ret(0_env);
-    build_2.O_load_func("Inner Call");
-
-    try {
-        CXX::cxxCall(build.O_prepare_func());
-    } catch (...) {
-        CXX::cxxCall(console::printLine, "not_catched");
-    }
-    FuncEnvironment::Unload("Inner Call");
-    FuncEnvironment::Unload("throw_test");
-    FuncEnvironment::Unload("catch_test");
-    FuncEnvironment::Unload("catched");
-}
-
 #pragma optimize("", on)
 
 ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
-    test_except();
     ValueItem noting;
     //Task::start(new Task(FuncEnvironment::environment("busy_worker"), noting));
 
@@ -313,18 +224,7 @@ void test_fast_server_http(TcpNetworkStream& stream) {
     }
 }
 
-AttachAFun(test_arguments_passing_, 0, {
-    return console::printLine(args, len);
-});
-
-void test_arguments_passing(int one, int two, int three, double five) {
-    CXX::cxxCall(console::printLine, "one: " + std::to_string(one) + " two: " + std::to_string(two) + " three: " + std::to_string(three) + " five: " + std::to_string(five));
-}
-
 int ymain() {
-    auto test_native = CXX::MakeNative(test_arguments_passing, false, false);
-    CXX::cxxCall(test_native, 1, 2, 3, 5.5);
-    CXX::cxxCall(test_arguments_passing_, 1, 2, 3, 5.5);
     Task::create_executor(1);
     init_networking();
     initStandardLib_file();
@@ -345,13 +245,18 @@ int ymain() {
 }
 
 int main() {
-    try {
-        throw_test();
-    } catch (const ExCatchTest& value) {
-        CXX::cxxCall(console::printLine, AttachARuntimeException(std::current_exception()).full_info());
-    }
+    auto itt = 100;
+    CXX::cxxCall(console::printf, "Hello from main block! []\n", (size_t)art::this_thread::get_id());
 
+    art_wait {
+        CXX::cxxCall(console::printf, "Main block value: [], Hello from wait block! []\n", itt, (size_t)art::this_thread::get_id());
+        itt = 222;
+    };
 
-    test_except();
+    auto lambda = [&itt](ValueItem*, uint32_t) -> ValueItem* {
+        CXX::cxxCall(console::printLine, "Hello from lambda, captured value: ", itt);
+        return nullptr;
+    };
+    CXX::cxxCall(CXX::MakeNative(lambda));
     return mmain();
 }

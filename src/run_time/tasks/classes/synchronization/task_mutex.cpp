@@ -20,9 +20,10 @@ namespace art {
             resume_task.pop_back();
         }
     }
-
-#pragma GCC push_options
-#pragma GCC optimize("O0")
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC push_options
+    #pragma GCC optimize("O0")
+#endif
 #pragma optimize("", off)
 
     void TaskMutex::lock() {
@@ -119,7 +120,9 @@ namespace art {
     }
 
 #pragma optimize("", on)
-#pragma GCC pop_options
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC pop_options
+#endif
 
     void TaskMutex::unlock() {
         art::lock_guard lg0(no_race);

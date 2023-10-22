@@ -162,8 +162,10 @@ namespace art {
         return *this;
     }
 
-#pragma GCC push_options
-#pragma GCC optimize("O0")
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC push_options
+    #pragma GCC optimize("O0")
+#endif
     lgr& lgr::operator=(const lgr& copy) {
         if (this == &copy)
             return *this;
@@ -194,7 +196,9 @@ namespace art {
         return *this;
     }
 
-#pragma GCC pop_options
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC pop_options
+#endif
 
     void*& lgr::operator*() {
         if (total)

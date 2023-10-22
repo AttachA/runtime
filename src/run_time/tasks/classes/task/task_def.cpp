@@ -159,6 +159,8 @@ namespace art {
     }
 
     void Task::schedule_until(const art::typed_lgr<Task>& task, std::chrono::high_resolution_clock::time_point time_point) {
+        if (!total_executors())
+            create_executor(1);
         art::typed_lgr<Task> lgr_task = task;
         if (lgr_task->started)
             return;
@@ -196,6 +198,8 @@ namespace art {
     }
 
     ValueItem* Task::get_result(art::typed_lgr<Task>& lgr_task, size_t yield_res) {
+        if (!total_executors())
+            create_executor(1);
         if (!lgr_task->started && lgr_task->_task_local != (ValueEnvironment*)-1)
             Task::start(lgr_task);
         MutexUnify uni(lgr_task->no_race);
@@ -222,6 +226,9 @@ namespace art {
     }
 
     void Task::await_task(art::typed_lgr<Task>& lgr_task, bool make_start) {
+        if (!total_executors())
+            create_executor(1);
+
         if (!lgr_task->started && make_start && lgr_task->_task_local != (ValueEnvironment*)-1)
             Task::start(lgr_task);
         MutexUnify uni(lgr_task->no_race);
@@ -250,6 +257,8 @@ namespace art {
     }
 
     void Task::start(const art::typed_lgr<Task>& tsk) {
+        if (!total_executors())
+            create_executor(1);
         art::typed_lgr<Task> lgr_task = tsk;
         if (lgr_task->started && !lgr_task->is_yield_mode)
             return;
@@ -356,8 +365,11 @@ namespace art {
         else {
             MutexUnify uni(glob.task_thread_safety);
             art::unique_lock l(uni);
-            while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.cold_timed_tasks.size())
+            while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.cold_timed_tasks.size()) {
+                if (!total_executors())
+                    create_executor(1);
                 glob.no_tasks_notifier.wait(l);
+            }
         }
     }
 
@@ -383,17 +395,24 @@ namespace art {
             if (!binded_tasks_empty)
                 goto binded_workers;
         } else {
-        binded_workers_ : {
-            MutexUnify uni(glob.task_thread_safety);
-            art::unique_lock l(uni);
+        binded_workers_:;
+            {
+                MutexUnify uni(glob.task_thread_safety);
+                art::unique_lock l(uni);
 
-            if (loc.is_task_thread)
-                while ((glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.cold_timed_tasks.size()) && glob.in_exec != 1 && glob.tasks_in_swap != 1)
-                    glob.no_tasks_execute_notifier.wait(l);
-            else
-                while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.cold_timed_tasks.size() || glob.in_exec || glob.tasks_in_swap)
-                    glob.no_tasks_execute_notifier.wait(l);
-        }
+                if (loc.is_task_thread)
+                    while ((glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.cold_timed_tasks.size()) && glob.in_exec != 1 && glob.tasks_in_swap != 1) {
+                        if (!total_executors())
+                            create_executor(1);
+                        glob.no_tasks_execute_notifier.wait(l);
+                    }
+                else
+                    while (glob.tasks.size() || glob.cold_tasks.size() || glob.timed_tasks.size() || glob.cold_timed_tasks.size() || glob.in_exec || glob.tasks_in_swap) {
+                        if (!total_executors())
+                            create_executor(1);
+                        glob.no_tasks_execute_notifier.wait(l);
+                    }
+            }
             {
                 art::lock_guard lock(glob.binded_workers_safety);
                 bool binded_tasks_empty = true;
@@ -770,8 +789,10 @@ namespace art {
     }
 
 #pragma optimize("", off)
-#pragma GCC push_options
-#pragma GCC optimize("O0")
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC push_options
+    #pragma GCC optimize("O0")
+#endif
 
     void Task::sleep_until(std::chrono::high_resolution_clock::time_point time_point) {
         if (loc.is_task_thread) {
@@ -791,6 +812,8 @@ namespace art {
             throw EnvironmentRuinException("Thread attempt return yield task in non task enviro");
     }
 
-#pragma GCC pop_options
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC pop_options
+#endif
 #pragma optimize("", on)
 }

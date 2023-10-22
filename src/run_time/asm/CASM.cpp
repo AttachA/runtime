@@ -116,7 +116,17 @@ namespace art {
         size_t fun_size = 0;
     };
 
-    std::unordered_map<uint8_t*, frame_info, art::hash<uint8_t*>> frame_symbols;
+    struct FrameSymbols {
+        std::unordered_map<uint8_t*, frame_info, art::hash<uint8_t*>> map;
+        bool destroyed = false;
+
+        FrameSymbols() {}
+
+        ~FrameSymbols() {
+            map.clear();
+            destroyed = true;
+        }
+    } frame_symbols;
 #ifdef _WIN64
     enum UWC {
         UWOP_PUSH_NONVOL = 0,
@@ -468,7 +478,7 @@ namespace art {
             runtime.allocator()->release(baseaddr);
             throw CompileTimeException("RtlAddFunctionTable failed");
         }
-        auto& tmp = frame_symbols[baseaddr];
+        auto& tmp = frame_symbols.map[baseaddr];
         tmp.fun_size = fun_size;
         tmp.name = symbol_name;
         tmp.file = file_path;
@@ -479,7 +489,8 @@ namespace art {
         if (frame) {
             BOOLEAN result = RtlDeleteFunctionTable((RUNTIME_FUNCTION*)frame);
             auto tmp = runtime.allocator()->release(funct);
-            frame_symbols.erase((uint8_t*)funct);
+            if (!frame_symbols.destroyed)
+                frame_symbols.map.erase((uint8_t*)funct);
             return !(result == FALSE || tmp);
         }
         return false;
@@ -668,7 +679,7 @@ namespace art {
         //TO-DO
         //also support android http://blog.httrack.com/blog/2013/08/23/catching-posix-signals-on-android/
 
-        auto& tmp = frame_symbols[baseaddr];
+        auto& tmp = frame_symbols.map[baseaddr];
         tmp.fun_size = fun_size;
         tmp.name = symbol_name;
         tmp.file = file_path;
@@ -678,17 +689,20 @@ namespace art {
 
     bool FrameResult::deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime) {
         __deregister_frame(frame);
-        frame_symbols.erase((uint8_t*)funct);
+        if (!frame_symbols.destroyed)
+            frame_symbols.map.erase((uint8_t*)funct);
         return !(runtime._release(funct));
     };
 #endif
 
 
     StackTraceItem JitGetStackFrameName(NativeSymbolResolver* nativeSymbols, void* pc) {
-        for (auto& it : frame_symbols) {
-            auto& info = it.second;
-            if (pc >= it.first && pc < (it.first + info.fun_size))
-                return {info.name, info.file, JITPCToLine((uint8_t*)pc, &info)};
+        if (!frame_symbols.destroyed) {
+            for (auto& it : frame_symbols.map) {
+                auto& info = it.second;
+                if (pc >= it.first && pc < (it.first + info.fun_size))
+                    return {info.name, info.file, JITPCToLine((uint8_t*)pc, &info)};
+            }
         }
         return nativeSymbols ? nativeSymbols->GetName(pc) : StackTraceItem("UNDEFINED", "UNDEFINED", SIZE_MAX);
     }

@@ -76,10 +76,12 @@ namespace art {
         frame = (uint8_t*)func;
     }
 
-    FuncHandle::inner_handle::inner_handle(void* func, FuncHandle::ProxyFunction proxy_func, bool is_cheap)
+    FuncHandle::inner_handle::inner_handle(void* func, void* clean_up, FuncHandle::ProxyFunction proxy_func, bool is_cheap)
         : is_cheap(is_cheap) {
         _type = FuncType::static_native_c;
+        values.reserve_push_back(2);
         values.push_back(func);
+        values.push_back(clean_up);
         frame = (uint8_t*)proxy_func;
     }
 
@@ -144,6 +146,10 @@ namespace art {
         }
         if (_type == FuncType::native_c) {
             delete (DynamicCall::FunctionTemplate*)(void*)values[0];
+        }
+        if (_type == FuncType::static_native_c) {
+            if (values[1] != nullptr)
+                ((void (*)(void*))(void*)values[1])((void*)values[0]);
         }
         if (cross_code_compiler_name_version)
             delete cross_code_compiler_name_version;
@@ -632,9 +638,9 @@ namespace art {
         func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(func, template_func, is_cheap));
     }
 
-    FuncEnvironment::FuncEnvironment(void* func, FuncHandle::ProxyFunction proxy_func, bool can_be_unloaded, bool is_cheap)
+    FuncEnvironment::FuncEnvironment(void* func, void* clean_up, FuncHandle::ProxyFunction proxy_func, bool can_be_unloaded, bool is_cheap)
         : can_be_unloaded(can_be_unloaded) {
-        func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(func, proxy_func, is_cheap));
+        func_ = FuncHandle::make_func_handle(new FuncHandle::inner_handle(func, clean_up, proxy_func, is_cheap));
     }
 
     FuncEnvironment::FuncEnvironment(const std::vector<uint8_t>& code, bool can_be_unloaded, bool is_cheap, art::ustring* cross_code_compiler_name_version)

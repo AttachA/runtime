@@ -105,8 +105,10 @@ namespace art {
 #define pre_startup_check() false
 #endif
 #pragma optimize("", off)
-#pragma GCC push_options
-#pragma GCC optimize("O0")
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC push_options
+    #pragma GCC optimize("O0")
+#endif
 #pragma region TaskExecutor
 
     void swapCtx() {
@@ -691,7 +693,9 @@ namespace art {
         }
     }
 
-#pragma GCC pop_options
+#if defined(__GNUC__) && !defined(__clang__)
+    #pragma GCC pop_options
+#endif
 #pragma optimize("", on)
     void startTimeController() {
         art::lock_guard guard(glob.task_timer_safety);

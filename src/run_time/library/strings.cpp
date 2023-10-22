@@ -594,6 +594,8 @@ namespace art {
                             print_string += '\n';
                             if (auto_tab)
                                 print_string += art::ustring('\t', auto_tab);
+                        } else {
+                            print_string += '\n';
                         }
                         break;
                     case '\\':
@@ -687,6 +689,7 @@ namespace art {
                                 if (argument_index > len)
                                     throw OutOfRange(art::ustring("printf: index out of range, len = ") + std::to_string(len) + art::ustring(", index = ") + std::to_string(argument_index) + ", at: " + std::to_string(i));
                                 print_string += (art::ustring)args[argument_index++];
+                                in_scope = false;
                             }
                         }
                         range_operator = false;

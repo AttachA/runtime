@@ -1557,7 +1557,7 @@ namespace art {
         void*& actual_val0 = val0_r.getSourcePtr();
         void*& actual_val1 = val1_r.getSourcePtr();
 
-        if (!val1_r.meta.allow_edit)
+        if (!val0_r.meta.allow_edit)
             throw UnmodifiableValue();
 
         switch (val0_r.meta.vtype) {
@@ -1625,7 +1625,7 @@ namespace art {
         void*& actual_val0 = val0_r.getSourcePtr();
         void*& actual_val1 = val1_r.getSourcePtr();
 
-        if (!val1_r.meta.allow_edit)
+        if (!val0_r.meta.allow_edit)
             throw UnmodifiableValue();
 
         switch (val0_r.meta.vtype) {
@@ -1693,7 +1693,7 @@ namespace art {
         void*& actual_val0 = val0_r.getSourcePtr();
         void*& actual_val1 = val1_r.getSourcePtr();
 
-        if (!val1_r.meta.allow_edit)
+        if (!val0_r.meta.allow_edit)
             throw UnmodifiableValue();
 
         switch (val0_r.meta.vtype) {
@@ -1752,7 +1752,7 @@ namespace art {
         void*& actual_val0 = val0_r.getSourcePtr();
         void*& actual_val1 = val1_r.getSourcePtr();
 
-        if (!val1_r.meta.allow_edit)
+        if (!val0_r.meta.allow_edit)
             throw UnmodifiableValue();
 
         switch (val0_r.meta.vtype) {
@@ -1808,7 +1808,7 @@ namespace art {
         void*& actual_val0 = val0_r.getSourcePtr();
         void*& actual_val1 = val1_r.getSourcePtr();
 
-        if (!val1_r.meta.allow_edit)
+        if (!val0_r.meta.allow_edit)
             throw UnmodifiableValue();
 
         switch (val0_r.meta.vtype) {
@@ -3338,8 +3338,9 @@ namespace art {
         bool other_in_mem = meta.as_ref || meta.use_gc;
         if (cmp.meta.use_gc)
             other = ((lgr*)other)->getPtr();
+
         if ((is_integer(meta.vtype) || meta.vtype == VType::undefined_ptr) && (is_integer(cmp.meta.vtype) || cmp.meta.vtype == VType::undefined_ptr)) {
-            if (integer_unsigned(meta.vtype) && integer_unsigned(cmp.meta.vtype)) {
+            if ((integer_unsigned(meta.vtype) || meta.vtype == VType::undefined_ptr) && (integer_unsigned(cmp.meta.vtype) || meta.vtype == VType::undefined_ptr)) {
                 if (get_uinteger(self, self_in_mem) < get_uinteger(other, other_in_mem))
                     return -1;
                 else if (get_uinteger(self, self_in_mem) > get_uinteger(other, other_in_mem))

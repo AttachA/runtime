@@ -401,8 +401,6 @@ namespace art {
             };
 
             namespace _createProxyTable_Impl_ {
-
-
                 template <class Method, size_t i>
                 inline std::pair<size_t, size_t> _proceed__find_best_method(ValueItem* args, uint32_t len) {
                     using method_info = templates::function_info<decltype(Method::value)>;
@@ -998,14 +996,84 @@ namespace art {
         template <class>
         struct Proxy {};
 
+        namespace _internal_ {
+            template <class T>
+            struct proxy_lambda_extract_args {};
+
+            template <class ReturnTyp, class... Arguments>
+            struct proxy_lambda_extract_args<ReturnTyp (*)(Arguments...)> {
+                static std::tuple<Arguments...> apply(ValueItem* args, uint32_t len) {
+                    arguments_range(len, sizeof...(Arguments));
+                    size_t arg_i = 0;
+                    return {ABI_IMPL::Vcast<Arguments>(args[arg_i++])...};
+                }
+
+                using rt_type = ReturnTyp;
+            };
+
+            template <class ReturnTyp>
+            struct proxy_lambda_extract_args<ReturnTyp (*)(ValueItem*, uint32_t)> {
+                static std::tuple<ValueItem*, uint32_t> apply(ValueItem* args, uint32_t len) {
+                    return {args, len};
+                }
+
+                using rt_type = ReturnTyp;
+            };
+
+            template <class RealLambda, class Lambda_fn_point>
+            struct ProxyLambdaHelper {
+                static ValueItem* proxy(RealLambda& fn, ValueItem* args, uint32_t len) {
+                    using lambda_info = proxy_lambda_extract_args<Lambda_fn_point>;
+                    auto tuple = lambda_info::apply(args, len);
+
+                    if constexpr (std::is_same_v<lambda_info::rt_type, void>) {
+                        std::apply(fn, tuple);
+                        return nullptr;
+                    } else if constexpr (std::is_same_v<lambda_info::rt_type, ValueItem*>)
+                        return std::apply(fn, tuple);
+                    else
+                        return new ValueItem(std::apply(fn, tuple));
+                }
+            };
+
+            template <class T>
+            struct ProxyLambda {
+                static ValueItem* proxy(T& fn, ValueItem* args, uint32_t len) {
+                    if constexpr (templates::is_simple_lambda_v<T>)
+                        return Proxy<templates::fn_lambda<T>>::proxy((templates::fn_lambda<T>)fn, args, len);
+                    else {
+                        return _internal_::ProxyLambdaHelper<T, templates::fn_lambda<T>>::proxy(fn, args, len);
+                    }
+                }
+
+                static ValueItem* abstract_Proxy(void* fn, ValueItem* args, uint32_t len) {
+                    return proxy(*(T*)fn, args, len);
+                }
+            };
+
+            template <class T>
+            void cleanup(void* ptr) {
+                delete (T*)ptr;
+            }
+        }
+
+
         template <class ReturnTyp, class... Arguments>
         struct Proxy<ReturnTyp (*)(Arguments...)> {
             typedef ReturnTyp (*Excepted)(Arguments...);
 
-            static ValueItem* proxy(Excepted fn, ValueItem* args, uint32_t len) {
+            static std::tuple<Arguments...> extract_args(ValueItem* args, uint32_t len) {
                 arguments_range(len, sizeof...(Arguments));
                 size_t arg_i = 0;
-                std::tuple<Arguments...> tuple{ABI_IMPL::Vcast<Arguments>(args[arg_i++])...};
+                if constexpr (std::is_same_v<std::tuple<ValueItem*, uint32_t>, std::tuple<Arguments...>>)
+                    return {args, len};
+                else
+                    return {ABI_IMPL::Vcast<Arguments>(args[arg_i++])...};
+            }
+
+            static ValueItem* proxy(Excepted fn, ValueItem* args, uint32_t len) {
+                std::tuple<Arguments...> tuple = extract_args(args, len);
+
                 if constexpr (std::is_same_v<ReturnTyp, void>) {
                     std::apply(fn, tuple);
                     return nullptr;
@@ -1026,10 +1094,18 @@ namespace art {
         struct Proxy<ReturnTyp (Class_::*)(Arguments...)> {
             typedef ReturnTyp (Class_::*Excepted)(Arguments...);
 
-            static ValueItem* proxy(Excepted fn, ValueItem* args, uint32_t len) {
+            static std::tuple<Arguments...> extract_args(ValueItem* args, uint32_t len) {
                 arguments_range(len, sizeof...(Arguments) + 1);
                 size_t arg_i = 1;
-                std::tuple<Class_, Arguments...> tuple{std::ref(Interface::getAs<Class_>(args[0])), ABI_IMPL::Vcast<Arguments>(args[arg_i++])...};
+                if (std::is_same_v<std::tuple<Class_, ValueItem*, uint32_t>, std::tuple<Class_, Arguments...>>)
+                    return {std::ref(Interface::getAs<Class_>(args[0])), args, len};
+                else
+                    return {std::ref(Interface::getAs<Class_>(args[0])), ABI_IMPL::Vcast<Arguments>(args[arg_i++])...};
+            }
+
+            static ValueItem* proxy(Excepted fn, ValueItem* args, uint32_t len) {
+                std::tuple<Class_, Arguments...> tuple = extract_args();
+
                 if constexpr (std::is_same_v<ReturnTyp, void>) {
                     std::apply(fn, tuple);
                     return nullptr;
@@ -1050,8 +1126,28 @@ namespace art {
         inline art::shared_ptr<FuncEnvironment> MakeNative(_FN env, bool can_be_unloaded = true, bool is_cheap = true) {
             if constexpr (std::is_same_v<_FN, Environment>)
                 return new FuncEnvironment(env, can_be_unloaded, is_cheap);
-            else
-                return new FuncEnvironment((void*)env, CXX::Proxy<_FN>::abstract_Proxy, can_be_unloaded, is_cheap);
+            else if constexpr (templates::is_lambda_v<_FN>) {
+                if constexpr (templates::is_simple_lambda_v<_FN>) {
+                    if constexpr (std::is_same_v<templates::fn_lambda<_FN>, Environment>)
+                        return new FuncEnvironment((templates::fn_lambda<_FN>)env, can_be_unloaded, is_cheap);
+                    else
+                        return new FuncEnvironment((templates::fn_lambda<_FN>)env, nullptr, CXX::Proxy<templates::fn_lambda<_FN>>::abstract_Proxy, can_be_unloaded, is_cheap);
+                } else
+                    return new FuncEnvironment(new _FN(env), _internal_::cleanup<_FN>, CXX::_internal_::ProxyLambda<_FN>::abstract_Proxy, can_be_unloaded, is_cheap);
+            } else
+                return new FuncEnvironment((void*)env, nullptr, CXX::Proxy<_FN>::abstract_Proxy, can_be_unloaded, is_cheap);
+        }
+
+        namespace _internal_ {
+            struct await_lambda {
+                template <class T>
+                list_array<ValueItem> operator=(T&& fn) {
+                    art::typed_lgr async_ref(new Task(MakeNative(fn, true, false), {}));
+                    return Task::await_results(async_ref);
+                }
+            };
+
+            extern await_lambda _await_lambda;
         }
     }
 
@@ -1059,6 +1155,7 @@ namespace art {
     inline void FuncEnvironment::AddNative(_FN env, const art::ustring& func_name, bool can_be_unloaded, bool is_cheap) {
         FuncEnvironment::Load(CXX::MakeNative(env, can_be_unloaded, is_cheap), func_name);
     }
+
 
 #define AttachAFun(name, min_args, content)             \
     ValueItem* name(ValueItem* args, uint32_t len) {    \
@@ -1081,8 +1178,6 @@ namespace art {
             ::art::CXX::arguments_range(len, min_args); \
         return nullptr;                                 \
     }
-}
-
 #define AttachAFunc(name, min_args)                               \
     ValueItem __art_native_##name(ValueItem* args, uint32_t len); \
     ValueItem* name(ValueItem* args, uint32_t len) {              \
@@ -1094,5 +1189,7 @@ namespace art {
     }                                                             \
     ValueItem __art_native_##name(ValueItem* args, uint32_t len)
 
+#define art_wait ::art::CXX::_internal_::_await_lambda = [&]()
+}
 
 #include <run_time/AttachA_CXX_struct.hpp>

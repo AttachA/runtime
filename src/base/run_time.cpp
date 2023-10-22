@@ -153,6 +153,7 @@ namespace art {
             ex_str += cxx.ty_arr[0].ty_info->name();
             ex_str += " exception.\n";
             ex_str += ((AttachARuntimeException*)cxx.ex_ptr)->what();
+            ex_str += '\0';
             MessageBoxA(NULL, ex_str.c_str(), "Unhandled AttachA exception", MB_ICONERROR);
         } else {
             ex_str = "Caught to unhandled c++ ";
@@ -160,6 +161,7 @@ namespace art {
             ex_str += " exception.\n";
             if (hasClassInEx(cxx, "std::exception"))
                 ex_str += ((std::exception*)cxx.ex_ptr)->what();
+            ex_str += '\0';
             MessageBoxA(NULL, ex_str.c_str(), "Unhandled C++ exception", MB_ICONERROR);
         }
         std::exit(-1);
@@ -182,6 +184,7 @@ namespace art {
             ss.append(": ", 2);
             ss.append(string_help::hexstr(e->ExceptionRecord->ExceptionInformation[i]));
         }
+        ss += '\0';
         MessageBoxA(NULL, ss.c_str(), "Unhandled seh exception", MB_ICONERROR);
         std::exit(-1);
     }
@@ -309,7 +312,7 @@ namespace art {
     }
 
     void invite_to_debugger(const art::ustring& reason) {
-        art::ustring decorated = reason + ",\n if you wanna debug it, attach to process with id: " + std::to_string(GetCurrentProcessId()) + ",\n then switch to thread id: " + std::to_string(GetCurrentThreadId()) + " and click OK";
+        art::ustring decorated = reason + ",\n if you wanna debug it, attach to process with id: " + std::to_string(GetCurrentProcessId()) + ",\n then switch to thread id: " + std::to_string(GetCurrentThreadId()) + " and click OK\0";
         MessageBoxA(NULL, decorated.c_str(), "Debug invite", MB_ICONQUESTION);
         if (IsDebuggerPresent())
             DebugBreak();

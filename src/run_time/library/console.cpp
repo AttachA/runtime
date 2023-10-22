@@ -90,9 +90,10 @@ namespace art {
         ValueItem* printLine(ValueItem* args, uint32_t len) {
             interrupt::interrupt_unsafe_region region;
             was_w_mode();
-            if (args == nullptr)
+            if (args == nullptr) {
                 fwrite("\n", 1, 1, _stdout);
-            else {
+                fflush(_stdout);
+            } else {
                 while (len--) {
                     auto& it = *args++;
                     art::ustring tmp = (art::ustring)it + '\n';
