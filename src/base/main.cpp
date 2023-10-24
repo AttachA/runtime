@@ -258,5 +258,5 @@ int main() {
         return nullptr;
     };
     CXX::cxxCall(CXX::MakeNative(lambda));
-    return mmain();
+    return ymain();
 }

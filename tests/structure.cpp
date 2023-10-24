@@ -8,10 +8,10 @@ ValueItem* _test_set_string(ValueItem* args, uint32_t argc) {
     EXPECT_EQ(argc, 2);
     EXPECT_EQ(args[0].meta.vtype, VType::struct_);
     Structure* str = (Structure*)args[0].getSourcePtr();
-    if (str->get_vtable_mode() == Structure::VTableMode::AttachAVirtualTable)
-        EXPECT_EQ(str->get_vtable(), CXX::Interface::typeVTable<art::ustring>());
-    EXPECT_NE(str->get_data_no_vtable(), nullptr);
-    art::ustring& class_string = *(art::ustring*)str->get_data_no_vtable();
+    if (str->vtable_mode == Structure::VTableMode::AttachAVirtualTable)
+        EXPECT_EQ(str->vtable, CXX::Interface::typeVTable<art::ustring>());
+    EXPECT_NE(str->self, nullptr);
+    art::ustring& class_string = *(art::ustring*)str->self;
     EXPECT_NO_THROW({
         class_string = (art::ustring)args[1];
     });
@@ -22,10 +22,10 @@ ValueItem* _test_get_string(ValueItem* args, uint32_t argc) {
     EXPECT_EQ(argc, 1);
     EXPECT_EQ(args[0].meta.vtype, VType::struct_);
     Structure* str = (Structure*)args[0].getSourcePtr();
-    if (str->get_vtable_mode() == Structure::VTableMode::AttachAVirtualTable)
-        EXPECT_EQ(str->get_vtable(), CXX::Interface::typeVTable<art::ustring>());
-    EXPECT_NE(str->get_data_no_vtable(), nullptr);
-    art::ustring& class_string = *(art::ustring*)str->get_data_no_vtable();
+    if (str->vtable_mode == Structure::VTableMode::AttachAVirtualTable)
+        EXPECT_EQ(str->vtable, CXX::Interface::typeVTable<art::ustring>());
+    EXPECT_NE(str->self, nullptr);
+    art::ustring& class_string = *(art::ustring*)str->self;
     return new ValueItem(class_string);
 }
 

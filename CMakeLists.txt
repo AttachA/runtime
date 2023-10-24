@@ -30,6 +30,7 @@ FILE(GLOB SRCFILES
         src/run_time/*.cpp
         src/run_time/asm/*.cpp
         src/run_time/asm/il_compiler/*.cpp
+        src/run_time/attacha_abi/*.cpp
         src/run_time/cxx_library/*.cpp
         src/run_time/library/*.cpp
         src/run_time/tasks/*.cpp
@@ -47,6 +48,7 @@ FILE(GLOB LIB_SRCFILES
         src/run_time/*.cpp
         src/run_time/asm/*.cpp
         src/run_time/asm/il_compiler/*.cpp
+        src/run_time/attacha_abi/*.cpp
         src/run_time/cxx_library/*.cpp
         src/run_time/library/*.cpp
         src/run_time/tasks/*.cpp

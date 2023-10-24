@@ -112,10 +112,10 @@ namespace art {
                 return class_->send_file(str.data(), str.size(), data_len, offset, chunks_size);
             } else if (args[1].meta.vtype == VType::struct_) {
                 auto& proxy = (Structure&)args[1];
-                if (proxy.get_vtable()) {
-                    if (proxy.get_vtable() == Ai::typeVTable<typed_lgr<art::files::FileHandle>>())
+                if (proxy.vtable) {
+                    if (proxy.vtable == Ai::typeVTable<typed_lgr<art::files::FileHandle>>())
                         return class_->send_file(*Ai::getAs<typed_lgr<art::files::FileHandle>>(proxy), data_len, offset, chunks_size);
-                    else if (proxy.get_vtable() == Ai::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
+                    else if (proxy.vtable == Ai::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
                         return class_->send_file(*Ai::getAs<typed_lgr<art::files::BlockingFileHandle>>(proxy), data_len, offset, chunks_size);
                 }
             } else

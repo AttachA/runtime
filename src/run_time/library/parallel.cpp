@@ -35,7 +35,7 @@ namespace art {
         MutexUnify getMutex(ValueItem& item) {
             CXX::excepted(item, VType::struct_);
             Structure& st = (Structure&)item;
-            void* vtable = st.get_vtable();
+            void* vtable = st.vtable;
             if (vtable == define_Mutex)
                 return *CXX::Interface::getExtractAs<art::shared_ptr<TaskMutex>>(item, define_Mutex);
             else if (vtable == define_RecursiveMutex)
@@ -810,10 +810,10 @@ namespace art {
                 break;
             case VType::struct_: {
                 Structure& str = (Structure&)item;
-                if (str.get_vtable() == define_Task) {
+                if (str.vtable == define_Task) {
                     tasks.push_back(CXX::Interface::getAs<art::typed_lgr<Task>>(str));
                     break;
-                } else if (str.get_vtable() == define_TaskGroup) {
+                } else if (str.vtable == define_TaskGroup) {
                     tasks.push_back(CXX::Interface::getAs<list_array<art::typed_lgr<Task>>>(str));
                     break;
                 } else

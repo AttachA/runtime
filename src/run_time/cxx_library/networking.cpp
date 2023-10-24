@@ -1173,11 +1173,11 @@ namespace art {
             chunks_size = (uint32_t)args[4];
         if (arg1.meta.vtype == VType::struct_) {
             auto& proxy = (Structure&)args[1];
-            if (proxy.get_vtable()) {
+            if (proxy.vtable) {
                 if (proxy.get_name() == "file_handle") {
-                    return stream.write_file((*(typed_lgr<art::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+                    return stream.write_file((*(typed_lgr<art::files::FileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
                 } else if (proxy.get_name() == "blocking_file_handle")
-                    return stream.write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+                    return stream.write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
             }
             throw InvalidArguments("The second argument must be a file handle or a file path.");
         } else {
@@ -1429,11 +1429,11 @@ namespace art {
 
         if (arg1.meta.vtype == VType::struct_) {
             auto& proxy = (Structure&)args[1];
-            if (proxy.get_vtable()) {
-                if (proxy.get_vtable() == CXX::Interface::typeVTable<typed_lgr<art::files::FileHandle>>())
-                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
-                else if (proxy.get_vtable() == CXX::Interface::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
-                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+            if (proxy.vtable) {
+                if (proxy.vtable == CXX::Interface::typeVTable<typed_lgr<art::files::FileHandle>>())
+                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
+                else if (proxy.vtable == CXX::Interface::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
+                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
             }
             throw InvalidArguments("The second argument must be a file handle or a file path.");
         } else {
@@ -1892,8 +1892,7 @@ namespace art {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
             Structure* tmp = CXX::Interface::constructStructure<universal_address>(define_UniversalAddress);
-            memcpy(tmp->get_data_no_vtable(), &connectionAddress, sizeof(sockaddr_in6));
-            tmp->fully_constructed = true;
+            memcpy(tmp->self, &connectionAddress, sizeof(sockaddr_in6));
             ValueItem args(tmp, as_reference);
             ValueItem* res;
             try {
@@ -3084,11 +3083,11 @@ namespace art {
             chunks_size = (uint32_t)args[4];
         if (arg1.meta.vtype == VType::struct_) {
             auto& proxy = (Structure&)args[1];
-            if (proxy.get_vtable()) {
+            if (proxy.vtable) {
                 if (proxy.get_name() == "file_handle") {
-                    return stream.write_file((*(typed_lgr<art::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+                    return stream.write_file((*(typed_lgr<art::files::FileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
                 } else if (proxy.get_name() == "blocking_file_handle")
-                    return stream.write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+                    return stream.write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
             }
             throw InvalidArguments("The second argument must be a file handle or a file path.");
         } else {
@@ -3340,11 +3339,11 @@ namespace art {
 
         if (arg1.meta.vtype == VType::struct_) {
             auto& proxy = (Structure&)args[1];
-            if (proxy.get_vtable()) {
-                if (proxy.get_vtable() == CXX::Interface::typeVTable<typed_lgr<art::files::FileHandle>>())
-                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
-                else if (proxy.get_vtable() == CXX::Interface::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
-                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.get_data_no_vtable())->internal_get_handle(), data_len, offset, chunks_size);
+            if (proxy.vtable) {
+                if (proxy.vtable == CXX::Interface::typeVTable<typed_lgr<art::files::FileHandle>>())
+                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
+                else if (proxy.vtable == CXX::Interface::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
+                    return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
             }
             throw InvalidArguments("The second argument must be a file handle or a file path.");
         } else {
@@ -3749,7 +3748,7 @@ namespace art {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
             Structure* tmp = CXX::Interface::constructStructure<universal_address>(define_UniversalAddress);
-            memcpy(tmp->get_data_no_vtable(), &connectionAddress, sizeof(sockaddr_in6));
+            memcpy(tmp->self, &connectionAddress, sizeof(sockaddr_in6));
             tmp->fully_constructed = true;
             ValueItem args(tmp, as_reference);
             ValueItem* res;

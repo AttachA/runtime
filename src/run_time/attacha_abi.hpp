@@ -861,15 +861,11 @@ namespace art {
                 is_aggregate_or_class && !std::is_same_v<std::remove_cvref_t<T>, art::ustring> && !std::is_same_v<std::remove_cvref_t<T>, ValueMeta> && !std::is_same_v<std::remove_cvref_t<T>, ValueItem> && !std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>> && !std::is_same_v<std::remove_cvref_t<T>, Structure>
             ) {
                 auto& struct_ = (Structure&)it;
-                switch (struct_.get_vtable_mode()) {
-                case Structure::VTableMode::disabled:
-                    throw InvalidCast("Fail cast structure (vtable disabled)");
+                switch (struct_.vtable_mode) {
                 case Structure::VTableMode::AttachAVirtualTable:
                     return CXX::Interface::getExtractAsStatic<std::remove_cvref_t<T>>(struct_);
                 case Structure::VTableMode::AttachADynamicVirtualTable:
                     return CXX::Interface::getExtractAsDynamic<std::remove_cvref_t<T>>(struct_);
-                case Structure::VTableMode::CXX:
-                    throw InvalidCast("Fail cast structure (CXX vtable not implemented)");
                 default:
                     throw InvalidCast("Fail cast structure (unknown vtable mode)");
                 }

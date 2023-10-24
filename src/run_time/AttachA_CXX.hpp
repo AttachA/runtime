@@ -293,39 +293,39 @@ namespace art {
             }
 
             inline ValueItem getValue(const Structure& c, const art::ustring& val_name) {
-                return c.dynamic_value_get(val_name);
+                return c.dynamic_value_get(val_name, ClassAccess::pub);
             }
 
             inline ValueItem getValue(const ValueItem& c, const art::ustring& val_name) {
                 switch (c.meta.vtype) {
                 case VType::struct_:
-                    return ((Structure&)c).dynamic_value_get(val_name);
+                    return ((Structure&)c).dynamic_value_get(val_name, ClassAccess::pub);
                 default:
                     throw NotImplementedException();
                 }
             }
 
             inline ValueItem getValue(ClassAccess access, const Structure& c, const art::ustring& val_name) {
-                return c.dynamic_value_get(val_name);
+                return c.dynamic_value_get(val_name, access);
             }
 
             inline ValueItem getValue(ClassAccess access, const ValueItem& c, const art::ustring& val_name) {
                 switch (c.meta.vtype) {
                 case VType::struct_:
-                    return ((const Structure&)c).dynamic_value_get(val_name);
+                    return ((const Structure&)c).dynamic_value_get(val_name, access);
                 default:
                     throw NotImplementedException();
                 }
             }
 
             inline void setValue(Structure& c, const art::ustring& val_name, const ValueItem& set) {
-                c.dynamic_value_set(val_name, set);
+                c.dynamic_value_set(val_name, ClassAccess::pub, set);
             }
 
             inline void setValue(ValueItem& c, const art::ustring& val_name, const ValueItem& set) {
                 switch (c.meta.vtype) {
                 case VType::struct_:
-                    ((Structure&)c).dynamic_value_set(val_name, set);
+                    ((Structure&)c).dynamic_value_set(val_name, ClassAccess::pub, set);
                     break;
                 default:
                     throw NotImplementedException();
@@ -333,13 +333,13 @@ namespace art {
             }
 
             inline void setValue(ClassAccess access, Structure& c, const art::ustring& val_name, const ValueItem& set) {
-                c.dynamic_value_set(val_name, set);
+                c.dynamic_value_set(val_name, access, set);
             }
 
             inline void setValue(ClassAccess access, ValueItem& c, const art::ustring& val_name, const ValueItem& set) {
                 switch (c.meta.vtype) {
                 case VType::struct_:
-                    ((Structure&)c).dynamic_value_set(val_name, set);
+                    ((Structure&)c).dynamic_value_set(val_name, access, set);
                     break;
                 default:
                     throw NotImplementedException();
@@ -453,14 +453,14 @@ namespace art {
                     } else {
                         auto& s = (Structure&)*args;
                         if constexpr (method_info::always_perfect)
-                            return (((Class_*)s.get_data_no_vtable())->*Method::value)(args + 1, len - 1);
+                            return (((Class_*)s.self)->*Method::value)(args + 1, len - 1);
                         else {
                             size_t i = 0;
                             DynamicCall::FunctionTemplate template_fun;
                             DynamicCall::buildFn(Method::value, template_fun);
                             auto fnptr = Method::value;
                             DynamicCall::PROC as_proc = reinterpret_cast<DynamicCall::PROC&>(fnptr);
-                            DynamicCall::FunctionCall call(as_proc, s.get_data_no_vtable(), template_fun, true);
+                            DynamicCall::FunctionCall call(as_proc, s.self, template_fun, true);
                             return __attacha___::NativeProxy_DynamicToStatic(call, template_fun, args, len);
                         }
                     }
@@ -552,39 +552,41 @@ namespace art {
                 struct are_same : std::bool_constant<
                                       std::conjunction<std::is_same<Head, Tail>...>::value && std::is_same_v<To_compare, Head>> {};
 
+                //destructed in cleanup
+                //template <class Class_>
+                //typename std::enable_if<std::is_destructible_v<Class_>, ValueItem*>::type
+                //_destructor(ValueItem* args, uint32_t) {
+                //    auto& s = (Structure&)*args;
+                //    ((Class_*)s.self)->~Class_();
+                //    return nullptr;
+                //}
                 template <class Class_>
-                typename std::enable_if<std::is_destructible_v<Class_>, ValueItem*>::type
-                _destructor(ValueItem* args, uint32_t) {
-                    auto& s = (Structure&)*args;
-                    ((Class_*)s.get_data_no_vtable())->~Class_();
-                    return nullptr;
-                }
-                template <class Class_>
-                Environment destructor = []() {
-                    if constexpr (std::is_destructible_v<Class_>)
-                        return _destructor<Class_>;
-                    else
-                        return nullptr;
-                }();
-#define __is_same_fun(field)                                                                   \
-    inline bool __is_same_##field(Structure& cmp, Structure& src, Environment env) {           \
-        if (cmp.get_vtable() == src.get_vtable())                                              \
-            return true;                                                                       \
-        switch (src.get_vtable_mode()) {                                                       \
-        case Structure::VTableMode::AttachAVirtualTable:                                       \
-            if (((AttachAVirtualTable*)src.get_vtable())->field != env)                        \
-                return false;                                                                  \
-            break;                                                                             \
-        case Structure::VTableMode::AttachADynamicVirtualTable:                                \
-            if (!((AttachADynamicVirtualTable*)src.get_vtable())->field)                       \
-                return false;                                                                  \
-            if (((AttachADynamicVirtualTable*)src.get_vtable())->field->get_func_ptr() != env) \
-                return false;                                                                  \
-            break;                                                                             \
-        default:                                                                               \
-            return false;                                                                      \
-        }                                                                                      \
-        return true;                                                                           \
+                Environment destructor = nullptr;
+                //[]() {
+                //if constexpr (std::is_destructible_v<Class_>)
+                //    return _destructor<Class_>;
+                //else
+                //  return nullptr;
+                //}();
+#define __is_same_fun(field)                                                             \
+    inline bool __is_same_##field(Structure& cmp, Structure& src, Environment env) {     \
+        if (cmp.vtable == src.vtable)                                                    \
+            return true;                                                                 \
+        switch (src.vtable_mode) {                                                       \
+        case Structure::VTableMode::AttachAVirtualTable:                                 \
+            if (((AttachAVirtualTable*)src.vtable)->field != env)                        \
+                return false;                                                            \
+            break;                                                                       \
+        case Structure::VTableMode::AttachADynamicVirtualTable:                          \
+            if (!((AttachADynamicVirtualTable*)src.vtable)->field)                       \
+                return false;                                                            \
+            if (((AttachADynamicVirtualTable*)src.vtable)->field->get_func_ptr() != env) \
+                return false;                                                            \
+            break;                                                                       \
+        default:                                                                         \
+            return false;                                                                \
+        }                                                                                \
+        return true;                                                                     \
     }
                 __is_same_fun(copy);
                 __is_same_fun(move);
@@ -598,9 +600,9 @@ namespace art {
                     __is_same_copy(dest, src, _copy<Class_>);
                     bool in_constructor = (bool)args[2];
                     if (in_constructor)
-                        new (dest.get_data_no_vtable()) Class_(*(Class_*)src.get_data_no_vtable());
+                        new (dest.self) Class_(*(Class_*)src.self);
                     else
-                        *(Class_*)dest.get_data_no_vtable() = *(Class_*)src.get_data_no_vtable();
+                        *(Class_*)dest.self = *(Class_*)src.self;
                     return nullptr;
                 }
                 template <class Class_>
@@ -619,9 +621,9 @@ namespace art {
                     __is_same_move(dest, src, _move<Class_>);
                     bool in_constructor = (bool)args[2];
                     if (in_constructor)
-                        new (dest.get_data_no_vtable()) Class_(std::move(*(Class_*)src.get_data_no_vtable()));
+                        new (dest.self) Class_(std::move(*(Class_*)src.self));
                     else
-                        *(Class_*)dest.get_data_no_vtable() = std::move(*(Class_*)src.get_data_no_vtable());
+                        *(Class_*)dest.self = std::move(*(Class_*)src.self);
                     return nullptr;
                 }
 
@@ -640,9 +642,9 @@ namespace art {
                     auto& src = (Structure&)*(args + 1);
                     __is_same_compare(dest, src, _compare<Class_>);
 
-                    if (*(Class_*)dest.get_data_no_vtable() == *(Class_*)src.get_data_no_vtable())
+                    if (*(Class_*)dest.self == *(Class_*)src.self)
                         return nullptr;
-                    else if (*(Class_*)dest.get_data_no_vtable() < *(Class_*)src.get_data_no_vtable())
+                    else if (*(Class_*)dest.self < *(Class_*)src.self)
                         return new ValueItem((int8_t)-1);
                     else
                         return new ValueItem((int8_t)1);
@@ -655,7 +657,7 @@ namespace art {
                     auto& src = (Structure&)*(args + 1);
                     __is_same_compare(dest, src, _compare<Class_>);
 
-                    if (*(Class_*)dest.get_data_no_vtable() == *(Class_*)src.get_data_no_vtable())
+                    if (*(Class_*)dest.self == *(Class_*)src.self)
                         return nullptr;
                     else
                         return new ValueItem((int8_t)-1);
@@ -729,6 +731,7 @@ namespace art {
                 AttachADynamicVirtualTable*>::type
             createProxyDTable(Methods... methods) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 proxied.resize(sizeof...(Methods));
                 size_t i = 0;
                 art::ustring owner_name = typeid(Class_).name();
@@ -740,10 +743,13 @@ namespace art {
 
                 auto res = new AttachADynamicVirtualTable(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->name = owner_name;
                 return res;
@@ -754,6 +760,7 @@ namespace art {
             typename std::enable_if<_createProxyTable_Impl_::are_same<MethodInfo, Methods...>::value, AttachAVirtualTable*>::type
             createProxyTable(Methods... methods) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 proxied.resize(sizeof...(Methods));
                 size_t i = 0;
                 art::ustring owner_name = typeid(Class_).name();
@@ -764,10 +771,13 @@ namespace art {
                  ...);
                 auto res = AttachAVirtualTable::create(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->setName(owner_name);
                 return res;
@@ -777,6 +787,7 @@ namespace art {
             typename std::enable_if<_createProxyTable_Impl_::are_same<direct_method, DirectMethod...>::value, AttachADynamicVirtualTable*>::type
             createDTable(DirectMethod... methods) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 proxied.resize(sizeof...(DirectMethod));
                 size_t i = 0;
                 art::ustring owner_name = typeid(Class_).name();
@@ -790,10 +801,13 @@ namespace art {
 
                 auto res = new AttachADynamicVirtualTable(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->name = owner_name;
                 return res;
@@ -803,6 +817,7 @@ namespace art {
             typename std::enable_if<_createProxyTable_Impl_::are_same<direct_method, DirectMethod...>::value, AttachAVirtualTable*>::type
             createTable(DirectMethod... methods) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 proxied.resize(sizeof...(DirectMethod));
                 size_t i = 0;
                 art::ustring owner_name = typeid(Class_).name();
@@ -815,10 +830,13 @@ namespace art {
                  ...);
                 auto res = AttachAVirtualTable::create(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->setName(owner_name);
                 return res;
@@ -830,6 +848,7 @@ namespace art {
                 AttachADynamicVirtualTable*>::type
             createProxyDTable(const art::ustring& owner_name, Methods... methods) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 proxied.resize(sizeof...(Methods));
                 size_t i = 0;
                 ([&]() {
@@ -839,10 +858,13 @@ namespace art {
                  ...);
                 auto res = new AttachADynamicVirtualTable(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->name = owner_name;
                 return res;
@@ -852,6 +874,7 @@ namespace art {
             typename std::enable_if<_createProxyTable_Impl_::are_same<MethodInfo, Methods...>::value, AttachAVirtualTable*>::type
             createProxyTable(const art::ustring& owner_name, Methods... methods) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 proxied.resize(sizeof...(Methods));
                 size_t i = 0;
                 ([&]() {
@@ -861,10 +884,13 @@ namespace art {
                  ...);
                 auto res = AttachAVirtualTable::create(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->setName(owner_name);
                 return res;
@@ -874,6 +900,7 @@ namespace art {
             typename std::enable_if<_createProxyTable_Impl_::are_same<direct_method, DirectMethod...>::value, AttachADynamicVirtualTable*>::type
             createDTable(const art::ustring& owner_name, DirectMethod... methods) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 proxied.resize(sizeof...(DirectMethod));
                 size_t i = 0;
                 ([&]() {
@@ -886,10 +913,13 @@ namespace art {
 
                 auto res = new AttachADynamicVirtualTable(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->name = owner_name;
                 return res;
@@ -899,6 +929,7 @@ namespace art {
             typename std::enable_if<_createProxyTable_Impl_::are_same<direct_method, DirectMethod...>::value, AttachAVirtualTable*>::type
             createTable(const art::ustring& owner_name, DirectMethod... methods) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 proxied.resize(sizeof...(DirectMethod));
                 size_t i = 0;
                 ([&]() {
@@ -911,10 +942,13 @@ namespace art {
 
                 auto res = AttachAVirtualTable::create(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->setName(owner_name);
                 return res;
@@ -923,12 +957,16 @@ namespace art {
             template <class Class_>
             AttachADynamicVirtualTable* createProxyDTable(const art::ustring& owner_name) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 auto res = new AttachADynamicVirtualTable(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->name = owner_name;
                 return res;
@@ -937,12 +975,16 @@ namespace art {
             template <class Class_>
             AttachAVirtualTable* createProxyTable(const art::ustring& owner_name) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 auto res = AttachAVirtualTable::create(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->setName(owner_name);
                 return res;
@@ -951,12 +993,16 @@ namespace art {
             template <class Class_>
             AttachADynamicVirtualTable* createDTable(const art::ustring& owner_name) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 auto res = new AttachADynamicVirtualTable(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->name = owner_name;
                 return res;
@@ -965,12 +1011,16 @@ namespace art {
             template <class Class_>
             AttachAVirtualTable* createTable(const art::ustring& owner_name) {
                 list_array<MethodInfo> proxied;
+                list_array<ValueInfo> values;
                 auto res = AttachAVirtualTable::create(
                     proxied,
+                    values,
                     _createProxyTable_Impl_::ref_destructor<Class_>(),
                     _createProxyTable_Impl_::ref_copy<Class_>(),
                     _createProxyTable_Impl_::ref_move<Class_>(),
-                    _createProxyTable_Impl_::ref_compare<Class_>()
+                    _createProxyTable_Impl_::ref_compare<Class_>(),
+                    sizeof(Class_),
+                    false
                 );
                 res->setName(owner_name);
                 return res;
@@ -978,18 +1028,12 @@ namespace art {
 
             template <class Class_, class... Args>
             Structure* constructStructure(AttachAVirtualTable* table, Args&&... args) {
-                Structure* str = Structure::construct(sizeof(Class_) + 8, nullptr, 0, table, Structure::VTableMode::AttachAVirtualTable);
-                new (str->get_data_no_vtable()) Class_(std::forward<Args>(args)...);
-                str->fully_constructed = true;
-                return str;
+                return new Structure(new Class_(std::forward<Args>(args)...), table, Structure::VTableMode::AttachAVirtualTable, defaultDestructor<Class_>);
             }
 
             template <class Class_, class... Args>
             Structure* constructStructure(AttachADynamicVirtualTable* table, Args&&... args) {
-                Structure* str = Structure::construct(sizeof(Class_) + 8, nullptr, 0, table, Structure::VTableMode::AttachADynamicVirtualTable);
-                new (str->get_data_no_vtable()) Class_(std::forward<Args>(args)...);
-                str->fully_constructed = true;
-                return str;
+                return new Structure(new Class_(std::forward<Args>(args)...), table, Structure::VTableMode::AttachADynamicVirtualTable, defaultDestructor<Class_>);
             }
         }
 

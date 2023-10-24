@@ -8,20 +8,20 @@ namespace art {
         namespace Interface {
             template <class Class_>
             Class_& getAs(Structure& str) {
-                return *(Class_*)str.get_data_no_vtable();
+                return *(Class_*)str.self;
             }
 
             template <class Class_>
             Class_& getAs(ValueItem& str) {
                 if (str.meta.vtype == VType::struct_) {
-                    return *(Class_*)((Structure&)str).get_data_no_vtable();
+                    return *(Class_*)((Structure&)str).self;
                 } else
                     throw InvalidArguments("getAs: ValueItem is not a struct");
             }
 
             template <class Class_>
             Class_& getExtractAs(Structure& proxy, AttachADynamicVirtualTable* vtable) {
-                if (proxy.get_vtable() != vtable) {
+                if (proxy.vtable != vtable) {
                     if (proxy.get_name() != vtable->name)
                         throw InvalidArguments(vtable->name + ", excepted " + vtable->name + ", got " + proxy.get_name());
                     else
@@ -34,7 +34,7 @@ namespace art {
             Class_& getExtractAs(ValueItem& str, AttachADynamicVirtualTable* vtable) {
                 if (str.meta.vtype == VType::struct_) {
                     Structure& proxy = (Structure&)str;
-                    if (proxy.get_vtable() != vtable) {
+                    if (proxy.vtable != vtable) {
                         if (proxy.get_name() != vtable->name)
                             throw InvalidArguments(vtable->name + ", excepted " + vtable->name + ", got " + proxy.get_name());
                         else
@@ -42,12 +42,12 @@ namespace art {
                     }
                     return art::CXX::Interface::getAs<Class_>(proxy);
                 } else
-                    throw InvalidArguments(vtable->name + ", type missmatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
+                    throw InvalidArguments(vtable->name + ", type mismatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
             }
 
             template <class Class_>
             Class_& getExtractAs(Structure& proxy, AttachAVirtualTable* vtable) {
-                if (proxy.get_vtable() != vtable) {
+                if (proxy.vtable != vtable) {
                     if (proxy.get_name() != vtable->getName())
                         throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got " + proxy.get_name());
                     else
@@ -60,7 +60,7 @@ namespace art {
             Class_& getExtractAs(ValueItem& str, AttachAVirtualTable* vtable) {
                 if (str.meta.vtype == VType::struct_) {
                     Structure& proxy = (Structure&)str;
-                    if (proxy.get_vtable() != vtable) {
+                    if (proxy.vtable != vtable) {
                         if (proxy.get_name() != vtable->getName())
                             throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got " + proxy.get_name());
                         else
@@ -68,7 +68,7 @@ namespace art {
                     }
                     return art::CXX::Interface::getAs<Class_>(proxy);
                 } else
-                    throw InvalidArguments(vtable->getName() + ", type missmatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
+                    throw InvalidArguments(vtable->getName() + ", type mismatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
             }
 
             template <class Class_>

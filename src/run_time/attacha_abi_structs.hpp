@@ -108,7 +108,6 @@ namespace art {
         remove_qualifiers
     );
 
-
     ENUM_t(
         OpcodeArray,
         uint8_t,
@@ -313,7 +312,8 @@ namespace art {
         map,        //unordered_map<any,any,art::hash<any>
         set,        //unordered_set<any>
         time_point, //std::chrono::high_resolution_clock::time_point
-        generator
+        generator,
+        any_obj, //valid only for structures
     );
 
     ENUM_t(
@@ -932,6 +932,172 @@ namespace art {
     };
 
     using MethodTag = StructureTag;
+    using ValueTag = StructureTag;
+
+    struct ValueInfo {
+        art::ustring name;
+        list_array<ValueTag>* optional_tags;
+        size_t offset;
+        ValueMeta type;
+        uint16_t bit_used;
+        uint8_t bit_offset : 7;
+        bool inlined : 1;
+        bool allow_abstract_assign : 1;
+        bool zero_after_cleanup : 1;
+        ClassAccess access : 2;
+        ValueInfo();
+        ValueInfo(const art::ustring& name, size_t offset, ValueMeta type, uint16_t bit_used, uint8_t bit_offset, bool inlined, bool allow_abstract_assign, ClassAccess access, const list_array<ValueTag>& tags, bool zero_after_cleanup = false);
+
+        ~ValueInfo();
+
+        ValueInfo(const ValueInfo& copy);
+        ValueInfo(ValueInfo&& move);
+        ValueInfo& operator=(const ValueInfo& copy);
+        ValueInfo& operator=(ValueInfo&& move);
+    };
+
+    namespace structure_helpers {
+        template <typename T>
+        T static_value_get(const char* ptr, size_t offset, uint16_t bit_used, uint8_t bit_offset) {
+            if (sizeof(T) * 8 < bit_used && bit_used)
+                throw InvalidArguments("bit_used is too big for type");
+
+            ptr += offset;
+            ptr += bit_offset / 8;
+
+            if ((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
+                return *(T*)ptr;
+            uint8_t bit_offset2 = bit_offset % 8;
+
+            uint8_t used_bits = bit_used ? bit_used % 8 : 0;
+            uint16_t used_bytes = bit_used ? bit_used / 8 : sizeof(T);
+            if (used_bytes >= sizeof(T)) {
+                used_bytes = sizeof(T);
+                used_bits = 0;
+            }
+
+            char buffer[sizeof(T)]{0};
+            for (uint8_t i = 0; i < used_bytes - 1; i++)
+                buffer[i] = (ptr[i] >> bit_offset2) | (ptr[i + 1] << (8 - bit_offset2));
+
+            buffer[used_bytes - 1] = buffer[used_bytes - 1] >> bit_offset2;
+            buffer[used_bytes - 1] &= (1 << used_bits) - 1;
+            return *(T*)buffer;
+        }
+
+        template <typename T>
+        T& static_value_get_ref(char* ptr, size_t offset, uint16_t bit_used, uint8_t bit_offset) {
+            if ((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
+                throw InvalidArguments("bit_used is not aligned for type");
+            ptr += offset;
+            ptr += bit_offset / 8;
+            return *(T*)ptr;
+        }
+
+        template <typename T>
+        void static_value_set(char* ptr, size_t offset, uint16_t bit_used, uint8_t bit_offset, T value) {
+            if (sizeof(T) * 8 < bit_used && bit_used)
+                throw InvalidArguments("bit_used is too big for type");
+            ptr += offset;
+            ptr += bit_offset / 8;
+            if ((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
+                *(T*)ptr = value;
+            uint8_t bit_offset2 = bit_offset % 8;
+
+            uint8_t used_bits = bit_used ? bit_used % 8 : 0;
+            uint16_t used_bytes = bit_used ? bit_used / 8 : sizeof(T);
+            if (used_bytes >= sizeof(T)) {
+                used_bytes = sizeof(T);
+                used_bits = 0;
+            }
+
+            char buffer[sizeof(T)]{0};
+            (*(T*)buffer) = value;
+
+            for (uint8_t i = 0; i < used_bytes - 1; i++)
+                buffer[i] = (buffer[i] << bit_offset2) | (buffer[i + 1] >> (8 - bit_offset2));
+
+            buffer[used_bytes - 1] = buffer[used_bytes - 1] << bit_offset2;
+            buffer[used_bytes - 1] &= (1 << used_bits) - 1;
+            for (uint8_t i = 0; i < used_bytes; i++)
+                ptr[i] = (ptr[i] & ~(buffer[i] << bit_offset2)) | (buffer[i] << bit_offset2);
+        }
+
+        template <typename T>
+        void static_value_set_ref(char* ptr, size_t offset, uint16_t bit_used, uint8_t bit_offset, T value) {
+            if ((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
+                throw InvalidArguments("bit_used is not aligned for type");
+            ptr += offset;
+            ptr += bit_offset / 8;
+            *(T*)ptr = value;
+        }
+
+        template <typename T>
+        ValueItem getRawArray(char* ptr, const ValueInfo& item) {
+            if (item.inlined) {
+                if (item.type.as_ref)
+                    return ValueItem((T*)&static_value_get_ref<T*>(ptr, item.offset, 0, 0), item.type.val_len, as_reference);
+                else
+                    return ValueItem((T*)&static_value_get_ref<T*>(ptr, item.offset, 0, 0), item.type.val_len);
+            } else {
+                if (item.type.as_ref)
+                    return ValueItem(static_value_get<T*>(ptr, item.offset, 0, item.bit_offset), item.type.val_len, as_reference);
+                else
+                    return ValueItem(static_value_get<T*>(ptr, item.offset, 0, item.bit_offset), item.type.val_len);
+            }
+        }
+
+        template <typename T>
+        ValueItem getRawArray(const char* ptr, const ValueInfo& item) {
+            char* fake_ptr = const_cast<char*>(ptr);
+            ValueItem result;
+            if (item.inlined) {
+                if (item.type.as_ref)
+                    result = ValueItem((T*)&static_value_get_ref<T*>(fake_ptr, item.offset, 0, 0), item.type.val_len, as_reference);
+                else
+                    result = ValueItem((T*)&static_value_get_ref<T*>(fake_ptr, item.offset, 0, 0), item.type.val_len);
+            } else {
+                if (item.type.as_ref)
+                    result = ValueItem(static_value_get<T*>(fake_ptr, item.offset, 0, item.bit_offset), item.type.val_len, as_reference);
+                else
+                    result = ValueItem(static_value_get<T*>(fake_ptr, item.offset, 0, item.bit_offset), item.type.val_len);
+            }
+            result.meta.allow_edit = false;
+            return result;
+        }
+
+        template <typename T>
+        ValueItem getType(char* ptr, const ValueInfo& item) {
+            if (item.type.as_ref)
+                return ValueItem(static_value_get_ref<T>(ptr, item.offset, 0, 0), as_reference);
+            else
+                return ValueItem(static_value_get_ref<T>(ptr, item.offset, 0, 0));
+        }
+
+        template <typename T>
+        ValueItem getRawArrayRef(char* ptr, const ValueInfo& item) {
+            if (item.inlined)
+                return ValueItem((T*)&static_value_get_ref<T*>(ptr, item.offset, 0, 0), item.type.val_len, as_reference);
+            else
+                return ValueItem(static_value_get<T*>(ptr, item.offset, 0, item.bit_offset), item.type.val_len, as_reference);
+        }
+
+        template <typename T>
+        ValueItem getTypeRef(char* ptr, const ValueInfo& item) {
+            return ValueItem(static_value_get_ref<T>(ptr, item.offset, 0, 0), as_reference);
+        }
+
+        ValueItem _static_value_get_ref(char* ptr, const ValueInfo& item);
+        ValueItem _static_value_get(char* ptr, const ValueInfo& item);
+
+        void _static_value_set_ref(char* ptr, const ValueInfo& item, ValueItem&);
+        void _static_value_set(char* ptr, const ValueInfo& item, ValueItem&);
+
+        void cleanup_item(char* ptr, ValueInfo& item);
+        int8_t compare_items(char* ptr_a, const ValueInfo& item_a, char* ptr_b, const ValueInfo& item_b);
+        void copy_items(char* ptr_a, char* ptr_b, ValueInfo* items, size_t items_size);
+        void copy_items_abstract(char* ptr_a, ValueInfo* items_a, size_t items_a_size, char* ptr_b, ValueInfo* items_b, size_t items_b_size);
+    }
 
     struct MethodInfo {
         struct Optional {
@@ -959,21 +1125,26 @@ namespace art {
 
     struct AttachAVirtualTable {
         Environment destructor; //args: Structure* structure
-        Environment copy;       //args: Structure* dst, Structure* src, bool at_construct
+        Environment copy;       //args: ValueItem self, ValueItem src
         Environment move;       //args: Structure* dst, Structure* src, bool at_construct
         Environment compare;    //args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
-        uint64_t table_size;
+        size_t structure_bytes;
+        bool allow_auto_copy : 1; //allow to copy values by value table if copy operation not implemented(null)
+        uint64_t call_table_size;
+        uint64_t value_table_size;
         char data[];
 
         //{
-        //  Environment[table_size] table;
-        //  MethodInfo [table_size] table_additional_info;
+        //  Environment[call_table_size] table;
+        //  MethodInfo [call_table_size] table_additional_info;
+        //  ValueInfo [value_table_size] table_additional_info;
         //	art::shared_ptr<FuncEnvironment> holder_destructor;
         //	art::shared_ptr<FuncEnvironment> holder_copy;
         //	art::shared_ptr<FuncEnvironment> holder_move;
         //	art::shared_ptr<FuncEnvironment> holder_compare;
         //  art::ustring name;
         //	list_array<StructureTag>* tags;//can be null
+        //  std::ustring* bounded_namespace;//can be null
         //}
         list_array<StructureTag>* getStructureTags();
         list_array<MethodTag>* getMethodTags(uint64_t index);
@@ -999,11 +1170,33 @@ namespace art {
         uint64_t getMethodIndex(const art::ustring& name, ClassAccess access) const;
         bool hasMethod(const art::ustring& name, ClassAccess access) const;
 
-        static AttachAVirtualTable* create(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare);
+        static AttachAVirtualTable* create(list_array<MethodInfo>& methods, list_array<ValueInfo>& values, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare, size_t structure_bytes, bool allow_auto_copy);
         static void destroy(AttachAVirtualTable* table);
 
         art::ustring getName() const;
         void setName(const art::ustring& name);
+
+    #pragma region Values
+        ValueInfo* getValuesInfo(uint64_t& size);
+        ValueInfo& getValueInfo(uint64_t index);
+        const ValueInfo& getValueInfo(uint64_t index) const;
+        ValueInfo& getValueInfo(const art::ustring& name, ClassAccess access);
+        const ValueInfo& getValueInfo(const art::ustring& name, ClassAccess access) const;
+        list_array<ValueTag>* getValueTags(uint64_t index);
+        list_array<ValueTag>* getValueTags(const art::ustring& name, ClassAccess access);
+
+        ValueItem getValue(void* self, uint64_t index) const;
+        ValueItem getValue(void* self, const art::ustring& name, ClassAccess access) const;
+
+        ValueItem getValueRef(void* self, uint64_t index) const;
+        ValueItem getValueRef(void* self, const art::ustring& name, ClassAccess access) const;
+
+        void setValue(void* self, uint64_t index, ValueItem& value) const;
+        void setValue(void* self, const art::ustring& name, ClassAccess access, ValueItem& value) const;
+
+        bool hasValue(const art::ustring& name, ClassAccess access) const;
+        uint64_t getValueIndex(const art::ustring& name, ClassAccess access) const;
+    #pragma endregion
 
     private:
         struct AfterMethods {
@@ -1015,9 +1208,11 @@ namespace art {
             list_array<StructureTag>* tags;
         };
 
+        MethodInfo* getMethodsInfo() const;
+        ValueInfo* getValuesInfo() const;
         AfterMethods* getAfterMethods();
         const AfterMethods* getAfterMethods() const;
-        AttachAVirtualTable(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare);
+        AttachAVirtualTable(list_array<MethodInfo>& methods, list_array<ValueInfo>& values, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare, size_t structure_bytes, bool allow_auto_copy);
         ~AttachAVirtualTable();
     };
 
@@ -1027,12 +1222,16 @@ namespace art {
         art::shared_ptr<FuncEnvironment> move;       //args: Structure* dst, Structure* src, bool at_construct
         art::shared_ptr<FuncEnvironment> compare;    //args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
         list_array<MethodInfo> methods;
+        list_array<ValueInfo> values;
         list_array<StructureTag>* tags;
         art::ustring name;
-        AttachADynamicVirtualTable(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare);
+        size_t structure_bytes;
+        bool allow_auto_copy : 1; //allow to copy values by value table if copy operation not implemented(null)
+        AttachADynamicVirtualTable(list_array<MethodInfo>& methods, list_array<ValueInfo>& values, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare, size_t structure_bytes, bool allow_auto_copy);
         ~AttachADynamicVirtualTable();
         AttachADynamicVirtualTable(const AttachADynamicVirtualTable&);
-        list_array<StructureTag>* getStructureTags();
+
+    #pragma region Methods
         list_array<MethodTag>* getMethodTags(uint64_t index);
         list_array<MethodTag>* getMethodTags(const art::ustring& name, ClassAccess access);
 
@@ -1055,217 +1254,74 @@ namespace art {
         void addMethod(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
 
         void removeMethod(const art::ustring& name, ClassAccess access);
+        bool hasMethod(const art::ustring& name, ClassAccess access) const;
+        uint64_t getMethodIndex(const art::ustring& name, ClassAccess access) const;
 
+        void deriveMethods(AttachADynamicVirtualTable& parent, bool as_friend = false);
+        void deriveMethods(AttachAVirtualTable& parent, bool as_friend = false);
+    #pragma endregion
+    #pragma region Values
+        ValueInfo* getValuesInfo(uint64_t& size);
+        ValueInfo& getValueInfo(uint64_t index);
+        const ValueInfo& getValueInfo(uint64_t index) const;
+        ValueInfo& getValueInfo(const art::ustring& name, ClassAccess access);
+        const ValueInfo& getValueInfo(const art::ustring& name, ClassAccess access) const;
+        list_array<ValueTag>* getValueTags(uint64_t index);
+        list_array<ValueTag>* getValueTags(const art::ustring& name, ClassAccess access);
+
+        ValueItem getValue(void* self, uint64_t index) const;
+        ValueItem getValue(void* self, const art::ustring& name, ClassAccess access) const;
+
+        ValueItem getValueRef(void* self, uint64_t index) const;
+        ValueItem getValueRef(void* self, const art::ustring& name, ClassAccess access) const;
+
+        void setValue(void* self, uint64_t index, ValueItem& value) const;
+        void setValue(void* self, const art::ustring& name, ClassAccess access, ValueItem& value) const;
+
+        void addValue(const ValueInfo&);
+
+        void removeValue(const art::ustring& name, ClassAccess access);
+        bool hasValue(const art::ustring& name, ClassAccess access) const;
+        uint64_t getValueIndex(const art::ustring& name, ClassAccess access) const;
+
+        void deriveValues(AttachADynamicVirtualTable& parent, bool as_friend = false);
+        void deriveValues(AttachAVirtualTable& parent, bool as_friend = false);
+    #pragma endregion
+
+        list_array<StructureTag>* getStructureTags();
+        void derive(AttachADynamicVirtualTable& parent, bool as_friend = false);
+        void derive(AttachAVirtualTable& parent, bool as_friend = false);
         void addTag(const art::ustring& name, const ValueItem& value);
         void addTag(const art::ustring& name, ValueItem&& value);
         void removeTag(const art::ustring& name);
-
-        uint64_t getMethodIndex(const art::ustring& name, ClassAccess access) const;
-        bool hasMethod(const art::ustring& name, ClassAccess access) const;
-
-        void derive(AttachADynamicVirtualTable& parent);
-        void derive(AttachAVirtualTable& parent);
     };
 
     //static values can be implemented by builder, allocate somewhere in memory and put references to functions, not structure
     class Structure {
     public:
+        enum class VTableMode : uint8_t {
+            AttachAVirtualTable = 0,
+            AttachADynamicVirtualTable = 1, //destructor will delete the vtable
+            ___unused = 2,
+            ____unused = 3
+        };
         //return true if allowed
         static bool checkAccess(ClassAccess access, ClassAccess access_to_check);
-
-        struct Item {
-            art::ustring name;
-            size_t offset;
-            ValueMeta type;
-            uint16_t bit_used;
-            uint8_t bit_offset : 7;
-            bool inlined : 1;
-        };
-        enum class VTableMode : uint8_t {
-            disabled = 0,
-            AttachAVirtualTable = 1,
-            AttachADynamicVirtualTable = 2, //destructor will delete the vtable
-            CXX = 3
-        };
-
-        static AttachAVirtualTable* createAAVTable(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare, const list_array<std::tuple<void*, VTableMode>>& derive_vtables);
-        static AttachADynamicVirtualTable* createAADVTable(list_array<MethodInfo>& methods, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare, const list_array<std::tuple<void*, VTableMode>>& derive_vtables);
+        static AttachAVirtualTable* createAAVTable(list_array<MethodInfo>& methods, list_array<ValueInfo>& values, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare, const list_array<std::tuple<void*, VTableMode>>& derive_vtables, size_t structure_bytes, bool allow_auto_copy);
+        static AttachADynamicVirtualTable* createAADVTable(list_array<MethodInfo>& methods, list_array<ValueInfo>& values, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare, const list_array<std::tuple<void*, VTableMode>>& derive_vtables, size_t structure_bytes, bool allow_auto_copy);
         static void destroyVTable(void* table, VTableMode mode);
 
-    private:
-        size_t struct_size; //vtable + sizeof(structure)
-        VTableMode vtable_mode : 2 = VTableMode::disabled;
 
-    public:
-        size_t fully_constructed : 1 = false;
-
-    private:
-        size_t count : 61 = 0;
-        char raw_data[]; //Item[count], char data[struct_size]
-
-
-        Item* getPtr(const art::ustring& name);
-        Item* getPtr(size_t index);
-        const Item* getPtr(const art::ustring& name) const;
-        const Item* getPtr(size_t index) const;
-
-        template <typename T>
-        ValueItem getRawArray(const Item* item) {
-            if (item->inlined) {
-                if (item->type.as_ref)
-                    return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_reference);
-                else
-                    return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len);
-            } else {
-                if (item->type.as_ref)
-                    return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_reference);
-                else
-                    return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len);
-            }
-        }
-
-        template <typename T>
-        ValueItem getRawArray(const Item* item) const {
-            ValueItem result;
-            if (item->inlined) {
-                if (item->type.as_ref)
-                    result = ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_reference);
-                else
-                    result = ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len);
-            } else {
-                if (item->type.as_ref)
-                    result = ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_reference);
-                else
-                    result = ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len);
-            }
-            result.meta.allow_edit = false;
-            return result;
-        }
-
-        template <typename T>
-        ValueItem getType(const Item* item) const {
-            if (item->type.as_ref)
-                return ValueItem(static_value_get_ref<T>(item->offset, 0, 0), as_reference);
-            else
-                return ValueItem(static_value_get_ref<T>(item->offset, 0, 0));
-        }
-
-        template <typename T>
-        ValueItem getRawArrayRef(const Item* item) {
-            if (item->inlined)
-                return ValueItem((T*)&static_value_get_ref<T*>(item->offset, 0, 0), item->type.val_len, as_reference);
-            else
-                return ValueItem(static_value_get<T*>(item->offset, 0, item->bit_offset), item->type.val_len, as_reference);
-        }
-
-        template <typename T>
-        ValueItem getTypeRef(const Item* item) {
-            return ValueItem(static_value_get_ref<T>(item->offset, 0, 0), as_reference);
-        }
-
-        ValueItem _static_value_get(const Item* item) const;
-        ValueItem _static_value_get_ref(const Item* item);
-        void _static_value_set(Item* item, ValueItem& set);
-        Structure(size_t structure_size, Item* items, size_t count, void* vtable, VTableMode table_mode);
+        Structure(void* structure_refrence, void* vtable, VTableMode table_mode, void (*self_cleanup)(void* self));
         ~Structure() noexcept(false);
 
-    public:
-        template <typename T>
-        T static_value_get(size_t offset, uint16_t bit_used, uint8_t bit_offset) const {
-            if (sizeof(T) * 8 < bit_used && bit_used)
-                throw InvalidArguments("bit_used is too big for type");
-
-            const char* ptr = raw_data + count * sizeof(Item);
-            ptr += offset;
-            ptr += bit_offset / 8;
-
-            if ((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
-                return *(T*)ptr;
-            uint8_t bit_offset2 = bit_offset % 8;
-
-            uint8_t used_bits = bit_used ? bit_used % 8 : 0;
-            uint16_t used_bytes = bit_used ? bit_used / 8 : sizeof(T);
-            if (used_bytes >= sizeof(T)) {
-                used_bytes = sizeof(T);
-                used_bits = 0;
-            }
-
-            char buffer[sizeof(T)]{0};
-            for (uint8_t i = 0; i < used_bytes - 1; i++)
-                buffer[i] = (ptr[i] >> bit_offset2) | (ptr[i + 1] << (8 - bit_offset2));
-
-            buffer[used_bytes - 1] = buffer[used_bytes - 1] >> bit_offset2;
-            buffer[used_bytes - 1] &= (1 << used_bits) - 1;
-            return *(T*)buffer;
-        }
-
-        template <typename T>
-        T& static_value_get_ref(size_t offset, uint16_t bit_used, uint8_t bit_offset) {
-            if ((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
-                throw InvalidArguments("bit_used is not aligned for type");
-            char* ptr = raw_data + count * sizeof(Item);
-            ptr += offset;
-            ptr += bit_offset / 8;
-            return *(T*)ptr;
-        }
-
-        template <typename T>
-        const T& static_value_get_ref(size_t offset, uint16_t bit_used, uint8_t bit_offset) const {
-            if ((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
-                throw InvalidArguments("bit_used is not aligned for type");
-            const char* ptr = raw_data + count * sizeof(Item);
-            ptr += offset;
-            ptr += bit_offset / 8;
-            return *(T*)ptr;
-        }
-
-        template <typename T>
-        void static_value_set(size_t offset, uint16_t bit_used, uint8_t bit_offset, T value) {
-            if (sizeof(T) * 8 < bit_used && bit_used)
-                throw InvalidArguments("bit_used is too big for type");
-
-            char* ptr = raw_data + count * sizeof(Item);
-            ptr += offset;
-            ptr += bit_offset / 8;
-            if ((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
-                *(T*)ptr = value;
-            uint8_t bit_offset2 = bit_offset % 8;
-
-            uint8_t used_bits = bit_used ? bit_used % 8 : 0;
-            uint16_t used_bytes = bit_used ? bit_used / 8 : sizeof(T);
-            if (used_bytes >= sizeof(T)) {
-                used_bytes = sizeof(T);
-                used_bits = 0;
-            }
-
-            char buffer[sizeof(T)]{0};
-            (*(T*)buffer) = value;
-
-            for (uint8_t i = 0; i < used_bytes - 1; i++)
-                buffer[i] = (buffer[i] << bit_offset2) | (buffer[i + 1] >> (8 - bit_offset2));
-
-            buffer[used_bytes - 1] = buffer[used_bytes - 1] << bit_offset2;
-            buffer[used_bytes - 1] &= (1 << used_bits) - 1;
-            for (uint8_t i = 0; i < used_bytes; i++)
-                ptr[i] = (ptr[i] & ~(buffer[i] << bit_offset2)) | (buffer[i] << bit_offset2);
-        }
-
-        template <typename T>
-        void static_value_set_ref(size_t offset, uint16_t bit_used, uint8_t bit_offset, T value) {
-            if ((bit_used / 8 == sizeof(T) && bit_used) || bit_offset % sizeof(T) == 0)
-                throw InvalidArguments("bit_used is not aligned for type");
-            const char* ptr = raw_data + count * sizeof(Item);
-            ptr += offset;
-            ptr += bit_offset / 8;
-            *(T*)ptr = value;
-        }
 
         ValueItem static_value_get(size_t value_data_index) const;
         ValueItem static_value_get_ref(size_t value_data_index);
         void static_value_set(size_t value_data_index, ValueItem value);
-        ValueItem dynamic_value_get(const art::ustring& name) const;
-        ValueItem dynamic_value_get_ref(const art::ustring& name);
-        void dynamic_value_set(const art::ustring& name, ValueItem value);
+        ValueItem dynamic_value_get(const art::ustring& name, ClassAccess access) const;
+        ValueItem dynamic_value_get_ref(const art::ustring& name, ClassAccess access);
+        void dynamic_value_set(const art::ustring& name, ClassAccess access, ValueItem value);
 
         uint64_t table_get_id(const art::ustring& name, ClassAccess access) const;
         Environment table_get(uint64_t fn_id) const;
@@ -1282,32 +1338,23 @@ namespace art {
         void table_derive(void* vtable, VTableMode vtable_mode); //only for AttachADynamicVirtualTable
         void change_table(void* vtable, VTableMode vtable_mode); //only for AttachADynamicVirtualTable, destroy old vtable and use new one
 
-        VTableMode get_vtable_mode() const;
-        void* get_vtable();
-        const void* get_vtable() const;
-        void* get_data(size_t offset = 0);
-        void* get_data_no_vtable(size_t offset = 0);
-
-
-        Item* get_items(size_t& count);
-
-
-        static Structure* construct(size_t structure_size, Item* items, size_t count);
-        static Structure* construct(size_t structure_size, Item* items, size_t count, void* vtable, VTableMode vtable_mode);
         static void destruct(Structure* structure);
         static void copy(Structure* dst, Structure* src, bool at_construct);
         static Structure* copy(Structure* src);
         static void move(Structure* dst, Structure* src, bool at_construct);
-        static Structure* move(Structure* src);
+        //static Structure* move(Structure* src);
         static int8_t compare(Structure* a, Structure* b);           //vtable
         static int8_t compare_reference(Structure* a, Structure* b); //reference compare
         static int8_t compare_object(Structure* a, Structure* b);    //compare by Item*`s
         static int8_t compare_full(Structure* a, Structure* b);      //compare && compare_object
 
-
-        void* get_raw_data(); //can be useful for light proxy classes
-
         art::ustring get_name() const;
+
+
+        VTableMode vtable_mode : 2 = VTableMode::____unused;
+        void* self;
+        void (*self_cleanup)(void* self);
+        void* vtable;
     };
 }
 #endif /* SRC_RUN_TIME_ATTACHA_ABI_STRUCTS */
