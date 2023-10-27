@@ -519,7 +519,7 @@ namespace art {
     MethodInfo::MethodInfo()
         : ref(nullptr), name(), owner_name(), optional(nullptr), access(ClassAccess::pub), deletable(true) {}
 
-    MethodInfo::MethodInfo(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
+    MethodInfo::MethodInfo(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
         this->name = name;
         this->ref = new FuncEnvironment(method, false);
         this->access = access;
@@ -534,7 +534,7 @@ namespace art {
         this->deletable = true;
     }
 
-    MethodInfo::MethodInfo(const art::ustring& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
+    MethodInfo::MethodInfo(const art::ustring& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
         this->name = name;
         this->ref = method;
         this->access = access;
@@ -671,14 +671,14 @@ namespace art {
         return &info.optional->tags;
     }
 
-    list_array<list_array<ValueMeta>>* AttachAVirtualTable::getMethodArguments(uint64_t index) {
+    list_array<list_array<std::pair<ValueMeta, art::ustring>>>* AttachAVirtualTable::getMethodArguments(uint64_t index) {
         MethodInfo& info = getMethodInfo(index);
         if (info.optional == nullptr)
             return nullptr;
         return &info.optional->arguments;
     }
 
-    list_array<list_array<ValueMeta>>* AttachAVirtualTable::getMethodArguments(const art::ustring& name, ClassAccess access) {
+    list_array<list_array<std::pair<ValueMeta, art::ustring>>>* AttachAVirtualTable::getMethodArguments(const art::ustring& name, ClassAccess access) {
         MethodInfo& info = getMethodInfo(name, access);
         if (info.optional == nullptr)
             return nullptr;
@@ -925,14 +925,14 @@ namespace art {
         return &info.optional->tags;
     }
 
-    list_array<list_array<ValueMeta>>* AttachADynamicVirtualTable::getMethodArguments(uint64_t index) {
+    list_array<list_array<std::pair<ValueMeta, art::ustring>>>* AttachADynamicVirtualTable::getMethodArguments(uint64_t index) {
         MethodInfo& info = getMethodInfo(index);
         if (info.optional == nullptr)
             return nullptr;
         return &info.optional->arguments;
     }
 
-    list_array<list_array<ValueMeta>>* AttachADynamicVirtualTable::getMethodArguments(const art::ustring& name, ClassAccess access) {
+    list_array<list_array<std::pair<ValueMeta, art::ustring>>>* AttachADynamicVirtualTable::getMethodArguments(const art::ustring& name, ClassAccess access) {
         MethodInfo& info = getMethodInfo(name, access);
         if (info.optional == nullptr)
             return nullptr;
@@ -996,11 +996,11 @@ namespace art {
         return (Environment)getMethodInfo(name, access).ref->get_func_ptr();
     }
 
-    void AttachADynamicVirtualTable::addMethod(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
+    void AttachADynamicVirtualTable::addMethod(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
         methods.push_back(MethodInfo(name, method, access, return_values, arguments, tags, owner_name));
     }
 
-    void AttachADynamicVirtualTable::addMethod(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
+    void AttachADynamicVirtualTable::addMethod(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
         methods.push_back(MethodInfo(name, method, access, return_values, arguments, tags, owner_name));
     }
 
@@ -1429,13 +1429,13 @@ namespace art {
         }
     }
 
-    void Structure::add_method(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
+    void Structure::add_method(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
         if (vtable_mode != VTableMode::AttachADynamicVirtualTable)
             throw InvalidOperation("vtable must be dynamic to add new method");
         ((AttachADynamicVirtualTable*)vtable)->addMethod(name, method, access, return_values, arguments, tags, owner_name);
     }
 
-    void Structure::add_method(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
+    void Structure::add_method(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
         if (vtable_mode != VTableMode::AttachADynamicVirtualTable)
             throw InvalidOperation("vtable must be dynamic to add new method");
         ((AttachADynamicVirtualTable*)vtable)->addMethod(name, method, access, return_values, arguments, tags, owner_name);

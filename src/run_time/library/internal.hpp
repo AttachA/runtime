@@ -10,6 +10,77 @@
 
 namespace art {
     namespace internal {
+        struct tag_viewer {
+            void* _internal; //ref to tag
+            art::ustring get_name();
+            ValueItem get_value();
+            art::shared_ptr<FuncEnvironment> get_enviro();
+        };
+
+        struct method_viewer {
+            void* _internal; //ref to method
+            art::ustring get_name();
+            ClassAccess get_access();
+            bool is_deletable();
+            art::shared_ptr<FuncEnvironment> get_function();
+            art::ustring get_owner_name();
+            list_array<tag_viewer> get_tags();
+            list_array<list_array<std::pair<ValueMeta, art::ustring>>> get_args();
+            list_array<ValueMeta> get_return_values();
+        };
+
+        struct value_viewer {
+            void* _internal; //ref to value
+            art::ustring get_name();
+            ClassAccess get_access();
+            ValueMeta get_type();
+            bool is_allow_abstract_assign();
+            bool is_inlined();
+            uint8_t get_bit_offset();
+            uint16_t get_bit_used();
+            size_t get_offset();
+            bool get_zero_after_cleanup();
+            list_array<tag_viewer> get_tags();
+        };
+
+        struct vtable_viewer {
+            void* vtable;
+            Structure::VTableMode mode;
+
+            art::shared_ptr<FuncEnvironment> getDestructor();
+            art::shared_ptr<FuncEnvironment> getCopy();
+            art::shared_ptr<FuncEnvironment> getMove();
+            art::shared_ptr<FuncEnvironment> getCompare();
+
+            art::ustring get_name();
+            size_t get_structure_size();
+            bool get_allow_auto_copy();
+
+            list_array<method_viewer> get_methods();
+            method_viewer get_method_by_id(uint64_t id);
+            method_viewer get_method_by_name(const art::ustring& name, ClassAccess access);
+            uint64_t get_method_id(const art::ustring& name, ClassAccess access);
+
+            list_array<value_viewer> get_values();
+            value_viewer get_value_by_id(uint64_t id);
+            value_viewer get_value_by_name(const art::ustring& name, ClassAccess access);
+            uint64_t get_value_id(const art::ustring& name, ClassAccess access);
+
+            list_array<tag_viewer> get_tags();
+            tag_viewer get_tag_by_id(uint64_t id);
+            tag_viewer get_tag_by_name(const art::ustring& name);
+            uint64_t get_tag_id(const art::ustring& name);
+
+        private:
+            inline AttachADynamicVirtualTable* dyn() {
+                return reinterpret_cast<AttachADynamicVirtualTable*>(vtable);
+            }
+
+            inline AttachAVirtualTable* stat() {
+                return reinterpret_cast<AttachAVirtualTable*>(vtable);
+            }
+        };
+
 
         //not thread safe!
         namespace memory {
@@ -82,7 +153,14 @@ namespace art {
             ValueItem* createProxy_index_pos(ValueItem*, uint32_t);
             ValueItem* createProxy_line_info(ValueItem*, uint32_t);
             ValueItem* createProxy_universal_compiler(ValueItem*, uint32_t);
+            ValueItem* createProxy_art_vtable(ValueItem*, uint32_t);
+            ValueItem* createProxy_art_vtable_value(ValueItem*, uint32_t);
+            ValueItem* createProxy_art_vtable_method(ValueItem*, uint32_t);
+            ValueItem* createProxy_art_vtable_tag(ValueItem*, uint32_t);
         }
+
+        vtable_viewer view_structure(Structure& str);
+        ValueItem* view_structure(ValueItem*, uint32_t);
 
         void init();
     }

@@ -1122,6 +1122,7 @@ namespace art {
         FuncEnvironment::AddNative(internal::constructor::createProxy_function_builder, "# internal function_builder", false);
         FuncEnvironment::AddNative(internal::constructor::createProxy_index_pos, "# internal index_pos", false);
         FuncEnvironment::AddNative(internal::constructor::createProxy_line_info, "# internal line_info", false);
+        FuncEnvironment::AddNative((Environment)internal::view_structure, "internal view_structure", false);
     }
 
     void initStandardLib_internal_memory() {

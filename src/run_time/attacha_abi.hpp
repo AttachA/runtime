@@ -13,8 +13,8 @@
     #include <util/cxxException.hpp>
     #include <util/link_garbage_remover.hpp>
     #include <util/string_help.hpp>
+    #include <util/threading.hpp>
     #include <util/ustring.hpp>
-
 namespace art {
     bool needAlloc(ValueMeta type);
     bool needAllocType(VType type);
@@ -289,8 +289,18 @@ namespace art {
                 return val;
             else if constexpr (std::is_same_v<std::remove_cvref_t<T>, void*>)
                 return val;
+            else if constexpr (std::is_same_v<std::remove_cvref_t<T>, art::thread::id>)
+                return (size_t)val;
             else if constexpr (std::is_reference_v<T> && (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>)) {
-                throw NotImplementedException(); //TODO: implement
+                using un_ref_ = std::remove_const_t<std::remove_reference_t<T>>;
+                if (CXX::Interface::typeVTable<un_ref_>() != nullptr) {
+                    if constexpr (std::is_copy_constructible_v<T> && !std::is_reference_v<T>)
+                        return ValueItem(new Structure(new T(val), CXX::Interface::typeVTable<un_ref_>().vtable, CXX::Interface::typeVTable<un_ref_>().mode, defaultDestructor<un_ref_>), no_copy);
+                    else
+                        return ValueItem(new Structure(&val, CXX::Interface::typeVTable<un_ref_>().vtable, CXX::Interface::typeVTable<un_ref_>().mode, nullptr), no_copy);
+                } else
+                    throw InvalidArguments("This type is not has been registered");
+                throw NotImplementedException();
             } else {
                 static_assert(
                     (
@@ -309,6 +319,7 @@ namespace art {
                         std::is_same_v<std::remove_cvref_t<T>, Environment> ||
                         std::is_same_v<std::remove_cvref_t<T>, bool> ||
                         std::is_same_v<std::remove_cvref_t<T>, void*> ||
+                        std::is_same_v<std::remove_cvref_t<T>, art::thread::id> ||
                         (std::is_reference_v<T> && (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>))
                     ),
                     "Invalid type for convert"

@@ -8,9 +8,638 @@
 #include <run_time/asm/CASM.hpp>
 #include <run_time/asm/dynamic_call.hpp>
 #include <run_time/func_enviro_builder.hpp>
+#include <run_time/library/internal.hpp>
 #include <run_time/tasks/util/light_stack.hpp>
 
 namespace art {
+#pragma region vtable viewer
+
+    namespace internal {
+        art::ustring tag_viewer::get_name() {
+            return ((StructureTag*)_internal)->name;
+        }
+
+        ValueItem tag_viewer::get_value() {
+            return ((StructureTag*)_internal)->value;
+        }
+
+        art::shared_ptr<FuncEnvironment> tag_viewer::get_enviro() {
+            return ((StructureTag*)_internal)->enviro;
+        }
+
+        art::ustring method_viewer::get_name() {
+            return ((MethodInfo*)_internal)->name;
+        }
+
+        ClassAccess method_viewer::get_access() {
+            return ((MethodInfo*)_internal)->access;
+        }
+
+        bool method_viewer::is_deletable() {
+            return ((MethodInfo*)_internal)->deletable;
+        }
+
+        art::shared_ptr<FuncEnvironment> method_viewer::get_function() {
+            return ((MethodInfo*)_internal)->ref;
+        }
+
+        art::ustring method_viewer::get_owner_name() {
+            return ((MethodInfo*)_internal)->owner_name;
+        }
+
+        list_array<tag_viewer> method_viewer::get_tags() {
+            MethodInfo* info = (MethodInfo*)_internal;
+            if (info->optional == nullptr)
+                return {};
+            return info->optional->tags.convert<tag_viewer>([](StructureTag& tag) { return tag_viewer{&tag}; });
+        }
+
+        list_array<list_array<std::pair<ValueMeta, art::ustring>>> method_viewer::get_args() {
+            MethodInfo* info = (MethodInfo*)_internal;
+            if (info->optional == nullptr)
+                return {};
+            return info->optional->arguments;
+        }
+
+        list_array<ValueMeta> method_viewer::get_return_values() {
+            MethodInfo* info = (MethodInfo*)_internal;
+            if (info->optional == nullptr)
+                return {};
+            return info->optional->return_values;
+        }
+
+        art::ustring value_viewer::get_name() {
+            return ((ValueInfo*)_internal)->name;
+        }
+
+        ClassAccess value_viewer::get_access() {
+            return ((ValueInfo*)_internal)->access;
+        }
+
+        ValueMeta value_viewer::get_type() {
+            return ((ValueInfo*)_internal)->type;
+        }
+
+        bool value_viewer::is_allow_abstract_assign() {
+            return ((ValueInfo*)_internal)->allow_abstract_assign;
+        }
+
+        bool value_viewer::is_inlined() {
+            return ((ValueInfo*)_internal)->inlined;
+        }
+
+        uint8_t value_viewer::get_bit_offset() {
+            return ((ValueInfo*)_internal)->bit_offset;
+        }
+
+        uint16_t value_viewer::get_bit_used() {
+            return ((ValueInfo*)_internal)->bit_used;
+        }
+
+        size_t value_viewer::get_offset() {
+            return ((ValueInfo*)_internal)->offset;
+        }
+
+        bool value_viewer::get_zero_after_cleanup() {
+            return ((ValueInfo*)_internal)->zero_after_cleanup;
+        }
+
+        list_array<tag_viewer> value_viewer::get_tags() {
+            ValueInfo* info = (ValueInfo*)_internal;
+            if (info->optional_tags == nullptr)
+                return {};
+            return info->optional_tags->convert<tag_viewer>([](StructureTag& tag) { return tag_viewer{&tag}; });
+        }
+
+        art::shared_ptr<FuncEnvironment> vtable_viewer::getDestructor() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->destructor;
+            case Structure::VTableMode::AttachAVirtualTable:
+                return stat()->getAfterMethods()->destructor;
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        art::shared_ptr<FuncEnvironment> vtable_viewer::getCopy() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->copy;
+            case Structure::VTableMode::AttachAVirtualTable:
+                return stat()->getAfterMethods()->copy;
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        art::shared_ptr<FuncEnvironment> vtable_viewer::getMove() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->move;
+            case Structure::VTableMode::AttachAVirtualTable:
+                return stat()->getAfterMethods()->move;
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        art::shared_ptr<FuncEnvironment> vtable_viewer::getCompare() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->compare;
+            case Structure::VTableMode::AttachAVirtualTable:
+                return stat()->getAfterMethods()->compare;
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        art::ustring vtable_viewer::get_name() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->name;
+            case Structure::VTableMode::AttachAVirtualTable:
+                return stat()->getName();
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        size_t vtable_viewer::get_structure_size() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->structure_bytes;
+            case Structure::VTableMode::AttachAVirtualTable:
+                return stat()->structure_bytes;
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        bool vtable_viewer::get_allow_auto_copy() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->allow_auto_copy;
+            case Structure::VTableMode::AttachAVirtualTable:
+                return stat()->allow_auto_copy;
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        list_array<method_viewer> vtable_viewer::get_methods() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->methods.convert<method_viewer>([](MethodInfo& info) {
+                    return method_viewer{&info};
+                });
+            case Structure::VTableMode::AttachAVirtualTable: {
+                size_t len = 0;
+                MethodInfo* methods = stat()->getMethodsInfo(len);
+                list_array<method_viewer> res;
+                res.reserve_push_back(len);
+                for (size_t i = 0; i < len; i++)
+                    res.push_back(method_viewer{&methods[i]});
+                return res;
+            }
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        method_viewer vtable_viewer::get_method_by_id(uint64_t id) {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return method_viewer{&dyn()->getMethodInfo(id)};
+            case Structure::VTableMode::AttachAVirtualTable:
+                return method_viewer{&stat()->getMethodInfo(id)};
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        method_viewer vtable_viewer::get_method_by_name(const art::ustring& name, ClassAccess access) {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return method_viewer{&dyn()->getMethodInfo(name, access)};
+            case Structure::VTableMode::AttachAVirtualTable:
+                return method_viewer{&stat()->getMethodInfo(name, access)};
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        uint64_t vtable_viewer::get_method_id(const art::ustring& name, ClassAccess access) {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->getMethodIndex(name, access);
+            case Structure::VTableMode::AttachAVirtualTable:
+                return stat()->getMethodIndex(name, access);
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        list_array<value_viewer> vtable_viewer::get_values() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->values.convert<value_viewer>([](ValueInfo& info) {
+                    return value_viewer{&info};
+                });
+            case Structure::VTableMode::AttachAVirtualTable: {
+                size_t len = 0;
+                ValueInfo* values = stat()->getValuesInfo(len);
+                list_array<value_viewer> res;
+                res.reserve_push_back(len);
+                for (size_t i = 0; i < len; i++)
+                    res.push_back(value_viewer{&values[i]});
+                return res;
+            }
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        value_viewer vtable_viewer::get_value_by_id(uint64_t id) {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return value_viewer{&dyn()->getValueInfo(id)};
+            case Structure::VTableMode::AttachAVirtualTable:
+                return value_viewer{&stat()->getValueInfo(id)};
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        value_viewer vtable_viewer::get_value_by_name(const art::ustring& name, ClassAccess access) {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return value_viewer{&dyn()->getValueInfo(name, access)};
+            case Structure::VTableMode::AttachAVirtualTable:
+                return value_viewer{&stat()->getValueInfo(name, access)};
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        uint64_t vtable_viewer::get_value_id(const art::ustring& name, ClassAccess access) {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->getValueIndex(name, access);
+            case Structure::VTableMode::AttachAVirtualTable:
+                return stat()->getValueIndex(name, access);
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        list_array<tag_viewer> vtable_viewer::get_tags() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                if (dyn()->tags != nullptr)
+                    return dyn()->tags->convert<tag_viewer>([](StructureTag& tag) { return tag_viewer{&tag}; });
+                else
+                    return {};
+            case Structure::VTableMode::AttachAVirtualTable: {
+                list_array<StructureTag>* tags = stat()->getStructureTags();
+                if (tags != nullptr)
+                    return tags->convert<tag_viewer>([](StructureTag& tag) { return tag_viewer{&tag}; });
+                else
+                    return {};
+            }
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        tag_viewer vtable_viewer::get_tag_by_id(uint64_t id) {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                if (dyn()->tags != nullptr)
+                    return tag_viewer{&dyn()->tags->at(id)};
+                else
+                    return {};
+            case Structure::VTableMode::AttachAVirtualTable: {
+                list_array<StructureTag>* tags = stat()->getStructureTags();
+                if (tags != nullptr)
+                    return tag_viewer{&tags->at(id)};
+                else
+                    return {};
+            }
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        tag_viewer vtable_viewer::get_tag_by_name(const art::ustring& name) {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable: {
+                list_array<StructureTag>* tags = dyn()->tags;
+                if (tags != nullptr)
+                    return tag_viewer{&(*tags)[tags->find_it([&name](const StructureTag& tag) { return tag.name == name; })]};
+                else
+                    throw InvalidOperation("Value not found");
+            }
+            case Structure::VTableMode::AttachAVirtualTable: {
+                list_array<StructureTag>* tags = stat()->getStructureTags();
+                if (tags != nullptr)
+                    return tag_viewer{&(*tags)[tags->find_it([&name](const StructureTag& tag) { return tag.name == name; })]};
+                else
+                    throw InvalidOperation("Value not found");
+            }
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        uint64_t vtable_viewer::get_tag_id(const art::ustring& name) {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable: {
+                list_array<StructureTag>* tags = dyn()->tags;
+                if (tags != nullptr)
+                    return tags->find_it([&name](const StructureTag& tag) { return tag.name == name; });
+                else
+                    throw InvalidOperation("Value not found");
+            }
+            case Structure::VTableMode::AttachAVirtualTable: {
+                list_array<StructureTag>* tags = stat()->getStructureTags();
+                if (tags != nullptr)
+                    return tags->find_it([&name](const StructureTag& tag) { return tag.name == name; });
+                else
+                    throw InvalidOperation("Value not found");
+            }
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        AttachAVirtualTable* method_view;
+        AttachAVirtualTable* value_view;
+        AttachAVirtualTable* tag_view;
+        AttachAVirtualTable* vtable_view;
+
+        namespace method_view_impl {
+            AttachAFunc(funcs_method_view_get_name, 1) {
+                return CXX::Interface::getExtractAs<method_viewer>(args[0], method_view).get_name();
+            }
+
+            AttachAFunc(funcs_method_view_get_access, 1) {
+                return (uint8_t)CXX::Interface::getExtractAs<method_viewer>(args[0], method_view).get_access();
+            }
+
+            AttachAFunc(funcs_method_view_is_deletable, 1) {
+                return CXX::Interface::getExtractAs<method_viewer>(args[0], method_view).is_deletable();
+            }
+
+            AttachAFunc(funcs_method_view_get_function, 1) {
+                return CXX::Interface::getExtractAs<method_viewer>(args[0], method_view).get_function();
+            }
+
+            AttachAFunc(funcs_method_view_get_owner_name, 1) {
+                return CXX::Interface::getExtractAs<method_viewer>(args[0], method_view).get_owner_name();
+            }
+
+            AttachAFunc(funcs_method_view_get_tags, 1) {
+                return CXX::Interface::getExtractAs<method_viewer>(args[0], method_view).get_tags().convert<ValueItem>([](tag_viewer& tag) {
+                    return ValueItem(CXX::Interface::constructStructure<tag_viewer>(tag_view, tag), no_copy);
+                });
+            }
+
+            AttachAFunc(funcs_method_view_get_args, 1) {
+                return CXX::Interface::getExtractAs<method_viewer>(args[0], method_view).get_args().convert<ValueItem>([](list_array<std::pair<ValueMeta, art::ustring>>& args) {
+                    return args.convert<ValueItem>([](std::pair<ValueMeta, art::ustring>& arg) {
+                        return ValueItem{ValueItem(arg.first), ValueItem(arg.second)};
+                    });
+                });
+            }
+
+            AttachAFunc(funcs_method_view_get_return_values, 1) {
+                return CXX::Interface::getExtractAs<method_viewer>(args[0], method_view).get_return_values().convert<ValueItem>([](ValueMeta& arg) { return arg; });
+            }
+        }
+
+        namespace value_view_impl {
+            AttachAFunc(funcs_value_view_get_name, 1) {
+                return CXX::Interface::getExtractAs<value_viewer>(args[0], value_view).get_name();
+            }
+
+            AttachAFunc(funcs_value_view_get_access, 1) {
+                return (uint8_t)CXX::Interface::getExtractAs<value_viewer>(args[0], value_view).get_access();
+            }
+
+            AttachAFunc(funcs_value_view_get_type, 1) {
+                return CXX::Interface::getExtractAs<value_viewer>(args[0], value_view).get_type();
+            }
+
+            AttachAFunc(funcs_value_view_is_allow_abstract_assign, 1) {
+                return CXX::Interface::getExtractAs<value_viewer>(args[0], value_view).is_allow_abstract_assign();
+            }
+
+            AttachAFunc(funcs_value_view_get_bit_offset, 1) {
+                return CXX::Interface::getExtractAs<ValueInfo*>(args[0], value_view)->bit_offset;
+            }
+
+            AttachAFunc(funcs_value_view_get_bit_used, 1) {
+                return CXX::Interface::getExtractAs<ValueInfo*>(args[0], value_view)->bit_used;
+            }
+
+            AttachAFunc(funcs_value_view_is_inlined, 1) {
+                return CXX::Interface::getExtractAs<ValueInfo*>(args[0], value_view)->inlined;
+            }
+
+            AttachAFunc(funcs_value_view_get_offset, 1) {
+                return CXX::Interface::getExtractAs<ValueInfo*>(args[0], value_view)->offset;
+            }
+
+            AttachAFunc(funcs_value_view_get_zero_after_cleanup, 1) {
+                return CXX::Interface::getExtractAs<ValueInfo*>(args[0], value_view)->zero_after_cleanup;
+            }
+
+            AttachAFunc(funcs_value_view_get_tags, 1) {
+                return CXX::Interface::getExtractAs<value_viewer>(args[0], value_view).get_tags().convert<ValueItem>([](tag_viewer& tag) {
+                    return ValueItem(CXX::Interface::constructStructure<tag_viewer>(tag_view, tag), no_copy);
+                });
+            }
+        }
+
+        namespace tag_view_impl {
+            AttachAFunc(funcs_tag_view_get_name, 1) {
+                return CXX::Interface::getExtractAs<tag_viewer>(args[0], tag_view).get_name();
+            }
+
+            AttachAFunc(funcs_tag_view_get_value, 1) {
+                return CXX::Interface::getExtractAs<tag_viewer>(args[0], tag_view).get_value();
+            }
+
+            AttachAFunc(funcs_tag_view_get_enviro, 1) {
+                return CXX::Interface::getExtractAs<tag_viewer>(args[0], tag_view).get_enviro();
+            }
+        }
+
+        namespace vtable_view_impl {
+            AttachAFunc(funcs_vtable_view_get_destructor, 1) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).getDestructor();
+            }
+
+            AttachAFunc(funcs_vtable_view_get_copy, 1) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).getCopy();
+            }
+
+            AttachAFunc(funcs_vtable_view_get_move, 1) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).getMove();
+            }
+
+            AttachAFunc(funcs_vtable_view_get_compare, 1) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).getCompare();
+            }
+
+            AttachAFunc(funcs_vtable_view_get_name, 1) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_name();
+            }
+
+            AttachAFunc(funcs_vtable_view_get_structure_size, 1) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_structure_size();
+            }
+
+            AttachAFunc(funcs_vtable_view_get_allow_auto_copy, 1) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_allow_auto_copy();
+            }
+
+            AttachAFunc(funcs_vtable_view_get_methods, 1) {
+
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_methods().convert<ValueItem>([](method_viewer& method) {
+                    return ValueItem(CXX::Interface::constructStructure<method_viewer>(method_view, method), no_copy);
+                });
+            }
+
+            AttachAFunc(funcs_vtable_view_get_method_by_id, 2) {
+                return ValueItem(CXX::Interface::constructStructure<method_viewer>(method_view, CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_method_by_id((uint64_t)args[1])), no_copy);
+            }
+
+            AttachAFunc(funcs_vtable_view_get_method_by_name, 3) {
+                return ValueItem(CXX::Interface::constructStructure<method_viewer>(method_view, CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_method_by_name((art::ustring)args[1], (ClassAccess)(uint8_t)args[2])), no_copy);
+            }
+
+            AttachAFunc(funcs_vtable_view_get_method_id, 3) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_method_id((art::ustring)args[1], (ClassAccess)(uint8_t)args[2]);
+            }
+
+            AttachAFunc(funcs_vtable_view_get_values, 1) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_values().convert<ValueItem>([](value_viewer& value) {
+                    return ValueItem(CXX::Interface::constructStructure<value_viewer>(value_view, value), no_copy);
+                });
+            }
+
+            AttachAFunc(funcs_vtable_view_get_value_by_id, 2) {
+                return ValueItem(CXX::Interface::constructStructure<value_viewer>(value_view, CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_value_by_id((uint64_t)args[1])), no_copy);
+            }
+
+            AttachAFunc(funcs_vtable_view_get_value_by_name, 3) {
+                return ValueItem(CXX::Interface::constructStructure<value_viewer>(value_view, CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_value_by_name((art::ustring)args[1], (ClassAccess)(uint8_t)args[2])), no_copy);
+            }
+
+            AttachAFunc(funcs_vtable_view_get_value_id, 3) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_value_id((art::ustring)args[1], (ClassAccess)(uint8_t)args[2]);
+            }
+
+            AttachAFunc(funcs_vtable_view_get_tags, 1) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_tags().convert<ValueItem>([](tag_viewer& tag) {
+                    return ValueItem(CXX::Interface::constructStructure<tag_viewer>(tag_view, tag), no_copy);
+                });
+            }
+
+            AttachAFunc(funcs_vtable_view_get_tag_by_id, 2) {
+                return ValueItem(CXX::Interface::constructStructure<tag_viewer>(tag_view, CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_tag_by_id((uint64_t)args[1])), no_copy);
+            }
+
+            AttachAFunc(funcs_vtable_view_get_tag_by_name, 2) {
+                return ValueItem(CXX::Interface::constructStructure<tag_viewer>(tag_view, CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_tag_by_name((art::ustring)args[1])), no_copy);
+            }
+
+            AttachAFunc(funcs_vtable_view_get_tag_id, 2) {
+                return CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).get_tag_id((art::ustring)args[1]);
+            }
+
+            AttachAFunc(funcs_vtable_view_get_mode, 1) {
+                return (uint8_t)CXX::Interface::getExtractAs<vtable_viewer>(args[0], vtable_view).mode;
+            }
+        }
+
+        AttachAFunc(view_structure, 1) {
+            Structure& struct_ = (Structure&)args[0];
+            return CXX::Interface::constructStructure<vtable_viewer>(vtable_view, vtable_viewer(struct_.vtable, struct_.vtable_mode));
+        }
+
+        vtable_viewer view_structure(Structure& structure_) {
+            return vtable_viewer(structure_.vtable, structure_.vtable_mode);
+        }
+
+        void init_vtable_views() {
+            method_view = CXX::Interface::createTable<method_viewer>(
+                "method_viewer",
+                CXX::Interface::direct_method("get_name", method_view_impl::funcs_method_view_get_name),
+                CXX::Interface::direct_method("get_access", method_view_impl::funcs_method_view_get_access),
+                CXX::Interface::direct_method("is_deletable", method_view_impl::funcs_method_view_is_deletable),
+                CXX::Interface::direct_method("get_function", method_view_impl::funcs_method_view_get_function),
+                CXX::Interface::direct_method("get_owner_name", method_view_impl::funcs_method_view_get_owner_name),
+                CXX::Interface::direct_method("get_tags", method_view_impl::funcs_method_view_get_tags),
+                CXX::Interface::direct_method("get_args", method_view_impl::funcs_method_view_get_args),
+                CXX::Interface::direct_method("get_return_values", method_view_impl::funcs_method_view_get_return_values)
+            );
+            CXX::Interface::typeVTable<method_viewer>() = method_view;
+
+            value_view = CXX::Interface::createTable<value_viewer>(
+                "value_viewer",
+                CXX::Interface::direct_method("get_name", value_view_impl::funcs_value_view_get_name),
+                CXX::Interface::direct_method("get_access", value_view_impl::funcs_value_view_get_access),
+                CXX::Interface::direct_method("get_type", value_view_impl::funcs_value_view_get_type),
+                CXX::Interface::direct_method("is_allow_abstract_assign", value_view_impl::funcs_value_view_is_allow_abstract_assign),
+                CXX::Interface::direct_method("get_bit_offset", value_view_impl::funcs_value_view_get_bit_offset),
+                CXX::Interface::direct_method("get_bit_used", value_view_impl::funcs_value_view_get_bit_used),
+                CXX::Interface::direct_method("is_inlined", value_view_impl::funcs_value_view_is_inlined),
+                CXX::Interface::direct_method("get_offset", value_view_impl::funcs_value_view_get_offset),
+                CXX::Interface::direct_method("get_zero_after_cleanup", value_view_impl::funcs_value_view_get_zero_after_cleanup),
+                CXX::Interface::direct_method("get_tags", value_view_impl::funcs_value_view_get_tags)
+            );
+            CXX::Interface::typeVTable<value_viewer>() = value_view;
+
+            tag_view = CXX::Interface::createTable<tag_viewer>(
+                "tag_viewer",
+                CXX::Interface::direct_method("get_name", tag_view_impl::funcs_tag_view_get_name),
+                CXX::Interface::direct_method("get_value", tag_view_impl::funcs_tag_view_get_value),
+                CXX::Interface::direct_method("get_enviro", tag_view_impl::funcs_tag_view_get_enviro)
+            );
+            CXX::Interface::typeVTable<tag_viewer>() = tag_view;
+
+            vtable_view = CXX::Interface::createTable<vtable_viewer>(
+                "vtable_viewer",
+                CXX::Interface::direct_method("get_destructor", vtable_view_impl::funcs_vtable_view_get_destructor),
+                CXX::Interface::direct_method("get_copy", vtable_view_impl::funcs_vtable_view_get_copy),
+                CXX::Interface::direct_method("get_move", vtable_view_impl::funcs_vtable_view_get_move),
+                CXX::Interface::direct_method("get_compare", vtable_view_impl::funcs_vtable_view_get_compare),
+                CXX::Interface::direct_method("get_name", vtable_view_impl::funcs_vtable_view_get_name),
+                CXX::Interface::direct_method("get_structure_size", vtable_view_impl::funcs_vtable_view_get_structure_size),
+                CXX::Interface::direct_method("get_allow_auto_copy", vtable_view_impl::funcs_vtable_view_get_allow_auto_copy),
+                CXX::Interface::direct_method("get_methods", vtable_view_impl::funcs_vtable_view_get_methods),
+                CXX::Interface::direct_method("get_method_by_id", vtable_view_impl::funcs_vtable_view_get_method_by_id),
+                CXX::Interface::direct_method("get_method_by_name", vtable_view_impl::funcs_vtable_view_get_method_by_name),
+                CXX::Interface::direct_method("get_method_id", vtable_view_impl::funcs_vtable_view_get_method_id),
+                CXX::Interface::direct_method("get_values", vtable_view_impl::funcs_vtable_view_get_values),
+                CXX::Interface::direct_method("get_value_by_id", vtable_view_impl::funcs_vtable_view_get_value_by_id),
+                CXX::Interface::direct_method("get_value_by_name", vtable_view_impl::funcs_vtable_view_get_value_by_name),
+                CXX::Interface::direct_method("get_value_id", vtable_view_impl::funcs_vtable_view_get_value_id),
+                CXX::Interface::direct_method("get_tags", vtable_view_impl::funcs_vtable_view_get_tags),
+                CXX::Interface::direct_method("get_tag_by_id", vtable_view_impl::funcs_vtable_view_get_tag_by_id),
+                CXX::Interface::direct_method("get_tag_by_name", vtable_view_impl::funcs_vtable_view_get_tag_by_name),
+                CXX::Interface::direct_method("get_tag_id", vtable_view_impl::funcs_vtable_view_get_tag_id),
+                CXX::Interface::direct_method("get_mode", vtable_view_impl::funcs_vtable_view_get_mode)
+            );
+            CXX::Interface::typeVTable<vtable_viewer>() = vtable_view;
+        }
+    }
+
+#pragma endregion
     namespace internal {
         namespace memory {
             //returns faarr[faarr[ptr from, ptr to, len, str desk, bool is_fault]...], arg: array/value ptr
@@ -1062,6 +1691,7 @@ namespace art {
 
         void init() {
             constructor::init();
+            init_vtable_views();
         }
     }
 }

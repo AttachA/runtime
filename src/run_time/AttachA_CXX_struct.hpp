@@ -71,9 +71,95 @@ namespace art {
                     throw InvalidArguments(vtable->getName() + ", type mismatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
             }
 
+            struct VTableData {
+                void* vtable;
+                Structure::VTableMode mode;
+
+                VTableData() {
+                    vtable = nullptr;
+                    mode = Structure::VTableMode::undefined;
+                }
+
+                operator void*() {
+                    return vtable;
+                }
+
+                operator Structure::VTableMode() {
+                    return mode;
+                }
+
+                VTableData& operator=(void* vtable) {
+                    this->vtable = vtable;
+                    mode = Structure::VTableMode::undefined;
+                    return *this;
+                }
+
+                VTableData& operator=(AttachAVirtualTable* vtable) {
+                    this->vtable = vtable;
+                    mode = Structure::VTableMode::AttachAVirtualTable;
+                    return *this;
+                }
+
+                VTableData& operator=(AttachADynamicVirtualTable* vtable) {
+                    this->vtable = vtable;
+                    mode = Structure::VTableMode::AttachADynamicVirtualTable;
+                    return *this;
+                }
+
+                bool operator==(nullptr_t) const {
+                    return vtable == nullptr;
+                }
+
+                bool operator!=(nullptr_t) const {
+                    return vtable != nullptr;
+                }
+
+                operator bool() const {
+                    return vtable != nullptr;
+                }
+
+                bool operator==(AttachAVirtualTable* vtable) const {
+                    return this->vtable == vtable && mode == Structure::VTableMode::AttachAVirtualTable;
+                }
+
+                bool operator!=(AttachAVirtualTable* vtable) const {
+                    return this->vtable != vtable || mode != Structure::VTableMode::AttachAVirtualTable;
+                }
+
+                bool operator==(AttachADynamicVirtualTable* vtable) const {
+                    return this->vtable == vtable && mode == Structure::VTableMode::AttachADynamicVirtualTable;
+                }
+
+                bool operator!=(AttachADynamicVirtualTable* vtable) const {
+                    return this->vtable != vtable || mode != Structure::VTableMode::AttachADynamicVirtualTable;
+                }
+
+                bool operator==(void* vtable) const {
+                    return this->vtable == vtable;
+                }
+
+                bool operator!=(void* vtable) const {
+                    return this->vtable != vtable;
+                }
+
+                operator AttachAVirtualTable*() {
+                    if (mode == Structure::VTableMode::AttachAVirtualTable)
+                        return (AttachAVirtualTable*)vtable;
+                    else
+                        return nullptr;
+                }
+
+                operator AttachADynamicVirtualTable*() {
+                    if (mode == Structure::VTableMode::AttachADynamicVirtualTable)
+                        return (AttachADynamicVirtualTable*)vtable;
+                    else
+                        return nullptr;
+                }
+            };
+
             template <class Class_>
-            void*& typeVTable() {
-                static void* hold = nullptr;
+            VTableData& typeVTable() {
+                static VTableData hold;
                 return hold;
             }
 

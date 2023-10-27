@@ -12,15 +12,9 @@
 #include <run_time/standard_lib.hpp>
 #include <run_time/tasks/util/interrupt.hpp>
 
-using namespace art;
+#include <run_time/library_cxx_binds/console.hpp>
 
-void sleep_test() {
-    auto started = std::chrono::high_resolution_clock::now();
-    Task::sleep(1000);
-    uint64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count();
-    ValueItem msq(time);
-    console::printLine(&msq, 1);
-}
+using namespace art;
 
 #pragma optimize("", off)
 
@@ -36,10 +30,9 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
     ValueItem noting;
     //Task::start(new Task(FuncEnvironment::environment("busy_worker"), noting));
 
-    console::setBgColor(123, 21, 2);
-    console::setTextColor(0, 230, 0);
-    ValueItem msq("test");
-    console::print(&msq, 1);
+    art_lib::console::setBgColor(123, 21, 2);
+    art_lib::console::setTextColor(0, 230, 0);
+    art_lib::console::print("test");
 
     FuncEnviroBuilder build;
     auto fn_console_set_text_color = build.create_constant("console set_text_color");
@@ -81,7 +74,12 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
         build.call_and_ret(fn_Yay);
         build.O_load_func("Yay");
     }
-    art::shared_ptr<FuncEnvironment> env = FuncEnvironment::environment("sleep_test");
+    art::shared_ptr<FuncEnvironment> env = CXX::MakeNative([]() {
+        auto started = std::chrono::high_resolution_clock::now();
+        Task::sleep(1000);
+        uint64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - started).count();
+        art_lib::console::printLine(time);
+    });
     ////Task::start(new Task(FuncEnvironment::environment("4"), nullptr));
     // Task::start(new Task(FuncEnvironment::environment("3"), nullptr));
     // Task::start(new Task(FuncEnvironment::environment("2"), nullptr));
@@ -91,15 +89,12 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
     try {
         CXX::cxxCall("start");
     } catch (const std::exception&) {
-        msq = "Catched!\n";
-        console::print(&msq, 1);
+        art_lib::console::print("Catched!\n");
     } catch (const StackOverflowException&) {
-        msq = "Catched!\n";
-        console::print(&msq, 1);
+        art_lib::console::print("Catched!\n");
     }
 
-    // msq = "Hello!\n";
-    // console::print(&msq, 1);
+    // cxx::console::print("Hello!\n");
     int e = 0;
     Task::await_end_tasks(true);
     {
@@ -133,7 +128,7 @@ ValueItem* attacha_main(ValueItem* args, uint32_t argc) {
     tasks.clear();
     Task::clean_up();
 
-    console::resetBgColor();
+    art_lib::console::resetBgColor();
     Task::sleep(1000);
     return new ValueItem(e);
 }
@@ -148,8 +143,7 @@ ValueItem* logger(ValueItem* args, uint32_t argc) {
             output += ", ";
     }
     output += "]";
-    ValueItem msq(output);
-    console::printLine(&msq, 1);
+    art_lib::console::printLine(output);
     return nullptr;
 }
 
@@ -166,7 +160,6 @@ int mmain() {
     info.join(new FuncEnvironment(logger<_INFO>, false, false));
     auto timer_start = std::chrono::high_resolution_clock::now();
     initStandardLib();
-    FuncEnvironment::AddNative(sleep_test, "sleep_test", false);
     FuncEnvironment::AddNative(busyWorker, "busy_worker", false);
     enable_thread_naming = true;
     Task::start_interrupt_handler();
@@ -185,11 +178,10 @@ int mmain() {
     Task::clean_up();
     auto timer_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> elapsed = timer_end - timer_start;
-    ValueItem msq("Time: " + std::to_string(elapsed.count()) + "ms");
-    console::printLine(&msq, 1);
+    art_lib::console::printLine("Time: " + std::to_string(elapsed.count()) + "ms");
     if (res != nullptr) {
         try {
-            console::printLine(res, 1);
+            art_lib::console::printLine(*res);
         } catch (...) {
             return -1;
         }
@@ -216,7 +208,14 @@ void test_slow_server_http(TcpNetworkStream& stream) {
 
 files::FileHandle file(file_path, sizeof(file_path), files::open_mode::read, files::on_open_action::open, files::_async_flags{.sequential_scan = true});
 
+AttachAFunc(class_transfer_test, 1) {
+    Structure& struct_ = (Structure&)args[0];
+    art_lib::console::printLine(struct_.get_name());
+    return nullptr;
+}
+
 void test_fast_server_http(TcpNetworkStream& stream) {
+    CXX::cxxCall(class_transfer_test, stream);
     if (!stream.is_closed()) {
         while (stream.data_available())
             stream.read_available_ref();
@@ -238,25 +237,38 @@ int ymain() {
 
     server.start();
     server2.start();
-    Task::become_executor_count_manager(false);
+    Task::become_executor_count_manager(true);
     server._await();
     server2._await();
     return 0;
 }
 
 int main() {
+    ymain();
+    Task::create_executor(4);
     auto itt = 100;
-    CXX::cxxCall(console::printf, "Hello from main block! []\n", (size_t)art::this_thread::get_id());
+    art_lib::console::printf("Hello from main block! []\n", art::this_thread::get_id());
 
     art_wait {
-        CXX::cxxCall(console::printf, "Main block value: [], Hello from wait block! []\n", itt, (size_t)art::this_thread::get_id());
+        art_lib::console::printf("Main block value: [], Hello from wait block! []\n", itt, art::this_thread::get_id());
         itt = 222;
     };
 
+    auto task = art_async {
+        art_lib::console::printf("Main block value: [], Hello from async block! []\n", itt, art::this_thread::get_id());
+        Task::sleep(1000);
+        itt = 333;
+    };
+    Task::sleep(500);
+    art_lib::console::printf("Main block value: [], Hello from main block! []\n", itt, art::this_thread::get_id());
+    art_await task;
+    art_lib::console::printf("Main block value: [], Hello from main block! []\n", itt, art::this_thread::get_id());
+
+
     auto lambda = [&itt](ValueItem*, uint32_t) -> ValueItem* {
-        CXX::cxxCall(console::printLine, "Hello from lambda, captured value: ", itt);
+        art_lib::console::printf("Hello from lambda, captured value: []\n", itt);
         return nullptr;
     };
     CXX::cxxCall(CXX::MakeNative(lambda));
-    return ymain();
+    return 0;
 }

@@ -2,7 +2,7 @@
 #define SRC_RUN_TIME_LIBRARY_TIMES
 #include <chrono>
 
-#include "../attacha_abi_structs.hpp"
+#include <run_time/attacha_abi_structs.hpp>
 
 namespace art {
     namespace times {

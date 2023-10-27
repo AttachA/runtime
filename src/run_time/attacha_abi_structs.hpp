@@ -928,6 +928,7 @@ namespace art {
 
     struct StructureTag {
         art::ustring name;
+        art::shared_ptr<FuncEnvironment> enviro;
         ValueItem value;
     };
 
@@ -1102,7 +1103,7 @@ namespace art {
     struct MethodInfo {
         struct Optional {
             list_array<ValueMeta> return_values;
-            list_array<list_array<ValueMeta>> arguments;
+            list_array<list_array<std::pair<ValueMeta, art::ustring>>> arguments;
             list_array<StructureTag> tags;
         };
 
@@ -1113,8 +1114,8 @@ namespace art {
         ClassAccess access : 2;
         bool deletable : 1;
         MethodInfo();
-        MethodInfo(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
-        MethodInfo(const art::ustring& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
+        MethodInfo(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
+        MethodInfo(const art::ustring& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
 
         ~MethodInfo();
         MethodInfo(const MethodInfo& copy);
@@ -1150,8 +1151,8 @@ namespace art {
         list_array<MethodTag>* getMethodTags(uint64_t index);
         list_array<MethodTag>* getMethodTags(const art::ustring& name, ClassAccess access);
 
-        list_array<list_array<ValueMeta>>* getMethodArguments(uint64_t index);
-        list_array<list_array<ValueMeta>>* getMethodArguments(const art::ustring& name, ClassAccess access);
+        list_array<list_array<std::pair<ValueMeta, art::ustring>>>* getMethodArguments(uint64_t index);
+        list_array<list_array<std::pair<ValueMeta, art::ustring>>>* getMethodArguments(const art::ustring& name, ClassAccess access);
 
         list_array<ValueMeta>* getMethodReturnValues(uint64_t index);
         list_array<ValueMeta>* getMethodReturnValues(const art::ustring& name, ClassAccess access);
@@ -1210,10 +1211,12 @@ namespace art {
 
         MethodInfo* getMethodsInfo() const;
         ValueInfo* getValuesInfo() const;
-        AfterMethods* getAfterMethods();
-        const AfterMethods* getAfterMethods() const;
         AttachAVirtualTable(list_array<MethodInfo>& methods, list_array<ValueInfo>& values, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare, size_t structure_bytes, bool allow_auto_copy);
         ~AttachAVirtualTable();
+
+    public:
+        AfterMethods* getAfterMethods();
+        const AfterMethods* getAfterMethods() const;
     };
 
     struct AttachADynamicVirtualTable {
@@ -1235,8 +1238,8 @@ namespace art {
         list_array<MethodTag>* getMethodTags(uint64_t index);
         list_array<MethodTag>* getMethodTags(const art::ustring& name, ClassAccess access);
 
-        list_array<list_array<ValueMeta>>* getMethodArguments(uint64_t index);
-        list_array<list_array<ValueMeta>>* getMethodArguments(const art::ustring& name, ClassAccess access);
+        list_array<list_array<std::pair<ValueMeta, art::ustring>>>* getMethodArguments(uint64_t index);
+        list_array<list_array<std::pair<ValueMeta, art::ustring>>>* getMethodArguments(const art::ustring& name, ClassAccess access);
 
         list_array<ValueMeta>* getMethodReturnValues(uint64_t index);
         list_array<ValueMeta>* getMethodReturnValues(const art::ustring& name, ClassAccess access);
@@ -1250,8 +1253,8 @@ namespace art {
         Environment getMethod(uint64_t index) const;
         Environment getMethod(const art::ustring& name, ClassAccess access) const;
 
-        void addMethod(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
-        void addMethod(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
+        void addMethod(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
+        void addMethod(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);
 
         void removeMethod(const art::ustring& name, ClassAccess access);
         bool hasMethod(const art::ustring& name, ClassAccess access) const;
@@ -1303,7 +1306,7 @@ namespace art {
             AttachAVirtualTable = 0,
             AttachADynamicVirtualTable = 1, //destructor will delete the vtable
             ___unused = 2,
-            ____unused = 3
+            undefined = 3
         };
         //return true if allowed
         static bool checkAccess(ClassAccess access, ClassAccess access_to_check);
@@ -1327,8 +1330,8 @@ namespace art {
         Environment table_get(uint64_t fn_id) const;
         Environment table_get_dynamic(const art::ustring& name, ClassAccess access) const; //table_get(table_get_id(name, access))
 
-        void add_method(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);                             //only for AttachADynamicVirtualTable
-        void add_method(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<ValueMeta>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name); //only for AttachADynamicVirtualTable
+        void add_method(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name);                             //only for AttachADynamicVirtualTable
+        void add_method(const art::ustring& name, const art::shared_ptr<FuncEnvironment>& method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name); //only for AttachADynamicVirtualTable
 
         bool has_method(const art::ustring& name, ClassAccess access) const;
         void remove_method(const art::ustring& name, ClassAccess access);
@@ -1351,7 +1354,7 @@ namespace art {
         art::ustring get_name() const;
 
 
-        VTableMode vtable_mode : 2 = VTableMode::____unused;
+        VTableMode vtable_mode : 2 = VTableMode::undefined;
         void* self;
         void (*self_cleanup)(void* self);
         void* vtable;

@@ -254,6 +254,7 @@ namespace art {
             CXX::Interface::direct_method("port", UniversalAddress::_define_port),
             CXX::Interface::direct_method("full_address", UniversalAddress::_define_full_address)
         );
+        CXX::Interface::typeVTable<universal_address>() = define_UniversalAddress;
     }
 
     void init_define_TcpConfiguration() {
@@ -288,6 +289,7 @@ namespace art {
             CXX::Interface::direct_method("set_keep_alive_retry_count", TcpConfiguration_map::_define_set_keep_alive_retry_count),
             CXX::Interface::direct_method("set_keep_alive_user_timeout_ms", TcpConfiguration_map::_define_set_keep_alive_user_timeout_ms)
         );
+        CXX::Interface::typeVTable<TcpConfiguration>() = define_UniversalAddress;
     }
 
     void internal_makeIP4(universal_address& addr_storage, const char* ip, uint16_t port) {
@@ -818,6 +820,7 @@ namespace art {
             invalid_reason = TcpError::remote_close;
             readed_bytes = 0;
             cv.notify_all();
+            lock.unlock();
             internal_close();
         }
 

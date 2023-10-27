@@ -9,7 +9,7 @@ ValueItem* _test_set_string(ValueItem* args, uint32_t argc) {
     EXPECT_EQ(args[0].meta.vtype, VType::struct_);
     Structure* str = (Structure*)args[0].getSourcePtr();
     if (str->vtable_mode == Structure::VTableMode::AttachAVirtualTable)
-        EXPECT_EQ(str->vtable, CXX::Interface::typeVTable<art::ustring>());
+        EXPECT_EQ(CXX::Interface::typeVTable<art::ustring>(), str->vtable);
     EXPECT_NE(str->self, nullptr);
     art::ustring& class_string = *(art::ustring*)str->self;
     EXPECT_NO_THROW({
@@ -23,7 +23,7 @@ ValueItem* _test_get_string(ValueItem* args, uint32_t argc) {
     EXPECT_EQ(args[0].meta.vtype, VType::struct_);
     Structure* str = (Structure*)args[0].getSourcePtr();
     if (str->vtable_mode == Structure::VTableMode::AttachAVirtualTable)
-        EXPECT_EQ(str->vtable, CXX::Interface::typeVTable<art::ustring>());
+        EXPECT_EQ(CXX::Interface::typeVTable<art::ustring>(), str->vtable);
     EXPECT_NE(str->self, nullptr);
     art::ustring& class_string = *(art::ustring*)str->self;
     return new ValueItem(class_string);

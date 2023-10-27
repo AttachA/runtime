@@ -10,6 +10,7 @@ namespace art {
     namespace CXX {
         namespace _internal_ {
             await_lambda _await_lambda;
+            async_lambda _async_lambda;
         }
     }
 }

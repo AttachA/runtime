@@ -62,8 +62,8 @@ namespace art {
         }
 
         template <class... Types>
-        ValueItem cxxCall(art::shared_ptr<FuncEnvironment> func, Types... types) {
-            ValueItem args[] = {ABI_IMPL::BVcast(types)...};
+        ValueItem cxxCall(art::shared_ptr<FuncEnvironment> func, Types&&... types) {
+            ValueItem args[] = {ABI_IMPL::BVcast<Types>(std::forward<Types>(types))...};
             ValueItem* res = func->syncWrapper(args, sizeof...(Types));
             if (res == nullptr)
                 return {};
@@ -82,7 +82,7 @@ namespace art {
         }
 
         template <class... Types>
-        ValueItem cxxCall(const art::ustring& fun_name, Types... types) {
+        ValueItem cxxCall(const art::ustring& fun_name, Types&&... types) {
             return cxxCall(FuncEnvironment::environment(fun_name), std::forward<Types>(types)...);
         }
 
@@ -96,8 +96,8 @@ namespace art {
         }
 
         template <class... Types>
-        ValueItem cxxCall(Environment func, Types... types) {
-            ValueItem args[] = {ABI_IMPL::BVcast(types)...};
+        ValueItem cxxCall(Environment func, Types&&... types) {
+            ValueItem args[] = {ABI_IMPL::BVcast<Types>(std::forward<Types>(types))...};
             ValueItem* res = func(args, sizeof...(Types));
             if (res == nullptr)
                 return {};
@@ -1189,9 +1189,35 @@ namespace art {
                     art::typed_lgr async_ref(new Task(MakeNative(fn, true, false), {}));
                     return Task::await_results(async_ref);
                 }
+
+                template <>
+                list_array<ValueItem> operator=(art::typed_lgr<Task>&& fn) {
+                    return Task::await_results(fn);
+                }
+
+                template <>
+                list_array<ValueItem> operator=(art::typed_lgr<Task>& fn) {
+                    return Task::await_results(fn);
+                }
+
+                template <>
+                list_array<ValueItem> operator=(const art::typed_lgr<Task>& fn) {
+                    art::typed_lgr<Task> ref_fn = fn;
+                    return Task::await_results(ref_fn);
+                }
+            };
+
+            struct async_lambda {
+                template <class T>
+                art::typed_lgr<Task> operator=(T&& fn) {
+                    art::typed_lgr async_ref(new Task(MakeNative(fn, true, false), {}));
+                    Task::start(async_ref);
+                    return async_ref;
+                }
             };
 
             extern await_lambda _await_lambda;
+            extern async_lambda _async_lambda;
         }
     }
 
@@ -1234,6 +1260,8 @@ namespace art {
     ValueItem __art_native_##name(ValueItem* args, uint32_t len)
 
 #define art_wait ::art::CXX::_internal_::_await_lambda = [&]()
+#define art_await ::art::CXX::_internal_::_await_lambda =
+#define art_async ::art::CXX::_internal_::_async_lambda = [&]()
 }
 
 #include <run_time/AttachA_CXX_struct.hpp>

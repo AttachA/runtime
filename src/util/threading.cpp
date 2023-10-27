@@ -360,7 +360,8 @@ namespace art {
             auto diff = time - std::chrono::high_resolution_clock::now();
             while (diff.count() > 0) {
                 interrupt::interrupt_unsafe_region region;
-                Sleep((DWORD)diff.count());
+                std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(diff);
+                Sleep((DWORD)ms.count());
                 diff = time - std::chrono::high_resolution_clock::now();
             }
         }

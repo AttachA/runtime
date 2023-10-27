@@ -11,7 +11,7 @@
 
 #include <base/run_time.hpp>
 #include <configuration/tasks.hpp>
-#include <run_time/library/console.hpp>
+#include <run_time/library_cxx_binds/console.hpp>
 #include <run_time/tasks/util/light_stack.hpp>
 #include <util/exceptions.hpp>
 #include <util/platform.hpp>
@@ -459,8 +459,7 @@ namespace art {
     }
 
     void light_stack::dump_current_out() {
-        ValueItem item("####### Stack Dump Start #######\n" + dump_stack() + "####### Stack Dump End #######\n");
-        console::print(&item, 1);
+        art_lib::console::print("####### Stack Dump Start #######\n" + dump_stack() + "####### Stack Dump End #######\n");
     }
 
     ValueItem* light_stack::dump(void* ptr) {
@@ -485,8 +484,7 @@ namespace art {
 
     //console
     void light_stack::dump_out(void* ptr) {
-        ValueItem item("####### Stack Dump Start #######\n" + dump_stack((bool*)ptr) + "####### Stack Dump End #######\n");
-        console::print(&item, 1);
+        art_lib::console::print("####### Stack Dump Start #######\n" + dump_stack((bool*)ptr) + "####### Stack Dump End #######\n");
     }
 
     size_t light_stack::allocated_size() {
