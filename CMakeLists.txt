@@ -81,19 +81,6 @@ else()
   set (liburing_LIBRARIES "")
   include_directories(${Boost_INCLUDE_DIRS} ${asmjit_INCLUDE_DIRS} ${art_INCLUDE_DIR})
 endif()
-
-
-add_executable(AttachA ${SRCFILES} ${PLATFORM_SRCFILES})
-set_property(TARGET AttachA PROPERTY
-  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-target_link_libraries(AttachA
-  PRIVATE
-    ${Boost_LIBRARIES}
-    asmjit::asmjit
-    utf8::cpp
-    ${liburing_LIBRARIES}
-  )
-
   
 add_library(AttachA_lib STATIC ${LIB_SRCFILES} ${PLATFORM_SRCFILES})
 set_property(TARGET AttachA_lib PROPERTY
@@ -113,6 +100,17 @@ IF(MSVC)
 ENDIF(MSVC)
 
 include(CTest)
-if(BUILD_TESTING)
+if(ENABLE_TEST_COVERAGE)
   add_subdirectory(tests)
-endif()
+else(ENABLE_TEST_COVERAGE)
+  add_executable(AttachA ${SRCFILES} ${PLATFORM_SRCFILES})
+  set_property(TARGET AttachA PROPERTY
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  target_link_libraries(AttachA
+    PRIVATE
+      ${Boost_LIBRARIES}
+      asmjit::asmjit
+      utf8::cpp
+      ${liburing_LIBRARIES}
+    )
+endif(ENABLE_TEST_COVERAGE)

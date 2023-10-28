@@ -21,7 +21,7 @@
             "configurePreset": "Win-MinSizeRel",
             "configuration": "MinSizeRel"
         },
-        
+
         {
             "name": "Linux-Debug",
             "configurePreset": "Linux-Debug",
@@ -30,6 +30,16 @@
         {
             "name": "Linux-Release",
             "configurePreset": "Linux-Release",
+            "configuration": "Release"
+        },
+        {
+            "name": "Windows-Test",
+            "configurePreset": "Win-Test",
+            "configuration": "Release"
+        },
+        {
+            "name": "Linux-Test",
+            "configurePreset": "Linux-Test",
             "configuration": "Release"
         }
     ],
@@ -58,9 +68,18 @@
             }
         },
         {
+            "name": "Test",
+            "hidden": true,
+            "cacheVariables": {
+                "ENABLE_TEST_COVERAGE": "ON",
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
             "name": "Debug",
             "hidden": true,
             "cacheVariables": {
+                "ENABLE_TEST_COVERAGE": "OFF",
                 "CMAKE_BUILD_TYPE": "Debug"
             }
         },
@@ -68,6 +87,7 @@
             "name": "Release",
             "hidden": true,
             "cacheVariables": {
+                "ENABLE_TEST_COVERAGE": "OFF",
                 "CMAKE_BUILD_TYPE": "Release"
             }
         },
@@ -117,6 +137,16 @@
             "name": "Linux-Release",
             "displayName": "Linux-Release",
             "inherits": [ "Linux-Basic", "Release" ]
+        },
+        {
+            "name": "Win-Test",
+            "displayName": "Win-Test",
+            "inherits": [ "Win-Basic", "Test" ]
+        },
+        {
+            "name": "Linux-Test",
+            "displayName": "Linux-Test",
+            "inherits": [ "Linux-Basic", "Test" ]
         }
     ]
 }
