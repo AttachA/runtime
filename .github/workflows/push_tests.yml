@@ -1,0 +1,72 @@
+name: Run tests on Push
+
+on:
+  push
+
+jobs:
+    windows_build:
+        runs-on: windows-latest
+        strategy:
+            fail-fast: false
+        env:
+            VCPKG_PATH: '${{ github.workspace }}/vcpkg'     
+        steps:
+        - uses: actions/checkout@v3
+          with:
+            submodules: true
+            fetch-depth: 0
+        - uses: lukka/get-cmake@latest
+        - name: Restore artifacts, or setup vcpkg (do not install any package)
+          uses: lukka/run-vcpkg@v10
+          with:
+            vcpkgJsonGlob: '**/vcpkg.json'
+        - name: Run CMake with vcpkg.json manifest(no tests)
+          uses: lukka/run-cmake@v10
+          with:
+            configurePreset: Win-Release
+            buildPreset: Win-Release
+        - name: Run gtest tests
+          run: |
+            for test in ${{ github.workspace }}/out/**/AttachATests.exe; do
+              "$test" --gtest_output=xml:"${test%.*}.xml"
+            done
+        - name: Upload test results
+          uses: actions/upload-artifact@v2
+          with:
+                name: test-results
+                path: |
+                    ${{ github.workspace }}/out/**/*.xml
+                
+    linux_build:
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+        env:
+            VCPKG_PATH: '${{ github.workspace }}/vcpkg'     
+        steps:
+        - uses: actions/checkout@v3
+          with:
+            submodules: true
+            fetch-depth: 0
+        - uses: lukka/get-cmake@latest
+        - name: Restore artifacts, or setup vcpkg (do not install any package)
+          uses: lukka/run-vcpkg@v10
+          with:
+            vcpkgJsonGlob: '**/vcpkg.json'
+        - name: Run CMake with vcpkg.json manifest(no tests)
+          uses: lukka/run-cmake@v10
+          with:
+            configurePreset: Linux-Release
+            buildPreset: Linux-Release
+        - name: Run gtest tests
+          run: |
+            for test in ${{ github.workspace }}/out/**/AttachATests.exe; do
+              "$test" --gtest_output=xml:"${test%.*}.xml"
+            done
+        - name: Upload test results
+          uses: actions/upload-artifact@v2
+          with:
+                name: test-results
+                path: |
+                    ${{ github.workspace }}/out/**/*.xml
+                

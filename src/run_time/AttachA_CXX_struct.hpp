@@ -94,6 +94,12 @@ namespace art {
                     return *this;
                 }
 
+                VTableData& operator=(nullptr_t) {
+                    this->vtable = nullptr;
+                    mode = Structure::VTableMode::undefined;
+                    return *this;
+                }
+
                 VTableData& operator=(AttachAVirtualTable* vtable) {
                     this->vtable = vtable;
                     mode = Structure::VTableMode::AttachAVirtualTable;
@@ -154,6 +160,14 @@ namespace art {
                         return (AttachADynamicVirtualTable*)vtable;
                     else
                         return nullptr;
+                }
+
+                void unregister() {
+                    if (mode == Structure::VTableMode::AttachAVirtualTable)
+                        AttachAVirtualTable::destroy((AttachAVirtualTable*)vtable);
+                    else if (mode == Structure::VTableMode::AttachADynamicVirtualTable)
+                        delete (AttachADynamicVirtualTable*)vtable;
+                    *this = nullptr;
                 }
             };
 

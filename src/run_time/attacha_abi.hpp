@@ -291,7 +291,7 @@ namespace art {
                 return val;
             else if constexpr (std::is_same_v<std::remove_cvref_t<T>, art::thread::id>)
                 return (size_t)val;
-            else if constexpr (std::is_reference_v<T> && (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>)) {
+            else if constexpr (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>) {
                 using un_ref_ = std::remove_const_t<std::remove_reference_t<T>>;
                 if (CXX::Interface::typeVTable<un_ref_>() != nullptr) {
                     if constexpr (std::is_copy_constructible_v<T> && !std::is_reference_v<T>)
@@ -320,7 +320,7 @@ namespace art {
                         std::is_same_v<std::remove_cvref_t<T>, bool> ||
                         std::is_same_v<std::remove_cvref_t<T>, void*> ||
                         std::is_same_v<std::remove_cvref_t<T>, art::thread::id> ||
-                        (std::is_reference_v<T> && (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>))
+                        (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>)
                     ),
                     "Invalid type for convert"
                 );
@@ -867,7 +867,7 @@ namespace art {
 
         template <class T>
         T Vcast(ValueItem& it) {
-            static constexpr bool is_aggregate_or_class = std::is_reference_v<T> && (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>);
+            static constexpr bool is_aggregate_or_class = std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>;
             if constexpr (
                 is_aggregate_or_class && !std::is_same_v<std::remove_cvref_t<T>, art::ustring> && !std::is_same_v<std::remove_cvref_t<T>, ValueMeta> && !std::is_same_v<std::remove_cvref_t<T>, ValueItem> && !std::is_same_v<std::remove_cvref_t<T>, list_array<ValueItem>> && !std::is_same_v<std::remove_cvref_t<T>, Structure>
             ) {

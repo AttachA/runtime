@@ -24,12 +24,12 @@
         
         {
             "name": "Linux-Debug",
-            "configurePreset": "Win-Debug",
+            "configurePreset": "Linux-Debug",
             "configuration": "Debug"
         },
         {
             "name": "Linux-Release",
-            "configurePreset": "Win-Release",
+            "configurePreset": "Linux-Release",
             "configuration": "Release"
         }
     ],

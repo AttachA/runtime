@@ -1319,7 +1319,6 @@ namespace art {
             ValueInfo* value_table = table->getValuesInfo(table_size);
             for (size_t i = 0; i < table_size; i++)
                 structure_helpers::cleanup_item((char*)self, value_table[i]);
-            Structure::destroyVTable(vtable, VTableMode::AttachADynamicVirtualTable);
             break;
         }
         }
