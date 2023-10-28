@@ -1070,10 +1070,10 @@ namespace art {
                     using lambda_info = proxy_lambda_extract_args<Lambda_fn_point>;
                     auto tuple = lambda_info::apply(args, len);
 
-                    if constexpr (std::is_same_v<lambda_info::rt_type, void>) {
+                    if constexpr (std::is_same_v<typename lambda_info::rt_type, void>) {
                         std::apply(fn, tuple);
                         return nullptr;
-                    } else if constexpr (std::is_same_v<lambda_info::rt_type, ValueItem*>)
+                    } else if constexpr (std::is_same_v<typename lambda_info::rt_type, ValueItem*>)
                         return std::apply(fn, tuple);
                     else
                         return new ValueItem(std::apply(fn, tuple));
@@ -1173,11 +1173,11 @@ namespace art {
             else if constexpr (templates::is_lambda_v<_FN>) {
                 if constexpr (templates::is_simple_lambda_v<_FN>) {
                     if constexpr (std::is_same_v<templates::fn_lambda<_FN>, Environment>)
-                        return new FuncEnvironment((templates::fn_lambda<_FN>)env, can_be_unloaded, is_cheap);
+                        return new FuncEnvironment(reinterpret_cast<Environment>((templates::fn_lambda<_FN>)env), can_be_unloaded, is_cheap);
                     else
-                        return new FuncEnvironment((templates::fn_lambda<_FN>)env, nullptr, CXX::Proxy<templates::fn_lambda<_FN>>::abstract_Proxy, can_be_unloaded, is_cheap);
+                        return new FuncEnvironment(reinterpret_cast<void*>((templates::fn_lambda<_FN>)env), nullptr, CXX::Proxy<templates::fn_lambda<_FN>>::abstract_Proxy, can_be_unloaded, is_cheap);
                 } else
-                    return new FuncEnvironment(new _FN(env), _internal_::cleanup<_FN>, CXX::_internal_::ProxyLambda<_FN>::abstract_Proxy, can_be_unloaded, is_cheap);
+                    return new FuncEnvironment((void*)new _FN(env), (void*)_internal_::cleanup<_FN>, CXX::_internal_::ProxyLambda<_FN>::abstract_Proxy, can_be_unloaded, is_cheap);
             } else
                 return new FuncEnvironment((void*)env, nullptr, CXX::Proxy<_FN>::abstract_Proxy, can_be_unloaded, is_cheap);
         }
@@ -1189,23 +1189,24 @@ namespace art {
                     art::typed_lgr async_ref(new Task(MakeNative(fn, true, false), {}));
                     return Task::await_results(async_ref);
                 }
-
-                template <>
-                list_array<ValueItem> operator=(art::typed_lgr<Task>&& fn) {
-                    return Task::await_results(fn);
-                }
-
-                template <>
-                list_array<ValueItem> operator=(art::typed_lgr<Task>& fn) {
-                    return Task::await_results(fn);
-                }
-
-                template <>
-                list_array<ValueItem> operator=(const art::typed_lgr<Task>& fn) {
-                    art::typed_lgr<Task> ref_fn = fn;
-                    return Task::await_results(ref_fn);
-                }
             };
+
+            template <>
+            inline list_array<ValueItem> await_lambda::operator=(art::typed_lgr<Task>&& fn) {
+                return Task::await_results(fn);
+            }
+
+            template <>
+            inline list_array<ValueItem> await_lambda::operator=(art::typed_lgr<Task>& fn) {
+                return Task::await_results(fn);
+            }
+
+            template <>
+            inline list_array<ValueItem> await_lambda::operator=(const art::typed_lgr<Task>& fn) {
+                art::typed_lgr<Task> ref_fn = fn;
+                return Task::await_results(ref_fn);
+            }
+
 
             struct async_lambda {
                 template <class T>

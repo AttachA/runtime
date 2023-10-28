@@ -124,10 +124,15 @@ namespace throw_test {
 }
 
 TEST(EXCEPTION, throw_test_normal) {
+#ifndef PLATFORM_WINDOWS
+    GTEST_SKIP_("Exception unwinding implemented only in windows");
+#endif
     throw_test::test_except();
 }
 
 TEST(EXCEPTION, throw_test_task) {
-
+#ifndef PLATFORM_WINDOWS
+    GTEST_SKIP_("Exception unwinding implemented only in windows");
+#endif
     throw_test::test_except();
 }

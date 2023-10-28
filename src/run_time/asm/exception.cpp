@@ -483,7 +483,14 @@ namespace art {
 
     namespace exception {
         using namespace internal;
-        thread_local CXXExInfo current_ex_info;
+
+        struct exception_data {
+            CXXExInfo meta;
+            std::exception_ptr ptr;
+        };
+
+        thread_local exception_data current_ex_info;
+
 
         void __attacha_handle() {
             throw 11;
@@ -494,105 +501,86 @@ namespace art {
         }
 
         ValueItem* get_current_exception_name() {
-            if (current_ex_info.ex_ptr == nullptr) {
-                if (current_ex_info.native_id == 0)
-                    return nullptr;
-                if (current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.is_bad_alloc; }))
+            if (current_ex_info.meta.ex_ptr == nullptr) {
+                return nullptr;
+            } else {
+                if (current_ex_info.meta.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.is_bad_alloc; }))
                     return new ValueItem("bad_alloc");
                 else {
-                    if (current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); }))
-                        return new ValueItem(((AttachARuntimeException*)current_ex_info.ex_ptr)->name());
-                    else
-                        return new ValueItem(current_ex_info.ty_arr[0].ty_info->name());
+                    if (current_ex_info.meta.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); })) {
+                        return new ValueItem(((AttachARuntimeException*)current_ex_info.meta.ex_ptr)->name());
+                    } else
+                        return new ValueItem(current_ex_info.meta.ty_arr[0].ty_info->name());
                 }
-            } else {
-                if (current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); }))
-                    return new ValueItem(((AttachARuntimeException*)current_ex_info.ex_ptr)->name());
-                else
-                    return new ValueItem(current_ex_info.ty_arr[0].ty_info->name());
             }
         }
 
         ValueItem* get_current_exception_description() {
             art::ustring description;
-            if (current_ex_info.ex_ptr == nullptr) {
-                if (current_ex_info.native_id == 0)
-                    return nullptr;
-                else
-                    description = "Native exception: " + std::to_string(current_ex_info.native_id);
-            } else {
-                if (current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.is_bad_alloc; }))
-                    description = "Out of memory";
-                else {
-                    if (current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); }))
-                        description = ((AttachARuntimeException*)current_ex_info.ex_ptr)->what();
-                    else if (current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(std::exception).name(); })) {
-                        description = art::ustring(current_ex_info.ty_arr[0].ty_info->name()) + ": " + ((std::exception*)current_ex_info.ex_ptr)->what();
-                    } else
-                        description = "Can not decode exception: " + art::ustring(current_ex_info.ty_arr[0].ty_info->name());
-                }
+            if (current_ex_info.meta.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.is_bad_alloc; }))
+                description = "Out of memory";
+            else {
+                if (current_ex_info.meta.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); }))
+                    description = ((AttachARuntimeException*)current_ex_info.meta.ex_ptr)->what();
+                else if (current_ex_info.meta.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(std::exception).name(); })) {
+                    description = art::ustring(current_ex_info.meta.ty_arr[0].ty_info->name()) + ": " + ((std::exception*)current_ex_info.meta.ex_ptr)->what();
+                } else
+                    description = "Can not decode exception: " + art::ustring(current_ex_info.meta.ty_arr[0].ty_info->name());
             }
             return new ValueItem(description);
         }
 
         ValueItem* get_current_exception_full_description() {
-            if (current_ex_info.ex_ptr != nullptr) {
-                if (current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); })) {
-                    AttachARuntimeException* ex = (AttachARuntimeException*)current_ex_info.ex_ptr;
-                    return new ValueItem(ex->full_info());
+            if (current_ex_info.meta.ex_ptr != nullptr) {
+                if (current_ex_info.meta.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); })) {
+                    return new ValueItem(((AttachARuntimeException*)current_ex_info.meta.ex_ptr)->full_info());
                 }
             }
             return get_current_exception_description();
         }
 
         ValueItem* has_current_exception_inner_exception() {
-            if (current_ex_info.ex_ptr != nullptr) {
-                if (current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); })) {
-                    AttachARuntimeException* ex = (AttachARuntimeException*)current_ex_info.ex_ptr;
-                    return new ValueItem((bool)ex->get_inner_exception());
+            if (current_ex_info.meta.ex_ptr != nullptr) {
+                if (current_ex_info.meta.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); })) {
+                    return new ValueItem((bool)((AttachARuntimeException*)current_ex_info.meta.ex_ptr)->get_inner_exception());
                 }
             }
-            if (current_ex_info.native_id == 0)
+            if (current_ex_info.meta.native_id == 0)
                 return nullptr;
             return new ValueItem(false);
         }
 
         void unpack_current_exception() {
-            if (current_ex_info.ex_ptr != nullptr) {
-                if (current_ex_info.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); })) {
-                    AttachARuntimeException* ex = (AttachARuntimeException*)current_ex_info.ex_ptr;
-                    ex->get_inner_exception();
+            if (current_ex_info.meta.ex_ptr != nullptr) {
+                if (current_ex_info.meta.ty_arr.contains_one([](const CXXExInfo::Tys& ty) { return ty.ty_info->name() == typeid(AttachARuntimeException).name(); })) {
+                    ((AttachARuntimeException*)current_ex_info.meta.ex_ptr)->throw_inner_exception();
                 }
             }
         }
 
         void current_exception_catched() {
-            current_ex_info = CXXExInfo();
+            current_ex_info = {};
         }
 
-        CXXExInfo take_current_exception() {
-            CXXExInfo ret = current_ex_info;
-            current_ex_info = CXXExInfo();
-            return ret;
+        void* take_current_exception() {
+            return new exception_data(std::move(current_ex_info));
         }
 
-        CXXExInfo& peek_current_exception() {
-            return current_ex_info;
+        CXXExInfo& lookup_meta() {
+            return current_ex_info.meta;
+        }
+
+        void load_current_exception(void* data) {
+            current_ex_info = std::move(*(exception_data*)data);
+            delete (exception_data*)data;
         }
 
         bool try_catch_all(CXXExInfo& cxx) {
             return true;
         }
 
-        void load_current_exception(CXXExInfo& cxx) {
-            if (try_catch_all(cxx))
-                current_ex_info = cxx;
-            else
-                throw InvalidArguments("Can not load CLR exception");
-        }
-
         bool has_exception() {
-            return current_ex_info.ex_ptr != nullptr || current_ex_info.native_id != 0;
+            return current_ex_info.meta.ex_ptr != nullptr || current_ex_info.meta.native_id != 0;
         }
 
         list_array<art::ustring> map_native_exception_names(CXXExInfo& info) {

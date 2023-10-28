@@ -1,5 +1,8 @@
 #include <run_time/AttachA_CXX.hpp>
 #include <run_time/library/times.hpp>
+#if !PLATFORM_WINDOWS
+    #include <sys/time.h>
+#endif
 
 namespace art {
     namespace times {
@@ -554,7 +557,7 @@ namespace art {
             uint16_t days_in_year(uint16_t year) {
                 return is_leap(year) ? 366 : 365;
             }
-
+#if PLATFORM_WINDOWS // Use this code when gcc, clang and others will support std::chrono::current_zone(), currently only MSVC supports it
             std::chrono::seconds current_timezone_offset() {
                 std::chrono::sys_time time = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
                 std::chrono::seconds off = std::chrono::current_zone()->get_info(time).offset;
@@ -564,7 +567,17 @@ namespace art {
             art::ustring current_timezone_name() {
                 return (std::string)std::chrono::current_zone()->name();
             }
+#else //use posix
+            std::chrono::seconds current_timezone_offset() {
+                time_t now = time(0);
+                return std::chrono::seconds(localtime(&now)->tm_gmtoff);
+            }
 
+            art::ustring current_timezone_name() {
+                time_t now = time(0);
+                return localtime(&now)->tm_zone;
+            }
+#endif
             std::chrono::high_resolution_clock::time_point as_utc(std::chrono::high_resolution_clock::time_point ymd) {
                 return ymd - current_timezone_offset();
             }

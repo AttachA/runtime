@@ -3752,7 +3752,6 @@ namespace art {
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
             Structure* tmp = CXX::Interface::constructStructure<universal_address>(define_UniversalAddress);
             memcpy(tmp->self, &connectionAddress, sizeof(sockaddr_in6));
-            tmp->fully_constructed = true;
             ValueItem args(tmp, as_reference);
             ValueItem* res;
             try {
