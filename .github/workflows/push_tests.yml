@@ -5,51 +5,65 @@ on:
 
 jobs:
     windows_build:
-        runs-on: windows-latest
-        strategy:
-            fail-fast: false
-        env:
-            VCPKG_PATH: '${{ github.workspace }}/vcpkg'     
-        steps:
-        - uses: actions/checkout@v3
-          with:
-            submodules: true
-            fetch-depth: 0
-        - uses: lukka/get-cmake@latest
-        - name: Restore artifacts, or setup vcpkg (do not install any package)
-          uses: lukka/run-vcpkg@v10
-          with:
-            vcpkgJsonGlob: '**/vcpkg.json'
-        - name: Run CMake with vcpkg.json manifest(no tests)
-          uses: lukka/run-cmake@v10
-          with:
-            configurePreset: Win-Test
-            buildPreset: Win-Test
-        - name: Test
-          working-directory: ${{github.workspace}}/out/build/Win-Test/
-          run: ctest -V
+      runs-on: windows-latest
+      strategy:
+          fail-fast: false
+      env:
+          VCPKG_PATH: '${{ github.workspace }}/vcpkg'     
+      steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          fetch-depth: 0
+      - uses: lukka/get-cmake@latest
+      - name: Restore artifacts, or setup vcpkg (do not install any package)
+        uses: lukka/run-vcpkg@v10
+        with:
+          vcpkgJsonGlob: '**/vcpkg.json'
+      - name: Run CMake with vcpkg.json manifest(no tests)
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: Win-Test
+          buildPreset: Win-Test
+      - name: Test
+        working-directory: ${{github.workspace}}/out/build/Win-Test/
+        run: AttachATests.exe --gtest_output=xml:test-results/
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()    # run this step even if previous step failed
+        with:
+          name: Windows Test Report
+          path: ${{github.workspace}}/out/build/Win-Test/test-results/AttachATests.xml
+          reporter: jest-junit
                 
     linux_build:
-        runs-on: ubuntu-latest
-        strategy:
-            fail-fast: false
-        env:
-            VCPKG_PATH: '${{ github.workspace }}/vcpkg'     
-        steps:
-        - uses: actions/checkout@v3
-          with:
-            submodules: true
-            fetch-depth: 0
-        - uses: lukka/get-cmake@latest
-        - name: Restore artifacts, or setup vcpkg (do not install any package)
-          uses: lukka/run-vcpkg@v10
-          with:
-            vcpkgJsonGlob: '**/vcpkg.json'
-        - name: Run CMake with vcpkg.json manifest(no tests)
-          uses: lukka/run-cmake@v10
-          with:
-            configurePreset: Linux-Test
-            buildPreset: Linux-Test
-        - name: Test
-          working-directory: ${{github.workspace}}/out/build/Linux-Test/tests/
-          run: GTEST_COLOR=1 ctest -V
+      runs-on: ubuntu-latest
+      strategy:
+          fail-fast: false
+      env:
+          VCPKG_PATH: '${{ github.workspace }}/vcpkg'     
+      steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          fetch-depth: 0
+      - uses: lukka/get-cmake@latest
+      - name: Restore artifacts, or setup vcpkg (do not install any package)
+        uses: lukka/run-vcpkg@v10
+        with:
+          vcpkgJsonGlob: '**/vcpkg.json'
+      - name: Run CMake with vcpkg.json manifest(no tests)
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: Linux-Test
+          buildPreset: Linux-Test
+      - name: Test
+        working-directory: ${{github.workspace}}/out/build/Linux-Test/tests/
+        run: ./AttachATests --gtest_output=xml:test-results/
+      - name: Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()    # run this step even if previous step failed
+        with:
+          name: Linux Test Report
+          path: ${{github.workspace}}/out/build/Linux-Test/tests/test-results/AttachATests.xml
+          reporter: jest-junit
