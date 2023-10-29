@@ -16,8 +16,10 @@ namespace art {
         uint64_t h2;
     };
 
+    void MurmurHash3_x64_128_seed(const void* key, const size_t len, Murmur3_128& out, const uint32_t seed);
     void MurmurHash3_x64_128(const void* key, const size_t len, Murmur3_128& out);
     uint64_t MurmurHash3_x64_64(const void* key, const size_t len);
+    uint64_t MurmurHash3_x64_64_seed(const void* key, const size_t len, uint32_t seed);
     uint64_t mur_combine(uint64_t h1, uint64_t h2);
     Murmur3_128 mur_combine(Murmur3_128 h1, Murmur3_128 h2);
 
@@ -32,6 +34,14 @@ namespace art {
             size_t operator()(const T* arr, size_t len) const noexcept {
                 return MurmurHash3_x64_64(arr, sizeof(T) * len);
             }
+
+            size_t seed_hash(const T& t, size_t seed) const noexcept {
+                return MurmurHash3_x64_64_seed(&t, sizeof(T), seed);
+            }
+
+            size_t seed_hash_array(const T* arr, size_t seed) const noexcept {
+                return MurmurHash3_x64_64(arr, sizeof(T) * len, seed);
+            }
         };
 
         template <typename T>
@@ -44,6 +54,17 @@ namespace art {
                 size_t result = 0;
                 for (size_t i = 0; i < len; i++)
                     result = mur_combine(result, arr[i].hash());
+                return result;
+            }
+
+            size_t seed_hash(const T& t, size_t seed) const noexcept {
+                return t.seed_hash(seed);
+            }
+
+            size_t seed_hash_array(const T* arr, size_t seed) const noexcept {
+                size_t result = 0;
+                for (size_t i = 0; i < len; i++)
+                    result = mur_combine(result, arr[i].seed_hash(seed));
                 return result;
             }
         };
@@ -67,6 +88,18 @@ namespace art {
                 MurmurHash3_x64_128(arr, sizeof(T) * len, result);
                 return result;
             }
+
+            Murmur3_128 seed_hash(const T& t, size_t seed) const noexcept {
+                Murmur3_128 result;
+                MurmurHash3_x64_128_seed(&t, sizeof(T), result, seed);
+                return result;
+            }
+
+            Murmur3_128 seed_hash_array(const T* arr, size_t seed) const noexcept {
+                Murmur3_128 result;
+                MurmurHash3_x64_128_seed(arr, sizeof(T) * len, result, seed);
+                return result;
+            }
         };
 
         template <typename T>
@@ -79,6 +112,17 @@ namespace art {
                 Murmur3_128 result;
                 for (size_t i = 0; i < len; i++)
                     result = mur_combine(result, arr[i].big_hash());
+                return result;
+            }
+
+            Murmur3_128 seed_hash(const T& t, size_t seed) const noexcept {
+                return t.big_seed_hash(seed);
+            }
+
+            Murmur3_128 seed_hash_array(const T* arr, size_t seed) const noexcept {
+                Murmur3_128 result;
+                for (size_t i = 0; i < len; i++)
+                    result = mur_combine(result, arr[i].big_seed_hash(seed));
                 return result;
             }
         };

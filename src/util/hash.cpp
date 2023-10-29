@@ -55,14 +55,7 @@ FORCE_INLINE uint64_t fmix64(uint64_t k) {
 
 namespace art {
 
-    void MurmurHash3_x64_128(const void* key, const size_t len, Murmur3_128& out) {
-        static uint32_t seed = []() {
-            std::random_device rd;
-            std::mt19937_64 gen(rd());
-            std::uniform_int_distribution<uint64_t> dis;
-            return dis(gen);
-        }();
-
+    void MurmurHash3_x64_128_seed(const void* key, const size_t len, Murmur3_128& out, const uint32_t seed) {
         const uint8_t* data = (const uint8_t*)key;
         const size_t nblocks = len / 16;
         uint64_t h1 = seed;
@@ -149,9 +142,25 @@ namespace art {
         out.h2 = h2;
     }
 
+    void MurmurHash3_x64_128(const void* key, const size_t len, Murmur3_128& out) {
+        static uint32_t seed = []() {
+            std::random_device rd;
+            std::mt19937_64 gen(rd());
+            std::uniform_int_distribution<uint64_t> dis;
+            return dis(gen);
+        }();
+        MurmurHash3_x64_128_seed(key, len, out, seed);
+    }
+
     uint64_t MurmurHash3_x64_64(const void* key, const size_t len) {
         Murmur3_128 mur;
         MurmurHash3_x64_128(key, len, mur);
+        return mur_combine(mur.h1, mur.h2);
+    }
+
+    uint64_t MurmurHash3_x64_64_seed(const void* key, const size_t len, uint32_t seed) {
+        Murmur3_128 mur;
+        MurmurHash3_x64_128_seed(key, len, mur, seed);
         return mur_combine(mur.h1, mur.h2);
     }
 

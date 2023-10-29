@@ -28,14 +28,8 @@ jobs:
         - name: Run gtest tests
           run: |
             for test in ${{ github.workspace }}/out/**/AttachATests.exe; do
-              "$test" --gtest_output=xml:"${test%.*}.xml"
+              "$test"
             done
-        - name: Upload test results
-          uses: actions/upload-artifact@v2
-          with:
-                name: test-results
-                path: |
-                    ${{ github.workspace }}/out/**/*.xml
                 
     linux_build:
         runs-on: ubuntu-latest
@@ -60,13 +54,5 @@ jobs:
             buildPreset: Linux-Test
         - name: Run gtest tests
           run: |
-            for test in ${{ github.workspace }}/out/**/AttachATests.exe; do
-              "$test" --gtest_output=xml:"${test%.*}.xml"
-            done
-        - name: Upload test results
-          uses: actions/upload-artifact@v2
-          with:
-                name: test-results
-                path: |
-                    ${{ github.workspace }}/out/**/*.xml
+            ${{ github.workspace }}/out/build/Linux-Test/tests/AttachATests
                 

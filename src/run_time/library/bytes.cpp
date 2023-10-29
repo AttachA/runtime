@@ -6,6 +6,7 @@
 
 #include <utf8cpp/utf8.h>
 
+#include <run_time/AttachA_CXX.hpp>
 #include <run_time/attacha_abi.hpp>
 #include <run_time/library/bytes.hpp>
 #include <util/string_help.hpp>
@@ -83,9 +84,7 @@ namespace art {
             return new ValueItem((uint8_t)Endian::native);
         }
 
-        ValueItem* convert_endian(ValueItem* args, uint32_t len) {
-            if (len < 2)
-                throw InvalidArguments("Invalid number of arguments for convert_endian");
+        AttachAFunc(convert_endian, 2) {
             Endian endian;
             if (is_integer(args[1].meta.vtype))
                 endian = (Endian)(uint8_t)args[1];
@@ -120,7 +119,7 @@ namespace art {
             return nullptr;
         }
 
-        ValueItem* swap_bytes(ValueItem* args, uint32_t len) {
+        AttachAFunc(swap_bytes, 1) {
             args[0].getAsync();
             switch (args[0].meta.vtype) {
             case VType::noting:
@@ -184,9 +183,7 @@ namespace art {
             }
         }
 
-        ValueItem* from_bytes(ValueItem* args, uint32_t len) {
-            if (len < 2)
-                throw InvalidArguments("Invalid number of arguments for from_bytes");
+        AttachAFunc(from_bytes, 2) {
             ValueMeta type = (ValueMeta)args[0];
             uint8_t* bytes;
             uint32_t bytes_len;
@@ -331,58 +328,58 @@ namespace art {
             result.meta.allow_edit = type.allow_edit;
             if (type.use_gc)
                 result.make_gc();
-            return new ValueItem(std::move(result));
+            return ValueItem(std::move(result));
         }
 
-        ValueItem* _no_buffer_to_bytes(ValueItem* args, uint32_t) {
+        AttachAFunc(_no_buffer_to_bytes, 1) {
             ValueItem& value = args[0];
             value.getAsync();
             void* source = value.getSourcePtr();
 
             switch (value.meta.vtype) {
             case VType::noting:
-                return new ValueItem(VType::raw_arr_ui8);
+                return ValueItem(VType::raw_arr_ui8);
             case VType::boolean:
             case VType::i8:
             case VType::ui8:
-                return new ValueItem((uint8_t*)&source, 1);
+                return ValueItem((uint8_t*)&source, 1);
             case VType::i16:
             case VType::ui16:
-                return new ValueItem((uint8_t*)&source, 2);
+                return ValueItem((uint8_t*)&source, 2);
             case VType::i32:
             case VType::ui32:
             case VType::flo:
-                return new ValueItem((uint8_t*)&source, 4);
+                return ValueItem((uint8_t*)&source, 4);
             case VType::i64:
             case VType::ui64:
             case VType::doub:
             case VType::time_point:
             case VType::type_identifier:
-                return new ValueItem((uint8_t*)&source, 8);
+                return ValueItem((uint8_t*)&source, 8);
             case VType::raw_arr_i8:
             case VType::raw_arr_ui8:
-                return new ValueItem((uint8_t*)source, value.meta.val_len);
+                return ValueItem((uint8_t*)source, value.meta.val_len);
             case VType::raw_arr_i16:
             case VType::raw_arr_ui16:
-                return new ValueItem((uint8_t*)source, value.meta.val_len * 2);
+                return ValueItem((uint8_t*)source, value.meta.val_len * 2);
             case VType::raw_arr_i32:
             case VType::raw_arr_ui32:
             case VType::raw_arr_flo:
-                return new ValueItem((uint8_t*)source, value.meta.val_len * 4);
+                return ValueItem((uint8_t*)source, value.meta.val_len * 4);
             case VType::raw_arr_i64:
             case VType::raw_arr_ui64:
             case VType::raw_arr_doub:
-                return new ValueItem((uint8_t*)source, value.meta.val_len * 8);
+                return ValueItem((uint8_t*)source, value.meta.val_len * 8);
             case VType::string: {
                 art::ustring* str = (art::ustring*)source;
-                return new ValueItem((uint8_t*)str->c_str(), str->size());
+                return ValueItem((uint8_t*)str->c_str(), str->size());
             }
             default:
                 throw InvalidArguments("Can't convert " + enum_to_string(value.meta.vtype) + " to bytes");
             }
         }
 
-        ValueItem* _buffer_to_bytes(ValueItem* args, uint32_t len) {
+        AttachAFunc(_buffer_to_bytes, 2) {
             if (len < 2)
                 throw InvalidArguments("Invalid number of arguments for to_bytes");
             ValueItem& value = args[0];
@@ -466,13 +463,19 @@ namespace art {
             return nullptr;
         }
 
-        ValueItem* to_bytes(ValueItem* args, uint32_t len) {
-            if (len < 1)
-                throw InvalidArguments("Invalid number of arguments for to_bytes");
+        AttachAFunc(to_bytes, 1) {
             if (len == 1)
-                return _no_buffer_to_bytes(args, len);
+                return __art_native__no_buffer_to_bytes(args, len);
             else
-                return _buffer_to_bytes(args, len);
+                return __art_native__buffer_to_bytes(args, len);
+        }
+
+        AttachAFunc(hash, 1) {
+            ValueItem& value = args[0];
+            if (len == 1)
+                return value.hash();
+            else
+                return value.hash((size_t)args[1]);
         }
     }
 }

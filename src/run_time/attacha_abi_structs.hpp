@@ -893,6 +893,7 @@ namespace art {
         bool is_gc();
 
         size_t hash() const;
+        size_t hash(uint32_t seed) const;
         ValueItem make_slice(uint32_t start, uint32_t end) const;
 
 

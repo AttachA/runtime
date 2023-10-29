@@ -947,6 +947,7 @@ namespace art {
         FuncEnvironment::AddNative(bytes::convert_endian, "bytes convert_endian", false);
         FuncEnvironment::AddNative(bytes::current_endian, "bytes current_endian", false);
         FuncEnvironment::AddNative(bytes::swap_bytes, "bytes swap_bytes", false);
+        FuncEnvironment::AddNative(bytes::hash, "bytes hash", false);
     }
 
     void initStandardLib_console() {

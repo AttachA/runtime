@@ -4,6 +4,7 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <run_time/tasks/util/interrupt.hpp>
 #include <util/link_garbage_remover.hpp>
 #if ENABLE_SNAPSHOTS_LGR
 #include <run_time/asm/CASM.hpp>
@@ -269,12 +270,14 @@ namespace art {
     }
 
     bool lgr::calcDepth() {
+        art::interrupt::interrupt_unsafe_region region;
         bool res = depth_safety();
         __lgr_safe_depth.clear();
         return res;
     }
 
     bool lgr::depth_safety() const {
+        art::interrupt::interrupt_unsafe_region region;
         if (__lgr_safe_depth.contains(ptr))
             return false;
         if (calc_depth) {

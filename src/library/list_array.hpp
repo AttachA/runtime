@@ -29,6 +29,24 @@ namespace art {
                 result = art::mur_combine(result, operator()(arr[i]));
             return result;
         }
+
+        size_t seed_hash(const T& t, size_t seed) const noexcept {
+            art::hash<T> h;
+            if (t.blocks_more(1)) {
+                size_t result = 0;
+                for (size_t i = 0; i < t.size(); i++)
+                    result = art::mur_combine(result, h.seed_hash(t[i], seed));
+                return result;
+            } else
+                return h.seed_hash_array(t.data(), t.size(), seed);
+        }
+
+        size_t seed_hash_array(const T* arr, size_t seed) const noexcept {
+            size_t result = 0;
+            for (size_t i = 0; i < size; i++)
+                result = art::mur_combine(result, seed_hash(arr[i], seed));
+            return result;
+        }
     };
 }
 #endif /* SRC_LIBRARY_LIST_ARRAY */

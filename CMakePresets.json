@@ -21,7 +21,6 @@
             "configurePreset": "Win-MinSizeRel",
             "configuration": "MinSizeRel"
         },
-
         {
             "name": "Linux-Debug",
             "configurePreset": "Linux-Debug",
@@ -33,14 +32,14 @@
             "configuration": "Release"
         },
         {
-            "name": "Windows-Test",
+            "name": "Win-Test",
             "configurePreset": "Win-Test",
-            "configuration": "Release"
+            "configuration": "Debug"
         },
         {
             "name": "Linux-Test",
             "configurePreset": "Linux-Test",
-            "configuration": "Release"
+            "configuration": "Debug"
         }
     ],
     "configurePresets": [
@@ -72,7 +71,7 @@
             "hidden": true,
             "cacheVariables": {
                 "ENABLE_TEST_COVERAGE": "ON",
-                "CMAKE_BUILD_TYPE": "Release"
+                "CMAKE_BUILD_TYPE": "Debug"
             }
         },
         {

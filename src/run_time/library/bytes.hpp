@@ -91,6 +91,7 @@ namespace art {
         ValueItem* swap_bytes(ValueItem* args, uint32_t len);
         ValueItem* from_bytes(ValueItem* args, uint32_t len);
         ValueItem* to_bytes(ValueItem* args, uint32_t len);
+        ValueItem* hash(ValueItem* args, uint32_t len);
     }
 }
 #endif /* SRC_RUN_TIME_LIBRARY_BYTES */

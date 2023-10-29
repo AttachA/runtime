@@ -2487,7 +2487,7 @@ namespace art {
 #pragma region ValueItem constructors
 
     ValueItem::ValueItem(const void* val_, ValueMeta meta_)
-        : val(0) {
+        : val(0), meta(0) {
         auto tmp = (void*)val_;
         val = copyValue(tmp, meta_);
         meta = meta_;
@@ -2505,7 +2505,7 @@ namespace art {
     }
 
     ValueItem::ValueItem(const ValueItem& copy)
-        : val(0) {
+        : val(0), meta(0) {
         ValueItem& tmp = (ValueItem&)copy;
         val = copyValue(tmp.val, tmp.meta);
         meta = copy.meta;
@@ -2515,85 +2515,52 @@ namespace art {
         : val(0), meta(0) {}
 
     ValueItem::ValueItem(bool val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::boolean) {}
 
     ValueItem::ValueItem(int8_t val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::i8) {}
 
     ValueItem::ValueItem(uint8_t val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::ui8) {}
 
     ValueItem::ValueItem(int16_t val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::i16) {}
 
     ValueItem::ValueItem(uint16_t val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::ui16) {}
 
     ValueItem::ValueItem(int32_t val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::i32) {}
 
     ValueItem::ValueItem(uint32_t val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::ui32) {}
 
     ValueItem::ValueItem(int64_t val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::i64) {}
 
     ValueItem::ValueItem(uint64_t val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::ui64) {}
 
     ValueItem::ValueItem(float val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::flo) {}
 
     ValueItem::ValueItem(double val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(*reinterpret_cast<void**>(&val)), meta(VType::doub) {}
 
-    ValueItem::ValueItem(const art::ustring& set) {
-        val = new art::ustring(set);
-        meta = VType::string;
-    }
+    ValueItem::ValueItem(const art::ustring& set)
+        : val(new art::ustring(set)), meta(VType::string) {}
 
-    ValueItem::ValueItem(art::ustring&& set) {
-        val = new art::ustring(std::move(set));
-        meta = VType::string;
-    }
+    ValueItem::ValueItem(art::ustring&& set)
+        : val(new art::ustring(std::move(set))), meta(VType::string) {}
 
     ValueItem::ValueItem(const char* str)
-        : val(0) {
-        val = new art::ustring(str);
-        meta = VType::string;
-    }
+        : val(new art::ustring(str)), meta(VType::string) {}
 
     ValueItem::ValueItem(const list_array<ValueItem>& val)
-        : val(0) {
-        *this = ABI_IMPL::BVcast(val);
-    }
+        : val(new list_array<ValueItem>(val)), meta(VType::uarr) {}
 
     ValueItem::ValueItem(list_array<ValueItem>&& val)
-        : val(new list_array<ValueItem>(std::move(val))) {
-        meta = VType::uarr;
-    }
+        : val(new list_array<ValueItem>(std::move(val))), meta(VType::uarr) {}
 
     ValueItem::ValueItem(ValueItem* vals, uint32_t len)
         : ValueItem(vals, ValueMeta(VType::faarr, false, true, len)) {}
@@ -2604,10 +2571,8 @@ namespace art {
     ValueItem::ValueItem(ValueItem* vals, uint32_t len, as_reference_t)
         : ValueItem(vals, ValueMeta(VType::faarr, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(void* undefined_ptr) {
-        val = undefined_ptr;
-        meta = VType::undefined_ptr;
-    }
+    ValueItem::ValueItem(void* undefined_ptr)
+        : val(undefined_ptr), meta(VType::undefined_ptr) {}
 
     ValueItem::ValueItem(const int8_t* vals, uint32_t len)
         : ValueItem(vals, ValueMeta(VType::raw_arr_i8, false, true, len)) {}
@@ -2702,13 +2667,11 @@ namespace art {
     ValueItem::ValueItem(double* vals, uint32_t len, as_reference_t)
         : ValueItem(vals, ValueMeta(VType::raw_arr_doub, false, true, len), as_reference) {}
 
-    ValueItem::ValueItem(const art::typed_lgr<Task>& task) {
-        val = new art::typed_lgr<Task>(task);
-        meta = VType::async_res;
-    }
+    ValueItem::ValueItem(const art::typed_lgr<Task>& task)
+        : val(new art::typed_lgr<Task>(task)), meta(VType::async_res) {}
 
     ValueItem::ValueItem(const std::initializer_list<ValueItem>& args)
-        : val(0) {
+        : val(0), meta(0) {
         if (args.size() > (size_t)UINT32_MAX)
             throw OutOfRange("Too large array");
         uint32_t len = (uint32_t)args.size();
@@ -2745,10 +2708,8 @@ namespace art {
     ValueItem::ValueItem(std::unordered_set<ValueItem, art::hash<ValueItem>>&& set)
         : ValueItem(new std::unordered_set<ValueItem, art::hash<ValueItem>>(std::move(set)), VType::set) {}
 
-    ValueItem::ValueItem(const art::shared_ptr<FuncEnvironment>& fun) {
-        val = new art::shared_ptr<FuncEnvironment>(fun);
-        meta = VType::function;
-    }
+    ValueItem::ValueItem(const art::shared_ptr<FuncEnvironment>& fun)
+        : val(new art::shared_ptr<FuncEnvironment>(fun)), meta(VType::function) {}
 
     ValueItem::ValueItem(VType type) {
         meta = type;
@@ -5390,6 +5351,11 @@ namespace art {
         return art::hash<T>()(arr, len);
     }
 
+    template <typename T>
+    size_t array_hash(T* arr, size_t len, size_t seed) {
+        return art::hash<T>().seed_hash_array(arr, len, seed);
+    }
+
     void ValueItem::make_gc() {
         if (meta.use_gc)
             return;
@@ -5575,6 +5541,98 @@ namespace art {
         }
     }
 
+    size_t ValueItem::hash(uint32_t seed) const {
+        switch (meta.vtype) {
+        case VType::noting:
+            return 0;
+        case VType::type_identifier:
+        case VType::boolean:
+        case VType::i8:
+            return art::hash<int8_t>().seed_hash((int8_t) * this, seed);
+        case VType::i16:
+            return art::hash<int16_t>().seed_hash((int16_t) * this, seed);
+        case VType::i32:
+            return art::hash<int32_t>().seed_hash((int32_t) * this, seed);
+        case VType::i64:
+            return art::hash<int64_t>().seed_hash((int64_t) * this, seed);
+        case VType::ui8:
+            return art::hash<uint8_t>().seed_hash((uint8_t) * this, seed);
+        case VType::ui16:
+            return art::hash<uint16_t>().seed_hash((uint16_t) * this, seed);
+        case VType::ui32:
+            return art::hash<uint32_t>().seed_hash((uint32_t) * this, seed);
+        case VType::undefined_ptr:
+            return art::hash<size_t>().seed_hash((size_t) * this, seed);
+        case VType::ui64:
+            return art::hash<uint64_t>().seed_hash((uint64_t) * this, seed);
+        case VType::flo:
+            return art::hash<float>().seed_hash((float)*this, seed);
+        case VType::doub:
+            return art::hash<double>().seed_hash((double)*this, seed);
+        case VType::string:
+            return art::hash<art::ustring>().seed_hash(*(art::ustring*)getSourcePtr(), seed);
+        case VType::uarr:
+            return art::hash<list_array<ValueItem>>().seed_hash(*(list_array<ValueItem>*)getSourcePtr(), seed);
+        case VType::raw_arr_i8:
+            return array_hash((int8_t*)getSourcePtr(), meta.val_len, seed);
+        case VType::raw_arr_i16:
+            return array_hash((int16_t*)getSourcePtr(), meta.val_len, seed);
+        case VType::raw_arr_i32:
+            return array_hash((int32_t*)getSourcePtr(), meta.val_len, seed);
+        case VType::raw_arr_i64:
+            return array_hash((int64_t*)getSourcePtr(), meta.val_len, seed);
+        case VType::raw_arr_ui8:
+            return array_hash((uint8_t*)getSourcePtr(), meta.val_len, seed);
+        case VType::raw_arr_ui16:
+            return array_hash((uint16_t*)getSourcePtr(), meta.val_len, seed);
+        case VType::raw_arr_ui32:
+            return array_hash((uint32_t*)getSourcePtr(), meta.val_len, seed);
+        case VType::raw_arr_ui64:
+            return array_hash((uint64_t*)getSourcePtr(), meta.val_len, seed);
+        case VType::raw_arr_flo:
+            return array_hash((float*)getSourcePtr(), meta.val_len, seed);
+        case VType::raw_arr_doub:
+            return array_hash((double*)getSourcePtr(), meta.val_len, seed);
+
+        case VType::saarr:
+        case VType::faarr:
+            return array_hash((ValueItem*)getSourcePtr(), meta.val_len, seed);
+
+        case VType::struct_: {
+            if (art::CXX::Interface::hasImplement(*this, "hash"))
+                return (size_t)art::CXX::Interface::makeCall(ClassAccess::pub, *this, "hash");
+            else
+                return art::hash<const void*>().seed_hash(((Structure*)getSourcePtr())->self, seed);
+        }
+        case VType::set: {
+            uint64_t hash = 0;
+            for (auto& i : operator const std::unordered_set<ValueItem, art::hash<ValueItem>>&())
+                hash = mur_combine(hash, i.hash(seed));
+            return hash;
+        }
+        case VType::map: {
+            size_t hash = 0;
+            for (auto& i : operator const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&())
+                hash = mur_combine(hash, mur_combine(i.second.hash(seed), i.first.hash(seed)));
+            return hash;
+        }
+        case VType::function: {
+            auto fn = funPtr();
+            if (fn)
+                return art::hash<const void*>().seed_hash((*fn)->get_func_ptr(), seed);
+            else
+                return 0;
+        }
+        case VType::async_res:
+            throw InternalException("getAsync() not work in hash function");
+        case VType::except_value:
+            throw InvalidOperation("Hash function for exception not available", *(std::exception_ptr*)getSourcePtr());
+        default:
+            throw NotImplementedException();
+            break;
+        }
+    }
+
     size_t ValueItem::hash() const {
         switch (meta.vtype) {
         case VType::noting:
@@ -5641,13 +5699,13 @@ namespace art {
         case VType::set: {
             size_t hash = 0;
             for (auto& i : operator const std::unordered_set<ValueItem, art::hash<ValueItem>>&())
-                hash ^= const_cast<ValueItem&>(i).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+                hash = mur_combine(hash, i.hash());
             return hash;
         }
         case VType::map: {
             size_t hash = 0;
             for (auto& i : operator const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&())
-                hash ^= const_cast<ValueItem&>(i.first).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2) + const_cast<ValueItem&>(i.second).hash() + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+                hash = mur_combine(hash, mur_combine(i.second.hash(), i.first.hash()));
             return hash;
         }
         case VType::function: {
