@@ -25,11 +25,9 @@ jobs:
           with:
             configurePreset: Win-Test
             buildPreset: Win-Test
-        - name: Run gtest tests
-          run: |
-            for test in ${{ github.workspace }}/out/**/AttachATests.exe; do
-              "$test"
-            done
+        - name: Test
+          working-directory: ${{github.workspace}}/out/build/Win-Test/
+          run: ctest -V
                 
     linux_build:
         runs-on: ubuntu-latest
@@ -52,7 +50,6 @@ jobs:
           with:
             configurePreset: Linux-Test
             buildPreset: Linux-Test
-        - name: Run gtest tests
-          run: |
-            ${{ github.workspace }}/out/build/Linux-Test/tests/AttachATests
-                
+        - name: Test
+          working-directory: ${{github.workspace}}/out/build/Linux-Test/tests/
+          run: GTEST_COLOR=1 ctest -V
