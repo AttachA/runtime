@@ -1522,7 +1522,6 @@ namespace art {
         }
         if (structure->self_cleanup)
             structure->self_cleanup(structure->self);
-        Structure::destroyVTable(structure->vtable, VTableMode::AttachAVirtualTable);
     }
 
     void Structure::copy(Structure* dst, Structure* src, bool at_construct) {

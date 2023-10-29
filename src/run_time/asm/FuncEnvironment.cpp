@@ -21,7 +21,18 @@
 
 namespace art {
     using namespace reader;
-    art::shared_ptr<asmjit::JitRuntime> art = new asmjit::JitRuntime();
+
+    struct
+    {
+        art::shared_ptr<asmjit::JitRuntime>& get() {
+            static art::shared_ptr<asmjit::JitRuntime> art = new asmjit::JitRuntime();
+            return art;
+        }
+
+        operator art::shared_ptr<asmjit::JitRuntime>&() {
+            return get();
+        };
+    } art;
     std::unordered_map<art::ustring, art::shared_ptr<FuncEnvironment>, art::hash<art::ustring>> environments;
     TaskMutex environments_lock;
 
@@ -139,7 +150,7 @@ namespace art {
 
     FuncHandle::inner_handle::~inner_handle() {
         if (frame != nullptr && _type == FuncType::own) {
-            if (!FrameResult::deinit(frame, (void*)env, *art)) {
+            if (!FrameResult::deinit(frame, (void*)env, *art.get())) {
                 ValueItem result{"Failed unload function:", frame};
                 errors.async_notify(result);
             }
@@ -162,7 +173,7 @@ namespace art {
         RuntimeCompileException error_handler;
         CodeHolder code;
         code.setErrorHandler(&error_handler);
-        code.init(art->environment());
+        code.init(art.get()->environment());
         CASM a(code);
         BuildProlog b_prolog(a);
         ScopeManager scope(b_prolog);
@@ -291,7 +302,7 @@ namespace art {
         a.jmp((size_t)exception::__get_internal_handler());
         a.finalize();
         auto resolved_frame = try_resolve_frame(this);
-        env = (Environment)tmp.init(frame, a.code(), *art, resolved_frame.data());
+        env = (Environment)tmp.init(frame, a.code(), *art.get(), resolved_frame.data());
         //remove self from used_environs
         auto my_trampoline = parent ? parent->get_trampoline_code() : nullptr;
         used_environs.remove_if([my_trampoline](art::shared_ptr<FuncEnvironment>& a) { return a->get_func_ptr() == my_trampoline; });
@@ -319,7 +330,7 @@ namespace art {
         RuntimeCompileException error_handler;
         CodeHolder trampoline_code;
         trampoline_code.setErrorHandler(&error_handler);
-        trampoline_code.init(art->environment());
+        trampoline_code.init(art.get()->environment());
         CASM a(trampoline_code);
         char fake_data[8]{(char)0xFF};
         Label compile_call_label = a.add_data(fake_data, 8);
@@ -341,7 +352,7 @@ namespace art {
         size_t code_size = trampoline_code.textSection()->realSize();
         code_size = code_size + asmjit::Support::alignUp(code_size, trampoline_code.textSection()->alignment());
         FuncHandle* code;
-        CASM::allocate_and_prepare_code(sizeof(FuncHandle), (uint8_t*&)code, &trampoline_code, art->allocator(), 0);
+        CASM::allocate_and_prepare_code(sizeof(FuncHandle), (uint8_t*&)code, &trampoline_code, art.get()->allocator(), 0);
         new (code) FuncHandle();
         char* code_raw = (char*)code + sizeof(FuncHandle);
         char* code_data = (char*)code + sizeof(FuncHandle) + code_size - 1;

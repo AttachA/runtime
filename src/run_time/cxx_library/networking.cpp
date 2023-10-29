@@ -814,14 +814,23 @@ namespace art {
         }
 
         void connection_reset() {
-            MutexUnify mutex(cv_mutex);
-            art::unique_lock<MutexUnify> lock(mutex);
-            data = nullptr;
-            invalid_reason = TcpError::remote_close;
-            readed_bytes = 0;
-            cv.notify_all();
-            lock.unlock();
-            internal_close();
+            if (opcode == Opcode::INTERNAL_CLOSE) {
+                MutexUnify mutex(cv_mutex);
+                art::unique_lock<MutexUnify> lock(mutex);
+                data = nullptr;
+                invalid_reason = TcpError::remote_close;
+                readed_bytes = 0;
+                cv.notify_all();
+            } else {
+                MutexUnify mutex(cv_mutex);
+                art::unique_lock<MutexUnify> lock(mutex);
+                data = nullptr;
+                invalid_reason = TcpError::remote_close;
+                readed_bytes = 0;
+                cv.notify_all();
+                lock.unlock();
+                internal_close();
+            }
         }
 
         void rebuffer(int32_t buffer_len) {
@@ -865,12 +874,13 @@ namespace art {
             MutexUnify mutex(cv_mutex);
             art::unique_lock<MutexUnify> lock(mutex);
             opcode = Opcode::INTERNAL_CLOSE;
-            if (!_DisconnectEx(socket, nullptr, TF_REUSE_SOCKET, 0)) {
+            shutdown(socket, SD_BOTH);
+            if (!_DisconnectEx(socket, &overlapped, TF_REUSE_SOCKET, 0)) {
                 if (WSAGetLastError() != ERROR_IO_PENDING)
                     invalid_reason = TcpError::local_close;
                 cv.wait(lock);
-            } else
-                closesocket(socket);
+            }
+            closesocket(socket);
         }
 
         bool handle_error() {
