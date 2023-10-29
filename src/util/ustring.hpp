@@ -183,6 +183,7 @@ namespace art {
         size_t length() const; //total chars
         size_t size() const;   //used bytes
         size_t hash() const;
+        size_t hash(uint32_t seed) const;
         bool empty() const;
 
 

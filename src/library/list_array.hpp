@@ -30,7 +30,7 @@ namespace art {
             return result;
         }
 
-        size_t seed_hash(const T& t, size_t seed) const noexcept {
+        size_t seed_hash(const list_array<T>& t, uint32_t seed) const noexcept {
             art::hash<T> h;
             if (t.blocks_more(1)) {
                 size_t result = 0;
@@ -41,7 +41,7 @@ namespace art {
                 return h.seed_hash_array(t.data(), t.size(), seed);
         }
 
-        size_t seed_hash_array(const T* arr, size_t seed) const noexcept {
+        size_t seed_hash_array(const list_array<T>* arr, size_t size, uint32_t seed) const noexcept {
             size_t result = 0;
             for (size_t i = 0; i < size; i++)
                 result = art::mur_combine(result, seed_hash(arr[i], seed));

@@ -626,6 +626,21 @@ namespace art {
         }
     }
 
+    size_t ustring::hash(uint32_t seed) const {
+        switch (flags.type) {
+        case ustring::Type::def:
+            return art::hash<char>().seed_hash_array(c_str(), _data.d.larr.size(), seed);
+        case ustring::Type::short_def:
+            return art::hash<char>().seed_hash_array(_data.short_data, strlen(_data.short_data), seed);
+        case ustring::Type::constant:
+            return art::hash<char>().seed_hash_array(_data.constant_data->from_constant_pool, _data.constant_data->size, seed);
+        case ustring::Type::dyn_constant:
+            return art::hash<char>().seed_hash_array(_data.dynamic_constant_data->item->from_constant_pool, _data.dynamic_constant_data->item->size, seed);
+        default:
+            throw InvalidType("String type is unrecognized");
+        }
+    }
+
     bool ustring::empty() const {
         if (!flags.has_data)
             return true;
@@ -929,6 +944,7 @@ namespace art {
         flags.has_hash = false;
         flags.has_data = true;
     }
+
     void ustring::resize(size_t len) {
         switch (flags.type) {
         case ustring::Type::short_def: {
