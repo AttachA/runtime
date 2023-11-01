@@ -35,6 +35,17 @@ namespace art {
         return new function_globals_handle();
     }
 
+    art::shared_ptr<FuncEnvironment>& attacha_environment::create_fun_env(class FuncEnvironment* ptr) {
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::lock_guard lock(fn_glob.lock);
+        art::ustring path = "\1. " + std::to_string((size_t)ptr);
+        auto& tmp = fn_glob.funs[path];
+        if (tmp)
+            throw SymbolException("Fail allocate symbol: \"" + path + "\" cause them already exists");
+        tmp = art::shared_ptr<FuncEnvironment>(ptr);
+        return tmp;
+    }
+
 
     art::ustring try_resolve_frame(FuncHandle::inner_handle* env) {
         auto& fn_glob = attacha_environment::get_function_globals();

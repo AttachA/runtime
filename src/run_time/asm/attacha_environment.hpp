@@ -1,5 +1,5 @@
-#ifndef SRC_RUN_TIME_ATTACHA_ENVIRONMENT
-#define SRC_RUN_TIME_ATTACHA_ENVIRONMENT
+#ifndef SRC_RUN_TIME_ASM_ATTACHA_ENVIRONMENT
+#define SRC_RUN_TIME_ASM_ATTACHA_ENVIRONMENT
 #include <asmjit/asmjit.h>
 #include <run_time/ValueEnvironment.hpp>
 #include <run_time/tasks.hpp>
@@ -54,7 +54,9 @@ namespace art {
         static function_globals_handle& get_function_globals();
         static ValueEnvironment& get_value_globals();
         static code_gen_handle& get_code_gen();
+
+        static art::shared_ptr<class FuncEnvironment>& create_fun_env(class FuncEnvironment* ptr);
     };
 } // namespace art
 
-#endif /* SRC_RUN_TIME_ATTACHA_ENVIRONMENT */
+#endif /* SRC_RUN_TIME_ASM_ATTACHA_ENVIRONMENT */

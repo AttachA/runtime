@@ -5,6 +5,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <run_time/asm/FuncEnvironment.hpp>
+#include <run_time/asm/attacha_environment.hpp>
 #include <run_time/tasks.hpp>
 
 namespace art {
@@ -60,7 +61,7 @@ namespace art {
         return res;
     }
 
-    art::shared_ptr<FuncEnvironment> _TaskQuery_add_task(new FuncEnvironment(__TaskQuery_add_task, false, false));
+    art::shared_ptr<FuncEnvironment>& _TaskQuery_add_task = attacha_environment::create_fun_env(new FuncEnvironment(__TaskQuery_add_task, false, false));
 
     art::typed_lgr<Task> TaskQuery::add_task(art::shared_ptr<FuncEnvironment> call_func, ValueItem& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point timeout) {
         ValueItem copy;

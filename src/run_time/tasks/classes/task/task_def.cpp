@@ -6,6 +6,7 @@
 
 #include <run_time/ValueEnvironment.hpp>
 #include <run_time/asm/FuncEnvironment.hpp>
+#include <run_time/asm/attacha_environment.hpp>
 #include <run_time/tasks.hpp>
 #include <run_time/tasks/_internal.hpp>
 #include <run_time/tasks/util/native_workers_singleton.hpp>
@@ -16,7 +17,7 @@ namespace art {
         return nullptr;
     }
 
-    art::shared_ptr<FuncEnvironment> empty_func(new FuncEnvironment(_empty_func, false, true));
+    art::shared_ptr<FuncEnvironment>& empty_func = attacha_environment::create_fun_env(new FuncEnvironment(_empty_func, false, true));
 
     void put_arguments(ValueItem& args_hold, const ValueItem& arguments) {
         if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
@@ -547,7 +548,7 @@ namespace art {
         return nullptr;
     }
 
-    art::shared_ptr<FuncEnvironment> notify_native_thread(new FuncEnvironment(_notify_native_thread, false, true));
+    art::shared_ptr<FuncEnvironment>& notify_native_thread = attacha_environment::create_fun_env(new FuncEnvironment(_notify_native_thread, false, true));
 
     art::typed_lgr<Task> Task::cxx_native_bridge(bool& checker, art::condition_variable_any& cd) {
         return new Task(notify_native_thread, ValueItem{ValueItem(&checker, VType::undefined_ptr), ValueItem(std::addressof(cd), VType::undefined_ptr)});

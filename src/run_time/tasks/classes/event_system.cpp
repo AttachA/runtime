@@ -6,6 +6,7 @@
 
 #include <run_time/AttachA_CXX.hpp>
 #include <run_time/asm/FuncEnvironment.hpp>
+#include <run_time/asm/attacha_environment.hpp>
 #include <run_time/tasks.hpp>
 
 namespace art {
@@ -248,7 +249,7 @@ namespace art {
         return new ValueItem(false);
     }
 
-    art::shared_ptr<FuncEnvironment> _async_notify(new FuncEnvironment(__async_notify, false, false));
+    art::shared_ptr<FuncEnvironment>& _async_notify = attacha_environment::create_fun_env(new FuncEnvironment(__async_notify, false, false));
 
     art::typed_lgr<Task> EventSystem::async_notify(ValueItem& args) {
         art::typed_lgr<Task> res = new Task(_async_notify, ValueItem{ValueItem(this, VType::undefined_ptr), args});

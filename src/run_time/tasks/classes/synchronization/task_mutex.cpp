@@ -6,6 +6,7 @@
 
 #include <base/run_time.hpp>
 #include <run_time/asm/FuncEnvironment.hpp>
+#include <run_time/asm/attacha_environment.hpp>
 #include <run_time/tasks.hpp>
 #include <run_time/tasks/_internal.hpp>
 
@@ -185,7 +186,7 @@ namespace art {
         return nullptr;
     }
 
-    art::shared_ptr<FuncEnvironment> TaskMutex_lock_holder = new FuncEnvironment(_TaskMutex_lock_holder, false, false);
+    art::shared_ptr<FuncEnvironment>& TaskMutex_lock_holder = attacha_environment::create_fun_env(new FuncEnvironment(_TaskMutex_lock_holder, true, true));
 
     void TaskMutex::lifecycle_lock(art::typed_lgr<Task> task) {
         Task::start(new Task(TaskMutex_lock_holder, ValueItem{ValueItem(new art::typed_lgr<Task>(task), VType::async_res), this, false}));

@@ -441,7 +441,7 @@ namespace art {
         size_t unwindInfoSize = unwindInfo.size() * sizeof(uint16_t);
 
         uint8_t* baseaddr;
-        size_t fun_size = CASM::allocate_and_prepare_code(0, baseaddr, code, attacha_environment::get_code_gen().run_time.allocator(), unwindInfoSize + sizeof(RUNTIME_FUNCTION));
+        size_t fun_size = CASM::allocate_and_prepare_code(0, baseaddr, code, unwindInfoSize + sizeof(RUNTIME_FUNCTION));
         if (!baseaddr) {
             const char* err = asmjit::DebugUtils::errorAsString(asmjit::Error(fun_size));
             throw CompileTimeException(err);
