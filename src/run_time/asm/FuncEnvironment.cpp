@@ -9,6 +9,7 @@
 #include <run_time/AttachA_CXX.hpp>
 #include <run_time/asm/CASM.hpp>
 #include <run_time/asm/FuncEnvironment.hpp>
+#include <run_time/asm/attacha_environment.hpp>
 #include <run_time/asm/compiler.hpp>
 #include <run_time/asm/compiler/helper_functions.hpp>
 #include <run_time/asm/dynamic_call_proxy.hpp>
@@ -18,26 +19,27 @@
 #include <run_time/tasks.hpp>
 #include <run_time/util/tools.hpp>
 #include <util/threading.hpp>
-
 namespace art {
     using namespace reader;
 
-    struct
-    {
-        art::shared_ptr<asmjit::JitRuntime>& get() {
-            static art::shared_ptr<asmjit::JitRuntime> art = new asmjit::JitRuntime();
-            return art;
-        }
+    struct attacha_environment::function_globals_handle {
+        std::unordered_map<art::ustring, art::shared_ptr<FuncEnvironment>, art::hash<art::ustring>> funs;
+        TaskRecursiveMutex lock;
+    };
 
-        operator art::shared_ptr<asmjit::JitRuntime>&() {
-            return get();
-        };
-    } art;
-    std::unordered_map<art::ustring, art::shared_ptr<FuncEnvironment>, art::hash<art::ustring>> environments;
-    TaskMutex environments_lock;
+    void attacha_environment::remove_function_globals(function_globals_handle* handle) {
+        delete handle;
+    }
+
+    attacha_environment::function_globals_handle* attacha_environment::create_function_globals() {
+        return new function_globals_handle();
+    }
+
 
     art::ustring try_resolve_frame(FuncHandle::inner_handle* env) {
-        for (auto& it : environments) {
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::lock_guard lock(fn_glob.lock);
+        for (auto& it : fn_glob.funs) {
             if (it.second) {
                 if (it.second->inner_handle() == env)
                     return it.first;
@@ -150,7 +152,7 @@ namespace art {
 
     FuncHandle::inner_handle::~inner_handle() {
         if (frame != nullptr && _type == FuncType::own) {
-            if (!FrameResult::deinit(frame, (void*)env, *art.get())) {
+            if (!FrameResult::deinit(frame, (void*)env)) {
                 ValueItem result{"Failed unload function:", frame};
                 errors.async_notify(result);
             }
@@ -173,7 +175,7 @@ namespace art {
         RuntimeCompileException error_handler;
         CodeHolder code;
         code.setErrorHandler(&error_handler);
-        code.init(art.get()->environment());
+        code.init(attacha_environment::get_code_gen().run_time.environment());
         CASM a(code);
         BuildProlog b_prolog(a);
         ScopeManager scope(b_prolog);
@@ -302,7 +304,7 @@ namespace art {
         a.jmp((size_t)exception::__get_internal_handler());
         a.finalize();
         auto resolved_frame = try_resolve_frame(this);
-        env = (Environment)tmp.init(frame, a.code(), *art.get(), resolved_frame.data());
+        env = (Environment)tmp.init(frame, a.code(), resolved_frame.data());
         //remove self from used_environs
         auto my_trampoline = parent ? parent->get_trampoline_code() : nullptr;
         used_environs.remove_if([my_trampoline](art::shared_ptr<FuncEnvironment>& a) { return a->get_func_ptr() == my_trampoline; });
@@ -330,7 +332,7 @@ namespace art {
         RuntimeCompileException error_handler;
         CodeHolder trampoline_code;
         trampoline_code.setErrorHandler(&error_handler);
-        trampoline_code.init(art.get()->environment());
+        trampoline_code.init(attacha_environment::get_code_gen().run_time.environment());
         CASM a(trampoline_code);
         char fake_data[8]{(char)0xFF};
         Label compile_call_label = a.add_data(fake_data, 8);
@@ -352,7 +354,7 @@ namespace art {
         size_t code_size = trampoline_code.textSection()->realSize();
         code_size = code_size + asmjit::Support::alignUp(code_size, trampoline_code.textSection()->alignment());
         FuncHandle* code;
-        CASM::allocate_and_prepare_code(sizeof(FuncHandle), (uint8_t*&)code, &trampoline_code, art.get()->allocator(), 0);
+        CASM::allocate_and_prepare_code(sizeof(FuncHandle), (uint8_t*&)code, &trampoline_code, 0);
         new (code) FuncHandle();
         char* code_raw = (char*)code + sizeof(FuncHandle);
         char* code_data = (char*)code + sizeof(FuncHandle) + code_size - 1;
@@ -379,21 +381,18 @@ namespace art {
             handle->increase_usage();
             handle->parent = code;
         }
-        code->art_ref = new art::shared_ptr<asmjit::JitRuntime>(art);
         return code;
     }
 
     void FuncHandle::release_func_handle(FuncHandle* handle) {
-        art::shared_ptr<asmjit::JitRuntime> art = *(art::shared_ptr<asmjit::JitRuntime>*)handle->art_ref;
         handle->~FuncHandle();
-        CASM::release_code((uint8_t*)handle, art->allocator());
+        CASM::release_code((uint8_t*)handle);
     }
 
     FuncHandle::~FuncHandle() {
         art::lock_guard lock(compile_lock);
         if (handle)
             handle->reduce_usage();
-        delete (art::shared_ptr<asmjit::JitRuntime>*)art_ref;
     }
 
     void FuncHandle::patch(inner_handle* handle) {
@@ -523,8 +522,9 @@ namespace art {
             fn_ptr = nullptr;
         }
         {
-            art::unique_lock guard(environments_lock);
-            for (auto& it : environments)
+            auto& fn_glob = attacha_environment::get_function_globals();
+            art::unique_lock guard(fn_glob.lock);
+            for (auto& it : fn_glob.funs)
                 if (&*it.second == this)
                     return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)fn_ptr);
         }
@@ -539,8 +539,9 @@ namespace art {
     }
 
     void FuncEnvironment::fastHotPatch(const art::ustring& func_name, FuncHandle::inner_handle* new_enviro) {
-        art::unique_lock guard(environments_lock);
-        auto& tmp = environments[func_name];
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::unique_lock guard(fn_glob.lock);
+        auto& tmp = fn_glob.funs[func_name];
         guard.unlock();
         tmp->patch(new_enviro);
     }
@@ -554,14 +555,17 @@ namespace art {
     }
 
     art::shared_ptr<FuncEnvironment> FuncEnvironment::environment(const art::ustring& func_name) {
-        return environments[func_name];
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::unique_lock guard(fn_glob.lock);
+        return fn_glob.funs[func_name];
     }
 
     ValueItem* FuncEnvironment::callFunc(const art::ustring& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
-        art::unique_lock guard(environments_lock);
-        auto found = environments.find(func_name);
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::unique_lock guard(fn_glob.lock);
+        auto found = fn_glob.funs.find(func_name);
         guard.unlock();
-        if (found != environments.end()) {
+        if (found != fn_glob.funs.end()) {
             if (run_async)
                 return async_call(found->second, arguments, arguments_size);
             else
@@ -571,54 +575,60 @@ namespace art {
     }
 
     void FuncEnvironment::AddNative(Environment function, const art::ustring& symbol_name, bool can_be_unloaded, bool is_cheap) {
-        art::lock_guard guard(environments_lock);
-        if (environments.contains(symbol_name))
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::lock_guard guard(fn_glob.lock);
+        if (fn_glob.funs.contains(symbol_name))
             throw SymbolException("Fail allocate symbol: \"" + symbol_name + "\" cause them already exists");
         auto symbol = new FuncHandle::inner_handle(function, is_cheap);
-        environments[symbol_name] = new FuncEnvironment(symbol, can_be_unloaded);
+        fn_glob.funs[symbol_name] = new FuncEnvironment(symbol, can_be_unloaded);
     }
 
     bool FuncEnvironment::Exists(const art::ustring& symbol_name) {
-        art::lock_guard guard(environments_lock);
-        return environments.contains(symbol_name);
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::lock_guard guard(fn_glob.lock);
+        return fn_glob.funs.contains(symbol_name);
     }
 
     void FuncEnvironment::Load(art::shared_ptr<FuncEnvironment> fn, const art::ustring& symbol_name) {
-        art::lock_guard guard(environments_lock);
-        auto found = environments.find(symbol_name);
-        if (found != environments.end()) {
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::lock_guard guard(fn_glob.lock);
+        auto found = fn_glob.funs.find(symbol_name);
+        if (found != fn_glob.funs.end()) {
             if (found->second->func_ != nullptr)
                 if (found->second->func_->handle != nullptr)
                     throw SymbolException("Fail load symbol: \"" + symbol_name + "\" cause them already exists");
             found->second = fn;
         } else
-            environments[symbol_name] = fn;
+            fn_glob.funs[symbol_name] = fn;
     }
 
     void FuncEnvironment::Unload(const art::ustring& func_name) {
-        art::lock_guard guard(environments_lock);
-        auto found = environments.find(func_name);
-        if (found != environments.end()) {
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::lock_guard guard(fn_glob.lock);
+        auto found = fn_glob.funs.find(func_name);
+        if (found != fn_glob.funs.end()) {
             if (!found->second->can_be_unloaded)
                 throw SymbolException("Fail unload symbol: \"" + func_name + "\" cause them can't be unloaded");
-            environments.erase(found);
+            fn_glob.funs.erase(found);
         }
     }
 
     void FuncEnvironment::ForceUnload(const art::ustring& func_name) {
-        art::lock_guard guard(environments_lock);
-        auto found = environments.find(func_name);
-        if (found != environments.end())
-            environments.erase(found);
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::lock_guard guard(fn_glob.lock);
+        auto found = fn_glob.funs.find(func_name);
+        if (found != fn_glob.funs.end())
+            fn_glob.funs.erase(found);
     }
 
     void FuncEnvironment::forceUnload() {
-        art::unique_lock guard(environments_lock);
-        auto begin = environments.begin();
-        auto end = environments.end();
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::unique_lock guard(fn_glob.lock);
+        auto begin = fn_glob.funs.begin();
+        auto end = fn_glob.funs.end();
         while (begin != end) {
             if (begin->second->func_ == func_) {
-                environments.erase(begin);
+                fn_glob.funs.erase(begin);
                 break;
             }
         }
@@ -630,8 +640,9 @@ namespace art {
     }
 
     void FuncEnvironment::clear_environs() {
-        art::lock_guard<TaskMutex> guard(environments_lock);
-        environments.clear();
+        auto& fn_glob = attacha_environment::get_function_globals();
+        art::lock_guard guard(fn_glob.lock);
+        fn_glob.funs.clear();
     }
 
     FuncEnvironment::FuncEnvironment(FuncHandle::inner_handle* env, bool can_be_unloaded) {

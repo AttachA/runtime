@@ -102,10 +102,6 @@ namespace art {
         bool current_interrupted = false;
     };
 
-    struct cold_hot_queue {
-    };
-
-
     struct timing {
         std::chrono::high_resolution_clock::time_point wait_timepoint;
         art::typed_lgr<Task> awake_task;

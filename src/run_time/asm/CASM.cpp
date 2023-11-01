@@ -5,6 +5,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <run_time/asm/CASM.hpp>
+#include <run_time/asm/attacha_environment.hpp>
 #include <util/platform.hpp>
 #ifdef PLATFORM_WINDOWS
 #include <Windows.h>
@@ -41,7 +42,7 @@ namespace art {
     }
 
     //return offset from allocated to additional size or code size
-    size_t CASM::allocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size_end) {
+    size_t CASM::allocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, size_t additional_size_end) {
         res = 0;
         CONV_ASMJIT(code->flatten());
         if (code->hasUnresolvedLinks()) {
@@ -54,12 +55,12 @@ namespace art {
 
         uint8_t* rx;
         uint8_t* rw;
-        CONV_ASMJIT(alloc->alloc((void**)&rx, (void**)&rw, additional_size_begin + estimatedCodeSize + additional_size_end));
+        CONV_ASMJIT(attacha_environment::get_code_gen().run_time.allocator()->alloc((void**)&rx, (void**)&rw, additional_size_begin + estimatedCodeSize + additional_size_end));
         rw += additional_size_begin;
         // Relocate the code.
         Error err = code->relocateToBase(uintptr_t((void*)rx) + additional_size_begin);
         if (ASMJIT_UNLIKELY(err)) {
-            alloc->release(rx);
+            attacha_environment::get_code_gen().run_time.allocator()->release(rx);
             return err;
         }
 
@@ -82,7 +83,7 @@ namespace art {
             }
         }
         if (codeSize < estimatedCodeSize)
-            alloc->shrink(rx, additional_size_begin + codeSize + additional_size_end);
+            attacha_environment::get_code_gen().run_time.allocator()->shrink(rx, additional_size_begin + codeSize + additional_size_end);
 
 #if BIT_64
 #if COMPILER_GCC
@@ -106,27 +107,10 @@ namespace art {
         return codeSize;
     }
 
-    void CASM::release_code(uint8_t* code, asmjit::JitAllocator* alloc) {
-        alloc->release(code);
+    void CASM::release_code(uint8_t* code) {
+        attacha_environment::get_code_gen().run_time.allocator()->release(code);
     }
 
-    struct frame_info {
-        art::ustring name;
-        art::ustring file;
-        size_t fun_size = 0;
-    };
-
-    struct FrameSymbols {
-        std::unordered_map<uint8_t*, frame_info, art::hash<uint8_t*>> map;
-        bool destroyed = false;
-
-        FrameSymbols() {}
-
-        ~FrameSymbols() {
-            map.clear();
-            destroyed = true;
-        }
-    } frame_symbols;
 #ifdef _WIN64
     enum UWC {
         UWOP_PUSH_NONVOL = 0,
@@ -452,12 +436,12 @@ namespace art {
         return info;
     }
 
-    void* FrameResult::init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name, const char* file_path) {
+    void* FrameResult::init(uint8_t*& frame, CodeHolder* code, const char* symbol_name, const char* file_path) {
         std::vector<uint16_t> unwindInfo = convert(*this);
         size_t unwindInfoSize = unwindInfo.size() * sizeof(uint16_t);
 
         uint8_t* baseaddr;
-        size_t fun_size = CASM::allocate_and_prepare_code(0, baseaddr, code, runtime.allocator(), unwindInfoSize + sizeof(RUNTIME_FUNCTION));
+        size_t fun_size = CASM::allocate_and_prepare_code(0, baseaddr, code, attacha_environment::get_code_gen().run_time.allocator(), unwindInfoSize + sizeof(RUNTIME_FUNCTION));
         if (!baseaddr) {
             const char* err = asmjit::DebugUtils::errorAsString(asmjit::Error(fun_size));
             throw CompileTimeException(err);
@@ -475,22 +459,22 @@ namespace art {
         BOOLEAN result = RtlAddFunctionTable(table, 1, (DWORD64)baseaddr);
 
         if (result == 0) {
-            runtime.allocator()->release(baseaddr);
+            attacha_environment::get_code_gen().run_time.allocator()->release(baseaddr);
             throw CompileTimeException("RtlAddFunctionTable failed");
         }
-        auto& tmp = frame_symbols.map[baseaddr];
+        auto& tmp = attacha_environment::get_code_gen().frame_symbols.map[baseaddr];
         tmp.fun_size = fun_size;
         tmp.name = symbol_name;
         tmp.file = file_path;
         return baseaddr;
     }
 
-    bool FrameResult::deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime) {
+    bool FrameResult::deinit(uint8_t* frame, void* funct) {
         if (frame) {
             BOOLEAN result = RtlDeleteFunctionTable((RUNTIME_FUNCTION*)frame);
-            auto tmp = runtime.allocator()->release(funct);
-            if (!frame_symbols.destroyed)
-                frame_symbols.map.erase((uint8_t*)funct);
+            auto tmp = attacha_environment::get_code_gen().run_time.allocator()->release(funct);
+            if (!attacha_environment::get_code_gen().frame_symbols.destroyed)
+                attacha_environment::get_code_gen().frame_symbols.map.erase((uint8_t*)funct);
             return !(result == FALSE || tmp);
         }
         return false;
@@ -656,11 +640,11 @@ namespace art {
             ffi.data);
     }
 
-    void* FrameResult::init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name, const char* file_path) {
+    void* FrameResult::init(uint8_t*& frame, CodeHolder* code, const char* symbol_name, const char* file_path) {
         uint8_t* baseaddr;
         DWARF unwindInfo = build_dwarf(prolog_data, use_handle, exHandleOff);
         unwindInfo.data.commit();
-        size_t fun_size = CASM::allocate_and_prepare_code(0, baseaddr, code, runtime.allocator(), unwindInfo.data.size());
+        size_t fun_size = CASM::allocate_and_prepare_code(0, baseaddr, code, unwindInfo.data.size());
         if (!baseaddr) {
             const char* err = asmjit::DebugUtils::errorAsString(asmjit::Error(fun_size));
             throw CompileTimeException(err);
@@ -679,7 +663,7 @@ namespace art {
         //TO-DO
         //also support android http://blog.httrack.com/blog/2013/08/23/catching-posix-signals-on-android/
 
-        auto& tmp = frame_symbols.map[baseaddr];
+        auto& tmp = attacha_environment::get_code_gen().frame_symbols.map[baseaddr];
         tmp.fun_size = fun_size;
         tmp.name = symbol_name;
         tmp.file = file_path;
@@ -687,18 +671,19 @@ namespace art {
         return baseaddr;
     }
 
-    bool FrameResult::deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime) {
+    bool FrameResult::deinit(uint8_t* frame, void* funct) {
         __deregister_frame(frame);
-        if (!frame_symbols.destroyed)
-            frame_symbols.map.erase((uint8_t*)funct);
-        return !(runtime._release(funct));
+
+        if (!attacha_environment::get_code_gen().frame_symbols.destroyed)
+            attacha_environment::get_code_gen().frame_symbols.map.erase((uint8_t*)funct);
+        return !(attacha_environment::get_code_gen().run_time.release(funct));
     };
 #endif
 
 
     StackTraceItem JitGetStackFrameName(NativeSymbolResolver* nativeSymbols, void* pc) {
-        if (!frame_symbols.destroyed) {
-            for (auto& it : frame_symbols.map) {
+        if (!attacha_environment::get_code_gen().frame_symbols.destroyed) {
+            for (auto& it : attacha_environment::get_code_gen().frame_symbols.map) {
                 auto& info = it.second;
                 if (pc >= it.first && pc < (it.first + info.fun_size))
                     return {info.name, info.file, JITPCToLine((uint8_t*)pc, &info)};

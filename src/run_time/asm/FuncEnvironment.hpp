@@ -17,6 +17,7 @@
 #include <util/threading.hpp>
 
 namespace art {
+    //use make_func_handle and release_func_handle to create and destroy FuncHandle
     struct FuncHandle {
         typedef ValueItem* (*ProxyFunction)(void*, ValueItem*, uint32_t);
         struct inner_handle;
@@ -39,7 +40,6 @@ namespace art {
         inner_handle* handle = nullptr;
         void** trampoline_jump = nullptr;
         void* trampoline_not_compiled_fallback; //do not use this
-        void* art_ref;                          //internal use
         char trampoline_code[];
         //pseudo code
         //jump rip
@@ -211,8 +211,4 @@ namespace art {
 
         ~inner_handle();
     };
-
-    //use make_func_handle and release_func_handle to create and destroy FuncHandle
-
-
 }

@@ -8,34 +8,29 @@
 #include <unordered_map>
 
 #include <run_time/attacha_abi_structs.hpp>
+#include <util/link_garbage_remover.hpp>
 
 namespace art {
     class ValueEnvironment {
-        std::unordered_map<art::ustring, ValueEnvironment*, art::hash<art::ustring>> environments;
+        std::unordered_map<art::ustring, typed_lgr<ValueEnvironment>, art::hash<art::ustring>> environments;
+        typed_lgr<ValueEnvironment> parent;
 
     public:
         ValueItem value;
 
-        ValueEnvironment*& joinEnvironment(const art::ustring& str) {
-            return environments[str];
-        }
+        ValueEnvironment(ValueEnvironment* parent = nullptr);
+        ~ValueEnvironment();
 
-        bool hasEnvironment(const art::ustring& str) {
-            return environments.contains(str);
-        }
+        typed_lgr<ValueEnvironment> joinEnvironment(const art::ustring& str);
+        typed_lgr<ValueEnvironment> joinEnvironment(const std::initializer_list<art::ustring>& strs);
+        bool hasEnvironment(const art::ustring& str);
+        bool hasEnvironment(const std::initializer_list<art::ustring>& strs);
+        void removeEnvironment(const art::ustring& str);
+        void removeEnvironment(const std::initializer_list<art::ustring>& strs);
+        void clear();
+        //finds value in current env and if not found, try find in parent
+        ValueItem* findValue(const art::ustring& str);
 
-        void removeEnvironment(const art::ustring& str) {
-            delete environments[str];
-            environments.erase(str);
-        }
-
-        void clear() {
-            for (auto& [key, value] : environments)
-                delete value;
-            environments.clear();
-            value = nullptr;
-        }
+        bool depth_safety();
     };
-
-    extern ValueEnvironment value_environments;
 }

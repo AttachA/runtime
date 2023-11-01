@@ -1227,8 +1227,8 @@ namespace art {
             a.section(data);
         }
 
-        static size_t allocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, asmjit::JitAllocator* alloc, size_t additional_size_end);
-        static void release_code(uint8_t* res, asmjit::JitAllocator* alloc);
+        static size_t allocate_and_prepare_code(size_t additional_size_begin, uint8_t*& res, CodeHolder* code, size_t additional_size_end);
+        static void release_code(uint8_t* res);
     };
 
     struct StackTraceItem {
@@ -1343,8 +1343,8 @@ namespace art {
         bool use_handle = false;
 
         //return unwind_info_ptr
-        void* init(uint8_t*& frame, CodeHolder* code, asmjit::JitRuntime& runtime, const char* symbol_name = "AttachA unnamed_symbol", const char* file_path = "");
-        static bool deinit(uint8_t* frame, void* funct, asmjit::JitRuntime& runtime);
+        void* init(uint8_t*& frame, CodeHolder* code, const char* symbol_name = "AttachA unnamed_symbol", const char* file_path = "");
+        static bool deinit(uint8_t* frame, void* funct);
         static std::vector<void*> JitCaptureStackChainTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
         static std::vector<StackTraceItem> JitCaptureStackTrace(uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
         static std::vector<StackTraceItem> JitCaptureExternStackTrace(void* rip, uint32_t framesToSkip = 0, bool includeNativeFrames = true, uint32_t max_frames = 32);
