@@ -4,11 +4,11 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#ifndef INCLUDE_BASIC_RUN_TIME
-#define INCLUDE_BASIC_RUN_TIME
+#ifndef INCLUDE_ATTACHA_RUN_TIME
+#define INCLUDE_ATTACHA_RUN_TIME
 #include <base/run_time.hpp>
 #include <run_time/AttachA_CXX.hpp>
 #include <run_time/standard_lib.hpp>
 
 
-#endif /* INCLUDE_BASIC_RUN_TIME */
+#endif /* INCLUDE_ATTACHA_RUN_TIME */

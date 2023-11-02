@@ -38,6 +38,16 @@ namespace art {
         bool _in_landing();
     };
 
+    class GeneratorRestart : AttachARuntimeException {
+        bool in_landing = false;
+        friend void forceCancelCancellation(GeneratorRestart& cancel_token);
+
+    public:
+        GeneratorRestart();
+        ~GeneratorRestart() noexcept(false);
+        bool _in_landing();
+    };
+
 #pragma pack(push)
 #pragma pack(1)
 
@@ -457,6 +467,7 @@ namespace art {
     //task unsafe, TO-DO: compatible with task sync classes
     class Generator {
         friend void prepare_generator(ValueItem& args, art::shared_ptr<FuncEnvironment>& func, art::shared_ptr<FuncEnvironment>& ex_handler, Generator*& weak_ref);
+        friend void*& __Generator_get_context(Generator* generator_weak_ref);
         list_array<ValueItem*> results;
         art::shared_ptr<FuncEnvironment> ex_handle; //if ex_handle is nullptr then exception will be unrolled to caller
         art::shared_ptr<FuncEnvironment> func;
@@ -465,6 +476,24 @@ namespace art {
         std::exception_ptr ex_ptr = nullptr;
         void* context = nullptr;
         bool end_of_life : 1 = false;
+        bool cancellation_flag : 1 = false;
+        bool restart_flag : 1 = false;
+
+        struct iterator {
+            art::shared_ptr<Generator> generator;
+
+            iterator(art::shared_ptr<Generator> generator);
+            iterator(const iterator& mov);
+            iterator(iterator&& mov) noexcept;
+            iterator& operator=(const iterator& mov);
+            iterator& operator=(iterator&& mov) noexcept;
+            bool operator==(const iterator& mov);
+            bool operator!=(const iterator& mov);
+            iterator& operator++();
+            ValueItem operator*();
+            iterator begin();
+            iterator end();
+        };
 
     public:
         Generator(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_generator_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr);
@@ -472,11 +501,15 @@ namespace art {
         Generator(Generator&& mov) noexcept;
         ~Generator();
 
-        static bool yield_iterate(art::shared_ptr<Generator>& lgr_task);
-        static ValueItem* get_result(art::shared_ptr<Generator>& lgr_task);
-        static bool has_result(art::shared_ptr<Generator>& lgr_task);
-        static list_array<ValueItem*> await_results(art::shared_ptr<Generator>& task);
-        static list_array<ValueItem*> await_results(list_array<art::shared_ptr<Generator>>& tasks);
+        static bool yield_iterate(art::shared_ptr<Generator>& gen);
+        static bool execute(art::shared_ptr<Generator>& gen);
+        static ValueItem* get_result(art::shared_ptr<Generator>& gen);
+        static list_array<ValueItem*> get_results(art::shared_ptr<Generator>& gen);
+        static bool has_result(art::shared_ptr<Generator>& gen);
+        static iterator cxx_iterate(art::shared_ptr<Generator>& gen);
+        static list_array<ValueItem> await_results(art::shared_ptr<Generator>& gen);
+        static list_array<ValueItem> await_results(list_array<art::shared_ptr<Generator>>& gens);
+        static void restart_context(art::shared_ptr<Generator>& gen);
 
 
         //in generators use
@@ -486,6 +519,7 @@ namespace art {
 
         //internal
         static void back_unwind(Generator* generator_weak_ref, std::exception_ptr&& ex_ptr);
+        static void back_cancel(Generator* generator_weak_ref);
         static void return_(Generator* generator_weak_ref, ValueItem* result);
     };
 

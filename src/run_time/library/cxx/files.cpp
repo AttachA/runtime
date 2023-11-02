@@ -6,9 +6,9 @@
 
 #include <filesystem>
 
-#include <configuration/compatibility.hpp>
+#include <attacha/configuration/compatibility.hpp>
 #include <run_time/AttachA_CXX.hpp>
-#include <run_time/cxx_library/files.hpp>
+#include <run_time/library/cxx/files.hpp>
 #include <run_time/tasks.hpp>
 #include <run_time/tasks/util/native_workers_singleton.hpp>
 #include <util/exceptions.hpp>
@@ -38,14 +38,14 @@ namespace art {
 }
 
 #if PLATFORM_WINDOWS
-#include <Windows.h>
-#include <io.h>
-#include <winternl.h>
-#if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
-#include <fstream>
-#endif
-#include <filesystem>
-#include <utf8cpp/utf8.h>
+    #include <Windows.h>
+    #include <io.h>
+    #include <winternl.h>
+    #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
+        #include <fstream>
+    #endif
+    #include <filesystem>
+    #include <utf8cpp/utf8.h>
 
 namespace art {
     namespace files {
@@ -1569,7 +1569,8 @@ namespace art {
                     nullptr,
                     &handle->overlapped,
                     nullptr,
-                    ReadDirectoryNotifyExtendedInformation);
+                    ReadDirectoryNotifyExtendedInformation
+                );
             }
             enum class action_type {
                 file_name_change,
@@ -2369,19 +2370,19 @@ namespace art {
     }
 }
 #elif PLATFORM_LINUX
-#if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
-#include <iostream>
-#endif
-#include <dirent.h>
-#include <errno.h>
-#include <ext/stdio_filebuf.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/inotify.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+    #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
+        #include <iostream>
+    #endif
+    #include <dirent.h>
+    #include <errno.h>
+    #include <ext/stdio_filebuf.h>
+    #include <fcntl.h>
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <sys/inotify.h>
+    #include <sys/stat.h>
+    #include <sys/types.h>
+    #include <unistd.h>
 
 namespace art {
     namespace files {
@@ -3255,7 +3256,7 @@ namespace art {
         bool BlockingFileHandle::valid() const noexcept {
             return handle != -1;
         }
-#if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
+    #if CONFIGURATION_COMPATIBILITY_ENABLE_FSTREAM_FROM_BLOCKINGFILEHANDLE
         ::std::iostream BlockingFileHandle::get_iostream() const {
             if (handle != -1) {
                 std::ios_base::openmode mode = std::ios::binary;
@@ -3277,12 +3278,11 @@ namespace art {
             }
             throw AException("FileException", "Can't open file");
         }
-#endif
+    #endif
 
         art::ustring BlockingFileHandle::get_path() const {
             return _path;
         }
-
 
         class FolderBrowserImpl {
             art::ustring _path;
@@ -4360,5 +4360,5 @@ namespace art {
     }
 }
 #else
-#error Unsupported platform
+    #error Unsupported platform
 #endif

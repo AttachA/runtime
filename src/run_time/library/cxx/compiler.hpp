@@ -10,7 +10,7 @@
 
 #include <run_time/asm/FuncEnvironment.hpp>
 #include <run_time/attacha_abi_structs.hpp>
-#include <run_time/cxx_library/files.hpp>
+#include <run_time/library/cxx/files.hpp>
 #include <util/hash.hpp>
 #include <util/ustring.hpp>
 

@@ -10,8 +10,8 @@
 #include <vector>
 
 #include <base/run_time.hpp>
-#include <configuration/tasks.hpp>
-#include <run_time/library_cxx_binds/console.hpp>
+#include <attacha/configuration/tasks.hpp>
+#include <run_time/library/cxx_binds/console.hpp>
 #include <run_time/tasks/util/light_stack.hpp>
 #include <util/exceptions.hpp>
 #include <util/platform.hpp>

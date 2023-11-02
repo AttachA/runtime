@@ -151,7 +151,8 @@ namespace art {
             loc.curr_task->awake_check++;
             --glob.tasks_in_swap;
             loc.context_in_swap = false;
-            checkCancellation();
+            if (!loc.current_interrupted)
+                checkCancellation();
             if (loc.curr_task->invalid_switch_caught) {
                 loc.curr_task->invalid_switch_caught = false;
                 throw InvalidContextSwitchException("Caught task that switched context but not scheduled or finalized self");

@@ -12,7 +12,7 @@
 #include <exception>
 #include <queue>
 
-#include <configuration/tasks.hpp>
+#include <attacha/configuration/tasks.hpp>
 #include <run_time/tasks.hpp>
 #include <run_time/tasks/util/hill_climbing.hpp>
 
@@ -228,6 +228,8 @@ namespace art {
     void bindedTaskExecutor(uint16_t id);
     void unsafe_put_task_to_timed_queue(std::deque<timing>& queue, std::chrono::high_resolution_clock::time_point t, art::typed_lgr<Task>& task);
     bool can_be_scheduled_task_to_hot(); //returns if task can be scheduled to hot queue
+    void forceCancelCancellation(GeneratorRestart& restart);
+    void forceCancelCancellation(TaskCancellation& restart);
 
 
     extern thread_local executors_local loc;

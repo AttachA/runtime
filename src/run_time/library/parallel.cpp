@@ -4,10 +4,10 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <configuration/agreement/symbols.hpp>
+#include <attacha/configuration/agreement/symbols.hpp>
 #include <run_time/AttachA_CXX.hpp>
-#include <util/threading.hpp>
 #include <run_time/library/parallel.hpp>
+#include <util/threading.hpp>
 
 namespace art {
     namespace parallel {

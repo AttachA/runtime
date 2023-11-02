@@ -4,8 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <run_time/cxx_library/compiler.hpp>
 #include <run_time/library/bytes.hpp>
+#include <run_time/library/cxx/compiler.hpp>
 
 namespace art {
     namespace compiler {

@@ -1,5 +1,5 @@
-#ifndef CONFIGURATION_TASKS
-#define CONFIGURATION_TASKS
+#ifndef INCLUDE_ATTACHA_CONFIGURATION_TASKS
+#define INCLUDE_ATTACHA_CONFIGURATION_TASKS
 #include <cstddef>
 
 namespace configuration {
@@ -48,4 +48,4 @@ namespace configuration {
 
 #define _configuration_tasks_enable_debug_mode false
 #define _configuration_tasks_enable_preemptive_scheduler_preview true
-#endif /* CONFIGURATION_TASKS */
+#endif /* INCLUDE_ATTACHA_CONFIGURATION_TASKS */

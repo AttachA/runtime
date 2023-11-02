@@ -6,7 +6,7 @@
 
 #include <string>
 
-#include <configuration/agreement/symbols.hpp>
+#include <attacha/configuration/agreement/symbols.hpp>
 #include <run_time/AttachA_CXX.hpp>
 #include <util/hash.hpp>
 

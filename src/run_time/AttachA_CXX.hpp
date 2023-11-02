@@ -7,7 +7,7 @@
 #pragma once
 #include <type_traits> //std::forward
 
-#include <configuration/agreement/symbols.hpp>
+#include <attacha/configuration/agreement/symbols.hpp>
 #include <run_time/asm/dynamic_call_proxy.hpp>
 #include <run_time/attacha_abi.hpp>
 #include <run_time/func_enviro_builder.hpp>

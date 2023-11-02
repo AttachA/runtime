@@ -4,8 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <attacha/configuration/agreement/symbols.hpp>
 #include <base/run_time.hpp>
-#include <configuration/agreement/symbols.hpp>
 #include <run_time/AttachA_CXX.hpp>
 #include <run_time/asm/CASM.hpp>
 #include <run_time/asm/FuncEnvironment.hpp>

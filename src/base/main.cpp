@@ -12,7 +12,7 @@
 #include <run_time/standard_lib.hpp>
 #include <run_time/tasks/util/interrupt.hpp>
 
-#include <run_time/library_cxx_binds/console.hpp>
+#include <run_time/library/cxx_binds/console.hpp>
 
 using namespace art;
 
@@ -191,8 +191,8 @@ int mmain() {
         return 0;
 }
 
-#include "run_time/cxx_library/files.hpp"
-#include "run_time/cxx_library/networking.hpp"
+#include "run_time/library/cxx/files.hpp"
+#include "run_time/library/cxx/networking.hpp"
 static constexpr char file_path[] = "D:\\sample_hello_world_http_response.txt";
 
 void test_slow_server_http(TcpNetworkStream& stream) {
@@ -244,6 +244,59 @@ int ymain() {
 }
 
 int main() {
+    art_lib::console::resetTextColor();
+    art_lib::console::printLine("Sample execution flow begin:");
+    art_lib::console::setTextColor(0, 0, 230);
+    art_lib::console::print("Main");
+    art_lib::console::resetTextColor();
+    art_lib::console::print("   -   ");
+    art_lib::console::setTextColor(0, 230, 0);
+    art_lib::console::print("Generator");
+    art_lib::console::resetTextColor();
+    art_lib::console::print("   -   ");
+    art_lib::console::setTextColor(230, 0, 0);
+    art_lib::console::printLine("Iterator");
+
+
+    art::shared_ptr gen = new Generator(
+        CXX::MakeNative([](void* generator_ref) {
+            art_lib::console::setTextColor(0, 230, 0);
+            art_lib::console::printLine("                #");
+            Generator* ref = (Generator*)generator_ref;
+            art_lib::console::setTextColor(0, 230, 0);
+            art_lib::console::printLine("                #");
+            Generator::result(ref, new ValueItem(1));
+            art_lib::console::setTextColor(0, 230, 0);
+            art_lib::console::printLine("                #");
+            Generator::yield(ref, new ValueItem(2));
+            art_lib::console::setTextColor(0, 230, 0);
+            art_lib::console::printLine("                #");
+            Generator::yield(ref, new ValueItem(3));
+            art_lib::console::setTextColor(0, 230, 0);
+            art_lib::console::printLine("                #");
+            return 123;
+        }),
+        {}
+    );
+    art_lib::console::setTextColor(0, 0, 230);
+    art_lib::console::printLine("  #");
+    for (ValueItem item : Generator::cxx_iterate(gen)) {
+        art_lib::console::setTextColor(230, 0, 0);
+        art_lib::console::printf("                                # []\n", item);
+    }
+    art_lib::console::setTextColor(0, 0, 230);
+    art_lib::console::printLine("  #");
+    Generator::restart_context(gen);
+
+    art_lib::console::setTextColor(0, 0, 230);
+    art_lib::console::printLine("  #");
+    auto results = Generator::await_results(gen);
+    art_lib::console::setTextColor(0, 0, 230);
+    art_lib::console::printf("  # []\n", results);
+    art_lib::console::setTextColor(0, 0, 230);
+    art_lib::console::printLine("  #");
+    art_lib::console::resetTextColor();
+    art_lib::console::printLine("Sample execution end.");
     ymain();
     Task::create_executor(4);
     auto itt = 100;

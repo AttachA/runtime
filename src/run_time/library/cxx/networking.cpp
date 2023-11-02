@@ -6,30 +6,30 @@
 
 #include <util/platform.hpp>
 #if PLATFORM_WINDOWS
-#define _WINSOCKAPI_
-#define WIN32_LEAN_AND_MEAN
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#include <mswsock.h>
-#include <stdio.h>
-#pragma comment(lib, "Ws2_32.lib")
+    #define _WINSOCKAPI_
+    #define WIN32_LEAN_AND_MEAN
+    #include <mswsock.h>
+    #include <stdio.h>
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #pragma comment(lib, "Ws2_32.lib")
 #elif PLATFORM_LINUX
-#include <arpa/inet.h>
-#include <sys/mman.h>
-#include <sys/ioctl.h>
-#include <netinet/tcp.h>
+    #include <arpa/inet.h>
+    #include <netinet/tcp.h>
+    #include <sys/ioctl.h>
+    #include <sys/mman.h>
 #else
-#error Unsupported platform
+    #error Unsupported platform
 #endif
 
+#include <attacha/configuration/agreement/symbols.hpp>
 #include <condition_variable>
-#include <utf8cpp/utf8.h>
-#include <configuration/agreement/symbols.hpp>
 #include <run_time/AttachA_CXX.hpp>
-#include <run_time/cxx_library/files.hpp>
-#include <run_time/cxx_library/networking.hpp>
 #include <run_time/asm/FuncEnvironment.hpp>
+#include <run_time/library/cxx/files.hpp>
+#include <run_time/library/cxx/networking.hpp>
 #include <run_time/tasks/util/native_workers_singleton.hpp>
+#include <utf8cpp/utf8.h>
 
 namespace art {
     AttachAVirtualTable* define_UniversalAddress = nullptr;
@@ -430,7 +430,7 @@ namespace art {
         inited = true;
     }
 
-#pragma region TCP
+    #pragma region TCP
 
     struct tcp_handle : public NativeWorkerHandle {
         std::list<std::tuple<char*, size_t>> write_queue;
@@ -951,7 +951,7 @@ namespace art {
         }
     };
 
-#pragma region TcpNetworkStream
+    #pragma region TcpNetworkStream
 
     class TcpNetworkStreamImpl : public TcpNetworkStream {
         friend class TcpNetworkManager;
@@ -1034,7 +1034,7 @@ namespace art {
             }
         }
 
-        bool write_file(char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) override{
+        bool write_file(char* path, size_t path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size) override {
             art::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
@@ -1063,7 +1063,7 @@ namespace art {
         }
 
         //write all data from write_queue
-        void force_write()override {
+        void force_write() override {
             art::lock_guard lg(mutex);
             if (handle) {
                 while (handle->valid())
@@ -1252,9 +1252,9 @@ namespace art {
         CXX::Interface::typeVTable<TcpNetworkStream>() = define_TcpNetworkStream;
     }
 
-#pragma endregion
+    #pragma endregion
 
-#pragma region TcpNetworkBlocking
+    #pragma region TcpNetworkBlocking
 
     class TcpNetworkBlockingImpl : public TcpNetworkBlocking {
         friend class TcpNetworkManager;
@@ -1378,14 +1378,14 @@ namespace art {
             return true;
         }
 
-        TcpError error() override{
+        TcpError error() override {
             art::lock_guard lg(mutex);
             if (handle)
                 return handle->invalid_reason;
             return last_error;
         }
 
-        ValueItem local_address()override {
+        ValueItem local_address() override {
             art::lock_guard lg(mutex);
             if (!handle)
                 return nullptr;
@@ -1497,7 +1497,7 @@ namespace art {
         CXX::Interface::typeVTable<TcpNetworkBlocking>() = define_TcpNetworkBlocking;
     }
 
-#pragma endregion
+    #pragma endregion
 
     class TcpNetworkManager : public NativeWorkerManager {
         TaskMutex safety;
@@ -1532,7 +1532,8 @@ namespace art {
                 address_len,
                 address_len,
                 nullptr,
-                &pClientContext->overlapped);
+                &pClientContext->overlapped
+            );
             if (success != TRUE) {
                 auto err = WSAGetLastError();
                 if (err == WSA_IO_PENDING)
@@ -1580,25 +1581,18 @@ namespace art {
             universal_address* pLocalAddr = NULL;
             int remoteLen = sizeof(universal_address);
             int localLen = sizeof(universal_address);
-            _GetAcceptExSockaddrs(data.buffer.buf,
-                                  0,
-                                  sizeof(universal_address) + 16,
-                                  sizeof(universal_address) + 16,
-                                  (LPSOCKADDR*)&pLocalAddr,
-                                  &localLen,
-                                  (LPSOCKADDR*)&pClientAddr,
-                                  &remoteLen);
+            _GetAcceptExSockaddrs(data.buffer.buf, 0, sizeof(universal_address) + 16, sizeof(universal_address) + 16, (LPSOCKADDR*)&pLocalAddr, &localLen, (LPSOCKADDR*)&pClientAddr, &remoteLen);
             ValueItem clientAddress(CXX::Interface::constructStructure<universal_address>(define_UniversalAddress, *pClientAddr), no_copy);
             ValueItem localAddress(CXX::Interface::constructStructure<universal_address>(define_UniversalAddress, *pLocalAddr), no_copy);
             if (accept_filter) {
                 if (CXX::cxxCall(accept_filter, clientAddress, localAddress)) {
                     closesocket(data.socket);
-#ifndef DISABLE_RUNTIME_INFO
+    #ifndef DISABLE_RUNTIME_INFO
                     auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
                     ValueItem notify{"Client: " + (art::ustring)*tmp + " not accepted due filter"};
                     delete tmp;
                     info.async_notify(notify);
-#endif
+    #endif
                     if (!data.is_bound)
                         delete &data;
                     else
@@ -1607,25 +1601,25 @@ namespace art {
                 }
             }
 
-#ifndef DISABLE_RUNTIME_INFO
+    #ifndef DISABLE_RUNTIME_INFO
             {
                 auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
                 ValueItem notify{"Client connected from: " + (art::ustring)*tmp};
                 delete tmp;
                 info.async_notify(notify);
             }
-#endif
+    #endif
             setsockopt(data.socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&main_socket, sizeof(main_socket));
             {
                 art::lock_guard lock(safety);
                 if (!NativeWorkersSingleton::register_handle((HANDLE)data.socket, &data)) {
                     closesocket(data.socket);
-#ifndef DISABLE_RUNTIME_INFO
+    #ifndef DISABLE_RUNTIME_INFO
                     auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
                     ValueItem notify{"Client: " + (art::ustring)*tmp + " not accepted because register handle failed " + std::to_string(data.socket)};
                     delete tmp;
                     info.sync_notify(notify);
-#endif
+    #endif
                     if (!data.is_bound)
                         delete &data;
                     else
@@ -1732,7 +1726,7 @@ namespace art {
                     corrupted = true;
                     return;
                 }
-#ifdef TCP_MAXRTMS
+    #ifdef TCP_MAXRTMS
                 cfg = config.keep_alive_settings.user_timeout_ms;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_MAXRTMS, (char*)&cfg, sizeof(cfg)) == -1) {
                     ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
@@ -1740,7 +1734,7 @@ namespace art {
                     corrupted = true;
                     return;
                 }
-#else
+    #else
                 cfg = config.keep_alive_settings.user_timeout_ms / 1000;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_MAXRT, (char*)&cfg, sizeof(cfg)) == -1) {
                     ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
@@ -1748,7 +1742,7 @@ namespace art {
                     corrupted = true;
                     return;
                 }
-#endif
+    #endif
             }
 
             init_win_fns(main_socket);
@@ -1790,12 +1784,12 @@ namespace art {
             else if (!((FALSE == status) || ((true == status) && (0 == dwBytesTransferred))))
                 data.handle(dwBytesTransferred);
             else {
-#ifndef DISABLE_RUNTIME_INFO
+    #ifndef DISABLE_RUNTIME_INFO
                 {
                     ValueItem notify{"Client disconnected (client hash: " + std::to_string(art::hash<void*>()(overlapped)) + ')'};
                     info.async_notify(notify);
                 }
-#endif
+    #endif
                 data.connection_reset();
             }
         }
@@ -2003,7 +1997,7 @@ namespace art {
                     corrupted = true;
                     return;
                 }
-#ifdef TCP_MAXRTMS
+    #ifdef TCP_MAXRTMS
                 cfg = config.keep_alive_settings.user_timeout_ms;
                 if (setsockopt(sock, IPPROTO_TCP, TCP_MAXRTMS, (char*)&cfg, sizeof(cfg)) == -1) {
                     ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
@@ -2011,7 +2005,7 @@ namespace art {
                     corrupted = true;
                     return;
                 }
-#else
+    #else
                 cfg = config.keep_alive_settings.user_timeout_ms / 1000;
                 if (setsockopt(sock, IPPROTO_TCP, TCP_MAXRT, (char*)&cfg, sizeof(cfg)) == -1) {
                     ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
@@ -2019,7 +2013,7 @@ namespace art {
                     corrupted = true;
                     return;
                 }
-#endif
+    #endif
             }
             DWORD argp = 1;
             if (ioctlsocket(sock, FIONBIO, &argp) == SOCKET_ERROR) {
@@ -2209,7 +2203,7 @@ namespace art {
         }
     };
 
-#pragma endregion
+    #pragma endregion
 
     class udp_handle : public NativeWorkerHandle, public NativeWorkerManager {
         art::typed_lgr<Task> notify_task;
@@ -2335,7 +2329,7 @@ namespace art {
     AttachAVirtualTable* define_TcpNetworkStream = nullptr;
     AttachAVirtualTable* define_TcpNetworkBlocking = nullptr;
     using SOCKET = int;
-#define INVALID_SOCKET -1
+    #define INVALID_SOCKET -1
 
     struct tcp_handle : public NativeWorkerHandle {
         std::list<std::tuple<char*, size_t>> write_queue;
@@ -2571,9 +2565,9 @@ namespace art {
                 case EFAULT:
                 case EINVAL:
                 case EAGAIN:
-#if EAGAIN != EWOULDBLOCK
+    #if EAGAIN != EWOULDBLOCK
                 case EWOULDBLOCK:
-#endif
+    #endif
                     pre_close(TcpError::invalid_state);
                     return;
                 case ECONNRESET:
@@ -2861,7 +2855,7 @@ namespace art {
         }
     };
 
-#pragma region TcpNetworkStream
+    #pragma region TcpNetworkStream
 
     class TcpNetworkStreamImpl : public TcpNetworkStream {
         friend class TcpNetworkManager;
@@ -3162,9 +3156,9 @@ namespace art {
         CXX::Interface::typeVTable<TcpNetworkStream>() = define_TcpNetworkStream;
     }
 
-#pragma endregion
+    #pragma endregion
 
-#pragma region TcpNetworkBlocking
+    #pragma region TcpNetworkBlocking
 
     class TcpNetworkBlockingImpl : public TcpNetworkBlocking {
         friend class TcpNetworkManager;
@@ -3407,7 +3401,7 @@ namespace art {
         CXX::Interface::typeVTable<TcpNetworkBlocking>() = define_TcpNetworkBlocking;
     }
 
-#pragma endregion
+    #pragma endregion
 
     class TcpNetworkManager : public NativeWorkerManager {
         TaskMutex safety;
@@ -3455,7 +3449,8 @@ namespace art {
             }
             art::lock_guard guard(safety);
             Task::start(
-                new Task(handler_fn, ValueItem{accept_manager_construct(self), std::move(clientAddr), std::move(localAddr)}));
+                new Task(handler_fn, ValueItem{accept_manager_construct(self), std::move(clientAddr), std::move(localAddr)})
+            );
         }
 
         void accept_bounded(tcp_handle& data, SOCKET client_socket) {
@@ -3486,25 +3481,25 @@ namespace art {
                 if (CXX::cxxCall(accept_filter, clientAddress, localAddress)) {
                     NativeWorkersSingleton::post_accept(&data, main_socket, nullptr, nullptr, 0);
                     close(client_socket);
-#ifndef DISABLE_RUNTIME_INFO
+    #ifndef DISABLE_RUNTIME_INFO
                     auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
                     ValueItem notify{"Client: " + (art::ustring)*tmp + " not accepted due filter"};
                     delete tmp;
                     info.async_notify(notify);
-#endif
+    #endif
                     return;
                 }
                 make_acceptEx();
             }
 
-#ifndef DISABLE_RUNTIME_INFO
+    #ifndef DISABLE_RUNTIME_INFO
             {
                 auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
                 ValueItem notify{"Client connected from: " + (art::ustring)*tmp};
                 delete tmp;
                 info.async_notify(notify);
             }
-#endif
+    #endif
             if (data.is_bound)
                 accept_bounded(data, client_socket);
             else {
@@ -4194,7 +4189,7 @@ namespace art {
         }
     };
 
-#pragma endregion
+    #pragma endregion
 
     uint8_t init_networking() {
         init_define_UniversalAddress();
@@ -4209,7 +4204,7 @@ namespace art {
         inited = false;
     }
 #else
-#error Unsupported platform
+    #error Unsupported platform
 #endif
 
     TcpNetworkServer::TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, const ValueItem& ip_port, ManageType mt, size_t acceptors, TcpConfiguration config) {

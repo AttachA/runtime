@@ -4,7 +4,7 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <configuration/tasks.hpp>
+#include <attacha/configuration/tasks.hpp>
 #include <run_time/tasks.hpp>
 #include <run_time/tasks/_internal.hpp>
 #include <run_time/tasks/util/hill_climbing.hpp>

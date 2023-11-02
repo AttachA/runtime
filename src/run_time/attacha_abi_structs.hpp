@@ -105,7 +105,16 @@ namespace art {
         copy_un_constant,
         copy_un_reference,
         move_un_reference,
-        remove_qualifiers
+        remove_qualifiers,
+
+        global_get,
+        global_set,
+        global_take,
+        global_move,
+        global_copy_to_constants,
+        global_copy_to_static,
+        global_reference_to_constants,
+        global_reference_to_static
     );
 
     ENUM_t(
