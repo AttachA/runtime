@@ -69,9 +69,8 @@ namespace art {
                 size_t hash = 0;
                 size_t symbols = 0;
 
-                default_() {}
-
-                ~default_() {}
+                default_() = default;
+                ~default_() = default;
             } d;
 
             constant_pool::pool_item* constant_data;

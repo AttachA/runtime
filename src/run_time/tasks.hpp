@@ -58,7 +58,7 @@ namespace art {
         struct Task* current_task = nullptr;
 
     public:
-        TaskMutex() {}
+        TaskMutex() = default;
 
         ~TaskMutex();
         void lock();
@@ -79,7 +79,7 @@ namespace art {
         uint32_t recursive_count = 0;
 
     public:
-        TaskRecursiveMutex() {}
+        TaskRecursiveMutex() = default;
 
         ~TaskRecursiveMutex() noexcept(false);
         void lock();
@@ -334,7 +334,7 @@ namespace art {
         size_t max_threshold = 0;
 
     public:
-        TaskSemaphore() {}
+        TaskSemaphore() = default;
 
         void setMaxThreshold(size_t val);
         void lock();
@@ -410,7 +410,7 @@ namespace art {
         void unchecked_unlock();
 
     public:
-        TaskLimiter() {}
+        TaskLimiter() = default;
 
         void set_max_threshold(size_t val);
         void lock();

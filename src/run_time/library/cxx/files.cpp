@@ -2435,7 +2435,7 @@ namespace art {
             }
 
             void cancel() {
-                if (buffer && !awaiter->fres.end_of_life) {
+                if (buffer && awaiter ? !awaiter->fres.end_of_life : true) {
                     if (NativeWorkersSingleton::await_cancel_fd_all(handle)) {
                         MutexUnify unify(mutex);
                         art::unique_lock<MutexUnify> lock(unify);
@@ -2443,8 +2443,13 @@ namespace art {
                         if (awaiter) {
                             if (is_read && !required_full)
                                 awaiter->fres.finalResult(ValueItem(), lock);
-                            else
-                                awaiter->fres.finalResult(ValueItem(), lock);
+                            else {
+                                try {
+                                    throw AException("FileException", "Operation canceled");
+                                } catch (...) {
+                                    awaiter->fres.finalResult(std::current_exception(), lock);
+                                }
+                            }
                         }
                         awaiters.notify_all();
                     }
@@ -2603,7 +2608,7 @@ namespace art {
 
         public:
             FileManager(const char* path, size_t path_len, open_mode open, on_open_action action, share_mode share, _sync_flags flags, pointer_mode _pointer_mode) noexcept(false)
-                : _pointer_mode(_pointer_mode) {
+                : _pointer_mode(_pointer_mode), uflags(0) {
                 read_pointer = 0;
                 write_pointer = 0;
                 int mode = O_NONBLOCK;
@@ -2749,8 +2754,9 @@ namespace art {
                         delete res;
                         return 0;
                     } else {
+                        VType type = res->meta.vtype;
                         delete res;
-                        throw InternalException("Caught invalid value type, excepted raw_arr_ui8, noting or except_value, but got " + std::to_string((int)res->meta.vtype));
+                        throw InternalException("Caught invalid value type, excepted raw_arr_ui8, noting or except_value, but got " + enum_to_string(type));
                     }
                 } catch (...) {
                     delete file;
@@ -3174,7 +3180,7 @@ namespace art {
         int64_t BlockingFileHandle::read(uint8_t* data, uint32_t size) {
             art::lock_guard<TaskMutex> lock(mutex);
             ssize_t readed;
-            if (!(readed = ::read(handle, data, size)) == -1) {
+            if ((readed = ::read(handle, data, size)) == -1) {
                 switch (errno) {
                 case EFAULT:
                     throw AException("FileException", "Invalid user buffer");
@@ -3415,7 +3421,7 @@ namespace art {
                 _path = copy._path;
             }
 
-            FolderBrowserImpl() {}
+            FolderBrowserImpl() = default;
 
             list_array<art::ustring> folders() {
                 reduce_to_folder();
@@ -3741,7 +3747,8 @@ namespace art {
                 struct stat stat;
                 mbstate_t state;
 
-                realpath((const char*)path.c_str(), buf);
+                assert(realpath((const char*)path.c_str(), buf) == nullptr);
+
                 ::stat((const char*)path.c_str(), &stat);
 
                 if (stat.st_mode & S_IFREG || stat.st_mode & S_IFLNK) {
@@ -3893,7 +3900,7 @@ namespace art {
                                 state.current->st_gid = stat.st_gid;
                                 state.current->st_uid = stat.st_uid;
                                 if (event->mask & IN_ISDIR)
-                                    _file_security_change->async_notify(args);
+                                    _folder_security_change->async_notify(args);
                                 else
                                     _file_security_change->async_notify(args);
                             }
@@ -3921,7 +3928,7 @@ namespace art {
                             if (event->mask & IN_ISDIR)
                                 _folder_size_change->async_notify(args);
                             else
-                                _folder_size_change->async_notify(args);
+                                _file_size_change->async_notify(args);
                         }
                         if (event->mask & IN_MOVED_FROM) {
                             if (event->mask & IN_ISDIR)
@@ -3936,6 +3943,7 @@ namespace art {
                                 _file_creation->async_notify(args);
                         }
                         buffer += sizeof(inotify_event) + event->len;
+                        readed -= sizeof(inotify_event) + event->len;
                     }
                     createHandle(handle);
                 } else {

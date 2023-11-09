@@ -105,7 +105,7 @@ namespace art {
             ++(*tot_weak);
     }
 
-    lgr::lgr() {}
+    lgr::lgr() = default;
 
     lgr::lgr(void* copy, bool (*clc_depth)(void*), void (*destruct)(void*), bool as_weak)
         : calc_depth(clc_depth), destructor(destruct) {

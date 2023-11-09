@@ -74,19 +74,11 @@ namespace art {
             }
 
             T& operator[](uint32_t index) {
-                if constexpr (as_reference) {
-                    return data[index];
-                } else {
-                    return data[index];
-                }
+                return data[index];
             }
 
             const T& operator[](uint32_t index) const {
-                if constexpr (as_reference) {
-                    return data[index];
-                } else {
-                    return data[index];
-                }
+                return data[index];
             }
 
             uint32_t size() const {

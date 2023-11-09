@@ -1417,17 +1417,17 @@ namespace art {
                 switch (args[1].meta.vtype) {
                 case VType::uarr:
                     for (ValueItem& it : (list_array<ValueItem>&)args[1])
-                        table.push_back((art::ustring)it);
+                        table.emplace_back((art::ustring)it);
                     break;
                 case VType::string:
-                    table.push_back((art::ustring)args[1]);
+                    table.emplace_back((art::ustring)args[1]);
                     break;
                 case VType::saarr:
                 case VType::faarr: {
                     ValueItem* it = (ValueItem*)args[1].getSourcePtr();
                     uint32_t len = args[1].meta.val_len;
                     for (uint32_t i = 0; i < len; i++)
-                        table.push_back((art::ustring)it[i]);
+                        table.emplace_back((art::ustring)it[i]);
                     break;
                 }
                 default:

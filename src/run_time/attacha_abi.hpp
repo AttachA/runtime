@@ -308,7 +308,6 @@ namespace art {
                         std::is_same_v<std::remove_cv_t<T>, char*> ||
                         std::is_same_v<std::remove_cvref_t<T>, art::ustring> ||
                         std::is_same_v<std::remove_cvref_t<T>, std::string> ||
-                        std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||
                         std::is_same_v<std::remove_cvref_t<T>, ValueMeta> ||
                         std::is_same_v<std::remove_cvref_t<T>, Structure> ||
                         std::is_same_v<std::remove_cvref_t<T>, ValueItem> ||

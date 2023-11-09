@@ -27,8 +27,6 @@ namespace art {
             if (!allow_threshold) {
                 size_t unlocks = max_threshold;
                 max_threshold = val;
-                if (allow_threshold >= 1)
-                    locked = false;
                 while (unlocks-- >= 1)
                     unchecked_unlock();
             } else

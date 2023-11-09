@@ -904,6 +904,8 @@ namespace art {
         move = copy.move;
         this->copy = copy.copy;
         methods = copy.methods;
+        structure_bytes = copy.structure_bytes;
+        allow_auto_copy = copy.allow_auto_copy;
         tags = copy.tags ? new list_array<StructureTag>(*copy.tags) : nullptr;
     }
 
@@ -1271,6 +1273,7 @@ namespace art {
                 vtable->derive(*reinterpret_cast<AttachAVirtualTable*>(std::get<0>(table)));
                 break;
             default:
+                delete vtable;
                 throw NotImplementedException();
             }
         }
@@ -1541,12 +1544,12 @@ namespace art {
                 ValueInfo* dst_value_table = table_dst->getValuesInfo(dst_table_size);
                 if (dst->vtable == src->vtable) {
                     structure_helpers::copy_items((char*)dst->self, (char*)src->self, dst_value_table, dst_table_size);
-                } else if (dst->vtable_mode == VTableMode::AttachAVirtualTable) {
+                } else if (src->vtable_mode == VTableMode::AttachAVirtualTable) {
                     auto table_src = reinterpret_cast<AttachAVirtualTable*>(src->vtable);
                     size_t src_table_size = 0;
                     ValueInfo* src_value_table = table_src->getValuesInfo(src_table_size);
                     structure_helpers::copy_items_abstract((char*)dst->self, dst_value_table, dst_table_size, (char*)src->self, src_value_table, src_table_size);
-                } else if (dst->vtable_mode == VTableMode::AttachADynamicVirtualTable) {
+                } else if (src->vtable_mode == VTableMode::AttachADynamicVirtualTable) {
                     auto table_src = reinterpret_cast<AttachADynamicVirtualTable*>(src->vtable);
                     size_t src_table_size = 0;
                     ValueInfo* src_value_table = table_src->getValuesInfo(src_table_size);
@@ -1570,12 +1573,12 @@ namespace art {
                 ValueInfo* dst_value_table = table_dst->getValuesInfo(dst_table_size);
                 if (dst->vtable == src->vtable) {
                     structure_helpers::copy_items((char*)dst->self, (char*)src->self, dst_value_table, dst_table_size);
-                } else if (dst->vtable_mode == VTableMode::AttachAVirtualTable) {
+                } else if (src->vtable_mode == VTableMode::AttachAVirtualTable) {
                     auto table_src = reinterpret_cast<AttachAVirtualTable*>(src->vtable);
                     size_t src_table_size = 0;
                     ValueInfo* src_value_table = table_src->getValuesInfo(src_table_size);
                     structure_helpers::copy_items_abstract((char*)dst->self, dst_value_table, dst_table_size, (char*)src->self, src_value_table, src_table_size);
-                } else if (dst->vtable_mode == VTableMode::AttachADynamicVirtualTable) {
+                } else if (src->vtable_mode == VTableMode::AttachADynamicVirtualTable) {
                     auto table_src = reinterpret_cast<AttachADynamicVirtualTable*>(src->vtable);
                     size_t src_table_size = 0;
                     ValueInfo* src_value_table = table_src->getValuesInfo(src_table_size);
@@ -1613,7 +1616,7 @@ namespace art {
             break;
         }
         default:
-            break;
+            throw NotImplementedException();
         }
         std::unique_ptr<Structure, __Structure_destruct> dst_ptr(dst);
         switch (dst->vtable_mode) {

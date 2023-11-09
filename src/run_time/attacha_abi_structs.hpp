@@ -509,7 +509,7 @@ namespace art {
         ValueItemConstIterator(const ValueItemConstIterator& copy)
             : iterator(copy.iterator) {}
 
-        ~ValueItemConstIterator() {}
+        ~ValueItemConstIterator() = default;
 
         ValueItemConstIterator& operator++() {
             iterator.operator++();

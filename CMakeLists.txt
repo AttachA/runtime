@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(AttachA CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(Boost_NO_WARN_NEW_VERSIONS ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(art_src_INCLUDE_DIR "src")
 set(art_configuration_INCLUDE_DIR "include")

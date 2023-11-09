@@ -123,22 +123,26 @@ namespace art {
 
     MutexUnify::MutexUnify() {
         type = MutexUnifyType::noting;
+        state = {0};
     }
 
     MutexUnify::MutexUnify(const MutexUnify& mut) {
         type = mut.type;
         nmut = mut.nmut;
         state = mut.state;
+        state = {0};
     }
 
     MutexUnify::MutexUnify(art::mutex& smut) {
         type = MutexUnifyType::nmut;
         nmut = std::addressof(smut);
+        state = {0};
     }
 
     MutexUnify::MutexUnify(art::rw_mutex& smut) {
         type = MutexUnifyType::nrwmut;
         nrwmut = std::addressof(smut);
+        state = {0};
     }
 
     MutexUnify::MutexUnify(art::timed_mutex& smut) {
@@ -149,25 +153,30 @@ namespace art {
     MutexUnify::MutexUnify(art::recursive_mutex& smut) {
         type = MutexUnifyType::nrec;
         nrec = std::addressof(smut);
+        state = {0};
     }
 
     MutexUnify::MutexUnify(TaskMutex& smut) {
         type = MutexUnifyType::umut;
         umut = std::addressof(smut);
+        state = {0};
     }
 
     MutexUnify::MutexUnify(TaskRecursiveMutex& smut) {
         type = MutexUnifyType::urmut;
         urmut = std::addressof(smut);
+        state = {0};
     }
 
     MutexUnify::MutexUnify(MultiplyMutex& mmut)
         : mmut(&mmut) {
         type = MutexUnifyType::mmut;
+        state = {0};
     }
 
     MutexUnify::MutexUnify(nullptr_t) {
         type = MutexUnifyType::noting;
+        state = {0};
     }
 
     MutexUnify::~MutexUnify() {
@@ -184,6 +193,7 @@ namespace art {
     MutexUnify& MutexUnify::operator=(art::mutex& smut) {
         type = MutexUnifyType::nmut;
         nmut = std::addressof(smut);
+        state = {0};
         return *this;
     }
 
@@ -196,35 +206,41 @@ namespace art {
     MutexUnify& MutexUnify::operator=(art::timed_mutex& smut) {
         type = MutexUnifyType::ntimed;
         ntimed = std::addressof(smut);
+        state = {0};
         return *this;
     }
 
     MutexUnify& MutexUnify::operator=(art::recursive_mutex& smut) {
         type = MutexUnifyType::nrec;
         nrec = std::addressof(smut);
+        state = {0};
         return *this;
     }
 
     MutexUnify& MutexUnify::operator=(TaskMutex& smut) {
         type = MutexUnifyType::umut;
         umut = std::addressof(smut);
+        state = {0};
         return *this;
     }
 
     MutexUnify& MutexUnify::operator=(TaskRecursiveMutex& smut) {
         type = MutexUnifyType::urmut;
         urmut = std::addressof(smut);
+        state = {0};
         return *this;
     }
 
     MutexUnify& MutexUnify::operator=(MultiplyMutex& smut) {
         type = MutexUnifyType::mmut;
         mmut = std::addressof(smut);
+        state = {0};
         return *this;
     }
 
     MutexUnify& MutexUnify::operator=(nullptr_t) {
         type = MutexUnifyType::noting;
+        state = {0};
         return *this;
     }
 

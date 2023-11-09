@@ -22,7 +22,7 @@ namespace art {
             for (int64_t i = len - 1; i >= 0; i--)
                 tmp[i] = prox[j++];
             for (size_t i = 0; i < len; i++)
-                prox[i] = prox[i];
+                prox[i] = tmp[i];
             delete[] tmp;
         }
 

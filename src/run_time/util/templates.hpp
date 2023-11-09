@@ -231,7 +231,7 @@ namespace art {
             static T value;
 
             store_value(T v) {
-                value == std::move(v);
+                value = std::move(v);
             };
         };
 

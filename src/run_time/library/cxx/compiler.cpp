@@ -74,9 +74,8 @@ namespace art {
             patch_list _patch_list;
             for (const auto& opcode : _opcodes) {
                 auto _patch = new FuncHandle::inner_handle(opcode, false, nullptr);
-                _patch_list.push_back({art::ustring(), _patch});
+                _patch_list.emplace_back(art::ustring(), _patch);
             }
-
             PatchList patches;
             patches.add_patches(std::move(_patch_list));
             patches.apply();

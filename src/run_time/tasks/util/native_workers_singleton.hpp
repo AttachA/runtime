@@ -228,7 +228,7 @@ namespace art {
             struct io_uring_params params;
             memset(&params, 0, sizeof(params));
 
-            if (int res = io_uring_queue_init_params(1024, &m_ring, &params) < 0) {
+            if (int res = io_uring_queue_init_params(1024, &m_ring, &params); res < 0) {
                 ValueItem notify{"io_uring_queue_init failed with error ", res};
                 errors.sync_notify(notify);
                 return;

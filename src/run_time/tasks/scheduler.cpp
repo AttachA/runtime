@@ -618,6 +618,9 @@ namespace art {
                 std::abort();
             }
         }
+
+        initializer_guard.lock();
+        context.completions.erase(to_remove_after_death);
     }
 
 #pragma endregion

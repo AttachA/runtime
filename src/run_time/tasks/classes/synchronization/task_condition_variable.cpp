@@ -9,7 +9,7 @@
 #include <run_time/tasks/_internal.hpp>
 
 namespace art {
-    TaskConditionVariable::TaskConditionVariable() {}
+    TaskConditionVariable::TaskConditionVariable() = default;
 
     TaskConditionVariable::~TaskConditionVariable() {
         notify_all();
@@ -132,7 +132,7 @@ namespace art {
             art::lock_guard guard(no_race);
             while (resume_task.size()) {
                 resume_task.back().task->no_race.lock();
-                if (resume_task.back().task->time_end_flag || resume_task.back().awake_check != resume_task.back().awake_check) {
+                if (resume_task.back().task->time_end_flag || resume_task.back().task->awake_check != resume_task.back().awake_check) {
                     resume_task.back().task->no_race.unlock();
                     resume_task.pop_back();
                 } else {

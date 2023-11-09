@@ -61,7 +61,7 @@ namespace art {
         result_notify.notify_all();
     }
 
-    TaskResult::TaskResult() {}
+    TaskResult::TaskResult() = default;
 
     TaskResult::TaskResult(TaskResult&& move) noexcept {
         results = std::move(move.results);

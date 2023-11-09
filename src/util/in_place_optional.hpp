@@ -64,6 +64,7 @@ namespace art {
                 new (&v.value) T(value);
                 contains_value = true;
             }
+            return *this;
         }
 
         i_p_optional& operator=(T&& value) {
@@ -73,6 +74,7 @@ namespace art {
                 new (&v.value) T(std::move(value));
                 contains_value = true;
             }
+            return *this;
         }
 
         i_p_optional& operator=(i_p_optional<T>&& other) {
@@ -85,6 +87,7 @@ namespace art {
                 new (&v.value) T(std::move(other.v.value));
                 contains_value = true;
             }
+            return *this;
         }
 
         i_p_optional& operator=(const i_p_optional<T>& other) {
@@ -97,6 +100,7 @@ namespace art {
                 new (&v.value) T(other.v.value);
                 contains_value = true;
             }
+            return *this;
         }
 
         T& operator*() {

@@ -2368,7 +2368,7 @@ namespace art {
         } opcode = Opcode::ACCEPT;
 
         tcp_handle(SOCKET socket, int32_t buffer_len, NativeWorkerManager* manager, uint32_t read_queue_size = 10)
-            : socket(socket), NativeWorkerHandle(manager), max_read_queue_size(read_queue_size) {
+            : socket(socket), NativeWorkerHandle(manager), max_read_queue_size(read_queue_size), clientAddress(), clientAddressLen(sizeof(sockaddr_storage)) {
             if (buffer_len < 0)
                 throw InvalidArguments("buffer_len must be positive");
             if (buffer_len) {

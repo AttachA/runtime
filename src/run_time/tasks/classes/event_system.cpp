@@ -34,7 +34,7 @@ namespace art {
             art::lock_guard guard(no_race);
             for (auto& it : list) {
                 art::typed_lgr<Task> tsk(new Task(it, args));
-                wait_tasks.push_back(tsk);
+                wait_tasks.emplace_back(tsk);
                 Task::start(tsk);
             }
         }

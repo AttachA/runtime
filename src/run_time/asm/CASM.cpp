@@ -493,7 +493,7 @@ namespace art {
         ffi.advance_loc(offset());
         ffi.stack_offset(stack_align);
         ffi.offset(reg.id(), stack_align);
-        pushes.push_back({cur_op++, reg});
+        pushes.emplace_back(cur_op++, reg);
     }
 
     void BuildProlog::stackAlloc(uint32_t size) {
@@ -504,7 +504,7 @@ namespace art {
         stack_align += size;
         ffi.advance_loc(offset());
         ffi.stack_offset(stack_align);
-        stack_alloc.push_back({cur_op++, size});
+        stack_alloc.emplace_back(cur_op++, size);
     }
 
     void BuildProlog::setFrame(uint16_t stack_offset) {
@@ -514,7 +514,7 @@ namespace art {
             csm.mov(frame_ptr, stack_ptr);
         else
             csm.lea(frame_ptr, stack_ptr, stack_offset);
-        set_frame.push_back({cur_op++, stack_offset});
+        set_frame.emplace_back(cur_op++, stack_offset);
         frame_inited = true;
     }
 
@@ -529,7 +529,7 @@ namespace art {
             ffi.advance_loc(offset());
             ffi.offset(reg.id(), stack_back_offset);
         }
-        save_to_stack.push_back({cur_op++, {reg, stack_back_offset}});
+        save_to_stack.emplace_back(cur_op++, std::pair(reg, stack_back_offset));
     }
 
     void BuildProlog::end_prolog() {
@@ -699,7 +699,7 @@ namespace art {
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
         max_frames += 1;
-        std::unique_ptr<void*, std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
+        std::unique_ptr<void*[]> frames_buffer(new void*[max_frames]);
         void** frame = frames_buffer.get();
         uint32_t num_frames = CaptureStackTrace(max_frames, frame);
 
@@ -720,7 +720,7 @@ namespace art {
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
         max_frames += 1;
-        std::unique_ptr<void*, std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
+        std::unique_ptr<void*[]> frames_buffer(new void*[max_frames]);
         void** frame = frames_buffer.get();
         uint32_t num_frames = CaptureStackTrace(max_frames, frame);
         if (framesToSkip >= num_frames)
@@ -736,7 +736,7 @@ namespace art {
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
         max_frames += 1;
-        std::unique_ptr<void*, std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
+        std::unique_ptr<void*[]> frames_buffer(new void*[max_frames]);
         void** frame = frames_buffer.get();
         uint32_t num_frames = CaptureStackTrace(max_frames, frame, rip);
 
@@ -757,7 +757,7 @@ namespace art {
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
         max_frames += 1;
-        std::unique_ptr<void*, std::default_delete<void*[]>> frames_buffer(new void*[max_frames]);
+        std::unique_ptr<void*[]> frames_buffer(new void*[max_frames]);
         void** frame = frames_buffer.get();
         uint32_t num_frames = CaptureStackTrace(max_frames, frame, rip);
         if (framesToSkip >= num_frames)

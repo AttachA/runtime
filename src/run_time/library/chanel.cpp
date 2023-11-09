@@ -121,7 +121,7 @@ namespace art {
                 return false;
         }
 
-        Chanel::Chanel() {}
+        Chanel::Chanel() = default;
 
         Chanel::~Chanel() {
             for (auto& it : auto_notifier) {

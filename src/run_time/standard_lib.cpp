@@ -596,8 +596,6 @@ namespace art {
     }
 
     uint64_t math_factorial_impl_FACTORu(uint64_t m) {
-        if (m < 0)
-            return -1;
         if (m < 10)
             return math_factorial_impl__FAST_FACTOR(m);
         uint64_t res = 39916800;
