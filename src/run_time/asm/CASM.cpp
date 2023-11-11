@@ -580,13 +580,13 @@ namespace art {
 
             int status;
             char* new_function = abi::__cxa_demangle(function, nullptr, nullptr, &status);
-            if (new_function)
+            if (new_function){
                 function = new_function;
+                free(new_function);
+            }
 
 
             art::ustring s = "Called from " + art::ustring(function) + " at " + filename + '\n';
-            if (new_function)
-                free(new_function);
             free(strings);
             return {s, "UNDEFINED", SIZE_MAX};
         }
@@ -699,7 +699,7 @@ namespace art {
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
         max_frames += 1;
-        std::unique_ptr<void*[]> frames_buffer(new void*[max_frames]);
+        std::unique_ptr<void*[]> frames_buffer = std::make_unique<void*[]>(max_frames);
         void** frame = frames_buffer.get();
         uint32_t num_frames = CaptureStackTrace(max_frames, frame);
 
@@ -708,8 +708,10 @@ namespace art {
             nativeSymbols.reset(new NativeSymbolResolver());
 
         std::vector<StackTraceItem> stack_trace;
+        int64_t reserve_count = int64_t(num_frames) - int64_t(framesToSkip) + 1;
+        stack_trace.reserve(reserve_count > 0 ? reserve_count : 0);
         for (uint32_t i = framesToSkip + 1; i < num_frames; i++)
-            stack_trace.push_back(JitGetStackFrameName(nativeSymbols.get(), frame[i]));
+            stack_trace.emplace_back(JitGetStackFrameName(nativeSymbols.get(), frame[i]));
         return stack_trace;
     }
 
@@ -720,7 +722,7 @@ namespace art {
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
         max_frames += 1;
-        std::unique_ptr<void*[]> frames_buffer(new void*[max_frames]);
+        std::unique_ptr<void*[]> frames_buffer = std::make_unique<void*[]>(max_frames);
         void** frame = frames_buffer.get();
         uint32_t num_frames = CaptureStackTrace(max_frames, frame);
         if (framesToSkip >= num_frames)
@@ -736,7 +738,7 @@ namespace art {
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
         max_frames += 1;
-        std::unique_ptr<void*[]> frames_buffer(new void*[max_frames]);
+        std::unique_ptr<void*[]> frames_buffer = std::make_unique<void*[]>(max_frames);
         void** frame = frames_buffer.get();
         uint32_t num_frames = CaptureStackTrace(max_frames, frame, rip);
 
@@ -745,8 +747,10 @@ namespace art {
             nativeSymbols.reset(new NativeSymbolResolver());
 
         std::vector<StackTraceItem> stack_trace;
+        int64_t reserve_count = int64_t(num_frames) - int64_t(framesToSkip) + 1;
+        stack_trace.reserve(reserve_count > 0 ? reserve_count : 0);
         for (uint32_t i = framesToSkip + 1; i < num_frames; i++)
-            stack_trace.push_back(JitGetStackFrameName(nativeSymbols.get(), frame[i]));
+            stack_trace.emplace_back(JitGetStackFrameName(nativeSymbols.get(), frame[i]));
         return stack_trace;
     }
 
@@ -757,7 +761,7 @@ namespace art {
         if (max_frames + 1 == 0)
             throw std::bad_array_new_length();
         max_frames += 1;
-        std::unique_ptr<void*[]> frames_buffer(new void*[max_frames]);
+        std::unique_ptr<void*[]> frames_buffer = std::make_unique<void*[]>(max_frames);
         void** frame = frames_buffer.get();
         uint32_t num_frames = CaptureStackTrace(max_frames, frame, rip);
         if (framesToSkip >= num_frames)

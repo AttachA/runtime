@@ -4,12 +4,14 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <util/exceptions.hpp>
 #include <util/platform.hpp>
 #if !defined(SRC_RUN_TIME_ASM_CASM_DWARF_BUILDER) && PLATFORM_LINUX
 #define SRC_RUN_TIME_ASM_CASM_DWARF_BUILDER
 #include <cstddef>
 #include <library/list_array.hpp>
 #include <string>
+
 
 struct CIE_entry {
     uint32_t id;
@@ -32,7 +34,7 @@ struct CIE_entry {
     uint8_t return_address_register;
 };
 struct FDE_entry {
-    uint64_t function_pointer;
+    uint64_t function_pointer = 0;
     uint64_t function_size = 0;
 };
 enum class cfa_opcodes : uint8_t { // linux repo //arch/sh/include/asm/dwarf.h#L315
@@ -175,7 +177,10 @@ inline list_array<uint8_t> make_CIE(const CIE_entry& entry,
     if (entry.augmentation_remainder.enabled || entry.personality.enabled)
         data.push_back(make_uleb128(entry.personality.enabled ? sizeof(uint32_t) : 0 + augmentation_data.size()));
     if (entry.personality.enabled) {
-        data[personality_offset_set] = augmentation_data.size();
+        size_t augmentation_data_size = augmentation_data.size();
+        if (augmentation_data_size != uint8_t(augmentation_data_size))
+            throw art::NumericOverflowException();
+        data[personality_offset_set] = augmentation_data_size;
         auto personality_offset = make_uleb128(entry.personality.plt_entry);
         data.push_back(make_uleb128(augmentation_data.size() + personality_offset.size()));
         data.push_back(personality_offset);

@@ -332,7 +332,7 @@ namespace art {
                     std::chrono::year_month_day ymd;
                     std::chrono::hh_mm_ss<std::chrono::microseconds> time;
                     art::times::_internal_::extract_date_time(args[0], ymd, time);
-                    return (uint64_t)(unsigned int)time.hours().count();
+                    return (uint64_t)time.hours().count();
                 } else
                     throw InvalidOperation("operator `hours` can be applied only to time_point types");
             }
@@ -343,7 +343,7 @@ namespace art {
                     std::chrono::year_month_day ymd;
                     std::chrono::hh_mm_ss<std::chrono::microseconds> time;
                     art::times::_internal_::extract_date_time(args[0], ymd, time);
-                    return (uint64_t)(unsigned int)time.minutes().count();
+                    return (uint64_t)time.minutes().count();
                 } else
                     throw InvalidOperation("operator `minutes` can be applied only to time_point types");
             }

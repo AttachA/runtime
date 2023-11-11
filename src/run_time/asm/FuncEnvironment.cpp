@@ -110,17 +110,10 @@ namespace art {
     }
 
     FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, bool is_cheap, art::ustring* cross_code_compiler_name_version)
-        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version) {
-        _type = FuncType::own;
-        this->cross_code = code;
-    }
+        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version), cross_code(code), _type(FuncType::own) {}
 
     FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, bool is_cheap, art::ustring* cross_code_compiler_name_version)
-        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version) {
-        _type = FuncType::own;
-        this->cross_code = code;
-        this->values = values;
-    }
+        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version), cross_code(code), _type(FuncType::own), values(values) {}
 
     FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<art::shared_ptr<FuncEnvironment>>& local_funcs, bool is_cheap, art::ustring* cross_code_compiler_name_version)
         : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version) {
@@ -345,7 +338,7 @@ namespace art {
         trampoline_code.setErrorHandler(&error_handler);
         trampoline_code.init(attacha_environment::get_code_gen().run_time.environment());
         CASM a(trampoline_code);
-        char fake_data[8]{(char)0xFF};
+        char fake_data[8]{(char)0xFF, (char)0xFF, (char)0xFF, (char)0xFF, (char)0xFF, (char)0xFF, (char)0xFF, (char)0xFF};
         Label compile_call_label = a.add_data(fake_data, 8);
         Label handle_label = a.add_data(fake_data, 8);
 

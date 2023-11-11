@@ -36,7 +36,7 @@ namespace art {
                 uint64_t& constants_values) = 0;
         };
 
-        basic* map_compiler(art::ustring name_version);
+        basic* map_compiler(const art::ustring& name_version);
     }
 }
 #endif /* SRC_RUN_TIME_ASM_IL_COMPILER_BASIC */

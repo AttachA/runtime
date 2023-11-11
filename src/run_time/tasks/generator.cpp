@@ -63,26 +63,20 @@ namespace art {
         return std::move(*reinterpret_cast<boost::context::continuation*>(&__Generator_get_context(weak_ref)));
     }
 
-    Generator::Generator(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_generator_local, art::shared_ptr<FuncEnvironment> exception_handler) {
-        args = arguments;
-        func = call_func;
+    Generator::Generator(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_generator_local, art::shared_ptr<FuncEnvironment> exception_handler)
+        : args(arguments), func(call_func), ex_handle(exception_handler) {
         if (used_generator_local)
             _generator_local = new ValueEnvironment();
         else
             _generator_local = nullptr;
-
-        ex_handle = exception_handler;
     }
 
-    Generator::Generator(art::shared_ptr<FuncEnvironment> call_func, ValueItem&& arguments, bool used_generator_local, art::shared_ptr<FuncEnvironment> exception_handler) {
-        args = std::move(arguments);
-        func = call_func;
+    Generator::Generator(art::shared_ptr<FuncEnvironment> call_func, ValueItem&& arguments, bool used_generator_local, art::shared_ptr<FuncEnvironment> exception_handler)
+        : args(std::move(arguments)), func(call_func), ex_handle(exception_handler) {
         if (used_generator_local)
             _generator_local = new ValueEnvironment();
         else
             _generator_local = nullptr;
-
-        ex_handle = exception_handler;
     }
 
     Generator::Generator(Generator&& mov) noexcept {

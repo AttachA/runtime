@@ -715,14 +715,14 @@ namespace art {
         auto end = queue.end();
         while (it != end) {
             if (it->wait_timepoint >= t) {
-                queue.insert(it, timing(t, task, task->awake_check));
+                queue.emplace(it, timing(t, task, task->awake_check));
                 i = -1;
                 break;
             }
             ++it;
         }
         if (i != -1)
-            queue.push_back(timing(t, task, task->awake_check));
+            queue.emplace_back(timing(t, task, task->awake_check));
     }
 
     void makeTimeWait(std::chrono::high_resolution_clock::time_point t) {

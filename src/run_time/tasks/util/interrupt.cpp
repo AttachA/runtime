@@ -19,8 +19,8 @@ void uninstall_timer_handle_local();
 namespace art {
     namespace interrupt {
         struct timer_handle {
-            void (*interrupt)();
-            itimerval timer_value;
+            void (*interrupt)() = nullptr;
+            itimerval timer_value = {0};
             void* timer_handle_ = nullptr;
             thread::id thread_id;
             std::atomic_size_t guard_zones = 0;

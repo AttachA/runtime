@@ -1423,7 +1423,7 @@ namespace art {
                     if (str[i] == '"' && str[i - 1] != '\\')
                         in_str = !in_str;
                     if (str[i] == ',' && !in_str) {
-                        res.insert(SBcast(tmp));
+                        res.emplace(SBcast(tmp));
                         tmp.clear();
                     } else
                         tmp += str[i];
@@ -4073,7 +4073,11 @@ namespace art {
             return Structure::compare((Structure*)self, (Structure*)other);
         else if (meta.vtype == VType::uarr || is_raw_array(meta.vtype) || has_interface(meta.vtype)) {
             if (cmp.meta.vtype == VType::uarr || is_raw_array(cmp.meta.vtype) || has_interface(cmp.meta.vtype)) {
-                size_t dif_len = size() - cmp.size();
+                size_t cur_siz = size();
+                size_t extern_siz = cmp.size();
+                if (ptrdiff_t(cur_siz) != cur_siz || ptrdiff_t(extern_siz) != extern_siz)
+                    throw NumericOverflowException();
+                ptrdiff_t dif_len = ptrdiff_t(cur_siz) - ptrdiff_t(extern_siz);
                 if (dif_len == 0) {
                     auto begin = cbegin();
                     auto end = cend();
@@ -4377,6 +4381,7 @@ namespace art {
                 copy_arr[i] = (bool)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<bool>(meta.val_len, copy_arr);
@@ -4433,6 +4438,7 @@ namespace art {
                 copy_arr[i] = (int8_t)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<int8_t>(meta.val_len, copy_arr);
@@ -4489,6 +4495,7 @@ namespace art {
                 copy_arr[i] = (uint8_t)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<uint8_t>(meta.val_len, copy_arr);
@@ -4545,6 +4552,7 @@ namespace art {
                 copy_arr[i] = (char)(uint8_t)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<char>(meta.val_len, copy_arr);
@@ -4602,6 +4610,7 @@ namespace art {
                 copy_arr[i] = (int16_t)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<int16_t>(meta.val_len, copy_arr);
@@ -4659,6 +4668,7 @@ namespace art {
                 copy_arr[i] = (uint16_t)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<uint16_t>(meta.val_len, copy_arr);
@@ -4716,6 +4726,7 @@ namespace art {
                 copy_arr[i] = (int32_t)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<int32_t>(meta.val_len, copy_arr);
@@ -4773,6 +4784,7 @@ namespace art {
                 copy_arr[i] = (uint32_t)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<uint32_t>(meta.val_len, copy_arr);
@@ -4830,6 +4842,7 @@ namespace art {
                 copy_arr[i] = (int64_t)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<int64_t>(meta.val_len, copy_arr);
@@ -4887,6 +4900,7 @@ namespace art {
                 copy_arr[i] = (uint64_t)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<uint64_t>(meta.val_len, copy_arr);
@@ -4944,6 +4958,7 @@ namespace art {
                 copy_arr[i] = (float)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<float>(meta.val_len, copy_arr);
@@ -5001,6 +5016,7 @@ namespace art {
                 copy_arr[i] = (double)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<double>(meta.val_len, copy_arr);
@@ -5058,6 +5074,7 @@ namespace art {
                 copy_arr[i] = (long)((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<long>(meta.val_len, copy_arr);
@@ -5115,6 +5132,7 @@ namespace art {
                 copy_arr[i] = ((const ValueItem*)src)[i];
             break;
         default:
+            delete[] copy_arr;
             throw InvalidCast("This type is not array");
         }
         return array_t<ValueItem>(meta.val_len, copy_arr);

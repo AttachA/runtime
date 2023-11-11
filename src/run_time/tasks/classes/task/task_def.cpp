@@ -21,9 +21,9 @@ namespace art {
 
     void put_arguments(ValueItem& args_hold, const ValueItem& arguments) {
         if (arguments.meta.vtype == VType::faarr || arguments.meta.vtype == VType::saarr)
-            args_hold = std::move(arguments);
+            args_hold = arguments;
         else if (arguments.meta.vtype != VType::noting)
-            args_hold = {std::move(arguments)};
+            args_hold = {arguments};
     }
 
     void put_arguments(ValueItem& args_hold, ValueItem&& arguments) {
@@ -72,12 +72,9 @@ namespace art {
         fres.context->init_quantum();
     }
 
-    Task::Task(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout, TaskPriority priority) {
-        ex_handle = exception_handler;
-        func = call_func;
+    Task::Task(art::shared_ptr<FuncEnvironment> call_func, const ValueItem& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout, TaskPriority priority)
+     : ex_handle(exception_handler), func(call_func), timeout(task_timeout) {
         put_arguments(args, arguments);
-
-        timeout = task_timeout;
         if (used_task_local)
             _task_local = new ValueEnvironment();
 
@@ -91,12 +88,8 @@ namespace art {
         ++glob.planned_tasks;
     }
 
-    Task::Task(art::shared_ptr<FuncEnvironment> call_func, ValueItem&& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout, TaskPriority priority) {
-        ex_handle = exception_handler;
-        func = call_func;
+    Task::Task(art::shared_ptr<FuncEnvironment> call_func, ValueItem&& arguments, bool used_task_local, art::shared_ptr<FuncEnvironment> exception_handler, std::chrono::high_resolution_clock::time_point task_timeout, TaskPriority priority) : ex_handle(exception_handler), func(call_func), timeout(task_timeout) {
         put_arguments(args, std::move(arguments));
-
-        timeout = task_timeout;
         if (used_task_local)
             _task_local = new ValueEnvironment();
 
@@ -764,7 +757,7 @@ namespace art {
             if (!glob.time_control_enabled)
                 startTimeController();
             art::lock_guard guard(glob.task_timer_safety);
-            glob.timed_tasks.push_back(timing(timeout, tsk));
+            glob.timed_tasks.emplace_back(timing(timeout, tsk));
         }
         return tsk;
     }
@@ -784,7 +777,7 @@ namespace art {
             if (!glob.time_control_enabled)
                 startTimeController();
             art::lock_guard guard(glob.task_timer_safety);
-            glob.timed_tasks.push_back(timing(timeout, tsk));
+            glob.timed_tasks.emplace_back(timing(timeout, tsk));
         }
         return tsk;
     }

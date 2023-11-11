@@ -182,11 +182,11 @@ namespace art {
         void notify_one();
         void notify_all();
 
-        void dummy_wait(art::typed_lgr<Task> task, art::unique_lock<MutexUnify>& lock);
+        void dummy_wait(const art::typed_lgr<Task>& task, art::unique_lock<MutexUnify>& lock);
         //set in arguments result of wait_for
-        void dummy_wait_for(art::typed_lgr<Task> task, art::unique_lock<MutexUnify>& lock, size_t milliseconds);
+        void dummy_wait_for(const art::typed_lgr<Task>& task, art::unique_lock<MutexUnify>& lock, size_t milliseconds);
         //set in arguments result of wait_until
-        void dummy_wait_until(art::typed_lgr<Task> task, art::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point);
+        void dummy_wait_until(const art::typed_lgr<Task>& task, art::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point);
 
         bool has_waiters();
     };
@@ -456,7 +456,7 @@ namespace art {
         art::typed_lgr<Task> add_task(art::shared_ptr<FuncEnvironment> call_func, ValueItem& arguments, bool used_task_local = false, art::shared_ptr<FuncEnvironment> exception_handler = nullptr, std::chrono::high_resolution_clock::time_point timeout = std::chrono::high_resolution_clock::time_point::min());
         void enable();
         void disable();
-        bool in_query(art::typed_lgr<Task> task);
+        bool in_query(const art::typed_lgr<Task>& task);
         void set_max_at_execution(size_t val);
         size_t get_max_at_execution();
         void wait();

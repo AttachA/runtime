@@ -75,7 +75,7 @@ namespace art {
             }
 
         public:
-            ArgumentsHolder() {}
+            ArgumentsHolder() = default;
 
             ~ArgumentsHolder() {
                 clear();

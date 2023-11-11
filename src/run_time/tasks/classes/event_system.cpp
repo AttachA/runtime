@@ -29,8 +29,9 @@ namespace art {
     }
 
     bool EventSystem::awaitCall(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args) {
-        std::list<art::typed_lgr<Task>> wait_tasks;
+        std::vector<art::typed_lgr<Task>> wait_tasks;
         {
+            wait_tasks.reserve(list.size());
             art::lock_guard guard(no_race);
             for (auto& it : list) {
                 art::typed_lgr<Task> tsk(new Task(it, args));

@@ -78,6 +78,8 @@ namespace art {
         }
 
         i_p_optional& operator=(i_p_optional<T>&& other) {
+            if (this == &other)
+                return *this;
             if (contains_value && other.contains_value)
                 v.value = std::move(other.v.value);
             else if (contains_value && !other.contains_value) {
@@ -91,6 +93,8 @@ namespace art {
         }
 
         i_p_optional& operator=(const i_p_optional<T>& other) {
+            if (this == &other)
+                return *this;
             if (contains_value && other.contains_value)
                 v.value = other.v.value;
             else if (contains_value && !other.contains_value) {

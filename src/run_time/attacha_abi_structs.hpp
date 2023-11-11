@@ -970,7 +970,7 @@ namespace art {
     namespace structure_helpers {
         template <typename T>
         T static_value_get(const char* ptr, size_t offset, uint16_t bit_used, uint8_t bit_offset) {
-            if (sizeof(T) * 8 < bit_used && bit_used)
+            if (sizeof(T) * 8 < bit_used)
                 throw InvalidArguments("bit_used is too big for type");
 
             ptr += offset;
@@ -1007,7 +1007,7 @@ namespace art {
 
         template <typename T>
         void static_value_set(char* ptr, size_t offset, uint16_t bit_used, uint8_t bit_offset, T value) {
-            if (sizeof(T) * 8 < bit_used && bit_used)
+            if (sizeof(T) * 8 < bit_used)
                 throw InvalidArguments("bit_used is too big for type");
             ptr += offset;
             ptr += bit_offset / 8;

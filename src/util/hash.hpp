@@ -4,8 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#ifndef SRC_RUN_TIME_UTIL_MURMUR3_ENCHANTED
-#define SRC_RUN_TIME_UTIL_MURMUR3_ENCHANTED
+#ifndef SRC_UTIL_HASH
+#define SRC_UTIL_HASH
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
@@ -138,7 +138,7 @@ namespace art {
     struct hash : __internal::hasher<T,
                                      std::is_class_v<T>,
                                      std::is_enum_v<T> || std::is_arithmetic_v<T> || std::is_pointer_v<T>> {
-        hash() {}
+        hash() = default;
 
         hash(const hash&) {}
 
@@ -157,7 +157,7 @@ namespace art {
     struct big_hash : __internal::big_hasher<T,
                                              std::is_class_v<T>,
                                              std::is_enum_v<T> || std::is_arithmetic_v<T> || std::is_pointer_v<T>> {
-        big_hash() {}
+        big_hash() = default;
 
         big_hash(const big_hash&) {}
 
@@ -174,4 +174,4 @@ namespace art {
 }
 
 
-#endif /* SRC_RUN_TIME_UTIL_MURMUR3_ENCHANTED */
+#endif /* SRC_UTIL_HASH */

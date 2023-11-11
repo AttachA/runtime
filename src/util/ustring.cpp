@@ -218,7 +218,7 @@ namespace art {
             size_t _size = this->size();
             if (_size >= short_array_size)
                 throw InvalidOperation("String is too long for short_def");
-            std::unique_ptr<char[]> __data(new char[_size]);
+            std::unique_ptr<char[]> __data = std::make_unique<char[]>(_size);
             memcpy(__data.get(), c_str(), _size);
             cleanup_current();
             memcpy(_data.short_data, __data.get(), _size);

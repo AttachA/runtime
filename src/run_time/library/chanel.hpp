@@ -34,8 +34,8 @@ namespace art {
         struct AutoNotifyChanel {
             art::typed_lgr<Task> notifier_task;
             art::typed_lgr<Task> handle_task;
-            Chanel* chanel;
-            bool end_of_life;
+            Chanel* chanel = nullptr;
+            bool end_of_life = false;
             TaskMutex no_race;
             size_t handle_from = 0;
         };

@@ -568,7 +568,7 @@ namespace art {
                         to_catch_names.reserve(len);
 
                         for (uint64_t i = 0; i < len; i++)
-                            to_catch_names.push_back(readString(data, data_len, i));
+                            to_catch_names.emplace_back(readString(data, data_len, i));
                         compiler.dynamic().handle_catch_0(handle_id, to_catch_names);
                         break;
                     }
@@ -598,7 +598,7 @@ namespace art {
                             if (is_dynamic)
                                 to_catch_dynamic_values.push_back(readData<uint16_t>(data, data_len, i));
                             else
-                                to_catch_names.push_back(readString(data, data_len, i));
+                                to_catch_names.emplace_back(readString(data, data_len, i));
                         }
                         compiler.dynamic().handle_catch_3(handle_id, to_catch_names, to_catch_dynamic_values);
                         break;

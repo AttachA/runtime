@@ -296,7 +296,6 @@ namespace art {
     }
 
     void internal_makeIP4(universal_address& addr_storage, const char* ip, uint16_t port) {
-        memset(&addr_storage, 0, sizeof(addr_storage));
         sockaddr_in6 addr6;
         memset(&addr6, 0, sizeof(addr6));
         addr6.sin6_family = AF_INET6;
@@ -306,11 +305,11 @@ namespace art {
         if (inet_pton(AF_INET, ip, &addr6.sin6_addr.s6_addr[12]) != 1)
             throw InvalidArguments("Invalid ip4 address");
 
+        memset(&addr_storage, 0, sizeof(addr_storage));
         memcpy(&addr_storage, &addr6, sizeof(addr6));
     }
 
     void internal_makeIP6(universal_address& addr_storage, const char* ip, uint16_t port) {
-        memset(&addr_storage, 0, sizeof(addr_storage));
         sockaddr_in6 addr6;
         memset(&addr6, 0, sizeof(addr6));
         addr6.sin6_family = AF_INET6;
@@ -318,11 +317,11 @@ namespace art {
         if (inet_pton(AF_INET6, ip, &addr6.sin6_addr) != 1)
             throw InvalidArguments("Invalid ip6 address");
 
+        memset(&addr_storage, 0, sizeof(addr_storage));
         memcpy(&addr_storage, &addr6, sizeof(addr6));
     }
 
     void internal_makeIP(universal_address& addr_storage, const char* ip, uint16_t port) {
-        memset(&addr_storage, 0, sizeof(addr_storage));
         sockaddr_in6 addr6;
         memset(&addr6, 0, sizeof(addr6));
         addr6.sin6_family = AF_INET6;
@@ -333,6 +332,7 @@ namespace art {
             ;
         else if (inet_pton(AF_INET6, ip, &addr6.sin6_addr) != 1)
             throw InvalidArguments("Invalid ip address");
+        memset(&addr_storage, 0, sizeof(addr_storage));
         memcpy(&addr_storage, &addr6, sizeof(addr6));
     }
 
@@ -2368,7 +2368,7 @@ namespace art {
         } opcode = Opcode::ACCEPT;
 
         tcp_handle(SOCKET socket, int32_t buffer_len, NativeWorkerManager* manager, uint32_t read_queue_size = 10)
-            : socket(socket), NativeWorkerHandle(manager), max_read_queue_size(read_queue_size), clientAddress(), clientAddressLen(sizeof(sockaddr_storage)) {
+            : socket(socket), NativeWorkerHandle(manager), max_read_queue_size(read_queue_size), clientAddress(), clientAddressLen(sizeof(sockaddr_storage)), buffer{0}, data_len(0) {
             if (buffer_len < 0)
                 throw InvalidArguments("buffer_len must be positive");
             if (buffer_len) {
@@ -3633,7 +3633,7 @@ namespace art {
 
     public:
         TcpNetworkManager(universal_address& ip_port, size_t acceptors, TcpNetworkServer::ManageType manage_type, TcpConfiguration config)
-            : acceptors(acceptors), manage_type(manage_type), config(config) {
+            : acceptors(acceptors), manage_type(manage_type), config(config), main_socket(INVALID_SOCKET) {
             memcpy(&connectionAddress, &ip_port, sizeof(sockaddr_in6));
         }
 

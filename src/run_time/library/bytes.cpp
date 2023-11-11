@@ -185,8 +185,8 @@ namespace art {
 
         AttachAFunc(from_bytes, 2) {
             ValueMeta type = (ValueMeta)args[0];
-            uint8_t* bytes;
-            uint32_t bytes_len;
+            uint8_t* bytes = nullptr;
+            uint32_t bytes_len = 0;
             if (args[1].meta.vtype == VType::raw_arr_ui8 || args[1].meta.vtype == VType::raw_arr_i8) {
                 bytes = (uint8_t*)args[1].getSourcePtr();
                 bytes_len = args[1].meta.val_len;

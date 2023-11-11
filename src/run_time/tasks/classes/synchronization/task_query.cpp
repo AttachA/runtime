@@ -10,8 +10,8 @@
 
 namespace art {
     struct TaskQueryHandle {
-        TaskQuery* tq;
-        size_t at_execution_max;
+        TaskQuery* tq = nullptr;
+        size_t at_execution_max = 0;
         size_t now_at_execution = 0;
         TaskMutex no_race;
         bool destructed = false;
@@ -97,7 +97,7 @@ namespace art {
         is_running = false;
     }
 
-    bool TaskQuery::in_query(art::typed_lgr<Task> task) {
+    bool TaskQuery::in_query(const art::typed_lgr<Task>& task) {
         if (task->started)
             return false; //started task can't be in query
         art::lock_guard lock(handle->no_race);

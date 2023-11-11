@@ -145,7 +145,7 @@ namespace art {
                 delete (T*)v;
         }
 
-        typed_lgr() {}
+        typed_lgr() = default;
 
         typed_lgr(std::nullptr_t){};
 
@@ -220,7 +220,7 @@ namespace art {
         }
 
         bool operator==(const typed_lgr& cmp) const {
-            return actual_lgr != cmp.actual_lgr;
+            return actual_lgr == cmp.actual_lgr;
         }
 
         bool operator!=(const typed_lgr& cmp) const {

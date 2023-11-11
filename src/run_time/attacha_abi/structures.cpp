@@ -519,9 +519,8 @@ namespace art {
     MethodInfo::MethodInfo()
         : ref(nullptr), name(), owner_name(), optional(nullptr), access(ClassAccess::pub), deletable(true) {}
 
-    MethodInfo::MethodInfo(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
-        this->name = name;
-        this->ref = new FuncEnvironment(method, false);
+    MethodInfo::MethodInfo(const art::ustring& name, Environment method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name)
+        : name(name), ref(new FuncEnvironment(method, false)), owner_name(owner_name) {
         this->access = access;
         if (!return_values.empty() || !arguments.empty() || !tags.empty()) {
             this->optional = new Optional();
@@ -530,13 +529,11 @@ namespace art {
             this->optional->tags = tags;
         } else
             this->optional = nullptr;
-        this->owner_name = owner_name;
         this->deletable = true;
     }
 
-    MethodInfo::MethodInfo(const art::ustring& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name) {
-        this->name = name;
-        this->ref = method;
+    MethodInfo::MethodInfo(const art::ustring& name, art::shared_ptr<FuncEnvironment> method, ClassAccess access, const list_array<ValueMeta>& return_values, const list_array<list_array<std::pair<ValueMeta, art::ustring>>>& arguments, const list_array<MethodTag>& tags, const art::ustring& owner_name)
+        : name(name), ref(method), owner_name(owner_name) {
         this->access = access;
         if (!return_values.empty() || !arguments.empty() || !tags.empty()) {
             this->optional = new Optional();
@@ -545,7 +542,6 @@ namespace art {
             this->optional->tags = tags;
         } else
             this->optional = nullptr;
-        this->owner_name = owner_name;
         this->deletable = true;
     }
 

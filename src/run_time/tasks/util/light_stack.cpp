@@ -597,7 +597,7 @@ namespace art {
 
     art::ustring fmt_protect(int prot) {
         art::ustring res;
-        if (prot & PROT_NONE)
+        if (prot == PROT_NONE)
             res += "NOACCESS";
         if (prot & PROT_READ)
             res += res.size() ? " & READONLY" : "READONLY";
@@ -617,8 +617,6 @@ namespace art {
         if (prot & PROT_SEM)
             res += res.size() ? " & SEM" : "SEM";
 #endif
-        if (prot & PROT_NONE)
-            res += res.size() ? " & NONE" : "NONE";
         if (!res.size())
             return "ZERO";
         return res;

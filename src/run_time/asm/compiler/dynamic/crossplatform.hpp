@@ -835,7 +835,7 @@ namespace art {
         b.lea_valindex({compiler.static_map, compiler.values}, array);
         b.finalize(AsArr);
 
-        if (from.pos == ValuePos::in_constants || to.pos == ValuePos::in_constants) {
+        if (from.pos == ValuePos::in_constants && to.pos == ValuePos::in_constants) {
             b.mov_valindex({compiler.static_map, compiler.values}, array);
             b.addArg(compiler.get_size_constant(from));
             b.addArg(compiler.get_size_constant(to));

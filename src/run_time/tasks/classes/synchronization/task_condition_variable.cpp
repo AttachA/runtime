@@ -159,7 +159,7 @@ namespace art {
             Task::yield();
     }
 
-    void TaskConditionVariable::dummy_wait(art::typed_lgr<Task> task, art::unique_lock<MutexUnify>& lock) {
+    void TaskConditionVariable::dummy_wait(const art::typed_lgr<Task>& task, art::unique_lock<MutexUnify>& lock) {
         if (lock.mutex()->nmut == &no_race)
             resume_task.emplace_back(task, task->awake_check);
         else {
@@ -168,7 +168,7 @@ namespace art {
         }
     }
 
-    void TaskConditionVariable::dummy_wait_for(art::typed_lgr<Task> task, art::unique_lock<MutexUnify>& lock, size_t milliseconds) {
+    void TaskConditionVariable::dummy_wait_for(const art::typed_lgr<Task>& task, art::unique_lock<MutexUnify>& lock, size_t milliseconds) {
         dummy_wait_until(task, lock, std::chrono::high_resolution_clock::now() + std::chrono::milliseconds(milliseconds));
     }
 
@@ -192,7 +192,7 @@ namespace art {
         return nullptr;
     }
 
-    void TaskConditionVariable::dummy_wait_until(art::typed_lgr<Task> task, art::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point) {
+    void TaskConditionVariable::dummy_wait_until(const art::typed_lgr<Task>& task, art::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point) {
         static art::shared_ptr<FuncEnvironment> TaskConditionVariable_dummy_awaiter(new FuncEnvironment(_TaskConditionVariable_dummy_awaiter, false, false));
         delete Task::get_result(new Task(TaskConditionVariable_dummy_awaiter, ValueItem{ValueItem(new art::typed_lgr<Task>(task), VType::async_res), this, time_point, lock.mutex()}));
     }

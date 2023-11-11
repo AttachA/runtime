@@ -243,7 +243,7 @@ namespace art {
             was_r_mode();
             art::ustring str;
             str.set_unsafe_state(true, false);
-            char c;
+            int c;
             bool do_continue = true;
             while (do_continue) {
                 switch (c = getchar()) {
@@ -251,7 +251,7 @@ namespace art {
                 case '\n':
                     do_continue = false;
                 }
-                str += c;
+                str += (char)c;
             }
             str.set_unsafe_state(false, false);
             return new ValueItem(std::move(str));
@@ -298,7 +298,7 @@ namespace art {
             bool minus = false;
             uint64_t old_num = 0;
             uint64_t num = 0;
-            char c;
+            int c;
             while ((c = getchar()) != EOF) {
                 if (first) {
                     if (c == '-')

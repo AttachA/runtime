@@ -3661,7 +3661,7 @@ namespace art {
         };
 
         struct FolderChangesMonitorHandle : public NativeWorkerHandle {
-            uint8_t buffer[1024 * 4];
+            uint8_t buffer[1024 * 4]{0};
 
             FolderChangesMonitorHandle(NativeWorkerManager* manager)
                 : NativeWorkerHandle(manager) {}
@@ -3752,9 +3752,9 @@ namespace art {
                 ::stat((const char*)path.c_str(), &stat);
 
                 if (stat.st_mode & S_IFREG || stat.st_mode & S_IFLNK) {
-                    size_t len = strlen(buf);
+                    ptrdiff_t len = strlen(buf);
 
-                    for (size_t i = len - 1; i > 0; i--) {
+                    for (ptrdiff_t i = len - 1; i > 0; i--) {
                         if (buf[i] == '/') {
                             buf[i] = '\0';
                             break;

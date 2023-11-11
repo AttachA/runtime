@@ -77,7 +77,7 @@ namespace art {
             }
             goto re_try;
         }
-        if (allow_threshold)
+        else
             --allow_threshold;
         no_race.unlock();
         return true;

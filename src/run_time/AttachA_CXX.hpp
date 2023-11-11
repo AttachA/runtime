@@ -396,7 +396,7 @@ namespace art {
 
             struct direct_method {
                 art::ustring name;
-                Environment env;
+                Environment env = nullptr;
                 ClassAccess access = ClassAccess::pub;
             };
 

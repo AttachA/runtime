@@ -130,7 +130,6 @@ namespace art {
         type = mut.type;
         nmut = mut.nmut;
         state = mut.state;
-        state = {0};
     }
 
     MutexUnify::MutexUnify(art::mutex& smut) {
@@ -148,6 +147,7 @@ namespace art {
     MutexUnify::MutexUnify(art::timed_mutex& smut) {
         type = MutexUnifyType::ntimed;
         ntimed = std::addressof(smut);
+        state = {0};
     }
 
     MutexUnify::MutexUnify(art::recursive_mutex& smut) {

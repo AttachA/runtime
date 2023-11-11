@@ -348,8 +348,8 @@ namespace art {
         ValueItem __funs_EventSystem_get_values0(ValueItem* vals, uint32_t len) {
             if (len > 2) {
                 size_t size = len - 1;
-                ValueItem* args = new ValueItem[size]{};
-                std::unique_ptr<ValueItem[]> args_holder(args);
+                std::unique_ptr<ValueItem[]> args_holder = std::make_unique<ValueItem[]>(size);
+                ValueItem* args = args_holder.get();
                 for (uint32_t i = 0; i < size; i++)
                     args[i] = vals[i + 1];
                 return ValueItem(args_holder.release(), size, no_copy);
