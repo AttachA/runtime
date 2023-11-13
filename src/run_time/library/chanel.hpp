@@ -71,9 +71,9 @@ namespace art {
 
             typed_lgr<ChanelHandler> create_handle();
             typed_lgr<ChanelHandler> add_handle(typed_lgr<ChanelHandler> handler);
-            void remove_handle(typed_lgr<ChanelHandler> handle);
+            void remove_handle(const typed_lgr<ChanelHandler>& handle);
             void remove_auto_notify(typed_lgr<AutoNotifyChanel> notifier);
-            void remove_auto_event(typed_lgr<AutoEventChanel> notifier);
+            void remove_auto_event(const typed_lgr<AutoEventChanel>& notifier);
         };
 
         void init();

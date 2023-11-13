@@ -49,7 +49,7 @@ namespace art {
             else if (vtable == define_recursive_mutex)
                 return *CXX::Interface::getExtractAs<art::shared_ptr<art::recursive_mutex>>(item, define_mutex);
             else
-                CXX::Interface::getExtractAs<art::shared_ptr<art::mutex>>(item, define_mutex);
+                return *CXX::Interface::getExtractAs<art::shared_ptr<art::mutex>>(item, define_mutex); //throws, if not mutex
             throw InternalException("Reached unreachable region");
         }
 

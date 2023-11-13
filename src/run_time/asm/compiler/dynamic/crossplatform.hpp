@@ -228,7 +228,7 @@ namespace art {
             b.addArg(resr);
             b.finalize(getValueItem);
             return;
-        } else if (!flags.use_result)
+        } else
             _inlineReleaseUnused(a, resr);
     }
 

@@ -248,7 +248,7 @@ namespace art {
             do {
                 BOOST_VERIFY(VirtualQuery(pPos, &stMemBasicInfo, sizeof(stMemBasicInfo)));
                 BOOST_VERIFY(stMemBasicInfo.RegionSize);
-                allocations.push_back(allocation_details(stMemBasicInfo));
+                allocations.emplace_back(stMemBasicInfo);
                 pPos += stMemBasicInfo.RegionSize;
             } while (pPos < pPtr);
             allocations.shrink_to_fit();
@@ -335,7 +335,10 @@ namespace art {
         } else if (guard_page_size) {
             if (!VirtualFree(snapshot.guard->base, to_free + guard_page_size, MEM_DECOMMIT))
                 return false;
-            VirtualAlloc(snapshot.guard->base + to_free, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD);
+            if (!VirtualAlloc(snapshot.guard->base + to_free, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD)) {
+                invite_to_debugger("Failed allocate guard page to reduce stack size");
+                throw TaskCancellation();
+            }
         } else {
             if (!VirtualFree(snapshot.committed->base + snapshot.committed->length, to_free, MEM_DECOMMIT))
                 return false;
@@ -380,7 +383,8 @@ namespace art {
             }
             BOOST_VERIFY(VirtualAlloc(start, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD));
         } else {
-            VirtualAlloc(start, free_space, MEM_COMMIT, PAGE_READWRITE);
+            if (!VirtualAlloc(start, free_space, MEM_COMMIT, PAGE_READWRITE)) {
+            }
         }
         return true;
     }
@@ -445,8 +449,12 @@ namespace art {
                 to_alloc -= page_size;
             }
             BOOST_VERIFY(VirtualAlloc(guard - bytes_to_use, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD));
-        } else
-            VirtualAlloc(start + free_space, bytes_to_use, MEM_COMMIT, PAGE_READWRITE);
+        } else {
+            if (!VirtualAlloc(start + free_space, bytes_to_use, MEM_COMMIT, PAGE_READWRITE)) {
+                invite_to_debugger("Failed allocate guard page to reduce stack size");
+                abort();
+            }
+        }
         return true;
     }
 

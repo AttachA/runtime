@@ -83,7 +83,6 @@ namespace art {
 
             File_(NativeWorkerManager* manager, void* handle, char* buffer, uint32_t buffer_size, uint64_t offset)
                 : NativeWorkerHandle(manager), handle(handle), is_read(false), buffer_size(buffer_size), offset(offset), required_full(true) {
-                SecureZeroMemory(&overlapped, sizeof(overlapped));
                 overlapped.Offset = offset & 0xFFFFFFFF;
                 overlapped.OffsetHigh = (offset >> 32) & 0xFFFFFFFF;
                 this->buffer = new char[buffer_size];
@@ -92,7 +91,6 @@ namespace art {
 
             File_(NativeWorkerManager* manager, void* handle, uint32_t buffer_size, uint64_t offset, bool required_full = true)
                 : NativeWorkerHandle(manager), handle(handle), is_read(true), buffer_size(buffer_size), offset(offset), required_full(required_full) {
-                SecureZeroMemory(&overlapped, sizeof(overlapped));
                 overlapped.Offset = offset & 0xFFFFFFFF;
                 overlapped.OffsetHigh = (offset >> 32) & 0xFFFFFFFF;
                 this->buffer = new char[buffer_size];
@@ -113,8 +111,13 @@ namespace art {
                     if (awaiter) {
                         if (is_read && !required_full)
                             awaiter->fres.finalResult(ValueItem(), lock);
-                        else
-                            awaiter->fres.finalResult(ValueItem(), lock);
+                        else {
+                            try {
+                                throw AException("FileException", "Operation canceled");
+                            } catch (...) {
+                                awaiter->fres.finalResult(std::current_exception(), lock);
+                            }
+                        }
                     }
                     awaiters.notify_all();
                     awaiter = nullptr;
@@ -302,7 +305,7 @@ namespace art {
             }
 
         public:
-            FileManager(const char* path, size_t path_len, open_mode open, on_open_action action, share_mode share, _sync_flags flags, enum class pointer_mode pointer_mode) noexcept(false)
+            FileManager(const char* path, size_t path_len, open_mode open, on_open_action action, share_mode share, _sync_flags flags, art::files::pointer_mode pointer_mode) noexcept(false)
                 : pointer_mode(pointer_mode) {
                 read_pointer = 0;
                 write_pointer = 0;
@@ -1155,7 +1158,7 @@ namespace art {
                 _path = copy._path;
             }
 
-            FolderBrowserImpl() {}
+            FolderBrowserImpl() = default;
 
             list_array<art::ustring> folders() {
                 reduce_to_folder();
@@ -1437,7 +1440,7 @@ namespace art {
                             c = L'\\';
                 }
                 auto res = new FolderBrowserImpl();
-                res->_path = wpath;
+                res->_path = std::move(wpath);
                 return res;
             }
 
@@ -1515,7 +1518,6 @@ namespace art {
 
             FolderChangesMonitorHandle(NativeWorkerManager* manager)
                 : NativeWorkerHandle(manager) {
-                SecureZeroMemory(&overlapped, sizeof(overlapped));
                 //array buffer will be filled with FILE_NOTIFY_EXTENDED_INFORMATION structures, no need to zero it
             }
         };
@@ -1592,11 +1594,11 @@ namespace art {
                 folder_attributes
             };
 
-            void manually_iterate(const std::wstring& _path, list_array<int64_t>& ids) {
+            void manually_iterate(const std::wstring& src_path, list_array<int64_t>& ids) {
                 WIN32_FIND_DATAW fd;
                 HANDLE hFind;
                 {
-                    std::wstring path = _path + L"\\*";
+                    std::wstring path = src_path + L"\\*";
                     hFind = ::FindFirstFileW(path.c_str(), &fd);
                 }
                 if (hFind != INVALID_HANDLE_VALUE) {
@@ -1605,7 +1607,7 @@ namespace art {
                             continue;
                         if (fd.cFileName[0] == '.' && fd.cFileName[1] == '.' && fd.cFileName[2] == '\0')
                             continue;
-                        std::wstring file_name = _path + L"\\" + fd.cFileName;
+                        std::wstring file_name = src_path + L"\\" + fd.cFileName;
                         BY_HANDLE_FILE_INFORMATION info;
                         auto file = CreateFileW(file_name.c_str(), 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
                         if (file != INVALID_HANDLE_VALUE) {
@@ -1867,14 +1869,14 @@ namespace art {
                                 if (is_folder)
                                     _folder_attributes->async_notify(args);
                                 else
-                                    _folder_attributes->async_notify(args);
+                                    _file_attributes->async_notify(args);
                             }
                             if (old_info.current->FileSize.QuadPart != info->FileSize.QuadPart) {
                                 ValueItem args{name, (long long)info->FileSize.QuadPart};
                                 if (is_folder)
                                     _folder_size_change->async_notify(args);
                                 else
-                                    _folder_size_change->async_notify(args);
+                                    _file_size_change->async_notify(args);
                             }
 
                         } else {
@@ -1909,11 +1911,8 @@ namespace art {
                             else
                                 _file_name_change->async_notify(args);
                             FILE_NOTIFY_EXTENDED_INFORMATION* allocated_info = (FILE_NOTIFY_EXTENDED_INFORMATION*)malloc(sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength);
-                            if (!allocated_info) {
+                            if (!allocated_info)
                                 break;
-                            }
-                            if (old_info.current != nullptr)
-                                free(old_info.current);
                             memcpy(allocated_info, info, sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength);
                             old_info.current = allocated_info;
                             old_info.full_path = name;

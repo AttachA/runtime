@@ -36,7 +36,7 @@ namespace art {
 
     void TaskLimiter::lock() {
         art::unique_lock guard(no_race);
-        while (!locked) {
+        while (locked) {
             if (loc.is_task_thread) {
                 loc.curr_task->awaked = false;
                 loc.curr_task->time_end_flag = false;
@@ -87,7 +87,7 @@ namespace art {
         if (no_race.try_lock_until(time_point))
             return false;
         art::unique_lock guard(no_race, art::adopt_lock);
-        while (!locked) {
+        while (locked) {
             if (loc.is_task_thread) {
                 loc.curr_task->awaked = false;
                 loc.curr_task->time_end_flag = false;

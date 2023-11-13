@@ -39,8 +39,7 @@ namespace art {
         _mutex = SRWLOCK_INIT;
     }
 
-    mutex::~mutex() noexcept(false) {
-    }
+    mutex::~mutex() noexcept(false) = default;
 
     void mutex::lock() {
         interrupt::interrupt_unsafe_region::lock();
@@ -64,8 +63,7 @@ namespace art {
         _mutex = SRWLOCK_INIT;
     }
 
-    rw_mutex::~rw_mutex() noexcept(false) {
-    }
+    rw_mutex::~rw_mutex() noexcept(false) = default;
 
     void rw_mutex::lock() {
         interrupt::interrupt_unsafe_region::lock();
@@ -95,8 +93,7 @@ namespace art {
         interrupt::interrupt_unsafe_region::unlock();
     }
 
-    timed_mutex::timed_mutex() {
-    }
+    timed_mutex::timed_mutex() = default;
 
     timed_mutex::~timed_mutex() noexcept(false) {
         if (locked != 0)
@@ -144,8 +141,7 @@ namespace art {
         _cond = CONDITION_VARIABLE_INIT;
     }
 
-    condition_variable::~condition_variable() noexcept(false) {
-    }
+    condition_variable::~condition_variable() noexcept(false) = default;
 
     void condition_variable::notify_one() {
         interrupt::interrupt_unsafe_region region;

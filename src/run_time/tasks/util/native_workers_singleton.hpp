@@ -36,7 +36,9 @@ namespace art {
 
     public:
         NativeWorkerHandle(NativeWorkerManager* manager)
-            : manager(manager) {}
+            : manager(manager) {
+            SecureZeroMemory(&overlapped, sizeof(OVERLAPPED));
+        }
 
         NativeWorkerHandle() = delete;
         NativeWorkerHandle(const NativeWorkerHandle&) = delete;

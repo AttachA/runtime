@@ -17,7 +17,7 @@ namespace art {
         std::unordered_map<uint8_t*, frame_info, art::hash<uint8_t*>> map;
         bool destroyed = false;
 
-        FrameSymbols() {}
+        FrameSymbols() = default;
 
         ~FrameSymbols() {
             map.clear();

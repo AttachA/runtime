@@ -1429,7 +1429,7 @@ namespace art {
                         tmp += str[i];
                 }
                 if (tmp.size())
-                    res.insert(SBcast(tmp));
+                    res.emplace(SBcast(tmp));
                 return ValueItem(std::move(res));
             } else if (str.starts_with("t(")) {
                 art::ustring tmp;
@@ -5139,7 +5139,7 @@ namespace art {
     }
 
     ValueItem::operator const array_ref_t<bool>() const {
-        if (meta.vtype != VType::raw_arr_ui8 || meta.vtype != VType::raw_arr_i8)
+        if (meta.vtype != VType::raw_arr_ui8 && meta.vtype != VType::raw_arr_i8)
             throw InvalidCast("This type is not similar to bool array");
         return array_ref_t<bool>((bool*)getSourcePtr(), meta.val_len);
     }
@@ -5223,7 +5223,7 @@ namespace art {
     }
 
     ValueItem::operator array_ref_t<bool>() {
-        if (meta.vtype != VType::raw_arr_ui8 || meta.vtype != VType::raw_arr_i8)
+        if (meta.vtype != VType::raw_arr_ui8 && meta.vtype != VType::raw_arr_i8)
             throw InvalidCast("This type is not similar to bool array");
         return array_ref_t<bool>((bool*)getSourcePtr(), meta.val_len);
     }
@@ -5989,6 +5989,8 @@ namespace art {
             this->iterator_data = new std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator(*(std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator*)copy.iterator_data);
         else if (item.meta.vtype == VType::struct_)
             this->iterator_data = new ValueItem(*(ValueItem*)copy.iterator_data);
+        else
+            this->iterator_data = nullptr;
     }
 
     ValueItemIterator::~ValueItemIterator() {
@@ -6007,13 +6009,13 @@ namespace art {
             (*(size_t*)&iterator_data)++;
         } else if (item.meta.vtype == VType::uarr) {
             list_array<ValueItem>::iterator& i = *(list_array<ValueItem>::iterator*)iterator_data;
-            i++;
+            ++i;
         } else if (item.meta.vtype == VType::map) {
             std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
-            i++;
+            ++i;
         } else if (item.meta.vtype == VType::set) {
             std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator& i = *(std::unordered_set<ValueItem, art::hash<ValueItem>>::iterator*)iterator_data;
-            i++;
+            ++i;
         } else if (item.meta.vtype == VType::struct_) {
             Structure& st = (Structure&)(ValueItem&)iterator_data;
             if (st.has_method(symbols::structures::iterable::next, ClassAccess::pub))

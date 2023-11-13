@@ -471,10 +471,10 @@ namespace art {
                 IndexArrayCopyStatic<typ, uint64_t>(value, (void**)arr, pos);
                 break;
             case VType::raw_arr_flo:
-                IndexArrayCopyStatic<typ, uint64_t>(value, (void**)arr, pos);
+                IndexArrayCopyStatic<typ, float>(value, (void**)arr, pos);
                 break;
             case VType::raw_arr_doub:
-                IndexArrayCopyStatic<typ, uint64_t>(value, (void**)arr, pos);
+                IndexArrayCopyStatic<typ, double>(value, (void**)arr, pos);
                 break;
             case VType::struct_:
                 IndexArrayStaticInterface<typ>(value, arr, pos);
@@ -518,10 +518,10 @@ namespace art {
                 IndexArrayMoveStatic<typ, uint64_t>(value, (void**)arr, pos);
                 break;
             case VType::raw_arr_flo:
-                IndexArrayMoveStatic<typ, uint64_t>(value, (void**)arr, pos);
+                IndexArrayMoveStatic<typ, float>(value, (void**)arr, pos);
                 break;
             case VType::raw_arr_doub:
-                IndexArrayMoveStatic<typ, uint64_t>(value, (void**)arr, pos);
+                IndexArrayMoveStatic<typ, double>(value, (void**)arr, pos);
                 break;
             default:
                 throw NotImplementedException();
@@ -564,10 +564,10 @@ namespace art {
                 IndexArraySetCopyStatic<typ, uint64_t>(value, (void**)arr, (uint32_t)pos);
                 break;
             case VType::raw_arr_flo:
-                IndexArraySetCopyStatic<typ, uint64_t>(value, (void**)arr, (uint32_t)pos);
+                IndexArraySetCopyStatic<typ, float>(value, (void**)arr, (uint32_t)pos);
                 break;
             case VType::raw_arr_doub:
-                IndexArraySetCopyStatic<typ, uint64_t>(value, (void**)arr, (uint32_t)pos);
+                IndexArraySetCopyStatic<typ, double>(value, (void**)arr, (uint32_t)pos);
                 break;
             case VType::struct_:
                 IndexArraySetStaticInterface<typ>(value, arr, pos);
@@ -611,10 +611,10 @@ namespace art {
                 IndexArraySetMoveStatic<typ, uint64_t>(value, (void**)arr, (uint32_t)pos);
                 break;
             case VType::raw_arr_flo:
-                IndexArraySetMoveStatic<typ, uint64_t>(value, (void**)arr, (uint32_t)pos);
+                IndexArraySetMoveStatic<typ, float>(value, (void**)arr, (uint32_t)pos);
                 break;
             case VType::raw_arr_doub:
-                IndexArraySetMoveStatic<typ, uint64_t>(value, (void**)arr, (uint32_t)pos);
+                IndexArraySetMoveStatic<typ, double>(value, (void**)arr, (uint32_t)pos);
                 break;
             default:
                 throw NotImplementedException();

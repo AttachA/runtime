@@ -75,7 +75,7 @@ namespace art {
                         reached_end = ReachedEnd::begin;
                         return false;
                     }
-                    _current++;
+                    ++_current;
                     return true;
                 }
 
@@ -90,7 +90,7 @@ namespace art {
                         reached_end = ReachedEnd::end;
                         return false;
                     }
-                    _current--;
+                    --_current;
                     return true;
                 }
 

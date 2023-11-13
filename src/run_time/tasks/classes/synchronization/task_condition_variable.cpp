@@ -131,12 +131,13 @@ namespace art {
         {
             art::lock_guard guard(no_race);
             while (resume_task.size()) {
-                resume_task.back().task->no_race.lock();
-                if (resume_task.back().task->time_end_flag || resume_task.back().task->awake_check != resume_task.back().awake_check) {
-                    resume_task.back().task->no_race.unlock();
+                auto& [cur, awake_check] = resume_task.back();
+                cur->no_race.lock();
+                if (cur->time_end_flag || cur->awake_check != awake_check) {
+                    cur->no_race.unlock();
                     resume_task.pop_back();
                 } else {
-                    tsk = resume_task.back().task;
+                    tsk = cur;
                     resume_task.pop_back();
                     break;
                 }

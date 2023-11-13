@@ -188,11 +188,11 @@ namespace art {
 
     art::shared_ptr<FuncEnvironment>& TaskMutex_lock_holder = attacha_environment::create_fun_env(new FuncEnvironment(_TaskMutex_lock_holder, true, false));
 
-    void TaskMutex::lifecycle_lock(art::typed_lgr<Task> task) {
+    void TaskMutex::lifecycle_lock(const art::typed_lgr<Task>& task) {
         Task::start(new Task(TaskMutex_lock_holder, ValueItem{ValueItem(new art::typed_lgr<Task>(task), VType::async_res), this, false}));
     }
 
-    void TaskMutex::sequence_lock(art::typed_lgr<Task> task) {
+    void TaskMutex::sequence_lock(const art::typed_lgr<Task>& task) {
         Task::start(new Task(TaskMutex_lock_holder, ValueItem{ValueItem(new art::typed_lgr<Task>(task), VType::async_res), this, true}));
     }
 }

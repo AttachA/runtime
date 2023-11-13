@@ -628,6 +628,8 @@ namespace art {
             ;
         to_allocate = to_allocate + (8 - to_allocate % 8);
         AttachAVirtualTable* table = (AttachAVirtualTable*)malloc(to_allocate);
+        if (!table)
+            throw std::bad_alloc();
         new (table) AttachAVirtualTable(methods, values, destructor, copy, move, compare, structure_bytes, allow_auto_copy);
         return table;
     }
@@ -1320,6 +1322,8 @@ namespace art {
                 structure_helpers::cleanup_item((char*)self, value_table[i]);
             break;
         }
+        default:
+            break;
         }
     }
 
@@ -1480,9 +1484,9 @@ namespace art {
         if (this->vtable_mode != VTableMode::AttachADynamicVirtualTable)
             throw InvalidOperation("vtable must be dynamic to derive");
         if (vtable_mode == VTableMode::AttachAVirtualTable)
-            ((AttachADynamicVirtualTable*)vtable)->derive(*(AttachAVirtualTable*)vtable);
+            ((AttachADynamicVirtualTable*)this->vtable)->derive(*(AttachAVirtualTable*)vtable);
         else if (vtable_mode == VTableMode::AttachADynamicVirtualTable)
-            ((AttachADynamicVirtualTable*)vtable)->derive(*(AttachADynamicVirtualTable*)vtable);
+            ((AttachADynamicVirtualTable*)this->vtable)->derive(*(AttachADynamicVirtualTable*)vtable);
         else
             throw NotImplementedException();
     }
@@ -1735,8 +1739,7 @@ namespace art {
             a_info = ((AttachADynamicVirtualTable*)a->vtable)->getValuesInfo(a_info_size);
             break;
         default:
-            a_info_size = 0;
-            a_info = nullptr;
+            return -1;
         }
 
         switch (b->vtable_mode) {
@@ -1747,8 +1750,7 @@ namespace art {
             b_info = ((AttachADynamicVirtualTable*)b->vtable)->getValuesInfo(b_info_size);
             break;
         default:
-            b_info_size = 0;
-            b_info = nullptr;
+            return -1;
         }
 
         if (a_info_size != b_info_size)

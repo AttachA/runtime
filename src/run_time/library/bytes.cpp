@@ -249,14 +249,9 @@ namespace art {
                     throw InvalidArguments("Invalid number of bytes for from_bytes, expected 8, got " + std::to_string(bytes_len));
                 result = *(double*)bytes;
                 break;
-            case VType::string: {
-                if (bytes_len == 0) {
-                    result = art::ustring();
-                    break;
-                }
+            case VType::string:
                 result = art::ustring((char*)bytes, bytes_len);
                 break;
-            }
             case VType::raw_arr_i8:
                 if (bytes_len < type.val_len)
                     throw OutOfRange("Invalid number of bytes for from_bytes, " + std::to_string(bytes_len) + " < " + std::to_string(type.val_len));

@@ -751,7 +751,7 @@ namespace art {
                     sizeof(Class_),
                     false
                 );
-                res->name = owner_name;
+                res->name = std::move(owner_name);
                 return res;
             }
 
@@ -809,7 +809,7 @@ namespace art {
                     sizeof(Class_),
                     false
                 );
-                res->name = owner_name;
+                res->name = std::move(owner_name);
                 return res;
             }
 
@@ -866,7 +866,7 @@ namespace art {
                     sizeof(Class_),
                     false
                 );
-                res->name = owner_name;
+                res->name = std::move(owner_name);
                 return res;
             }
 
@@ -921,7 +921,7 @@ namespace art {
                     sizeof(Class_),
                     false
                 );
-                res->name = owner_name;
+                res->name = std::move(owner_name);
                 return res;
             }
 
@@ -968,7 +968,7 @@ namespace art {
                     sizeof(Class_),
                     false
                 );
-                res->name = owner_name;
+                res->name = std::move(owner_name);
                 return res;
             }
 
@@ -1004,7 +1004,7 @@ namespace art {
                     sizeof(Class_),
                     false
                 );
-                res->name = owner_name;
+                res->name = std::move(owner_name);
                 return res;
             }
 

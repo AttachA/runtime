@@ -116,33 +116,16 @@ namespace art {
         : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version), cross_code(code), _type(FuncType::own), values(values) {}
 
     FuncHandle::inner_handle::inner_handle(const std::vector<uint8_t>& code, const list_array<ValueItem>& values, const std::vector<art::shared_ptr<FuncEnvironment>>& local_funcs, bool is_cheap, art::ustring* cross_code_compiler_name_version)
-        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version) {
-        _type = FuncType::own;
-        this->cross_code = code;
-        this->values = values;
-        this->local_funcs = local_funcs;
-    }
+        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version), cross_code(code), _type(FuncType::own), values(values), local_funcs(local_funcs) {}
 
     FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, bool is_cheap, art::ustring* cross_code_compiler_name_version)
-        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version) {
-        _type = FuncType::own;
-        this->cross_code = std::move(code);
-    }
+        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version), cross_code(std::move(code)), _type(FuncType::own) {}
 
     FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, bool is_cheap, art::ustring* cross_code_compiler_name_version)
-        : is_cheap(is_cheap) {
-        _type = FuncType::own;
-        this->cross_code = std::move(code);
-        this->values = std::move(values);
-    }
+        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version), cross_code(std::move(code)), _type(FuncType::own), values(std::move(values)) {}
 
     FuncHandle::inner_handle::inner_handle(std::vector<uint8_t>&& code, list_array<ValueItem>&& values, std::vector<art::shared_ptr<FuncEnvironment>>&& local_funcs, bool is_cheap, art::ustring* cross_code_compiler_name_version)
-        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version) {
-        _type = FuncType::own;
-        this->cross_code = std::move(code);
-        this->values = std::move(values);
-        this->local_funcs = std::move(local_funcs);
-    }
+        : is_cheap(is_cheap), cross_code_compiler_name_version(cross_code_compiler_name_version), cross_code(std::move(code)), _type(FuncType::own), values(std::move(values)), local_funcs(std::move(local_funcs)) {}
 
     ValueItem* FuncHandle::inner_handle::localWrapper(size_t indx, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
         if (indx < local_funcs.size()) {

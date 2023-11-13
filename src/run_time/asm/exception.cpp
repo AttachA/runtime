@@ -122,6 +122,7 @@ namespace art {
                         }
                             return ExceptionContinueSearch;
                         }
+                        break;
                     }
                     case ScopeAction::Action::filter: {
                         auto filter = readFromArrayAsValue<bool (*)(CXXExInfo&, void*&, void*, size_t, void*, uint8_t*)>(data);

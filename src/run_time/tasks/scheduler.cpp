@@ -286,7 +286,7 @@ namespace art {
                 std::abort();
             }
             art::lock_guard guard(extern_context.no_race);
-            extern_context.tasks.push_back(std::move(task));
+            extern_context.tasks.emplace_back(std::move(task));
             extern_context.new_task_notifier.notify_one();
         }
     }

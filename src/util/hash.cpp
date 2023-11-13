@@ -176,8 +176,8 @@ namespace art {
 
     Murmur3_128 mur_combine(Murmur3_128 h1, Murmur3_128 h2) {
         uint64_t h11 = mur_combine(h1.h1, h2.h1);
-        uint64_t h12 = mur_combine(h1.h1, h2.h1);
-        uint64_t h21 = mur_combine(h1.h2, h2.h2);
+        uint64_t h12 = mur_combine(h1.h1, h2.h2);
+        uint64_t h21 = mur_combine(h1.h2, h2.h1);
         uint64_t h22 = mur_combine(h1.h2, h2.h2);
         return {mur_combine(h11, h21), mur_combine(h12, h22)};
     }

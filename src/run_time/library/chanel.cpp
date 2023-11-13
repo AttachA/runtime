@@ -287,13 +287,16 @@ namespace art {
             res->notifier_event = event;
             res->ntype = type;
             art::lock_guard guard(no_race);
-            auto_events.emplace_back(res);
-            return res;
+            typed_lgr lgr_res(res);
+            auto_events.push_back(lgr_res);
+            return lgr_res;
         }
 
         typed_lgr<ChanelHandler> Chanel::create_handle() {
             art::lock_guard guard(no_race);
-            return subscribers.emplace_back(new ChanelHandler());
+            typed_lgr res(new ChanelHandler());
+            subscribers.push_back(res);
+            return res;
         }
 
         typed_lgr<ChanelHandler> Chanel::add_handle(typed_lgr<ChanelHandler> handler) {
@@ -301,7 +304,7 @@ namespace art {
             return subscribers.emplace_back(handler);
         }
 
-        void Chanel::remove_handle(typed_lgr<ChanelHandler> handle) {
+        void Chanel::remove_handle(const typed_lgr<ChanelHandler>& handle) {
             art::lock_guard guard(no_race);
             auto end = subscribers.end();
             auto found = std::find(subscribers.begin(), end, handle);
@@ -327,7 +330,7 @@ namespace art {
             auto_notifier.erase(found);
         }
 
-        void Chanel::remove_auto_event(typed_lgr<AutoEventChanel> notifier) {
+        void Chanel::remove_auto_event(const typed_lgr<AutoEventChanel>& notifier) {
             art::lock_guard guard(no_race);
             auto end = auto_events.end();
             auto found = std::find(auto_events.begin(), end, notifier);
@@ -355,7 +358,7 @@ namespace art {
                 task = *(art::typed_lgr<Task>*)args[1].getSourcePtr();
                 break;
             case VType::function:
-                task = new Task(*args[1].funPtr(), {});
+                task = new Task(*args[1].funPtr(), ValueItem{});
                 break;
             default:
                 throw InvalidArguments("That function receives [class ptr] [any...]");
@@ -372,7 +375,7 @@ namespace art {
                 task = *(art::typed_lgr<Task>*)args[1].getSourcePtr();
                 break;
             case VType::function:
-                task = new Task(*args[1].funPtr(), {});
+                task = new Task(*args[1].funPtr(), ValueItem{});
                 break;
             default:
                 throw InvalidArguments("That function receives [class ptr] [async res / function]");
@@ -389,7 +392,7 @@ namespace art {
                 task = *(art::typed_lgr<Task>*)args[1].getSourcePtr();
                 break;
             case VType::function:
-                task = new Task(*args[1].funPtr(), {});
+                task = new Task(*args[1].funPtr(), ValueItem{});
                 break;
             default:
                 throw InvalidArguments("That function receives [class ptr] [async res / function] [start from]");

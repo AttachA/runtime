@@ -147,11 +147,11 @@ namespace art {
             return false;
     }
 
-    void TaskRecursiveMutex::lifecycle_lock(art::typed_lgr<Task> task) {
+    void TaskRecursiveMutex::lifecycle_lock(const art::typed_lgr<Task>& task) {
         mutex.lifecycle_lock(task);
     }
 
-    void TaskRecursiveMutex::sequence_lock(art::typed_lgr<Task> task) {
+    void TaskRecursiveMutex::sequence_lock(const art::typed_lgr<Task>& task) {
         mutex.sequence_lock(task);
     }
 

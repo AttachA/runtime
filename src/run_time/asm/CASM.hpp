@@ -1992,6 +1992,8 @@ namespace art {
                 throw CompileTimeException("invalid exception scope");
             ScopeAction* action = csm.create_filter(filter_fun);
             char* data_ptr = (char*)malloc(data_size);
+            if (!data_ptr)
+                throw std::bad_alloc();
             memcpy(data_ptr, data, data_size);
             action->filter_data = data_ptr;
             action->filter_data_len = data_size;
@@ -2008,6 +2010,8 @@ namespace art {
             ScopeAction* action = csm.create_finally(final_fun);
             action->function_begin_off = it->second.begin_off;
             char* data_ptr = (char*)malloc(data_size);
+            if (!data_ptr)
+                throw std::bad_alloc();
             memcpy(data_ptr, data, data_size);
             action->finally_data = data_ptr;
             action->finally_data_len = data_size;

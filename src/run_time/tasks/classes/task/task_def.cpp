@@ -596,39 +596,31 @@ namespace art {
         art::typed_lgr<Task> task;
 
         native_task_schedule(art::shared_ptr<FuncEnvironment> func)
-            : NativeWorkerHandle(this) {
-            this->func = func;
-            task = Task::dummy_task();
+            : NativeWorkerHandle(this), func(func), task(Task::dummy_task()) {
             task->started = true;
         }
 
         native_task_schedule(art::shared_ptr<FuncEnvironment> func, ValueItem&& arguments)
-            : NativeWorkerHandle(this) {
-            this->func = func;
-            task = Task::dummy_task();
+            : NativeWorkerHandle(this), func(func), task(Task::dummy_task()) {
             task->started = true;
             put_arguments(args, std::move(arguments));
         }
 
         native_task_schedule(art::shared_ptr<FuncEnvironment> func, const ValueItem& arguments)
-            : NativeWorkerHandle(this) {
-            this->func = func;
-            task = Task::dummy_task();
+            : NativeWorkerHandle(this), func(func), task(Task::dummy_task()) {
             task->started = true;
             put_arguments(args, arguments);
         }
 
         native_task_schedule(art::shared_ptr<FuncEnvironment> func, const ValueItem& arguments, ValueItem& dummy_data, void (*on_await)(ValueItem&), void (*on_cancel)(ValueItem&), void (*on_timeout)(ValueItem&), void (*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout)
-            : NativeWorkerHandle(this) {
-            this->func = func;
+            : NativeWorkerHandle(this), func(func) {
             task = Task::callback_dummy(dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
             task->started = true;
             put_arguments(args, arguments);
         }
 
         native_task_schedule(art::shared_ptr<FuncEnvironment> func, ValueItem&& arguments, ValueItem& dummy_data, void (*on_await)(ValueItem&), void (*on_cancel)(ValueItem&), void (*on_timeout)(ValueItem&), void (*on_destruct)(ValueItem&), std::chrono::high_resolution_clock::time_point timeout)
-            : NativeWorkerHandle(this) {
-            this->func = func;
+            : NativeWorkerHandle(this), func(func) {
             task = Task::callback_dummy(dummy_data, on_await, on_cancel, on_timeout, on_destruct, timeout);
             task->started = true;
             put_arguments(args, std::move(arguments));

@@ -27,7 +27,8 @@ namespace art {
         }
 
         void PatchList::add_patch(Patch&& patch) {
-            patches.emplace_back(new Patch(std::move(patch)));
+            art::shared_ptr ptr(new Patch(std::move(patch)));
+            patches.emplace_back(std::move(ptr));
         }
 
         void PatchList::remove_patch(const art::ustring& name) {

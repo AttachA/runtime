@@ -31,7 +31,7 @@ namespace art {
                     call.AddValueArgument(*(uint8_t*)&arg);
                     break;
                 case VType::ui16:
-                    call.AddValueArgument(*(int16_t*)&arg);
+                    call.AddValueArgument(*(uint16_t*)&arg);
                     break;
                 case VType::ui32:
                     call.AddValueArgument(*(uint32_t*)&arg);
@@ -61,7 +61,7 @@ namespace art {
                     call.AddArray((uint8_t*)arg, meta.val_len);
                     break;
                 case VType::raw_arr_ui16:
-                    call.AddArray((int16_t*)arg, meta.val_len);
+                    call.AddArray((uint16_t*)arg, meta.val_len);
                     break;
                 case VType::raw_arr_ui32:
                     call.AddArray((uint32_t*)arg, meta.val_len);
@@ -108,7 +108,7 @@ namespace art {
                     call.AddValueArgument(*(uint8_t*)&arg);
                     break;
                 case VType::ui16:
-                    call.AddValueArgument(*(int16_t*)&arg);
+                    call.AddValueArgument(*(uint16_t*)&arg);
                     break;
                 case VType::ui32:
                     call.AddValueArgument(*(uint32_t*)&arg);
@@ -138,7 +138,7 @@ namespace art {
                     call.AddPtrArgument((uint8_t*)arg);
                     break;
                 case VType::raw_arr_ui16:
-                    call.AddPtrArgument((int16_t*)arg);
+                    call.AddPtrArgument((uint16_t*)arg);
                     break;
                 case VType::raw_arr_ui32:
                     call.AddPtrArgument((uint32_t*)arg);
@@ -205,7 +205,7 @@ namespace art {
                                 call.AddValueArgument(*(uint8_t*)&arg);
                                 break;
                             case VType::ui16:
-                                call.AddValueArgument(*(int16_t*)&arg);
+                                call.AddValueArgument(*(uint16_t*)&arg);
                                 break;
                             case VType::ui32:
                                 call.AddValueArgument(*(uint32_t*)&arg);

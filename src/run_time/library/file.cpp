@@ -209,7 +209,7 @@ namespace art {
                 auto& string = *(art::ustring*)item.getSourcePtr();
                 if (ascii_mode) {
                     for (char c : string) {
-                        if (c > 127)
+                        if (reinterpret_cast<uint8_t&>(c) > 127)
                             throw InvalidType("Can't write utf8 or extended ascii to regular ascii file");
                     }
                 }

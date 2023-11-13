@@ -147,7 +147,7 @@ namespace art {
         if ((uint8_t)csm.offset() != csm.offset())
             throw CompileTimeException("prolog too large");
         res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_PUSH_NONVOL, reg.id()).solid);
-        pushes.push_back({cur_op++, reg});
+        pushes.emplace_back(cur_op++, reg);
         stack_align += 8;
     }
 
@@ -172,7 +172,7 @@ namespace art {
             res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_ALLOC_LARGE, 1).solid);
         } else
             throw CompileTimeException("Invalid unwind code, too large stack allocation");
-        stack_alloc.push_back({cur_op++, size});
+        stack_alloc.emplace_back(cur_op++, size);
         stack_align += size;
     }
 
@@ -187,7 +187,7 @@ namespace art {
         if ((uint8_t)csm.offset() != csm.offset())
             throw CompileTimeException("prolog too large");
         res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SET_FPREG, 0).solid);
-        set_frame.push_back({cur_op++, stack_offset});
+        set_frame.emplace_back(cur_op++, stack_offset);
         res.head.FrameOffset = stack_offset / 16;
         frame_inited = true;
     }
@@ -195,8 +195,6 @@ namespace art {
     void BuildProlog::saveToStack(creg reg, int32_t stack_back_offset) {
         if (reg.isVec()) {
             if (reg.type() == asmjit::RegType::kVec128) {
-                if (INT32_MAX > stack_back_offset)
-                    throw CompileTimeException("Overflow, fail convert 64 point to 32 point");
                 if (UINT16_MAX > stack_back_offset || stack_back_offset % 16) {
                     csm.mov(stack_ptr, stack_back_offset, reg.as<creg128>());
                     if ((uint8_t)csm.offset() != csm.offset())
@@ -226,7 +224,7 @@ namespace art {
                 res.prolog.push_back(UWCODE((uint8_t)csm.offset(), UWC::UWOP_SAVE_NONVOL, reg.id()).solid);
             }
         }
-        save_to_stack.push_back({cur_op++, {reg, stack_back_offset}});
+        save_to_stack.emplace_back(cur_op++, std::pair{reg, stack_back_offset});
     }
 
     void BuildProlog::end_prolog() {

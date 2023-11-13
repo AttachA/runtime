@@ -359,8 +359,6 @@ namespace art {
                     } else
                         throw std::out_of_range("Out of arguments range");
                 }
-                if (max_arguments <= current_argument)
-                    throw std::out_of_range("Out of arguments range");
                 auto& tmp = templ.arguments[current_argument];
                 if (tmp.ptype == FunctionTemplate::ValueT::PlaceType::as_ptr) {
                     holder.push_array(arr, arr_len);

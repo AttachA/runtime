@@ -175,7 +175,7 @@ namespace art {
             write_delayed
         };
 
-        TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, const ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10, TcpConfiguration config = {});
+        TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, const ValueItem& ip_port, ManageType manage_type, size_t acceptors = 10, const TcpConfiguration& config = {});
         ~TcpNetworkServer();
         void start();
         void pause();
@@ -192,7 +192,7 @@ namespace art {
         art::ustring server_ip();
         ValueItem server_address();
         //apply to new connections
-        void set_configuration(TcpConfiguration config);
+        void set_configuration(const TcpConfiguration& config);
         void set_accept_filter(art::shared_ptr<FuncEnvironment> filter);
     };
 
@@ -202,10 +202,10 @@ namespace art {
 
     public:
         ~TcpClientSocket();
-        static TcpClientSocket* connect(const ValueItem& ip_port, TcpConfiguration config = {});
-        static TcpClientSocket* connect(const ValueItem& ip_port, char* data, uint32_t size, TcpConfiguration config = {});
+        static TcpClientSocket* connect(const ValueItem& ip_port, const TcpConfiguration& config = {});
+        static TcpClientSocket* connect(const ValueItem& ip_port, char* data, uint32_t size, const TcpConfiguration& config = {});
         //apply to current connection
-        void set_configuration(TcpConfiguration config);
+        void set_configuration(const TcpConfiguration& config);
         int32_t recv(uint8_t* data, int32_t size);
         bool send(uint8_t* data, int32_t size);
         bool send_file(const char* file_path, size_t file_path_len, uint64_t data_len, uint64_t offset, uint32_t chunks_size);

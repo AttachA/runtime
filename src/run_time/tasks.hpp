@@ -68,9 +68,9 @@ namespace art {
         void unlock();
         bool is_locked();
         //put here child task(not started), and it will lock mutex, and unlock it when it will be finished
-        void lifecycle_lock(art::typed_lgr<Task> task);
+        void lifecycle_lock(const art::typed_lgr<Task>& task);
         //put here child task(not started), and it will lock mutex and relock it when received value from child task, and unlock it when it will be finished
-        void sequence_lock(art::typed_lgr<Task> task);
+        void sequence_lock(const art::typed_lgr<Task>& task);
         bool is_own();
     };
 
@@ -89,9 +89,9 @@ namespace art {
         void unlock();
         bool is_locked();
         //put here child task(not started), and it will lock mutex, and unlock it when it will be finished
-        void lifecycle_lock(art::typed_lgr<Task> task);
+        void lifecycle_lock(const art::typed_lgr<Task>& task);
         //put here child task(not started), and it will lock mutex and relock it when received value from child task, and unlock it when it will be finished
-        void sequence_lock(art::typed_lgr<Task> task);
+        void sequence_lock(const art::typed_lgr<Task>& task);
         bool is_own();
 
         relock_state relock_begin();

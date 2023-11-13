@@ -220,7 +220,7 @@ namespace art {
                 path += L"\\Unresolved_AttachA";
             } else {
                 std::wstring tmp2(tmp, tmp + len);
-                path += tmp2.substr(tmp2.find_last_of(L"\\") + 1);
+                path += tmp2.substr(tmp2.find_last_of('\\') + 1);
             }
             delete[] tmp;
         }

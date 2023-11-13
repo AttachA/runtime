@@ -966,7 +966,7 @@ namespace art {
                 throw InvalidOperation("Cannot edit constant value");
             BuildCall b(compiler.a, 1);
             b.lea_valindex({compiler.static_map, compiler.values}, array);
-            b.finalize(&list_array<ValueItem>::commit);
+            b.finalize(&list_array<ValueItem>::shrink_to_fit);
         }
     }
     void Compiler::StaticCompiler::ArrayOperation::size(const ValueIndexPos& set) {

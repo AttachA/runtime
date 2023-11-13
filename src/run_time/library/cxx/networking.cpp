@@ -464,7 +464,6 @@ namespace art {
             : socket(socket), NativeWorkerHandle(manager), max_read_queue_size(read_queue_size) {
             if (buffer_len < 0)
                 throw InvalidArguments("buffer_len must be positive");
-            SecureZeroMemory(&overlapped, sizeof(OVERLAPPED));
             data = new char[buffer_len];
             buffer.buf = data;
             buffer.len = buffer_len;
@@ -1771,7 +1770,7 @@ namespace art {
 
     public:
         TcpNetworkManager(universal_address& ip_port, size_t acceptors, TcpNetworkServer::ManageType manage_type, const TcpConfiguration& config)
-            : acceptors(acceptors), manage_type(manage_type), config(config) {
+            : acceptors(acceptors), manage_type(manage_type), config(config), main_socket(INVALID_SOCKET), timeout_ms(0) {
             memcpy(&connectionAddress, &ip_port, sizeof(sockaddr_in6));
         }
 
@@ -2219,8 +2218,9 @@ namespace art {
         DWORD last_error;
 
         udp_handle(sockaddr_in6& address, uint32_t timeout_ms)
-            : NativeWorkerHandle(this), last_error(0), fullifed_bytes(0), status(false) {
+            : NativeWorkerHandle(this), last_error(0), fullifed_bytes(0), status(false), server_address{0} {
             socket = WSASocketW(AF_INET6, SOCK_DGRAM, IPPROTO_UDP, NULL, 0, WSA_FLAG_OVERLAPPED);
+
             if (socket == INVALID_SOCKET)
                 return;
             if (bind(socket, (sockaddr*)&address, sizeof(sockaddr_in6)) == SOCKET_ERROR) {
@@ -3632,7 +3632,7 @@ namespace art {
         }
 
     public:
-        TcpNetworkManager(universal_address& ip_port, size_t acceptors, TcpNetworkServer::ManageType manage_type, TcpConfiguration config)
+        TcpNetworkManager(universal_address& ip_port, size_t acceptors, TcpNetworkServer::ManageType manage_type, const TcpConfiguration& config)
             : acceptors(acceptors), manage_type(manage_type), config(config), main_socket(INVALID_SOCKET) {
             memcpy(&connectionAddress, &ip_port, sizeof(sockaddr_in6));
         }
@@ -3732,7 +3732,7 @@ namespace art {
                 state_changed_cv.wait(lock);
         }
 
-        void set_configuration(TcpConfiguration config) {
+        void set_configuration(const TcpConfiguration& config) {
             if (corrupted)
                 throw AttachARuntimeException("TcpNetworkManager is corrupted");
             this->config = config;
@@ -3811,7 +3811,7 @@ namespace art {
                 handle.handle(cqe->res, cqe->res < 0 ? -cqe->res : 0);
         }
 
-        TcpClientManager(sockaddr_in6& _connectionAddress, TcpConfiguration config)
+        TcpClientManager(sockaddr_in6& _connectionAddress, const TcpConfiguration& config)
             : connectionAddress(_connectionAddress) {
             SOCKET clientSocket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
             if (clientSocket == INVALID_SOCKET) {
@@ -3897,7 +3897,7 @@ namespace art {
             }
         }
 
-        TcpClientManager(sockaddr_in6& _connectionAddress, char* data, uint32_t len, TcpConfiguration config)
+        TcpClientManager(sockaddr_in6& _connectionAddress, char* data, uint32_t len, const TcpConfiguration& config)
             : connectionAddress(_connectionAddress), _handle(nullptr) {
             SOCKET clientSocket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
             if (clientSocket == INVALID_SOCKET) {
@@ -3990,7 +3990,7 @@ namespace art {
             delete _handle;
         }
 
-        void set_configuration(TcpConfiguration config) {
+        void set_configuration(const TcpConfiguration& config) {
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::set_configuration, corrupted");
             if (_handle) {
@@ -4210,7 +4210,7 @@ namespace art {
     #error Unsupported platform
 #endif
 
-    TcpNetworkServer::TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, const ValueItem& ip_port, ManageType mt, size_t acceptors, TcpConfiguration config) {
+    TcpNetworkServer::TcpNetworkServer(art::shared_ptr<FuncEnvironment> on_connect, const ValueItem& ip_port, ManageType mt, size_t acceptors, const TcpConfiguration& config) {
         if (!inited)
             throw InternalException("Network module not initialized");
         sockaddr_storage address;
@@ -4273,7 +4273,7 @@ namespace art {
         return handle->is_paused();
     }
 
-    void TcpNetworkServer::set_configuration(TcpConfiguration config) {
+    void TcpNetworkServer::set_configuration(const TcpConfiguration& config) {
         if (handle)
             handle->set_configuration(config);
     }
@@ -4292,7 +4292,7 @@ namespace art {
         handle = nullptr;
     }
 
-    TcpClientSocket* TcpClientSocket::connect(const ValueItem& ip_port, TcpConfiguration configuration) {
+    TcpClientSocket* TcpClientSocket::connect(const ValueItem& ip_port, const TcpConfiguration& configuration) {
         if (!inited)
             throw InternalException("Network module not initialized");
         sockaddr_storage address;
@@ -4303,7 +4303,7 @@ namespace art {
         return result.release();
     }
 
-    TcpClientSocket* TcpClientSocket::connect(const ValueItem& ip_port, char* data, uint32_t size, TcpConfiguration configuration) {
+    TcpClientSocket* TcpClientSocket::connect(const ValueItem& ip_port, char* data, uint32_t size, const TcpConfiguration& configuration) {
         if (!inited)
             throw InternalException("Network module not initialized");
         sockaddr_storage address;
@@ -4314,7 +4314,7 @@ namespace art {
         return result.release();
     }
 
-    void TcpClientSocket::set_configuration(TcpConfiguration config) {
+    void TcpClientSocket::set_configuration(const TcpConfiguration& config) {
         if (handle)
             handle->set_configuration(config);
     }

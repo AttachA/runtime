@@ -18,6 +18,7 @@ namespace art {
                 list.erase(iter);
                 return true;
             }
+            ++iter;
         }
         return false;
     }
