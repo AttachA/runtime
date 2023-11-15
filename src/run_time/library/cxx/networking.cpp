@@ -4047,9 +4047,7 @@ namespace art {
                     }
                 }
                 if (config.buffer_size > 0 && config.buffer_size != _handle->data_len) {
-                    if (config.buffer_size != (int)config.buffer_size)
-                        config.buffer_size = INT_MAX;
-                    _handle->data_len = config.buffer_size;
+                    _handle->data_len = config.buffer_size == (int)config.buffer_size ? (int)config.buffer_size : INT_MAX;
                     delete[] _handle->data;
                     _handle->data = new char[_handle->data_len];
                     _handle->buffer.buf = _handle->data;
