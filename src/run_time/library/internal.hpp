@@ -29,6 +29,14 @@ namespace art {
             list_array<ValueMeta> get_return_values();
         };
 
+        struct static_viewer {
+            void* _internal; //ref to static value
+            art::ustring get_name();
+            ClassAccess get_access();
+            list_array<tag_viewer> get_tags();
+            ValueItem copy_value();
+        };
+
         struct value_viewer {
             void* _internal; //ref to value
             art::ustring get_name();
@@ -65,6 +73,9 @@ namespace art {
             value_viewer get_value_by_id(uint64_t id);
             value_viewer get_value_by_name(const art::ustring& name, ClassAccess access);
             uint64_t get_value_id(const art::ustring& name, ClassAccess access);
+
+            list_array<static_viewer> get_statics();
+            static_viewer get_static_by_name(const art::ustring& name, ClassAccess access);
 
             list_array<tag_viewer> get_tags();
             tag_viewer get_tag_by_id(uint64_t id);

@@ -967,6 +967,13 @@ namespace art {
         ValueInfo& operator=(ValueInfo&& move);
     };
 
+    struct StructStaticValue {
+        art::ustring name;
+        list_array<ValueTag>* optional_tags;
+        ValueItem value;
+        ClassAccess access : 2;
+    };
+
     namespace structure_helpers {
         template <typename T>
         T static_value_get(const char* ptr, size_t offset, uint16_t bit_used, uint8_t bit_offset) {
@@ -1140,9 +1147,9 @@ namespace art {
         Environment move;       //args: Structure* dst, Structure* src, bool at_construct
         Environment compare;    //args: Structure* first, Structure* second, return: -1 if first < second, 0 if first == second, 1 if first > second
         size_t structure_bytes;
+        size_t call_table_size;
+        size_t value_table_size;
         bool allow_auto_copy : 1; //allow to copy values by value table if copy operation not implemented(null)
-        uint64_t call_table_size;
-        uint64_t value_table_size;
         char data[];
 
         //{
@@ -1152,10 +1159,8 @@ namespace art {
         //	art::shared_ptr<FuncEnvironment> holder_destructor;
         //	art::shared_ptr<FuncEnvironment> holder_copy;
         //	art::shared_ptr<FuncEnvironment> holder_move;
-        //	art::shared_ptr<FuncEnvironment> holder_compare;
         //  art::ustring name;
         //	list_array<StructureTag>* tags;//can be null
-        //  std::ustring* bounded_namespace;//can be null
         //}
         list_array<StructureTag>* getStructureTags();
         list_array<MethodTag>* getMethodTags(uint64_t index);
@@ -1209,14 +1214,23 @@ namespace art {
         uint64_t getValueIndex(const art::ustring& name, ClassAccess access) const;
     #pragma endregion
 
+
+    #pragma region static_values
+        StructStaticValue* getStaticValue(const art::ustring& name, ClassAccess access, bool add_new);
+        bool hasStaticValue(const art::ustring& name, ClassAccess access) const;
+        list_array<StructStaticValue>& staticValues();
+        list_array<StructureTag>* getStaticValueTags(const art::ustring& name, ClassAccess access);
+    #pragma endregion
+
     private:
         struct AfterMethods {
+            art::ustring name;
+            list_array<StructStaticValue> static_values;
+            list_array<StructureTag>* tags;
             art::shared_ptr<FuncEnvironment> destructor;
             art::shared_ptr<FuncEnvironment> copy;
             art::shared_ptr<FuncEnvironment> move;
             art::shared_ptr<FuncEnvironment> compare;
-            art::ustring name;
-            list_array<StructureTag>* tags;
         };
 
         MethodInfo* getMethodsInfo() const;
@@ -1237,6 +1251,7 @@ namespace art {
         list_array<MethodInfo> methods;
         list_array<ValueInfo> values;
         list_array<StructureTag>* tags;
+        list_array<StructStaticValue> static_values;
         art::ustring name;
         size_t structure_bytes;
         bool allow_auto_copy : 1; //allow to copy values by value table if copy operation not implemented(null)
@@ -1301,6 +1316,13 @@ namespace art {
         void deriveValues(AttachAVirtualTable& parent, bool as_friend = false);
     #pragma endregion
 
+    #pragma region static_values
+        StructStaticValue* getStaticValue(const art::ustring& name, ClassAccess access, bool add_new);
+        bool hasStaticValue(const art::ustring& name, ClassAccess access) const;
+        list_array<StructStaticValue>& staticValues();
+        list_array<StructureTag>* getStaticValueTags(const art::ustring& name, ClassAccess access);
+    #pragma endregion
+
         list_array<StructureTag>* getStructureTags();
         void derive(AttachADynamicVirtualTable& parent, bool as_friend = false);
         void derive(AttachAVirtualTable& parent, bool as_friend = false);
@@ -1362,6 +1384,13 @@ namespace art {
         static int8_t compare_full(Structure* a, Structure* b);      //compare && compare_object
 
         art::ustring get_name() const;
+
+    #pragma region static_values
+        StructStaticValue* getStaticValue(const art::ustring& name, ClassAccess access, bool add_new);
+        bool hasStaticValue(const art::ustring& name, ClassAccess access) const;
+        list_array<StructStaticValue>* staticValues();
+        list_array<StructureTag>* getStaticValueTags(const art::ustring& name, ClassAccess access);
+    #pragma endregion
 
 
         VTableMode vtable_mode : 2 = VTableMode::undefined;

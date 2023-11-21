@@ -215,7 +215,7 @@ AttachAFunc(class_transfer_test, 1) {
 }
 
 void test_fast_server_http(TcpNetworkStream& stream) {
-    CXX::cxxCall(class_transfer_test, stream);
+    //CXX::cxxCall(class_transfer_test, stream);
     if (!stream.is_closed()) {
         while (stream.data_available())
             stream.read_available_ref();

@@ -68,6 +68,25 @@ namespace art {
             return info->optional->return_values;
         }
 
+        art::ustring static_viewer::get_name() {
+            return ((StructStaticValue*)_internal)->name;
+        }
+
+        ClassAccess static_viewer::get_access() {
+            return ((StructStaticValue*)_internal)->access;
+        }
+
+        list_array<tag_viewer> static_viewer::get_tags() {
+            StructStaticValue* value = (StructStaticValue*)_internal;
+            if (value->optional_tags == nullptr)
+                return {};
+            return value->optional_tags->convert<tag_viewer>([](StructureTag& tag) { return tag_viewer{&tag}; });
+        }
+
+        ValueItem static_viewer::copy_value() {
+            return ((StructStaticValue*)_internal)->value;
+        }
+
         art::ustring value_viewer::get_name() {
             return ((ValueInfo*)_internal)->name;
         }
@@ -294,6 +313,32 @@ namespace art {
             }
         }
 
+        list_array<static_viewer> vtable_viewer::get_statics() {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return dyn()->staticValues().convert<static_viewer>([](StructStaticValue& info) {
+                    return static_viewer{&info};
+                });
+            case Structure::VTableMode::AttachAVirtualTable:
+                return stat()->staticValues().convert<static_viewer>([](StructStaticValue& info) {
+                    return static_viewer{&info};
+                });
+            default:
+                throw NotImplementedException();
+            }
+        }
+
+        static_viewer vtable_viewer::get_static_by_name(const art::ustring& name, ClassAccess access) {
+            switch (mode) {
+            case Structure::VTableMode::AttachADynamicVirtualTable:
+                return static_viewer{dyn()->getStaticValue(name, access, false)};
+            case Structure::VTableMode::AttachAVirtualTable:
+                return static_viewer{stat()->getStaticValue(name, access, false)};
+            default:
+                throw NotImplementedException();
+            }
+        }
+
         list_array<tag_viewer> vtable_viewer::get_tags() {
             switch (mode) {
             case Structure::VTableMode::AttachADynamicVirtualTable:
@@ -375,6 +420,7 @@ namespace art {
         }
 
         AttachAVirtualTable* method_view;
+        AttachAVirtualTable* static_view;
         AttachAVirtualTable* value_view;
         AttachAVirtualTable* tag_view;
         AttachAVirtualTable* vtable_view;
@@ -416,6 +462,26 @@ namespace art {
 
             AttachAFunc(funcs_method_view_get_return_values, 1) {
                 return CXX::Interface::getExtractAs<method_viewer>(args[0], method_view).get_return_values().convert<ValueItem>([](ValueMeta& arg) { return arg; });
+            }
+        }
+
+        namespace static_view_impl {
+            AttachAFunc(funcs_static_view_get_name, 1) {
+                return CXX::Interface::getExtractAs<static_viewer>(args[0], value_view).get_name();
+            }
+
+            AttachAFunc(funcs_static_view_get_access, 1) {
+                return (uint8_t)CXX::Interface::getExtractAs<static_viewer>(args[0], value_view).get_access();
+            }
+
+            AttachAFunc(funcs_static_view_copy_value, 1) {
+                return CXX::Interface::getExtractAs<static_viewer>(args[0], value_view).copy_value();
+            }
+
+            AttachAFunc(funcs_static_view_get_tags, 1) {
+                return CXX::Interface::getExtractAs<static_viewer>(args[0], value_view).get_tags().convert<ValueItem>([](tag_viewer& tag) {
+                    return ValueItem(CXX::Interface::constructStructure<tag_viewer>(tag_view, tag), no_copy);
+                });
             }
         }
 
@@ -588,6 +654,15 @@ namespace art {
                 CXX::Interface::direct_method("get_return_values", method_view_impl::funcs_method_view_get_return_values)
             );
             CXX::Interface::typeVTable<method_viewer>() = method_view;
+
+            static_view = CXX::Interface::createTable<static_viewer>(
+                "static_viewer",
+                CXX::Interface::direct_method("get_name", static_view_impl::funcs_static_view_get_name),
+                CXX::Interface::direct_method("get_access", static_view_impl::funcs_static_view_get_access),
+                CXX::Interface::direct_method("get_tags", static_view_impl::funcs_static_view_get_tags),
+                CXX::Interface::direct_method("copy_value", static_view_impl::funcs_static_view_copy_value)
+            );
+            CXX::Interface::typeVTable<static_viewer>() = static_view;
 
             value_view = CXX::Interface::createTable<value_viewer>(
                 "value_viewer",

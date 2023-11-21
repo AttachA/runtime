@@ -5,12 +5,12 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #pragma once
-#ifndef SRC_RUN_TIME_CXXEXCEPTION
-#define SRC_RUN_TIME_CXXEXCEPTION
-#include <exception>
-#include <typeinfo>
+#ifndef SRC_UTIL_CXXEXCEPTION
+    #define SRC_UTIL_CXXEXCEPTION
+    #include <exception>
+    #include <typeinfo>
 
-#include <library/list_array.hpp>
+    #include <library/list_array.hpp>
 
 namespace art {
     struct CXXExInfo {
@@ -56,4 +56,4 @@ namespace art {
     bool isBadAlloc(CXXExInfo& cxx);
     void* getExPtrFromException(const std::exception_ptr& ex);
 }
-#endif /* SRC_RUN_TIME_CXXEXCEPTION */
+#endif /* SRC_UTIL_CXXEXCEPTION */

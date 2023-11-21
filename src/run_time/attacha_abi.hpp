@@ -301,6 +301,27 @@ namespace art {
                 } else
                     throw InvalidArguments("This type is not has been registered");
                 throw NotImplementedException();
+            } else if constexpr (std::is_enum_v<T>) {
+                if constexpr (!std::is_reference_v<T>) {
+                    if constexpr (sizeof(T) == 1)
+                        return (uint8_t)val;
+                    else if constexpr (sizeof(T) == 2)
+                        return (uint16_t)val;
+                    else if constexpr (sizeof(T) == 4)
+                        return (uint32_t)val;
+                    else
+                        return (uint64_t)val;
+                } else {
+                    if constexpr (sizeof(T) == 1)
+                        return ValueItem(&val, ValueMeta(VType::ui8, false, !std::is_const_v<T>, 0, true));
+                    else if constexpr (sizeof(T) == 2)
+                        return ValueItem(&val, ValueMeta(VType::ui16, false, !std::is_const_v<T>, 0, true));
+                    else if constexpr (sizeof(T) == 4)
+                        return ValueItem(&val, ValueMeta(VType::ui32, false, !std::is_const_v<T>, 0, true));
+                    else
+                        return ValueItem(&val, ValueMeta(VType::ui64, false, !std::is_const_v<T>, 0, true));
+                }
+                throw NotImplementedException();
             } else {
                 static_assert(
                     (
@@ -319,7 +340,8 @@ namespace art {
                         std::is_same_v<std::remove_cvref_t<T>, bool> ||
                         std::is_same_v<std::remove_cvref_t<T>, void*> ||
                         std::is_same_v<std::remove_cvref_t<T>, art::thread::id> ||
-                        (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>)
+                        (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>) ||
+                        std::is_enum_v<T>
                     ),
                     "Invalid type for convert"
                 );
@@ -338,6 +360,25 @@ namespace art {
 
             if constexpr (std::is_same_v<T, art::ustring>) {
                 return Scast(val, meta);
+            } else if constexpr (std::is_enum_v<T>) {
+                if (meta.vtype == VType::ui8)
+                    return (T)(uint8_t&)val;
+                else if (meta.vtype == VType::ui16)
+                    return (T)(uint16_t&)val;
+                else if (meta.vtype == VType::ui32)
+                    return (T)(uint32_t&)val;
+                else if (meta.vtype == VType::ui64)
+                    return (T)(uint64_t&)val;
+                else if (meta.vtype == VType::i8)
+                    return (T)(int8_t&)val;
+                else if (meta.vtype == VType::i16)
+                    return (T)(int16_t&)val;
+                else if (meta.vtype == VType::i32)
+                    return (T)(int32_t&)val;
+                else if (meta.vtype == VType::i64)
+                    return (T)(int64_t&)val;
+                else
+                    throw InvalidCast("Fail cast enum, excepted non floating number");
             } else {
                 switch (meta.vtype) {
                 case VType::noting:

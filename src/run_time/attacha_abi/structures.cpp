@@ -882,6 +882,38 @@ namespace art {
 
 #pragma endregion
 
+#pragma region static_values
+
+    StructStaticValue* AttachAVirtualTable::getStaticValue(const art::ustring& name, ClassAccess access, bool add_new) {
+        for (StructStaticValue& val : getAfterMethods()->static_values)
+            if (val.name == name && val.access == access)
+                return &val;
+        if (add_new) {
+            getAfterMethods()->static_values.push_back(StructStaticValue(name, nullptr, nullptr, access));
+            return &getAfterMethods()->static_values.back();
+        }
+        throw InvalidOperation("Static value not found");
+    }
+
+    bool AttachAVirtualTable::hasStaticValue(const art::ustring& name, ClassAccess access) const {
+        for (const StructStaticValue& val : getAfterMethods()->static_values)
+            if (val.name == name && val.access == access)
+                return true;
+        return false;
+    }
+
+    list_array<StructStaticValue>& AttachAVirtualTable::staticValues() {
+        return getAfterMethods()->static_values;
+    }
+
+    list_array<StructureTag>* AttachAVirtualTable::getStaticValueTags(const art::ustring& name, ClassAccess access) {
+        for (StructStaticValue& val : getAfterMethods()->static_values)
+            if (val.name == name && val.access == access)
+                return val.optional_tags ? val.optional_tags : val.optional_tags = new list_array<StructureTag>();
+        throw InvalidOperation("Static value not found");
+    }
+
+#pragma endregion
 
 #pragma endregion
 
@@ -1220,6 +1252,39 @@ namespace art {
             else
                 throw InvalidOperation("Can not override value");
         }
+    }
+
+#pragma endregion
+
+#pragma region static_values
+
+    StructStaticValue* AttachADynamicVirtualTable::getStaticValue(const art::ustring& name, ClassAccess access, bool add_new) {
+        for (StructStaticValue& val : static_values)
+            if (val.name == name && val.access == access)
+                return &val;
+        if (add_new) {
+            static_values.push_back(StructStaticValue(name, nullptr, nullptr, access));
+            return &static_values.back();
+        }
+        throw InvalidOperation("Static value not found");
+    }
+
+    bool AttachADynamicVirtualTable::hasStaticValue(const art::ustring& name, ClassAccess access) const {
+        for (const StructStaticValue& val : static_values)
+            if (val.name == name && val.access == access)
+                return true;
+        return false;
+    }
+
+    list_array<StructStaticValue>& AttachADynamicVirtualTable::staticValues() {
+        return static_values;
+    }
+
+    list_array<StructureTag>* AttachADynamicVirtualTable::getStaticValueTags(const art::ustring& name, ClassAccess access) {
+        for (StructStaticValue& val : static_values)
+            if (val.name == name && val.access == access)
+                return val.optional_tags ? val.optional_tags : val.optional_tags = new list_array<StructureTag>();
+        throw InvalidOperation("Static value not found");
     }
 
 #pragma endregion
@@ -1781,6 +1846,55 @@ namespace art {
             throw NotImplementedException();
         }
     }
+
+#pragma region static_values
+
+    StructStaticValue* Structure::getStaticValue(const art::ustring& name, ClassAccess access, bool add_new) {
+        switch (vtable_mode) {
+        case VTableMode::AttachAVirtualTable:
+            return reinterpret_cast<AttachAVirtualTable*>(vtable)->getStaticValue(name, access, add_new);
+        case VTableMode::AttachADynamicVirtualTable:
+            return reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->getStaticValue(name, access, add_new);
+        default:
+            throw NotImplementedException();
+        }
+    }
+
+    bool Structure::hasStaticValue(const art::ustring& name, ClassAccess access) const {
+        switch (vtable_mode) {
+        case VTableMode::AttachAVirtualTable:
+            return reinterpret_cast<const AttachAVirtualTable*>(vtable)->hasStaticValue(name, access);
+        case VTableMode::AttachADynamicVirtualTable:
+            return reinterpret_cast<const AttachADynamicVirtualTable*>(vtable)->hasStaticValue(name, access);
+        default:
+            throw NotImplementedException();
+        }
+    }
+
+    list_array<StructStaticValue>* Structure::staticValues() {
+        switch (vtable_mode) {
+        case VTableMode::AttachAVirtualTable:
+            return &reinterpret_cast<AttachAVirtualTable*>(vtable)->staticValues();
+        case VTableMode::AttachADynamicVirtualTable:
+            return &reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->staticValues();
+        default:
+            throw NotImplementedException();
+        }
+    }
+
+    list_array<StructureTag>* Structure::getStaticValueTags(const art::ustring& name, ClassAccess access) {
+        switch (vtable_mode) {
+        case VTableMode::AttachAVirtualTable:
+            return reinterpret_cast<AttachAVirtualTable*>(vtable)->getStaticValueTags(name, access);
+        case VTableMode::AttachADynamicVirtualTable:
+            return reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->getStaticValueTags(name, access);
+        default:
+            throw NotImplementedException();
+        }
+    }
+
+#pragma endregion
+
 
 #pragma endregion
 }

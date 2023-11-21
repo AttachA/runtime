@@ -2460,6 +2460,34 @@ namespace art {
             }
         }
 
+        int64_t write_force_no_copy(const char* to_write, uint32_t to_write_len) {
+            if (!data)
+                return -1;
+            if (!to_write_len)
+                return -1;
+            if (!to_write)
+                return -1;
+
+            while (to_write_len >= data_len) {
+                buffer.len = data_len;
+                buffer.buf = const_cast<char*>(to_write);
+                force_mode = true;
+                if (!send_await())
+                    return -1;
+                to_write += data_len;
+                to_write_len -= data_len;
+            }
+            if (to_write_len) {
+                buffer.len = to_write_len;
+                buffer.buf = const_cast<char*>(to_write);
+                force_mode = true;
+                if (!send_await())
+                    return -1;
+            }
+            force_mode = false;
+            return sent_bytes;
+        }
+
         int64_t write_force(const char* to_write, uint32_t to_write_len) {
             if (!data)
                 return -1;
@@ -2547,7 +2575,7 @@ namespace art {
                 read_data();
             readed = readed_bytes;
             readed_bytes = 0;
-            return data;
+            return buffer.buf - readed;
         }
 
         void close(TcpError err = TcpError::local_close) {
@@ -2571,13 +2599,13 @@ namespace art {
     #if EAGAIN != EWOULDBLOCK
                 case EWOULDBLOCK:
     #endif
-                    pre_close(TcpError::invalid_state);
+                    pre_close(TcpError::invalid_state, true);
                     return;
                 case ECONNRESET:
-                    pre_close(TcpError::remote_close);
+                    pre_close(TcpError::remote_close, true);
                     return;
                 default:
-                    pre_close(TcpError::undefined_error);
+                    pre_close(TcpError::undefined_error, true);
                     return;
                 }
             }
@@ -2644,27 +2672,12 @@ namespace art {
             }
         }
 
-        void send_and_close(const char* data, int len) {
+        void send_and_close(const char* send_data, int send_len) {
             if (!data)
                 return;
-            buffer.len = data_len;
-            buffer.buf = this->data;
+            shutdown(true, false);
             write_queue = {};
-            force_mode = true;
-            while (data_len < len) {
-                memcpy(buffer.buf, data, buffer.len);
-                if (!send_await())
-                    return;
-                data += buffer.len;
-                len -= buffer.len;
-            }
-            if (len) {
-                //send last part of data and close
-                memcpy(buffer.buf, data, len);
-                buffer.len = len;
-                send_await();
-            }
-            force_mode = false;
+            write_force_no_copy(send_data, send_len);
             close();
         }
 
@@ -2761,13 +2774,32 @@ namespace art {
             data_len = buffer_len;
         }
 
-    private:
-        void pre_close(TcpError err) {
+        void shutdown(bool stop_read, bool stop_write) {
+            if (!stop_read && !stop_write)
+                return;
+            int method = 0;
+            if (stop_read && stop_write)
+                method = SHUT_RDWR;
+            if (stop_read)
+                method = SHUT_RD;
+            if (stop_write)
+                method = SHUT_WR;
             MutexUnify mutex(cv_mutex);
             art::unique_lock<MutexUnify> lock(mutex);
             opcode = Opcode::INTERNAL_CLOSE;
-            NativeWorkersSingleton::post_shutdown(this, socket, SHUT_RDWR);
+            NativeWorkersSingleton::post_shutdown(this, socket, method);
             cv.wait(lock);
+        }
+
+    private:
+        void pre_close(TcpError err, bool handle_error = false) {
+            MutexUnify mutex(cv_mutex);
+            art::unique_lock<MutexUnify> lock(mutex);
+            opcode = Opcode::INTERNAL_CLOSE;
+            if (handle_error) {
+                NativeWorkersSingleton::post_shutdown(this, socket, SHUT_RDWR);
+                cv.wait(lock);
+            }
             std::list<std::tuple<char*, size_t>> clear_write_queue;
             std::list<std::tuple<char*, size_t>> clear_read_queue;
             readed_bytes = 0;
@@ -2830,27 +2862,23 @@ namespace art {
             if (!total_size) {
                 while (file_stat.st_size > offset) {
                     int chunk_size = std::min((uint64_t)chunks_size, file_stat.st_size - offset);
-                    int sent = write_force(file_data + offset, chunk_size);
-                    if (sent == -1) {
+                    if (write_force_no_copy(file_data + offset, chunk_size) == -1) {
                         result = false;
                         break;
                     }
-                    if (sent >= file_stat.st_size + offset)
+                    if (chunk_size >= file_stat.st_size + offset)
                         break;
-                    offset += sent;
+                    offset += chunk_size;
                 }
             } else {
                 while (total_size) {
                     int chunk_size = std::min((uint64_t)std::min(chunks_size, total_size), file_stat.st_size - offset);
-                    int sent = write_force(file_data + offset, chunk_size);
-                    if (sent == -1) {
+                    if (write_force_no_copy(file_data + offset, chunk_size) == -1) {
                         result = false;
                         break;
                     }
-                    offset += sent;
-                    if (sent >= total_size)
-                        break;
-                    total_size -= sent;
+                    offset += chunk_size;
+                    total_size -= chunk_size;
                 }
             }
             munmap(file_data, file_stat.st_size);

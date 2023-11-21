@@ -2692,7 +2692,7 @@ namespace art {
 
     ValueItem::ValueItem(const std::chrono::high_resolution_clock::time_point& time) {
         static_assert(sizeof(std::chrono::high_resolution_clock::time_point) <= sizeof(val), "Time point is too large");
-        *reinterpret_cast<std::chrono::high_resolution_clock::time_point*>(&val) = time;
+        reinterpret_cast<std::chrono::high_resolution_clock::time_point&>(val) = time;
         meta = VType::time_point;
     }
 

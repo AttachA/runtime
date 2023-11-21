@@ -1382,8 +1382,7 @@ namespace art {
             : csm(a), total_arguments(arguments) {}
 
         ~BuildCall() noexcept(false) {
-            if (arg_c)
-                throw InvalidOperation("Build call is incomplete, need finalization");
+            assert(arg_c && "Build call is incomplete, need finalization");
         }
 
         void setArguments(size_t arguments) {
@@ -1972,12 +1971,10 @@ namespace art {
         ~ScopeManager() noexcept(false) {
             for (auto& i : scope_actions)
                 for (auto& j : i.second.actions)
-                    if (j->function_end_off == 0)
-                        throw CompileTimeException("scope not finalized");
+                    assert(j->function_end_off == 0 && "Scope not finalized");
 
             for (auto& i : value_lifetime)
-                if (i.second->function_end_off == 0)
-                    throw CompileTimeException("scope not finalized");
+                assert(i.second->function_end_off == 0 && "Scope not finalized");
         }
 
         size_t createExceptionScope() {
@@ -1989,7 +1986,7 @@ namespace art {
         ScopeAction* setExceptionHandle(size_t id, bool (*filter_fun)(CXXExInfo&, void**, void*, size_t, void* rsp, uint8_t* image_base), void* data, size_t data_size) {
             auto it = scope_actions.find(id);
             if (it == scope_actions.end())
-                throw CompileTimeException("invalid exception scope");
+                throw CompileTimeException("Invalid exception scope");
             ScopeAction* action = csm.create_filter(filter_fun);
             char* data_ptr = (char*)malloc(data_size);
             if (!data_ptr)
