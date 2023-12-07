@@ -93,6 +93,14 @@ namespace art {
         interrupt::interrupt_unsafe_region::unlock();
     }
 
+    bool rw_mutex::try_lock_shared() {
+        interrupt::interrupt_unsafe_region::lock();
+        bool res = TryAcquireSRWLockShared((PSRWLOCK)&_mutex);
+        if (!res)
+            interrupt::interrupt_unsafe_region::unlock();
+        return res;
+    }
+
     timed_mutex::timed_mutex() = default;
 
     timed_mutex::~timed_mutex() noexcept(false) {
@@ -445,6 +453,14 @@ namespace art {
     void rw_mutex::unlock_shared() {
         pthread_rwlock_unlock(_mutex);
         interrupt::interrupt_unsafe_region::unlock();
+    }
+
+    bool rw_mutex::try_lock_shared() {
+        interrupt::interrupt_unsafe_region::lock();
+        bool res = pthread_rwlock_tryrdlock(_mutex);
+        if (!res)
+            interrupt::interrupt_unsafe_region::unlock();
+        return res;
     }
 
     timed_mutex::timed_mutex() {

@@ -1358,9 +1358,11 @@ namespace art {
         size_t pushed = 0;
         size_t total_arguments = 0;
         bool aligned = false;
-#ifdef _WIN64
+        bool is_finalized = true;
+        #ifdef _WIN64
         //#define callStart()
         void callStart() {
+            is_finalized = false;
             if (!aligned) {
                 if (total_arguments & 1 && total_arguments > 4) {
                     csm.push(0);
@@ -1374,15 +1376,17 @@ namespace art {
             } else if (arg_c == total_arguments)
                 throw CompileTimeException("Fail add argument, too much arguments");
         }
-#else
-#define callStart()
-#endif // _WIN64
+        #else
+        void callStart() {
+            is_finalized = false;
+        }
+        #endif // _WIN64
     public:
         BuildCall(CASM& a, size_t arguments)
             : csm(a), total_arguments(arguments) {}
 
         ~BuildCall() noexcept(false) {
-            assert(arg_c && "Build call is incomplete, need finalization");
+            assert(is_finalized && "Build call is incomplete, need finalization");
         }
 
         void setArguments(size_t arguments) {
@@ -1414,7 +1418,7 @@ namespace art {
                 if (argr3 != reg)
                     csm.movA(argr3, reg);
                 break;
-#ifndef _WIN64
+        #ifndef _WIN64
             case 4:
                 if (argr4 != reg)
                     csm.movA(argr4, reg);
@@ -1423,7 +1427,7 @@ namespace art {
                 if (argr5 != reg)
                     csm.movA(argr5, reg);
                 break;
-#endif
+        #endif
             default:
                 csm.push(reg);
                 pushed += 8;
@@ -1449,7 +1453,7 @@ namespace art {
                 if (argr3_32 != reg)
                     csm.movA(argr3_32, reg);
                 break;
-#ifndef _WIN64
+        #ifndef _WIN64
             case 4:
                 if (argr4_32 != reg)
                     csm.movA(argr4_32, reg);
@@ -1458,7 +1462,7 @@ namespace art {
                 if (argr5_32 != reg)
                     csm.movA(argr5_32, reg);
                 break;
-#endif
+        #endif
             default:
                 csm.push(creg::fromTypeAndId(resr.type(), reg.id()));
                 pushed += 8;
@@ -1484,7 +1488,7 @@ namespace art {
                 if (argr3_16 != reg)
                     csm.movA(argr3_16, reg);
                 break;
-#ifndef _WIN64
+        #ifndef _WIN64
             case 4:
                 if (argr4_16 != reg)
                     csm.movA(argr4_16, reg);
@@ -1493,7 +1497,7 @@ namespace art {
                 if (argr5_16 != reg)
                     csm.movA(argr5_16, reg);
                 break;
-#endif
+        #endif
             default:
                 csm.push(creg::fromTypeAndId(resr.type(), reg.id()));
                 pushed += 8;
@@ -1519,7 +1523,7 @@ namespace art {
                 if (argr3_8l != reg)
                     csm.movA(argr3_8l, reg);
                 break;
-#ifndef _WIN64
+        #ifndef _WIN64
             case 4:
                 if (argr4_8l != reg)
                     csm.movA(argr4_8l, reg);
@@ -1528,7 +1532,7 @@ namespace art {
                 if (argr5_8l != reg)
                     csm.movA(argr5_8l, reg);
                 break;
-#endif
+        #endif
             default:
                 csm.push(creg::fromTypeAndId(resr.type(), reg.id()));
                 pushed += 8;
@@ -1550,14 +1554,14 @@ namespace art {
             case 3:
                 csm.mov(argr3, val);
                 break;
-#ifndef _WIN64
+        #ifndef _WIN64
             case 4:
                 csm.mov(argr4, val);
                 break;
             case 5:
                 csm.mov(argr5, val);
                 break;
-#endif
+        #endif
             default:
                 csm.push(val);
                 pushed += val_size;
@@ -1627,14 +1631,14 @@ namespace art {
             case 3:
                 csm.lea(argr3, reg, off);
                 break;
-#ifndef _WIN64
+        #ifndef _WIN64
             case 4:
                 csm.lea(argr4, reg, off);
                 break;
             case 5:
                 csm.lea(argr5, reg, off);
                 break;
-#endif
+        #endif
             default:
                 if (off) {
                     if (allow_use_resr) {
@@ -1666,14 +1670,14 @@ namespace art {
             case 3:
                 csm.mov_long(argr3, reg, off);
                 break;
-#ifndef _WIN64
+        #ifndef _WIN64
             case 4:
                 csm.mov_long(argr4, reg, off);
                 break;
             case 5:
                 csm.mov_long(argr5, reg, off);
                 break;
-#endif
+        #endif
             default:
                 if (off) {
                     if (allow_use_resr) {
@@ -1775,10 +1779,10 @@ namespace art {
             case 1:
             case 2:
             case 3:
-#ifndef _WIN64
+        #ifndef _WIN64
             case 4:
             case 5:
-#endif
+        #endif
                 break;
             default:
                 csm.push(0ull);
@@ -1795,6 +1799,7 @@ namespace art {
             pushed = 0;
             arg_c = 0;
             aligned = false;
+            is_finalized = true;
         }
     };
 
@@ -1814,9 +1819,9 @@ namespace art {
         bool frame_inited : 1 = false;
         bool prolog_preEnd : 1 = false;
 
-#ifndef _WIN64
+        #ifndef _WIN64
         void cleanup_frame();
-#endif
+        #endif
     public:
         BuildProlog(CASM& a)
             : csm(a) {}
@@ -1826,9 +1831,9 @@ namespace art {
             stack_alloc.clear();
             set_frame.clear();
             save_to_stack.clear();
-#ifndef _WIN64
+        #ifndef _WIN64
             cleanup_frame();
-#endif
+        #endif
             if (frame_inited)
                 return;
             _______dbgOut("Frame not initalized!");

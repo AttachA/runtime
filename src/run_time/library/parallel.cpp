@@ -13,6 +13,7 @@ namespace art {
     namespace parallel {
         AttachAVirtualTable* define_ConditionVariable;
         AttachAVirtualTable* define_Mutex;
+        AttachAVirtualTable* define_RWMutex;
         AttachAVirtualTable* define_RecursiveMutex;
         AttachAVirtualTable* define_Semaphore;
         AttachAVirtualTable* define_ConcurrentFile;
@@ -43,16 +44,28 @@ namespace art {
             else if (vtable == define_mutex)
                 return *CXX::Interface::getExtractAs<art::shared_ptr<art::mutex>>(item, define_mutex);
             else if (vtable == define_rw_mutex)
-                return *CXX::Interface::getExtractAs<art::shared_ptr<art::rw_mutex>>(item, define_mutex);
+                return nullptr;
             else if (vtable == define_timed_mutex)
                 return *CXX::Interface::getExtractAs<art::shared_ptr<art::timed_mutex>>(item, define_mutex);
             else if (vtable == define_recursive_mutex)
                 return *CXX::Interface::getExtractAs<art::shared_ptr<art::recursive_mutex>>(item, define_mutex);
+            else if (vtable == define_RWMutex)
+                return nullptr;
             else
                 return *CXX::Interface::getExtractAs<art::shared_ptr<art::mutex>>(item, define_mutex); //throws, if not mutex
-            throw InternalException("Reached unreachable region");
         }
 
+        MutexUnify getMutex(ValueItem& item, bool read_write) {
+            CXX::excepted(item, VType::struct_);
+            Structure& st = (Structure&)item;
+            void* vtable = st.vtable;
+            if (vtable == define_rw_mutex)
+                return MutexUnify(*CXX::Interface::getExtractAs<art::shared_ptr<art::rw_mutex>>(item, define_mutex), read_write);
+            else if (vtable == define_RWMutex)
+                return MutexUnify(*CXX::Interface::getExtractAs<art::shared_ptr<TaskRWMutex>>(item, define_RWMutex), read_write);
+            else
+                return getMutex(item);
+        }
 
         template <size_t args_off>
         void parseArgumentsToTask(ValueItem* args, uint32_t len, art::shared_ptr<FuncEnvironment>& func, art::shared_ptr<FuncEnvironment>& fault_func, std::chrono::high_resolution_clock::time_point& timeout, bool& used_task_local, ValueItem& arguments) {
@@ -81,71 +94,47 @@ namespace art {
         }
 
 #pragma region ConditionVariable
-
-        AttachAFun(funs_ConditionVariable_wait, 1, {
+        AttachAFun(funs_ConditionVariable_wait, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskConditionVariable>>(args[0], define_ConditionVariable);
-            switch (len) {
-            case 1: {
-                mutex mt;
-                MutexUnify unify(mt);
-                art::unique_lock lock(unify);
-                class_.wait(lock);
-                break;
+
+            MutexUnify unify = getMutex(args[1]);
+            if (unify.type == MutexUnifyType::noting) {
+                bool read_write = true;
+                if (len > 2)
+                    read_write = (bool)args[2];
+                unify = getMutex(args[1], read_write);
             }
-            case 2: {
-                if (args[1].meta.vtype == VType::struct_) {
-                    MutexUnify unify = getMutex(args[1]);
-                    art::unique_lock lock(unify, adopt_lock);
-                    class_.wait(lock);
-                    lock.release();
-                    break;
-                } else if (args[1].meta.vtype == VType::time_point) {
-                    mutex mt;
-                    MutexUnify unify(mt);
-                    art::unique_lock lock(unify);
-                    auto res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[1]);
-                    lock.release();
-                    return res;
-                } else {
-                    mutex mt;
-                    MutexUnify unify(mt);
-                    art::unique_lock lock(unify);
-                    return class_.wait_for(lock, (size_t)args[1]);
-                }
-            }
-            case 3:
-            default: {
-                MutexUnify unify = getMutex(args[1]);
-                art::unique_lock lock(unify, adopt_lock);
-                bool res;
-                if (args[2].meta.vtype == VType::time_point)
-                    res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[2]);
-                else
-                    res = class_.wait_for(lock, (size_t)args[2]);
-                lock.release();
-                return res;
-            }
-            }
+            art::unique_lock lock(unify, adopt_lock);
+            class_.wait(lock);
+            lock.release();
         });
-
-        AttachAFun(funs_ConditionVariable_wait_until, 2, {
+        AttachAFun(funs_ConditionVariable_wait_for, 3, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskConditionVariable>>(args[0], define_ConditionVariable);
-            switch (len) {
-            case 2: {
-                mutex mt;
-                MutexUnify unify(mt);
-                art::unique_lock lock(unify);
-                return class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[1]);
+            MutexUnify unify = getMutex(args[1]);
+            if (unify.type == MutexUnifyType::noting) {
+                bool read_write = true; //write default
+                if (len > 3)
+                    read_write = (bool)args[3];
+                unify = getMutex(args[1], read_write);
             }
-            case 3:
-            default: {
-                MutexUnify unify = getMutex(args[1]);
-                art::unique_lock lock(unify, adopt_lock);
-                auto res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[2]);
-                lock.release();
-                return res;
+            art::unique_lock lock(unify, adopt_lock);
+            bool res = class_.wait_for(lock, (size_t)args[2]);
+            lock.release();
+            return res;
+        });
+        AttachAFun(funs_ConditionVariable_wait_until, 3, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskConditionVariable>>(args[0], define_ConditionVariable);
+            MutexUnify unify = getMutex(args[1]);
+            if (unify.type == MutexUnifyType::noting) {
+                bool read_write = true; //write default
+                if (len > 3)
+                    read_write = (bool)args[3];
+                unify = getMutex(args[1], read_write);
             }
-            }
+            art::unique_lock lock(unify, adopt_lock);
+            bool res = class_.wait_until(lock, (std::chrono::high_resolution_clock::time_point)args[2]);
+            lock.release();
+            return res;
         });
         AttachAFun(funs_ConditionVariable_notify_one, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskConditionVariable>>(args[0], define_ConditionVariable);
@@ -160,6 +149,7 @@ namespace art {
             define_ConditionVariable = CXX::Interface::createTable<typed_lgr<TaskConditionVariable>>(
                 "condition_variable",
                 CXX::Interface::direct_method("wait", funs_ConditionVariable_wait),
+                CXX::Interface::direct_method("wait_for", funs_ConditionVariable_wait_for),
                 CXX::Interface::direct_method("wait_until", funs_ConditionVariable_wait_until),
                 CXX::Interface::direct_method("notify_one", funs_ConditionVariable_notify_one),
                 CXX::Interface::direct_method("notify_all", funs_ConditionVariable_notify_all)
@@ -169,7 +159,6 @@ namespace art {
 
 #pragma endregion
 #pragma region Mutex
-
         AttachAFun(funs_Mutex_lock, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
             class_.lock();
@@ -180,10 +169,11 @@ namespace art {
         });
         AttachAFun(funs_Mutex_try_lock, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
-            if (len == 1)
-                return class_.try_lock();
-            else
-                return class_.try_lock_for((size_t)args[1]);
+            return class_.try_lock();
+        });
+        AttachAFun(funs_Mutex_try_lock_for, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
+            return class_.try_lock_for((size_t)args[1]);
         });
         AttachAFun(funs_Mutex_try_lock_until, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
@@ -212,6 +202,7 @@ namespace art {
                 CXX::Interface::direct_method("lock", funs_Mutex_lock),
                 CXX::Interface::direct_method("unlock", funs_Mutex_unlock),
                 CXX::Interface::direct_method("try_lock", funs_Mutex_try_lock),
+                CXX::Interface::direct_method("try_lock_for", funs_Mutex_try_lock_for),
                 CXX::Interface::direct_method("try_lock_until", funs_Mutex_try_lock_until),
                 CXX::Interface::direct_method("is_locked", funs_Mutex_is_locked),
                 CXX::Interface::direct_method("is_own", funs_Mutex_is_own),
@@ -222,8 +213,103 @@ namespace art {
         }
 
 #pragma endregion
-#pragma region RecursiveMutex
+#pragma region RWMutex
+        AttachAFun(funs_RWMutex_read_lock, 1, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            class_.read_lock();
+        });
+        AttachAFun(funs_RWMutex_unlock, 1, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            class_.read_unlock();
+        });
+        AttachAFun(funs_RWMutex_try_read_lock, 1, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            return class_.try_read_lock();
+        });
+        AttachAFun(funs_RWMutex_try_read_lock_for, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            return class_.try_read_lock_for((size_t)args[1]);
+        });
+        AttachAFun(funs_RWMutex_try_read_lock_until, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            return class_.try_read_lock_until((std::chrono::high_resolution_clock::time_point)args[1]);
+        });
+        AttachAFun(funs_RWMutex_is_read_locked, 1, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            return class_.is_read_locked();
+        });
+        AttachAFun(funs_RWMutex_lifecycle_read_lock, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            class_.lifecycle_read_lock((art::typed_lgr<Task>)args[1]);
+        });
+        AttachAFun(funs_RWMutex_sequence_read_lock, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            class_.sequence_read_lock((art::typed_lgr<Task>)args[1]);
+        });
+        AttachAFun(funs_RWMutex_write_lock, 1, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            class_.write_lock();
+        });
+        AttachAFun(funs_RWMutex_write_unlock, 1, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            class_.write_unlock();
+        });
+        AttachAFun(funs_RWMutex_try_write_lock, 1, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            return class_.try_write_lock();
+        });
+        AttachAFun(funs_RWMutex_try_write_lock_for, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            return class_.try_write_lock_for((size_t)args[1]);
+        });
 
+        AttachAFun(funs_RWMutex_try_write_lock_until, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            return class_.try_write_lock_until((std::chrono::high_resolution_clock::time_point)args[1]);
+        });
+        AttachAFun(funs_RWMutex_is_write_locked, 1, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            return class_.is_write_locked();
+        });
+        AttachAFun(funs_RWMutex_lifecycle_write_lock, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            class_.lifecycle_write_lock((art::typed_lgr<Task>)args[1]);
+        });
+        AttachAFun(funs_RWMutex_sequence_write_lock, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            class_.sequence_write_lock((art::typed_lgr<Task>)args[1]);
+        });
+        AttachAFun(funs_RWMutex_is_own, 1, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
+            return class_.is_own();
+        });
+
+        void init_RWMutex() {
+            define_RWMutex = CXX::Interface::createTable<typed_lgr<TaskRWMutex>>(
+                "rw_mutex",
+                CXX::Interface::direct_method("read_lock", funs_RWMutex_read_lock),
+                CXX::Interface::direct_method("read_unlock", funs_RWMutex_unlock),
+                CXX::Interface::direct_method("try_read_lock", funs_RWMutex_try_read_lock),
+                CXX::Interface::direct_method("try_read_lock_for", funs_RWMutex_try_read_lock_for),
+                CXX::Interface::direct_method("try_read_lock_until", funs_RWMutex_try_read_lock_until),
+                CXX::Interface::direct_method("is_read_locked", funs_RWMutex_is_read_locked),
+                CXX::Interface::direct_method("lifecycle_read_lock", funs_RWMutex_lifecycle_read_lock),
+                CXX::Interface::direct_method("sequence_read_lock", funs_RWMutex_sequence_read_lock),
+                CXX::Interface::direct_method("write_lock", funs_RWMutex_write_lock),
+                CXX::Interface::direct_method("write_unlock", funs_RWMutex_write_unlock),
+                CXX::Interface::direct_method("try_write_lock", funs_RWMutex_try_write_lock),
+                CXX::Interface::direct_method("try_write_lock_for", funs_RWMutex_try_write_lock_for),
+                CXX::Interface::direct_method("try_write_lock_until", funs_RWMutex_try_write_lock_until),
+                CXX::Interface::direct_method("is_write_locked", funs_RWMutex_is_write_locked),
+                CXX::Interface::direct_method("lifecycle_write_lock", funs_RWMutex_lifecycle_write_lock),
+                CXX::Interface::direct_method("sequence_write_lock", funs_RWMutex_sequence_write_lock),
+                CXX::Interface::direct_method("is_own", funs_RWMutex_is_own)
+            );
+            CXX::Interface::typeVTable<typed_lgr<TaskRWMutex>>() = define_RWMutex;
+        }
+
+#pragma endregion
+#pragma region RecursiveMutex
         AttachAFun(funs_RecursiveMutex_lock, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
             class_.lock();
@@ -234,10 +320,11 @@ namespace art {
         });
         AttachAFun(funs_RecursiveMutex_try_lock, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
-            if (len == 1)
-                return class_.try_lock();
-            else
-                return class_.try_lock_for((size_t)args[1]);
+            return class_.try_lock();
+        });
+        AttachAFun(funs_RecursiveMutex_try_lock_for, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
+            return class_.try_lock_for((size_t)args[1]);
         });
         AttachAFun(funs_RecursiveMutex_try_lock_until, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
@@ -263,21 +350,20 @@ namespace art {
         void init_RecursiveMutex() {
             define_RecursiveMutex = CXX::Interface::createTable<typed_lgr<TaskRecursiveMutex>>(
                 "recursive_mutex",
-                CXX::Interface::direct_method("lock", funs_Mutex_lock),
-                CXX::Interface::direct_method("unlock", funs_Mutex_unlock),
-                CXX::Interface::direct_method("try_lock", funs_Mutex_try_lock),
-                CXX::Interface::direct_method("try_lock_until", funs_Mutex_try_lock_until),
-                CXX::Interface::direct_method("is_locked", funs_Mutex_is_locked),
+                CXX::Interface::direct_method("lock", funs_RecursiveMutex_lock),
+                CXX::Interface::direct_method("unlock", funs_RecursiveMutex_unlock),
+                CXX::Interface::direct_method("try_lock", funs_RecursiveMutex_try_lock),
+                CXX::Interface::direct_method("try_lock_for", funs_RecursiveMutex_try_lock_for),
+                CXX::Interface::direct_method("try_lock_until", funs_RecursiveMutex_try_lock_until),
+                CXX::Interface::direct_method("is_locked", funs_RecursiveMutex_is_locked),
                 CXX::Interface::direct_method("is_own", funs_RecursiveMutex_is_own),
                 CXX::Interface::direct_method("lifecycle_lock", funs_RecursiveMutex_lifecycle_lock),
                 CXX::Interface::direct_method("sequence_lock", funs_RecursiveMutex_sequence_lock)
             );
             CXX::Interface::typeVTable<typed_lgr<TaskRecursiveMutex>>() = define_RecursiveMutex;
         }
-
 #pragma endregion
 #pragma region Semaphore
-
         AttachAFun(funs_Semaphore_lock, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskSemaphore>>(args[0], define_Semaphore);
             class_.lock();
@@ -292,10 +378,11 @@ namespace art {
         });
         AttachAFun(funs_Semaphore_try_lock, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskSemaphore>>(args[0], define_Semaphore);
-            if (len == 1)
-                return class_.try_lock();
-            else
-                return class_.try_lock_for((size_t)args[1]);
+            return class_.try_lock();
+        });
+        AttachAFun(funs_Semaphore_try_lock_for, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskSemaphore>>(args[0], define_Semaphore);
+            return class_.try_lock_for((size_t)args[1]);
         });
         AttachAFun(funs_Semaphore_try_lock_until, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskSemaphore>>(args[0], define_Semaphore);
@@ -313,6 +400,7 @@ namespace art {
                 CXX::Interface::direct_method("release", funs_Semaphore_release),
                 CXX::Interface::direct_method("release_all", funs_Semaphore_release_all),
                 CXX::Interface::direct_method("try_lock", funs_Semaphore_try_lock),
+                CXX::Interface::direct_method("try_lock_for", funs_Semaphore_try_lock_for),
                 CXX::Interface::direct_method("try_lock_until", funs_Semaphore_try_lock_until),
                 CXX::Interface::direct_method("is_locked", funs_Semaphore_is_locked)
             );
@@ -430,10 +518,11 @@ namespace art {
         });
         AttachAFun(funs_TaskLimiter_try_lock, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
-            if (len == 1)
-                return class_.try_lock();
-            else
-                return class_.try_lock_for((size_t)args[1]);
+            return class_.try_lock();
+        });
+        AttachAFun(funs_TaskLimiter_try_lock_for, 2, {
+            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
+            return class_.try_lock_for((size_t)args[1]);
         });
         AttachAFun(funs_TaskLimiter_try_lock_until, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskLimiter>>(args[0], define_TaskLimiter);
@@ -451,6 +540,7 @@ namespace art {
                 CXX::Interface::direct_method("lock", funs_TaskLimiter_lock),
                 CXX::Interface::direct_method("unlock", funs_TaskLimiter_unlock),
                 CXX::Interface::direct_method("try_lock", funs_TaskLimiter_try_lock),
+                CXX::Interface::direct_method("try_lock_for", funs_TaskLimiter_try_lock_for),
                 CXX::Interface::direct_method("try_lock_until", funs_TaskLimiter_try_lock_until),
                 CXX::Interface::direct_method("is_locked", funs_TaskLimiter_is_locked)
             );
@@ -634,14 +724,11 @@ namespace art {
         AttachAFun(funs_Task_set_worker_id, 2, {
             CXX::Interface::getExtractAs<art::typed_lgr<Task>>(args[0], define_Task)->set_worker_id((uint16_t)args[1]);
         });
-
-
         AttachAFun(funs_Task_size, 1, {
             Task& task = *CXX::Interface::getExtractAs<art::typed_lgr<Task>>(args[0], define_Task);
             art::lock_guard lock(task.no_race);
             return task.fres.results.size();
         });
-
         AttachAFun(funs_Task_to_string, 1, {
             auto& task = CXX::Interface::getExtractAs<art::typed_lgr<Task>>(args[0], define_Task);
             Task::await_task(task);
@@ -670,7 +757,6 @@ namespace art {
             } else
                 return (T)task->fres.results[0];
         });
-
         template <typename T>
         AttachAFun(funs_Task_array_to_, 1, {
             auto& task = CXX::Interface::getExtractAs<art::typed_lgr<Task>>(args[0], define_Task);
@@ -751,7 +837,6 @@ namespace art {
 
 #pragma endregion
 #pragma region TaskGroup
-
         AttachAFun(funs_TaskGroup_start, 1, {
             Task::start(CXX::Interface::getExtractAs<list_array<art::typed_lgr<Task>>>(args[0], define_TaskGroup));
         });
@@ -779,7 +864,6 @@ namespace art {
         AttachAFun(funs_TaskGroup_notify_cancel, 1, {
             Task::notify_cancel(CXX::Interface::getExtractAs<list_array<art::typed_lgr<Task>>>(args[0], define_TaskGroup));
         });
-
         template <typename T>
         AttachAFun(funs_TaskGroup_array_to_, 1, {
             auto results = Task::await_results(CXX::Interface::getExtractAs<list_array<art::typed_lgr<Task>>>(args[0], define_TaskGroup));
@@ -892,6 +976,10 @@ namespace art {
                 return new ValueItem(CXX::Interface::constructStructure<typed_lgr<TaskMutex>>(define_Mutex, new TaskMutex()), no_copy);
             }
 
+            ValueItem* createProxy_RWMutex(ValueItem*, uint32_t) {
+                return new ValueItem(CXX::Interface::constructStructure<typed_lgr<TaskRWMutex>>(define_RWMutex, new TaskRWMutex()), no_copy);
+            }
+
             ValueItem* createProxy_RecursiveMutex(ValueItem*, uint32_t) {
                 return new ValueItem(CXX::Interface::constructStructure<typed_lgr<TaskRecursiveMutex>>(define_RecursiveMutex, new TaskRecursiveMutex()), no_copy);
             }
@@ -977,7 +1065,6 @@ namespace art {
             ValueItem _thread = CXX::aCall(native::constructor::construct_Thread, args, len);
             return CXX::Interface::makeCall(ClassAccess::pub, _thread, "wait");
         });
-
         AttachAFun(_createAsyncThread__Awaiter, 1, {
             return CXX::Interface::makeCall(ClassAccess::pub, *args, "wait");
         });
@@ -1256,7 +1343,6 @@ namespace art {
                     auto& self = CXX::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
                     return self.load();
                 });
-
                 static AttachAFun(__set, 2, {
                     auto& self = CXX::Interface::getExtractAs<AtomicBasic<T>>(args[0], virtual_table);
                     self.store((T)args[1]);
@@ -1882,7 +1968,6 @@ namespace art {
                 auto& self = CXX::Interface::getExtractAs<art::shared_ptr<art::rw_mutex>>(args[0], define_mutex);
                 return self->try_lock();
             });
-
             AttachAFun(funs_rw_mutex_lock_shared, 1, {
                 auto& self = CXX::Interface::getExtractAs<art::shared_ptr<art::rw_mutex>>(args[0], define_mutex);
                 self->lock_shared();
@@ -1890,6 +1975,10 @@ namespace art {
             AttachAFun(funs_rw_mutex_unlock_shared, 1, {
                 auto& self = CXX::Interface::getExtractAs<art::shared_ptr<art::rw_mutex>>(args[0], define_mutex);
                 self->unlock_shared();
+            });
+            AttachAFun(funs_rw_mutex_try_lock_shared, 1, {
+                auto& self = CXX::Interface::getExtractAs<art::shared_ptr<art::rw_mutex>>(args[0], define_mutex);
+                self->try_lock_shared();
             });
 #pragma endregion
 
@@ -1936,12 +2025,24 @@ namespace art {
             AttachAFun(funs_condition_variable_wait, 2, {
                 auto& self = CXX::Interface::getExtractAs<art::shared_ptr<art::condition_variable_any>>(args[0], define_condition_variable);
                 MutexUnify unify = getMutex(args[1]);
+                if (unify.type == MutexUnifyType::noting) {
+                    bool read_write = true; //write default
+                    if (len > 2)
+                        read_write = (bool)args[2];
+                    unify = getMutex(args[1], read_write);
+                }
                 self->wait(unify);
             });
 
             AttachAFun(funs_condition_variable_wait_for, 3, {
                 auto& self = CXX::Interface::getExtractAs<art::shared_ptr<art::condition_variable_any>>(args[0], define_condition_variable);
                 MutexUnify unify = getMutex(args[1]);
+                if (unify.type == MutexUnifyType::noting) {
+                    bool read_write = true; //write default
+                    if (len > 3)
+                        read_write = (bool)args[3];
+                    unify = getMutex(args[1], read_write);
+                }
                 auto milliseconds = (std::chrono::milliseconds)(uint64_t)args[2];
                 return self->wait_for(unify, milliseconds) == art::cv_status::no_timeout;
             });
@@ -1950,6 +2051,12 @@ namespace art {
                 auto& self = CXX::Interface::getExtractAs<art::shared_ptr<art::condition_variable_any>>(args[0], define_condition_variable);
                 MutexUnify unify = getMutex(args[1]);
                 auto point = (std::chrono::high_resolution_clock::time_point)args[2];
+                if (unify.type == MutexUnifyType::noting) {
+                    bool read_write = true; //write default
+                    if (len > 3)
+                        read_write = (bool)args[3];
+                    unify = getMutex(args[1], read_write);
+                }
                 return self->wait_until(unify, point) == art::cv_status::no_timeout;
             });
 
@@ -2238,7 +2345,8 @@ namespace art {
                     CXX::Interface::direct_method("unlock", funs_rw_mutex_unlock),
                     CXX::Interface::direct_method("try_lock", funs_rw_mutex_try_lock),
                     CXX::Interface::direct_method("lock_shared", funs_rw_mutex_lock_shared),
-                    CXX::Interface::direct_method("unlock_shared", funs_rw_mutex_unlock_shared)
+                    CXX::Interface::direct_method("unlock_shared", funs_rw_mutex_unlock_shared),
+                    CXX::Interface::direct_method("try_lock_shared", funs_rw_mutex_try_lock_shared)
                 );
                 CXX::Interface::typeVTable<art::shared_ptr<art::rw_mutex>>() = define_rw_mutex;
 
@@ -2275,6 +2383,7 @@ namespace art {
         void init() {
             init_ConditionVariable();
             init_Mutex();
+            init_RWMutex();
             init_RecursiveMutex();
             init_Semaphore();
             init_EventSystem();
@@ -2295,8 +2404,8 @@ namespace art {
             atomic::AtomicBasic<uint64_t>::init();
             atomic::AtomicBasic<float>::init();
             atomic::AtomicBasic<double>::init();
-            //already initialized in atomic::AtomicBasic<uint64_t> or atomic::AtomicBasic<uint32_t>
-            //atomic::AtomicBasic<size_t>::init();
+            if constexpr (!std::is_same_v<size_t, uint64_t> || !std::is_same_v<size_t, uint32_t>)
+                atomic::AtomicBasic<size_t>::init();
             native::init();
         }
     }

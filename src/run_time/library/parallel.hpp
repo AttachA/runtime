@@ -14,6 +14,7 @@ namespace art {
         namespace constructor {
             ValueItem* createProxy_ConditionVariable(ValueItem*, uint32_t);
             ValueItem* createProxy_Mutex(ValueItem*, uint32_t);
+            ValueItem* createProxy_RWMutex(ValueItem*, uint32_t);
             ValueItem* createProxy_RecursiveMutex(ValueItem*, uint32_t);
             ValueItem* createProxy_Semaphore(ValueItem*, uint32_t);
 

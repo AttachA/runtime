@@ -98,16 +98,56 @@ namespace art {
         void relock_end(relock_state state);
     };
 
+    class TaskRWMutex {
+        friend class TaskRecursiveMutex;
+        std::list<__::resume_task> resume_task;
+        std::list<Task*> readers;
+        art::timed_mutex no_race;
+        struct Task* current_writer_task = nullptr;
+
+
+    public:
+        TaskRWMutex() = default;
+
+        ~TaskRWMutex();
+        void read_lock();
+        bool try_read_lock();
+        bool try_read_lock_for(size_t milliseconds);
+        bool try_read_lock_until(std::chrono::high_resolution_clock::time_point time_point);
+        void read_unlock();
+        bool is_read_locked();
+        //put here child task(not started), and it will lock mutex, and unlock it when it will be finished
+        void lifecycle_read_lock(const art::typed_lgr<Task>& task);
+        //put here child task(not started), and it will lock mutex and relock it when received value from child task, and unlock it when it will be finished
+        void sequence_read_lock(const art::typed_lgr<Task>& task);
+
+        void write_lock();
+        bool try_write_lock();
+        bool try_write_lock_for(size_t milliseconds);
+        bool try_write_lock_until(std::chrono::high_resolution_clock::time_point time_point);
+        void write_unlock();
+        bool is_write_locked();
+        //put here child task(not started), and it will lock mutex, and unlock it when it will be finished
+        void lifecycle_write_lock(const art::typed_lgr<Task>& task);
+        //put here child task(not started), and it will lock mutex and relock it when received value from child task, and unlock it when it will be finished
+        void sequence_write_lock(const art::typed_lgr<Task>& task);
+
+        bool is_own();
+    };
+
     ENUM_t(
         MutexUnifyType,
         uint8_t,
         noting,
         nmut,
-        nrwmut,
+        nrwmut_r,
+        nrwmut_w,
         ntimed,
         nrec,
         umut,
         urmut,
+        urwmut_r,
+        urwmut_w,
         mmut
     );
 
@@ -118,6 +158,7 @@ namespace art {
             art::timed_mutex* ntimed;
             art::recursive_mutex* nrec;
             TaskMutex* umut;
+            TaskRWMutex* urwmut;
             TaskRecursiveMutex* urmut;
             struct MultiplyMutex* mmut;
         };
@@ -125,10 +166,11 @@ namespace art {
         MutexUnify();
         MutexUnify(const MutexUnify& mut);
         MutexUnify(art::mutex& smut);
-        MutexUnify(art::rw_mutex& smut);
+        MutexUnify(art::rw_mutex& smut, bool read_write = true);
         MutexUnify(art::timed_mutex& smut);
         MutexUnify(art::recursive_mutex& smut);
         MutexUnify(TaskMutex& smut);
+        MutexUnify(TaskRWMutex& smut, bool read_write = true);
         MutexUnify(TaskRecursiveMutex& smut);
         MutexUnify(struct MultiplyMutex& mmut);
         MutexUnify(nullptr_t);

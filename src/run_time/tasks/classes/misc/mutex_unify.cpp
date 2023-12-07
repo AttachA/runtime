@@ -13,7 +13,10 @@ namespace art {
         case MutexUnifyType::nmut:
             nmut->lock();
             break;
-        case MutexUnifyType::nrwmut:
+        case MutexUnifyType::nrwmut_r:
+            nrwmut->lock_shared();
+            break;
+        case MutexUnifyType::nrwmut_w:
             nrwmut->lock();
             break;
         case MutexUnifyType::ntimed:
@@ -28,6 +31,12 @@ namespace art {
         case MutexUnifyType::urmut:
             urmut->lock();
             break;
+        case MutexUnifyType::urwmut_r:
+            urwmut->read_lock();
+            break;
+        case MutexUnifyType::urwmut_w:
+            urwmut->write_lock();
+            break;
         case MutexUnifyType::mmut:
             mmut->lock();
             break;
@@ -40,7 +49,9 @@ namespace art {
         switch (type) {
         case MutexUnifyType::nmut:
             return nmut->try_lock();
-        case MutexUnifyType::nrwmut:
+        case MutexUnifyType::nrwmut_r:
+            return nrwmut->try_lock_shared();
+        case MutexUnifyType::nrwmut_w:
             return nrwmut->try_lock();
         case MutexUnifyType::ntimed:
             return ntimed->try_lock();
@@ -50,6 +61,10 @@ namespace art {
             return umut->try_lock();
         case MutexUnifyType::urmut:
             return urmut->try_lock();
+        case MutexUnifyType::urwmut_r:
+            return urwmut->try_read_lock();
+        case MutexUnifyType::urwmut_w:
+            return urwmut->try_write_lock();
         default:
             return false;
         }
@@ -67,6 +82,10 @@ namespace art {
             return umut->try_lock_for(milliseconds);
         case MutexUnifyType::urmut:
             return urmut->try_lock_for(milliseconds);
+        case MutexUnifyType::urwmut_r:
+            return urwmut->try_read_lock_for(milliseconds);
+        case MutexUnifyType::urwmut_w:
+            return urwmut->try_write_lock_for(milliseconds);
         case MutexUnifyType::mmut:
             return mmut->try_lock_for(milliseconds);
         default:
@@ -86,6 +105,10 @@ namespace art {
             return umut->try_lock_until(time_point);
         case MutexUnifyType::urmut:
             return urmut->try_lock_until(time_point);
+        case MutexUnifyType::urwmut_r:
+            return urwmut->try_read_lock_until(time_point);
+        case MutexUnifyType::urwmut_w:
+            return urwmut->try_write_lock_until(time_point);
         case MutexUnifyType::mmut:
             return mmut->try_lock_until(time_point);
         default:
@@ -98,7 +121,10 @@ namespace art {
         case MutexUnifyType::nmut:
             nmut->unlock();
             break;
-        case MutexUnifyType::nrwmut:
+        case MutexUnifyType::nrwmut_r:
+            nrwmut->lock_shared();
+            break;
+        case MutexUnifyType::nrwmut_w:
             nrwmut->unlock();
             break;
         case MutexUnifyType::ntimed:
@@ -112,6 +138,12 @@ namespace art {
             break;
         case MutexUnifyType::urmut:
             urmut->unlock();
+            break;
+        case MutexUnifyType::urwmut_r:
+            urwmut->read_unlock();
+            break;
+        case MutexUnifyType::urwmut_w:
+            urwmut->write_unlock();
             break;
         case MutexUnifyType::mmut:
             mmut->unlock();
@@ -138,8 +170,8 @@ namespace art {
         state = {0};
     }
 
-    MutexUnify::MutexUnify(art::rw_mutex& smut) {
-        type = MutexUnifyType::nrwmut;
+    MutexUnify::MutexUnify(art::rw_mutex& smut, bool read_write) {
+        type = read_write ? MutexUnifyType::nrwmut_w : MutexUnifyType::nrwmut_r;
         nrwmut = std::addressof(smut);
         state = {0};
     }
@@ -159,6 +191,12 @@ namespace art {
     MutexUnify::MutexUnify(TaskMutex& smut) {
         type = MutexUnifyType::umut;
         umut = std::addressof(smut);
+        state = {0};
+    }
+
+    MutexUnify::MutexUnify(TaskRWMutex& smut, bool read_write) {
+        type = read_write ? MutexUnifyType::urwmut_w : MutexUnifyType::urwmut_r;
+        urwmut = std::addressof(smut);
         state = {0};
     }
 
@@ -194,12 +232,6 @@ namespace art {
         type = MutexUnifyType::nmut;
         nmut = std::addressof(smut);
         state = {0};
-        return *this;
-    }
-
-    MutexUnify& MutexUnify::operator=(art::rw_mutex& smut) {
-        type = MutexUnifyType::nrwmut;
-        nrwmut = std::addressof(smut);
         return *this;
     }
 

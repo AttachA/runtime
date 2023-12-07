@@ -336,6 +336,7 @@ namespace art {
 
         void lock_shared();
         void unlock_shared();
+        bool try_lock_shared();
     };
 
     struct relock_state {
