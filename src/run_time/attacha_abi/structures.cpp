@@ -610,12 +610,7 @@ namespace art {
             new (values_table + i) ValueInfo(values[i]);
 
         auto tmp = getAfterMethods();
-        new (&tmp->destructor) art::shared_ptr<FuncEnvironment>(destructor);
-        new (&tmp->copy) art::shared_ptr<FuncEnvironment>(copy);
-        new (&tmp->move) art::shared_ptr<FuncEnvironment>(move);
-        new (&tmp->compare) art::shared_ptr<FuncEnvironment>(compare);
-        new (&tmp->name) art::ustring();
-        tmp->tags = nullptr;
+        new (tmp) AfterMethods{"", {}, nullptr, destructor, copy, move, compare};
     }
 
     AttachAVirtualTable* AttachAVirtualTable::create(list_array<MethodInfo>& methods, list_array<ValueInfo>& values, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare, size_t structure_bytes, bool allow_auto_copy) {
