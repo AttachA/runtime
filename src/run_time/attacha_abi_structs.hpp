@@ -25,6 +25,7 @@
 
 namespace art {
     struct Task;
+    class Generator;
     class FuncEnvironment;
 
     ENUM_t(
@@ -623,6 +624,7 @@ namespace art {
             : ValueItem(vals, len) {}
 
         ValueItem(const art::typed_lgr<Task>& task);
+        ValueItem(const art::shared_ptr<Generator>& generator);
         ValueItem(const std::initializer_list<int8_t>& args)
             : ValueItem(args.begin(), args.size() <= UINT32_MAX ? (uint32_t)args.size() : UINT32_MAX){};
         ValueItem(const std::initializer_list<uint8_t>& args)
@@ -688,6 +690,7 @@ namespace art {
         ValueItem(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&, as_reference_t);
         ValueItem(std::unordered_set<ValueItem, art::hash<ValueItem>>&, as_reference_t);
         ValueItem(art::typed_lgr<Task>& task, as_reference_t);
+        ValueItem(art::shared_ptr<Generator>& generator, as_reference_t);
         ValueItem(ValueMeta&, as_reference_t);
         ValueItem(art::shared_ptr<FuncEnvironment>&, as_reference_t);
 
@@ -713,6 +716,7 @@ namespace art {
         ValueItem(const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&, as_reference_t);
         ValueItem(const std::unordered_set<ValueItem, art::hash<ValueItem>>&, as_reference_t);
         ValueItem(const art::typed_lgr<Task>& task, as_reference_t);
+        ValueItem(const art::shared_ptr<Generator>& generator, as_reference_t);
         ValueItem(const ValueMeta&, as_reference_t);
         ValueItem(const art::shared_ptr<FuncEnvironment>&, as_reference_t);
 
@@ -798,6 +802,7 @@ namespace art {
         explicit operator std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&();
         explicit operator std::unordered_set<ValueItem, art::hash<ValueItem>>&();
         explicit operator art::typed_lgr<Task>&();
+        explicit operator art::shared_ptr<Generator>&();
         explicit operator art::shared_ptr<FuncEnvironment>&();
 
 
@@ -839,6 +844,7 @@ namespace art {
         explicit operator const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&() const;
         explicit operator const std::unordered_set<ValueItem, art::hash<ValueItem>>&() const;
         explicit operator const art::typed_lgr<Task>&() const;
+        explicit operator const art::shared_ptr<Generator>&() const;
         explicit operator const art::shared_ptr<FuncEnvironment>&() const;
         explicit operator const array_t<bool>() const;
         explicit operator const array_t<int8_t>() const;
@@ -889,7 +895,8 @@ namespace art {
         explicit operator array_ref_t<ValueItem>();
         ValueItem* operator()(ValueItem* arguments, uint32_t arguments_size);
         ValueItem& getAsync();
-        void getGeneratorResult(ValueItem* res, uint64_t result_id);
+        void getAsyncResult(ValueItem& res, uint64_t result_id);
+        void getGeneratorResult(ValueItem& res);
         void*& getSourcePtr();
         const void*& getSourcePtr() const;
         void*& unRef();

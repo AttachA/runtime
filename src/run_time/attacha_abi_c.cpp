@@ -91,6 +91,9 @@ namespace art {
         case VType::async_res:
             delete (art::typed_lgr<Task>*)*value;
             break;
+        case VType::generator:
+            delete (art::shared_ptr<Generator>*)*value;
+            break;
         case VType::undefined_ptr:
             break;
         case VType::except_value:
@@ -255,6 +258,9 @@ namespace art {
             case VType::async_res:
                 destructor = defaultDestructor<art::typed_lgr<Task>>;
                 break;
+            case VType::generator:
+                destructor = defaultDestructor<art::shared_ptr<Generator>>;
+                break;
             case VType::function:
                 destructor = defaultDestructor<art::shared_ptr<FuncEnvironment>>;
                 break;
@@ -373,6 +379,8 @@ namespace art {
                 return new art::ustring(*(art::ustring*)actual_val);
             case VType::async_res:
                 return new art::typed_lgr<Task>(*(art::typed_lgr<Task>*)actual_val);
+            case VType::generator:
+                return new art::shared_ptr<Generator>(*(art::shared_ptr<Generator>*)actual_val);
             case VType::except_value:
                 return new std::exception_ptr(*(std::exception_ptr*)actual_val);
             case VType::saarr:
@@ -2670,6 +2678,9 @@ namespace art {
     ValueItem::ValueItem(const art::typed_lgr<Task>& task)
         : val(new art::typed_lgr<Task>(task)), meta(VType::async_res) {}
 
+    ValueItem::ValueItem(const art::shared_ptr<Generator>& generator)
+        : val(new art::shared_ptr<Generator>(generator)), meta(VType::generator) {}
+
     ValueItem::ValueItem(const std::initializer_list<ValueItem>& args)
         : val(0), meta(0) {
         if (args.size() > (size_t)UINT32_MAX)
@@ -2908,6 +2919,12 @@ namespace art {
         meta.as_ref = true;
     }
 
+    ValueItem::ValueItem(class art::shared_ptr<Generator>& val, as_reference_t) {
+        this->val = &val;
+        meta = VType::generator;
+        meta.as_ref = true;
+    }
+
     ValueItem::ValueItem(ValueMeta& val, as_reference_t) {
         this->val = &val;
         meta = VType::type_identifier;
@@ -3056,6 +3073,13 @@ namespace art {
     ValueItem::ValueItem(const art::typed_lgr<Task>& val, as_reference_t) {
         this->val = (void*)&val;
         meta = VType::async_res;
+        meta.as_ref = true;
+        meta.allow_edit = false;
+    }
+
+    ValueItem::ValueItem(const art::shared_ptr<Generator>& val, as_reference_t) {
+        this->val = (void*)&val;
+        meta = VType::generator;
         meta.as_ref = true;
         meta.allow_edit = false;
     }
@@ -4222,6 +4246,12 @@ namespace art {
         throw InvalidCast("This type is not async_res");
     }
 
+    ValueItem::operator art::shared_ptr<Generator>&() {
+        if (meta.vtype == VType::generator)
+            return *(art::shared_ptr<Generator>*)getSourcePtr();
+        throw InvalidCast("This type is not generator");
+    }
+
     ValueItem::operator art::shared_ptr<FuncEnvironment>&() {
         return *funPtr();
     }
@@ -4336,6 +4366,12 @@ namespace art {
         if (meta.vtype == VType::async_res)
             return *(const art::typed_lgr<Task>*)getSourcePtr();
         throw InvalidCast("This type is not async_res");
+
+    } ValueItem::operator const class art::shared_ptr<Generator> &() const {
+
+        if (meta.vtype == VType::generator)
+            return *(const art::shared_ptr<Generator>*)getSourcePtr();
+        throw InvalidCast("This type is not generator");
 
     } ValueItem::operator const art::shared_ptr<FuncEnvironment>&() const {
 
@@ -5312,22 +5348,52 @@ namespace art {
     ValueItem& ValueItem::getAsync() {
         if (val)
             while (meta.vtype == VType::async_res)
-                getAsyncResult(val, meta);
+                art::getAsyncResult(val, meta);
         return *this;
     }
 
-    void ValueItem::getGeneratorResult(ValueItem* result, uint64_t index) {
-        if (val)
+    void ValueItem::getAsyncResult(ValueItem& result, uint64_t index) {
+        if (val) {
             while (meta.vtype == VType::async_res) {
                 art::typed_lgr<Task>& task = *(art::typed_lgr<Task>*)getSourcePtr();
                 ValueItem* res = Task::get_result(task, index);
                 if (res) {
-                    *result = *res;
+                    result = *res;
                     delete res;
+                    return;
+                } else {
+                    result = nullptr;
                     return;
                 }
             }
-        throw InvalidCast("This type is not async_res");
+            throw InvalidCast("This type is not async_res");
+        } else
+            throw NullPointerException();
+    }
+
+    void ValueItem::getGeneratorResult(ValueItem& result) {
+        if (val) {
+            ValueItem* res = nullptr;
+            switch (meta.vtype) {
+            case VType::async_res:
+                res = Task::get_result(*(art::typed_lgr<Task>*)getSourcePtr());
+                break;
+            case VType::generator:
+                res = Generator::get_result(*(art::shared_ptr<Generator>*)getSourcePtr());
+                break;
+            default:
+                throw InvalidCast("This type is not async_res");
+            }
+            if (res) {
+                result = *res;
+                delete res;
+                return;
+            } else {
+                result = nullptr;
+                return;
+            }
+        } else
+            throw NullPointerException();
     }
 
     void*& ValueItem::getSourcePtr() {
@@ -5417,6 +5483,9 @@ namespace art {
                 break;
             case VType::async_res:
                 destructor = defaultDestructor<art::typed_lgr<Task>>;
+                break;
+            case VType::generator:
+                destructor = defaultDestructor<art::shared_ptr<Generator>>;
                 break;
             case VType::function:
                 destructor = defaultDestructor<art::shared_ptr<FuncEnvironment>>;

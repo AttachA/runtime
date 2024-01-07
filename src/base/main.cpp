@@ -260,18 +260,20 @@ int main() {
 
     art::shared_ptr gen = new Generator(
         CXX::MakeNative([](void* generator_ref) {
-            art_lib::console::setTextColor(0, 230, 0);
-            art_lib::console::printLine("                #");
             Generator* ref = (Generator*)generator_ref;
+
             art_lib::console::setTextColor(0, 230, 0);
             art_lib::console::printLine("                #");
             Generator::result(ref, new ValueItem(1));
+
             art_lib::console::setTextColor(0, 230, 0);
             art_lib::console::printLine("                #");
             Generator::yield(ref, new ValueItem(2));
+
             art_lib::console::setTextColor(0, 230, 0);
             art_lib::console::printLine("                #");
             Generator::yield(ref, new ValueItem(3));
+
             art_lib::console::setTextColor(0, 230, 0);
             art_lib::console::printLine("                #");
             return 123;
@@ -287,17 +289,12 @@ int main() {
     art_lib::console::setTextColor(0, 0, 230);
     art_lib::console::printLine("  #");
     Generator::restart_context(gen);
-
-    art_lib::console::setTextColor(0, 0, 230);
-    art_lib::console::printLine("  #");
     auto results = Generator::await_results(gen);
     art_lib::console::setTextColor(0, 0, 230);
     art_lib::console::printf("  # []\n", results);
-    art_lib::console::setTextColor(0, 0, 230);
-    art_lib::console::printLine("  #");
     art_lib::console::resetTextColor();
     art_lib::console::printLine("Sample execution end.");
-    ymain();
+    //ymain();
     Task::create_executor(4);
     auto itt = 100;
     art_lib::console::printf("Hello from main block! []\n", art::this_thread::get_id());
@@ -323,5 +320,6 @@ int main() {
         return nullptr;
     };
     CXX::cxxCall(CXX::MakeNative(lambda));
+    Task::shutDown();
     return 0;
 }

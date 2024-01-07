@@ -24,6 +24,9 @@ namespace art {
         AttachAVirtualTable* define_TaskResultIterator;
         AttachAVirtualTable* define_TaskGroup;
 
+        AttachAVirtualTable* define_Generator;
+        AttachAVirtualTable* define_GeneratorResultIterator;
+
 
         AttachAVirtualTable* define_mutex;
         AttachAVirtualTable* define_rw_mutex;
@@ -91,6 +94,24 @@ namespace art {
                 if (args[args_off + 4].meta.vtype != VType::noting)
                     used_task_local = (bool)args[args_off + 4];
             arguments = len > 5 ? args[5] : nullptr;
+        }
+
+        template <size_t args_off>
+        void parseArgumentsToGenerator(ValueItem* args, uint32_t len, art::shared_ptr<FuncEnvironment>& func, art::shared_ptr<FuncEnvironment>& fault_func, bool& used_task_local, ValueItem& arguments) {
+            used_task_local = false;
+
+            CXX::excepted(args[args_off], VType::function);
+            func = *args[args_off].funPtr();
+
+            if (len > args_off + 2)
+                if (args[args_off + 2].meta.vtype != VType::noting) {
+                    CXX::excepted(args[args_off + 2], VType::function);
+                    fault_func = *args[args_off + 2].funPtr();
+                }
+            if (len > args_off + 3)
+                if (args[args_off + 3].meta.vtype != VType::noting)
+                    used_task_local = (bool)args[args_off + 3];
+            arguments = len > 4 ? args[4] : nullptr;
         }
 
 #pragma region ConditionVariable
@@ -614,7 +635,8 @@ namespace art {
                         return true;
                     } else {
                         ValueItem* res = Task::get_result(task, 1 + index);
-                        delete res;
+                        if (res)
+                            delete res;
                         if (Task::has_result(task, 1 + index)) {
                             ++index;
                             return true;
@@ -966,6 +988,200 @@ namespace art {
         }
 
 #pragma endregion
+#pragma region GeneratorResultIterator
+
+        struct GeneratorResultIterator {
+            art::shared_ptr<Generator> gen;
+
+            bool next() {
+                if (Generator::has_result(gen)) {
+                    return true;
+                } else {
+                    ValueItem* res = Generator::get_result(gen);
+                    if (res)
+                        delete res;
+                    if (Generator::has_result(gen))
+                        return true;
+                }
+                return false;
+            }
+
+            bool prev() {
+                return false;
+            }
+
+            ValueItem get() {
+                ValueItem* res = Generator::get_result(gen);
+                ValueItem result;
+                if (res) {
+                    result = *res;
+                    delete res;
+                }
+                return result;
+            }
+
+            GeneratorResultIterator begin() {
+                return GeneratorResultIterator{gen};
+            }
+
+            GeneratorResultIterator end() {
+                return GeneratorResultIterator{gen};
+            }
+        };
+
+        AttachAFun(funs_GeneratorResultIterator_next, 1, {
+            auto& class_ = CXX::Interface::getExtractAs<GeneratorResultIterator>(args[0], define_GeneratorResultIterator);
+            return class_.next();
+        });
+        AttachAFun(funs_GeneratorResultIterator_prev, 1, {
+            auto& class_ = CXX::Interface::getExtractAs<GeneratorResultIterator>(args[0], define_GeneratorResultIterator);
+            return class_.prev();
+        });
+        AttachAFun(funs_GeneratorResultIterator_get, 1, {
+            auto& class_ = CXX::Interface::getExtractAs<GeneratorResultIterator>(args[0], define_GeneratorResultIterator);
+            return class_.get();
+        });
+        AttachAFun(funs_GeneratorResultIterator_begin, 1, {
+            auto& class_ = CXX::Interface::getExtractAs<GeneratorResultIterator>(args[0], define_GeneratorResultIterator);
+            return ValueItem(CXX::Interface::constructStructure<GeneratorResultIterator>(define_GeneratorResultIterator, class_.begin()), no_copy);
+        });
+        AttachAFun(funs_GeneratorResultIterator_end, 1, {
+            auto& class_ = CXX::Interface::getExtractAs<GeneratorResultIterator>(args[0], define_GeneratorResultIterator);
+            return ValueItem(CXX::Interface::constructStructure<GeneratorResultIterator>(define_GeneratorResultIterator, class_.end()), no_copy);
+        });
+
+        void init_GeneratorResultIterator() {
+            define_GeneratorResultIterator = CXX::Interface::createTable<GeneratorResultIterator>(
+                "task_result_iterator",
+                CXX::Interface::direct_method(symbols::structures::iterable::next, funs_GeneratorResultIterator_next),
+                CXX::Interface::direct_method(symbols::structures::iterable::prev, funs_GeneratorResultIterator_prev),
+                CXX::Interface::direct_method(symbols::structures::iterable::get, funs_GeneratorResultIterator_get),
+                CXX::Interface::direct_method(symbols::structures::iterable::begin, funs_GeneratorResultIterator_begin),
+                CXX::Interface::direct_method(symbols::structures::iterable::end, funs_GeneratorResultIterator_end)
+            );
+            CXX::Interface::typeVTable<GeneratorResultIterator>() = define_GeneratorResultIterator;
+        }
+
+#pragma endregion
+#pragma region Generator
+        AttachAFun(funs_Generator_yield_iterate, 1, {
+            return Generator::yield_iterate(CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator));
+        });
+        AttachAFun(funs_Generator_execute, 1, {
+            return Generator::execute(CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator));
+        });
+        AttachAManagedFun(funs_Generator_get_result, 1, {
+            return Generator::get_result(CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator));
+        });
+        AttachAFun(funs_Generator_has_result, 1, {
+            return Generator::has_result(CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator));
+        });
+        AttachAFun(funs_Generator_await_results, 1, {
+            return Generator::await_results(CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator));
+        });
+        AttachAFun(funs_Generator_restart_context, 1, {
+            Generator::restart_context(CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator));
+        });
+
+        AttachAFun(funs_Generator_to_string, 1, {
+            return (art::ustring)ValueItem(Generator::await_results(CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator)));
+        });
+
+        ValueItem* funs_Generator_to_set(ValueItem* args, uint32_t len) {
+            CXX::arguments_range(len, 1);
+            std::unordered_set<ValueItem, art::hash<ValueItem>> res;
+            for (ValueItem i : Generator::cxx_iterate(CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator)))
+                res.insert(std::move(i));
+            return new ValueItem(res);
+        }
+
+        template <typename T>
+        AttachAFun(funs_Generator_to_, 1, {
+            auto& gen = CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator);
+            ValueItem* res = nullptr;
+            if (Generator::has_result(gen))
+                res = Generator::get_result(gen);
+            else if (Generator::yield_iterate(gen))
+                res = Generator::get_result(gen);
+            else
+                throw OutOfRange("Generator not returned result");
+            if (!res)
+                return std::remove_cvref_t<T>();
+            else {
+                T temp = (T)*res;
+                delete res;
+                return temp;
+            }
+        });
+        template <typename T>
+        AttachAFun(funs_Generator_array_to_, 1, {
+            auto result = Generator::await_results(CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator));
+            if (result.size() > UINT32_MAX)
+                throw InvalidCast("Generator result array is too large to convert to an array, data lost");
+            else if constexpr (std::is_same_v<T, ValueItem>) {
+                size_t len;
+                ValueItem* res = result.take_raw(len);
+                return ValueItem(res, len, no_copy);
+            } else {
+                size_t len;
+                auto res = result.convert_take<T>([](ValueItem&& item) { return (T)item; }).take_raw(len);
+                return ValueItem(res, len, no_copy);
+            }
+        });
+        AttachAFun(funs_Generator_begin, 1, {
+            auto& gen = CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator);
+            return CXX::Interface::constructStructure<GeneratorResultIterator>(define_GeneratorResultIterator, gen);
+        });
+        AttachAFun(funs_Generator_end, 1, {
+            auto& gen = CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator);
+            return CXX::Interface::constructStructure<GeneratorResultIterator>(define_GeneratorResultIterator, gen);
+        });
+
+        void init_Generator() {
+            define_Generator = CXX::Interface::createTable<art::shared_ptr<Generator>>(
+                "generator",
+                CXX::Interface::direct_method("yield_iterate", funs_Generator_yield_iterate),
+                CXX::Interface::direct_method("execute", funs_Generator_execute),
+                CXX::Interface::direct_method("get_result", funs_Generator_get_result),
+                CXX::Interface::direct_method("has_result", funs_Generator_has_result),
+                CXX::Interface::direct_method("await_results", funs_Generator_await_results),
+                CXX::Interface::direct_method("restart_context", funs_Generator_restart_context),
+                CXX::Interface::direct_method(symbols::structures::convert::to_uarr, funs_Generator_await_results),
+                CXX::Interface::direct_method(symbols::structures::convert::to_string, funs_Generator_to_string),
+                CXX::Interface::direct_method(symbols::structures::convert::to_ui8, funs_Generator_to_<uint8_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_ui16, funs_Generator_to_<uint16_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_ui32, funs_Generator_to_<uint32_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_ui64, funs_Generator_to_<uint64_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_i8, funs_Generator_to_<int8_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_i16, funs_Generator_to_<int16_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_i32, funs_Generator_to_<int32_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_i64, funs_Generator_to_<int64_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_float, funs_Generator_to_<float>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_double, funs_Generator_to_<double>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_boolean, funs_Generator_to_<bool>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_timepoint, funs_Generator_to_<std::chrono::high_resolution_clock::time_point>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_type_identifier, funs_Generator_to_<ValueMeta>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_function, funs_Generator_to_<art::shared_ptr<FuncEnvironment>&>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_map, funs_Generator_to_<std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_set, funs_Generator_to_set),
+                CXX::Interface::direct_method(symbols::structures::convert::to_ui8_arr, funs_Generator_array_to_<uint8_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_ui16_arr, funs_Generator_array_to_<uint16_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_ui32_arr, funs_Generator_array_to_<uint32_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_ui64_arr, funs_Generator_array_to_<uint64_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_i8_arr, funs_Generator_array_to_<int8_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_i16_arr, funs_Generator_array_to_<int16_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_i32_arr, funs_Generator_array_to_<int32_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_i64_arr, funs_Generator_array_to_<int64_t>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_float_arr, funs_Generator_array_to_<float>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_double_arr, funs_Generator_array_to_<double>),
+                CXX::Interface::direct_method(symbols::structures::convert::to_faarr, funs_Generator_array_to_<ValueItem>),
+                CXX::Interface::direct_method(symbols::structures::iterable::begin, funs_Generator_begin),
+                CXX::Interface::direct_method(symbols::structures::iterable::end, funs_Generator_end)
+            );
+            CXX::Interface::typeVTable<art::shared_ptr<Generator>>() = define_Generator;
+        }
+
+#pragma endregion
 
         namespace constructor {
             ValueItem* createProxy_ConditionVariable(ValueItem*, uint32_t) {
@@ -1013,6 +1229,20 @@ namespace art {
                     return ValueItem(CXX::Interface::constructStructure<art::typed_lgr<Task>>(define_Task, new Task(func, values, used_task_local, fault_func, timeout)), no_copy);
                 } else
                     return ValueItem(CXX::Interface::constructStructure<art::typed_lgr<Task>>(define_Task, CXX::Interface::getExtractAs<art::typed_lgr<Task>>(args[0], define_Task)), no_copy);
+            });
+
+            AttachAFun(construct_Generator, 1, {
+                if (args[0].meta.vtype == VType::generator)
+                    return ValueItem(CXX::Interface::constructStructure<art::shared_ptr<Generator>>(define_Generator, (art::shared_ptr<Generator>&)args[0]), no_copy);
+                else if (args[0].meta.vtype == VType::function) {
+                    art::shared_ptr<FuncEnvironment> func;
+                    art::shared_ptr<FuncEnvironment> fault_func;
+                    bool used_task_local = false;
+                    ValueItem values;
+                    parseArgumentsToGenerator<0>(args, len, func, fault_func, used_task_local, values);
+                    return ValueItem(CXX::Interface::constructStructure<art::shared_ptr<Generator>>(define_Generator, new Generator(func, values, used_task_local, fault_func)), no_copy);
+                } else
+                    return ValueItem(CXX::Interface::constructStructure<art::shared_ptr<Generator>>(define_Generator, CXX::Interface::getExtractAs<art::shared_ptr<Generator>>(args[0], define_Generator)), no_copy);
             });
 
             ValueItem* createProxy_TaskGroup(ValueItem* val, uint32_t len) {
@@ -1085,6 +1315,16 @@ namespace art {
             ValueItem args;
             parseArgumentsToTask<0>(vals, len, func, fault_func, timeout, used_task_local, args);
             return new ValueItem(new typed_lgr(new Task(func, args, used_task_local, fault_func, timeout)), VType::async_res, no_copy);
+        }
+
+        ValueItem* createGenerator(ValueItem* vals, uint32_t len) {
+            CXX::arguments_range(len, 1);
+            art::shared_ptr<FuncEnvironment> func;
+            art::shared_ptr<FuncEnvironment> fault_func;
+            bool used_generator_local;
+            ValueItem args;
+            parseArgumentsToGenerator<0>(vals, len, func, fault_func, used_generator_local, args);
+            return new ValueItem(new shared_ptr(new Generator(func, args, used_generator_local, fault_func)), VType::generator, no_copy);
         }
 
         namespace this_task {
@@ -2392,6 +2632,8 @@ namespace art {
             init_TaskResultIterator();
             init_Task();
             init_TaskGroup();
+            init_GeneratorResultIterator();
+            init_Generator();
             atomic::AtomicObject::init();
             atomic::AtomicBasic<bool>::init();
             atomic::AtomicBasic<int8_t>::init();

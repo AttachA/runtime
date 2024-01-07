@@ -97,47 +97,59 @@ namespace art {
     }
 
     bool Generator::yield_iterate(art::shared_ptr<Generator>& generator) {
-        if (generator->context == nullptr) {
-            *reinterpret_cast<boost::context::continuation*>(&generator->context) = boost::context::callcc(std::allocator_arg, light_stack(1048576 /*1 mb*/), generator_execute);
-            if (generator->ex_ptr)
-                std::rethrow_exception(generator->ex_ptr);
-            return true;
-        } else if (!generator->end_of_life) {
-            *reinterpret_cast<boost::context::continuation*>(&generator->context) = reinterpret_cast<boost::context::continuation*>(&generator->context)->resume();
-            if (generator->ex_ptr)
-                std::rethrow_exception(generator->ex_ptr);
-            return true;
+        bool can_run = false;
+        if (generator->now_run.compare_exchange_strong(can_run, true)) {
+            if (generator->context == nullptr) {
+                *reinterpret_cast<boost::context::continuation*>(&generator->context) = boost::context::callcc(std::allocator_arg, light_stack(1048576 /*1 mb*/), generator_execute);
+                generator->now_run.store(false);
+                if (generator->ex_ptr)
+                    std::rethrow_exception(generator->ex_ptr);
+                return true;
+            } else if (!generator->end_of_life) {
+                *reinterpret_cast<boost::context::continuation*>(&generator->context) = reinterpret_cast<boost::context::continuation*>(&generator->context)->resume();
+                generator->now_run.store(false);
+                if (generator->ex_ptr)
+                    std::rethrow_exception(generator->ex_ptr);
+                return true;
+            } else
+                return false;
         } else
-            return false;
+            throw InvalidOperation("Generator already in use");
     }
 
     bool Generator::execute(art::shared_ptr<Generator>& generator) {
         if (generator->end_of_life)
             return false;
-        if (generator->context == nullptr) {
-            loc.on_load_generator_ref = generator;
-            *reinterpret_cast<boost::context::continuation*>(&generator->context) = boost::context::callcc(std::allocator_arg, light_stack(1048576 /*1 mb*/), generator_execute);
-            if (generator->ex_ptr)
-                std::rethrow_exception(generator->ex_ptr);
-            if (generator->restart_flag)
-                generator->cancellation_flag = false;
-            if (generator->cancellation_flag)
-                throw TaskCancellation();
-            if (!generator->results.empty())
-                return true;
-            return false;
-        } else {
-            *reinterpret_cast<boost::context::continuation*>(&generator->context) = reinterpret_cast<boost::context::continuation*>(&generator->context)->resume();
-            if (generator->ex_ptr)
-                std::rethrow_exception(generator->ex_ptr);
-            if (generator->restart_flag)
-                generator->cancellation_flag = false;
-            if (generator->cancellation_flag)
-                throw TaskCancellation();
-            if (!generator->results.empty())
-                return true;
-            return false;
-        }
+        bool can_run = false;
+        if (generator->now_run.compare_exchange_strong(can_run, true)) {
+            if (generator->context == nullptr) {
+                loc.on_load_generator_ref = generator;
+                *reinterpret_cast<boost::context::continuation*>(&generator->context) = boost::context::callcc(std::allocator_arg, light_stack(1048576 /*1 mb*/), generator_execute);
+                generator->now_run.store(false);
+                if (generator->ex_ptr)
+                    std::rethrow_exception(generator->ex_ptr);
+                if (generator->restart_flag)
+                    generator->cancellation_flag = false;
+                if (generator->cancellation_flag)
+                    throw TaskCancellation();
+                if (!generator->results.empty())
+                    return true;
+                return false;
+            } else {
+                *reinterpret_cast<boost::context::continuation*>(&generator->context) = reinterpret_cast<boost::context::continuation*>(&generator->context)->resume();
+                generator->now_run.store(false);
+                if (generator->ex_ptr)
+                    std::rethrow_exception(generator->ex_ptr);
+                if (generator->restart_flag)
+                    generator->cancellation_flag = false;
+                if (generator->cancellation_flag)
+                    throw TaskCancellation();
+                if (!generator->results.empty())
+                    return true;
+                return false;
+            }
+        } else
+            throw InvalidOperation("Generator already in use");
     }
 
     ValueItem* Generator::get_result(art::shared_ptr<Generator>& generator) {
@@ -158,6 +170,7 @@ namespace art {
         } else
             return gen->results.take();
     }
+
     bool Generator::has_result(art::shared_ptr<Generator>& generator) {
         return !generator->results.empty() || (generator->context != nullptr && !generator->end_of_life);
     }
@@ -189,13 +202,18 @@ namespace art {
     }
 
     void Generator::restart_context(art::shared_ptr<Generator>& gen) {
-        if (gen->context != nullptr) {
-            gen->restart_flag = true;
-            *reinterpret_cast<boost::context::continuation*>(&gen->context) = reinterpret_cast<boost::context::continuation*>(&gen->context)->resume();
-            gen->restart_flag = false;
-            gen->cancellation_flag = false;
-        }
-        gen->end_of_life = false;
+        bool can_run = false;
+        if (gen->now_run.compare_exchange_strong(can_run, true)) {
+            if (gen->context != nullptr) {
+                gen->restart_flag = true;
+                *reinterpret_cast<boost::context::continuation*>(&gen->context) = reinterpret_cast<boost::context::continuation*>(&gen->context)->resume();
+                gen->restart_flag = false;
+                gen->cancellation_flag = false;
+            }
+            gen->end_of_life = false;
+            gen->now_run.store(false);
+        } else
+            throw InvalidOperation("Generator already in use");
     }
 
     class ValueEnvironment* Generator::generator_local(Generator* generator_weak_ref) {

@@ -24,6 +24,7 @@ namespace art {
             //args: [func, (fault handler), (timeout), (used_task_local)], saarr,faarr[args....]
             ValueItem* createProxy_TaskQuery(ValueItem*, uint32_t);
             ValueItem* construct_Task(ValueItem*, uint32_t);
+            ValueItem* construct_Generator(ValueItem*, uint32_t);
             ValueItem* createProxy_TaskGroup(ValueItem*, uint32_t);
         }
 
@@ -101,5 +102,8 @@ namespace art {
 
         //returns task, args: [func, (fault handler), (timeout), (used_task_local)], saarr,faarr[args....]
         ValueItem* createTask(ValueItem*, uint32_t);
+
+        //returns task, args: [func, (fault handler), (timeout), (used_task_local)], saarr,faarr[args....]
+        ValueItem* createGenerator(ValueItem*, uint32_t);
     }
 }

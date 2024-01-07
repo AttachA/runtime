@@ -517,6 +517,7 @@ namespace art {
         class ValueEnvironment* _generator_local = nullptr;
         std::exception_ptr ex_ptr = nullptr;
         void* context = nullptr;
+        std::atomic_bool now_run;
         bool end_of_life : 1 = false;
         bool cancellation_flag : 1 = false;
         bool restart_flag : 1 = false;
