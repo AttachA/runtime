@@ -22,40 +22,31 @@
 namespace art {
     using namespace reader;
 
-    struct attacha_environment::function_globals_handle {
-        std::unordered_map<art::ustring, art::shared_ptr<FuncEnvironment>, art::hash<art::ustring>> funs;
-        TaskRecursiveMutex lock;
-    };
-
-    void attacha_environment::remove_function_globals(function_globals_handle* handle) {
-        delete handle;
-    }
-
-    attacha_environment::function_globals_handle* attacha_environment::create_function_globals() {
-        return new function_globals_handle();
-    }
-
     art::shared_ptr<FuncEnvironment>& attacha_environment::create_fun_env(class FuncEnvironment* ptr) {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::lock_guard lock(fn_glob.lock);
         art::ustring path = "\1. " + std::to_string((size_t)ptr);
-        auto& tmp = fn_glob.funs[path];
-        if (tmp)
-            throw SymbolException("Fail allocate symbol: \"" + path + "\" because its already exists");
-        tmp = art::shared_ptr<FuncEnvironment>(ptr);
-        return tmp;
+        return attacha_environment::get_function_globals()
+            .set([&path](auto& fn_glob) -> auto& {
+                auto& tmp = fn_glob[path];
+                if (tmp)
+                    throw SymbolException("Fail allocate symbol: \"" + path + "\" because its already exists");
+                return tmp;
+            });
     }
-
 
     art::ustring try_resolve_frame(FuncHandle::inner_handle* env) {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::lock_guard lock(fn_glob.lock);
-        for (auto& it : fn_glob.funs) {
-            if (it.second) {
-                if (it.second->inner_handle() == env)
-                    return it.first;
-            }
-        }
+        if (env == nullptr)
+            return "fn(unknown)@0";
+        auto res = attacha_environment::get_function_globals().get([env](auto& fn_glob) -> std::optional<art::ustring> {
+            for (auto& it : fn_glob)
+                if (it.second)
+                    if (it.second->inner_handle() == env)
+                        return it.first;
+
+            return std::nullopt;
+        });
+        if (res != std::nullopt)
+            return res.value();
+
         void* fn_ptr;
         switch (env->_type) {
         case FuncHandle::inner_handle::FuncType::own:
@@ -73,7 +64,7 @@ namespace art {
         if (fn_ptr != nullptr)
             return "fn(" + FrameResult::JitResolveFrame(fn_ptr, true).fn_name + ")@" + string_help::hexstr((ptrdiff_t)fn_ptr);
         else
-            return "unresolved_attach_a_symbol";
+            return "fn(unresolved)@unknown";
     }
 
     void _inner_handle_finalizer(void* data, size_t size, void* rsp) {
@@ -86,6 +77,90 @@ namespace art {
             throw CompileTimeException(asmjit::DebugUtils::errorAsString(err) + art::ustring(message));
         }
     };
+
+    void patch_list::add_patches(patch_list&& patches) {
+        for (auto& it : patches.functions)
+            define_function(it.first, it.second);
+        for (auto& it : patches.types)
+            define_type(it.first, std::move(it.second));
+    }
+
+    void patch_list::define_function(const art::ustring& symbol, art::FuncHandle::inner_handle* handle) {
+        auto& patch_data = functions[symbol];
+        if (handle != nullptr) {
+            if (patch_data == nullptr) {
+                patch_data = handle;
+                patch_data->increase_usage();
+            } else
+                throw CompileTimeException("Symbol must be defined once. Got more than one defintion for " + symbol + " symbol.");
+        }
+    }
+
+    void patch_list::undefine_function(const art::ustring& symbol) {
+        auto& patch_data = functions[symbol];
+        if (patch_data != nullptr) {
+            patch_data->reduce_usage();
+            patch_data = nullptr;
+        } else
+            throw CompileTimeException("Symbol must be defined once. Got more than one defintion for " + symbol + " symbol.");
+    }
+
+    void patch_list::remove_function_patch(const art::ustring& symbol) {
+        auto it = functions.find(symbol);
+        if (it != functions.end()) {
+            if (it->second)
+                it->second->reduce_usage();
+            functions.erase(it);
+        }
+    }
+
+    void patch_list::define_type(const list_array<art::ustring>& path, VirtualTable&& table) {
+        auto& patch_data = types[path];
+        patch_data = std::move(table);
+    }
+
+    void patch_list::undefine_type(const list_array<art::ustring>& path) {
+        auto& patch_data = types[path];
+        patch_data = nullptr;
+    }
+
+    void patch_list::remove_type_patch(const list_array<art::ustring>& path) {
+        types.erase(path);
+    }
+
+    patch_list_added_items patch_list::apply() {
+        patch_list_added_items res;
+        for (const auto& patch : functions) {
+            if (patch.second) {
+                FuncEnvironment::fastHotPatch(patch.first, patch.second);
+                patch.second->reduce_usage();
+                res.functions.push_back(patch.first);
+            } else {
+                FuncEnvironment::Unload(patch.first);
+            }
+        }
+        for (const auto& patch : types) {
+            auto type = attacha_environment::get_types_global();
+            for (auto& namespace_ : patch.first)
+                type = type->join_namespace(namespace_);
+            if (patch.second.mode != art::Structure::VTableMode::undefined)
+                res.types.push_back(patch.first);
+            type->value = std::move(patch.second);
+        }
+        functions.clear();
+        types.clear();
+        return res;
+    }
+
+    void patch_list::clear() {
+        for (const auto& patch : functions) {
+            if (patch.second)
+                patch.second->reduce_usage();
+        }
+        functions.clear();
+        types.clear();
+    }
+
 
     FuncHandle::inner_handle::inner_handle(Environment env, bool is_cheap)
         : is_cheap(is_cheap) {
@@ -499,33 +574,7 @@ namespace art {
     art::ustring FuncEnvironment::to_string() const {
         if (!func_)
             return "fn(unloaded)@0";
-
-        if (func_->handle == nullptr)
-            return "fn(unknown)@0";
-        void* fn_ptr;
-        switch (func_->handle->_type) {
-        case FuncHandle::inner_handle::FuncType::own:
-            fn_ptr = (void*)func_->handle->env;
-            break;
-        case FuncHandle::inner_handle::FuncType::native_c:
-            fn_ptr = (void*)func_->handle->frame;
-            break;
-        case FuncHandle::inner_handle::FuncType::static_native_c:
-            fn_ptr = (void*)func_->handle->values[0];
-            break;
-        default:
-            fn_ptr = nullptr;
-        }
-        {
-            auto& fn_glob = attacha_environment::get_function_globals();
-            art::unique_lock guard(fn_glob.lock);
-            for (auto& it : fn_glob.funs)
-                if (&*it.second == this)
-                    return "fn(" + it.first + ")@" + string_help::hexstr((ptrdiff_t)fn_ptr);
-        }
-        if (fn_ptr == nullptr)
-            return "fn(unresolved)@unknown";
-        return "fn(" + FrameResult::JitResolveFrame(fn_ptr, true).fn_name + ")@" + string_help::hexstr((ptrdiff_t)fn_ptr);
+        return try_resolve_frame(func_->handle);
     }
 
     const std::vector<uint8_t>& FuncEnvironment::get_cross_code() {
@@ -534,111 +583,115 @@ namespace art {
     }
 
     void FuncEnvironment::fastHotPatch(const art::ustring& func_name, FuncHandle::inner_handle* new_enviro) {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::unique_lock guard(fn_glob.lock);
-        auto& tmp = fn_glob.funs[func_name];
-        guard.unlock();
-        tmp->patch(new_enviro);
+        attacha_environment::get_function_globals().set([&func_name, &new_enviro](auto& fn_glob) {
+            fn_glob[func_name]->patch(new_enviro);
+        });
     }
 
-    void FuncEnvironment::fastHotPatch(const patch_list& patches) {
-        for (auto& it : patches)
-            if (it.second->parent)
-                throw InvalidOperation("Can't patch function with bounded handle: " + it.first);
-        for (auto& it : patches)
-            fastHotPatch(it.first, it.second);
+    void FuncEnvironment::fastHotPatch(patch_list&& patches) {
+        patches.apply();
     }
 
     art::shared_ptr<FuncEnvironment> FuncEnvironment::environment(const art::ustring& func_name) {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::unique_lock guard(fn_glob.lock);
-        return fn_glob.funs[func_name];
+        return attacha_environment::get_function_globals().get([&func_name](auto& fn_glob) -> art::shared_ptr<FuncEnvironment> {
+            auto found = fn_glob.find(func_name);
+            if (found != fn_glob.end())
+                return found->second;
+            throw NotImplementedException();
+        });
     }
 
     ValueItem* FuncEnvironment::callFunc(const art::ustring& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async) {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::unique_lock guard(fn_glob.lock);
-        auto found = fn_glob.funs.find(func_name);
-        guard.unlock();
-        if (found != fn_glob.funs.end()) {
+        auto fn = attacha_environment::get_function_globals().get([&func_name](auto& fn_glob) -> std::optional<art::shared_ptr<FuncEnvironment>> {
+            auto found = fn_glob.find(func_name);
+            if (found != fn_glob.end())
+                return found->second;
+            return std::nullopt;
+        });
+        if (fn) {
             if (run_async)
-                return async_call(found->second, arguments, arguments_size);
+                return async_call(*fn, arguments, arguments_size);
             else
-                return found->second->syncWrapper(arguments, arguments_size);
-        }
-        throw NotImplementedException();
+                return (*fn)->syncWrapper(arguments, arguments_size);
+        } else
+            throw NotImplementedException();
+    }
+
+    void FuncEnvironment::enum_functions(std::function<void(const art::ustring&, const art::shared_ptr<FuncEnvironment>& fn)> callback) {
+        attacha_environment::get_function_globals().get([&callback](auto& fn_glob) {
+            for (const auto& func : fn_glob)
+                callback(func.first, func.second);
+        });
     }
 
     void FuncEnvironment::AddNative(Environment function, const art::ustring& symbol_name, bool can_be_unloaded, bool is_cheap) {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::lock_guard guard(fn_glob.lock);
-        if (fn_glob.funs.contains(symbol_name))
-            throw SymbolException("Fail allocate symbol: \"" + symbol_name + "\" because its already exists");
-        auto symbol = new FuncHandle::inner_handle(function, is_cheap);
-        fn_glob.funs[symbol_name] = new FuncEnvironment(symbol, can_be_unloaded);
+        attacha_environment::get_function_globals().set([&symbol_name, function, can_be_unloaded, is_cheap](auto& fn_glob) {
+            if (fn_glob.contains(symbol_name))
+                throw SymbolException("Fail allocate symbol: \"" + symbol_name + "\" because its already exists");
+            fn_glob[symbol_name] = new FuncEnvironment(function, can_be_unloaded, is_cheap);
+        });
     }
 
     bool FuncEnvironment::Exists(const art::ustring& symbol_name) {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::lock_guard guard(fn_glob.lock);
-        return fn_glob.funs.contains(symbol_name);
+        return attacha_environment::get_function_globals().get([&symbol_name](auto& fn_glob) {
+            return fn_glob.contains(symbol_name);
+        });
     }
 
     void FuncEnvironment::Load(art::shared_ptr<FuncEnvironment> fn, const art::ustring& symbol_name) {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::lock_guard guard(fn_glob.lock);
-        auto found = fn_glob.funs.find(symbol_name);
-        if (found != fn_glob.funs.end()) {
-            if (found->second->func_ != nullptr)
-                if (found->second->func_->handle != nullptr)
-                    throw SymbolException("Fail load symbol: \"" + symbol_name + "\" because its already exists");
-            found->second = fn;
-        } else
-            fn_glob.funs[symbol_name] = fn;
+        attacha_environment::get_function_globals().set([&symbol_name, &fn](auto& fn_glob) {
+            auto found = fn_glob.find(symbol_name);
+            if (found != fn_glob.end())
+                if (found->second->func_ != nullptr)
+                    if (found->second->func_->handle != nullptr)
+                        throw SymbolException("Fail load symbol: \"" + symbol_name + "\" because its already exists");
+            fn_glob[symbol_name] = fn;
+        });
     }
 
     void FuncEnvironment::Unload(const art::ustring& func_name) {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::lock_guard guard(fn_glob.lock);
-        auto found = fn_glob.funs.find(func_name);
-        if (found != fn_glob.funs.end()) {
-            if (!found->second->can_be_unloaded)
-                throw SymbolException("Fail unload symbol: \"" + func_name + "\" because its can't be unloaded");
-            fn_glob.funs.erase(found);
-        }
+        attacha_environment::get_function_globals().set([&func_name](auto& fn_glob) {
+            auto found = fn_glob.find(func_name);
+            if (found != fn_glob.end()) {
+                if (!found->second->can_be_unloaded)
+                    throw SymbolException("Fail unload symbol: \"" + func_name + "\" because its can't be unloaded");
+                fn_glob.erase(found);
+            }
+        });
     }
 
     void FuncEnvironment::ForceUnload(const art::ustring& func_name) {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::lock_guard guard(fn_glob.lock);
-        auto found = fn_glob.funs.find(func_name);
-        if (found != fn_glob.funs.end())
-            fn_glob.funs.erase(found);
+        attacha_environment::get_function_globals().set([&func_name](auto& fn_glob) {
+            auto found = fn_glob.find(func_name);
+            if (found != fn_glob.end())
+                fn_glob.erase(func_name);
+        });
     }
 
     void FuncEnvironment::forceUnload() {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::unique_lock guard(fn_glob.lock);
-        auto begin = fn_glob.funs.begin();
-        auto end = fn_glob.funs.end();
-        while (begin != end) {
-            if (begin->second->func_ == func_) {
-                fn_glob.funs.erase(begin);
-                break;
+        auto handle = attacha_environment::get_function_globals().set([this](auto& fn_glob) {
+            auto begin = fn_glob.begin();
+            auto end = fn_glob.end();
+            while (begin != end) {
+                if (begin->second->func_ == func_) {
+                    fn_glob.erase(begin);
+                    break;
+                }
             }
-        }
-        FuncHandle* handle = func_;
-        func_ = nullptr;
-        guard.unlock();
+            FuncHandle* handle = func_;
+            func_ = nullptr;
+            return handle;
+        });
         if (handle)
             FuncHandle::release_func_handle(handle);
     }
 
     void FuncEnvironment::clear_environs() {
-        auto& fn_glob = attacha_environment::get_function_globals();
-        art::lock_guard guard(fn_glob.lock);
-        fn_glob.funs.clear();
+        attacha_environment::get_function_globals().set([](auto& fn_glob) {
+            fn_glob.clear();
+        });
     }
+
 
     FuncEnvironment::FuncEnvironment(FuncHandle::inner_handle* env, bool can_be_unloaded) {
         this->can_be_unloaded = can_be_unloaded;

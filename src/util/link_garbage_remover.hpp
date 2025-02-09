@@ -74,13 +74,6 @@ namespace art {
         operator bool() const;
         operator size_t() const;
         operator ptrdiff_t() const;
-
-#if !ENABLE_SNAPSHOTS_LGR
-#undef snap_records
-#undef current_snap
-#endif
-#undef snap_rec_lgr_arg
-#undef can_throw
     };
 
     template <typename, typename T>
@@ -152,11 +145,15 @@ namespace art {
         typed_lgr(T* capture, bool as_weak = false)
             : actual_lgr(capture, get_depth_calc(), destruct, as_weak) {}
 
-        typed_lgr(const typed_lgr& mov) noexcept {
+        typed_lgr(const typed_lgr& mov) {
             *this = mov;
         }
 
-        typed_lgr(typed_lgr&& mov) noexcept {
+        typed_lgr(typed_lgr& mov) {
+            *this = mov;
+        }
+
+        typed_lgr(typed_lgr&& mov) can_throw {
             *this = std::move(mov);
         }
 
@@ -174,7 +171,7 @@ namespace art {
             return *this;
         }
 
-        typed_lgr& operator=(typed_lgr&& mov) noexcept {
+        typed_lgr& operator=(typed_lgr&& mov) can_throw {
             actual_lgr = std::move(mov.actual_lgr);
             return *this;
         }
@@ -243,4 +240,10 @@ namespace art {
             return actual_lgr;
         }
     };
+#if !ENABLE_SNAPSHOTS_LGR
+    #undef snap_records
+    #undef current_snap
+#endif
+#undef snap_rec_lgr_arg
+#undef can_throw
 }

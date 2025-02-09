@@ -13,10 +13,6 @@
 
 namespace art {
     namespace helper_functions {
-        namespace intrinsics {
-            void store_bool_from_resr(CASM& a);
-        }
-
         inline void setSize(ValueItem* value, size_t res) {
             void*& set = value->getSourcePtr();
             switch (value->meta.vtype) {
@@ -62,46 +58,6 @@ namespace art {
             default:
                 throw InvalidType("Need sizable type");
             }
-        }
-
-        inline void IndexMapGetCopyStatic(ValueItem* value, void** arr_ref, ValueItem* pos) {
-            std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& arr = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getValue(*arr_ref, ((ValueMeta*)arr_ref)[1]);
-            *value = arr[*pos];
-        }
-
-        inline void IndexMapGetMoveStatic(ValueItem* value, void** arr_ref, ValueItem* pos) {
-            std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& arr = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getValue(*arr_ref, ((ValueMeta*)arr_ref)[1]);
-            *value = std::move(arr[*pos]);
-        }
-
-        inline void IndexMapSetCopyStatic(ValueItem* value, void** arr_ref, ValueItem* pos) {
-            std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& arr = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getValue(*arr_ref, ((ValueMeta*)arr_ref)[1]);
-            arr[*pos] = *value;
-        }
-
-        inline void IndexMapSetMoveStatic(ValueItem* value, void** arr_ref, ValueItem* pos) {
-            std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& arr = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getValue(*arr_ref, ((ValueMeta*)arr_ref)[1]);
-            arr[*pos] = std::move(*value);
-        }
-
-        inline bool IndexMapContainsStatic(void** arr_ref, ValueItem* pos) {
-            std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& arr = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getValue(*arr_ref, ((ValueMeta*)arr_ref)[1]);
-            return arr.contains(*pos);
-        }
-
-        inline void IndexMapRemoveStatic(void** arr_ref, ValueItem* pos) {
-            std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& arr = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getValue(*arr_ref, ((ValueMeta*)arr_ref)[1]);
-            arr.erase(*pos);
-        }
-
-        inline void IndexMapReserveStatic(void** arr_ref, ValueItem* count) {
-            std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& arr = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getValue(*arr_ref, ((ValueMeta*)arr_ref)[1]);
-            arr.reserve((size_t)*count);
-        }
-
-        inline void IndexMapSizeStatic(ValueItem* size, void** arr_ref) {
-            std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>& arr = *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getValue(*arr_ref, ((ValueMeta*)arr_ref)[1]);
-            setSize(size, arr.size());
         }
 
         inline void IndexMapGetCopyStatic(ValueItem* value, void** arr_ref, ValueItem* pos) {
@@ -207,24 +163,6 @@ namespace art {
                 else
                     res = &((list_array<ValueItem>*)arr)->operator[](pos);
                 *value = *res;
-            }
-        }
-
-        template <char typ>
-        inline void IndexArrayMoveStatic(ValueItem* value, list_array<ValueItem>** arr_ref, uint64_t pos) {
-            list_array<ValueItem>* arr = (list_array<ValueItem>*)getValue(*(void**)arr_ref, ((ValueMeta*)arr_ref)[1]);
-            if constexpr (typ == 2) {
-                if (arr->size() > pos)
-                    *value = std::move(((list_array<ValueItem>*)arr)->operator[](pos));
-                else
-                    *value = nullptr;
-            } else {
-                ValueItem* res;
-                if constexpr (typ == 1)
-                    res = &((list_array<ValueItem>*)arr)->at(pos);
-                else
-                    res = &((list_array<ValueItem>*)arr)->operator[](pos);
-                *value = std::move(*res);
             }
         }
 

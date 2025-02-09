@@ -22,17 +22,19 @@ namespace art {
         ~values_global();
 
         typed_lgr<values_global> join_namespace(const art::ustring& str);
-        typed_lgr<values_global> join_namespace(const std::initializer_list<art::ustring>& strs);
+        static typed_lgr<values_global> join_namespace(typed_lgr<values_global> current_namespace, std::initializer_list<art::ustring> strs);
+        static typed_lgr<values_global> join_namespace_strict(typed_lgr<values_global> current_namespace, std::initializer_list<art::ustring> strs);
         bool has_namespace(const art::ustring& str);
-        bool has_namespace(const std::initializer_list<art::ustring>& strs);
+        static bool has_namespace(typed_lgr<values_global> current_namespace, std::initializer_list<art::ustring> strs);
         void remove_namespace(const art::ustring& str);
-        void remove_namespace(const std::initializer_list<art::ustring>& strs);
+        static void remove_namespace(typed_lgr<values_global> current_namespace, std::initializer_list<art::ustring> strs);
         void clear();
         //finds value in current env and if not found, try find in parent
         ValueItem* find_value(const art::ustring& str);
+        //finds value in current env
         ValueItem* find_value_local(const art::ustring& str);
-        ValueItem* find_auto_join(const art::ustring& str, const art::ustring& separator);
-        ValueItem* find_value_local_auto_join(const art::ustring& str, const art::ustring& separator);
+        static ValueItem* find_auto_join(typed_lgr<values_global> current_namespace, const art::ustring& str, const art::ustring& separator);
+        static ValueItem* find_value_local_auto_join(typed_lgr<values_global> current_namespace, const art::ustring& str, const art::ustring& separator);
 
 
         bool depth_safety();

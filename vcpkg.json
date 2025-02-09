@@ -6,6 +6,7 @@
         "boost-context",
         "boost-lockfree",
         "boost-tokenizer",
+        "boost-program-options",
         "asmjit",
         "utfcpp",
         "gtest",

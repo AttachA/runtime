@@ -170,7 +170,7 @@ namespace art {
 
         namespace Interface {
             inline ValueItem makeCall(ClassAccess access, Structure& c, const art::ustring& fun_name) {
-                ValueItem arg(&c, as_reference);
+                ValueItem arg(c, as_reference);
                 ValueItem* res = c.table_get_dynamic(fun_name, access)(&arg, 1);
                 if (res == nullptr)
                     return {};
@@ -231,7 +231,7 @@ namespace art {
             }
 
             inline ValueItem makeCall(ClassAccess access, const Structure& c, const art::ustring& fun_name) {
-                ValueItem arg(&c, as_reference);
+                ValueItem arg(c, as_reference);
                 ValueItem* res = c.table_get_dynamic(fun_name, access)(&arg, 1);
                 if (res == nullptr)
                     return {};
@@ -243,7 +243,7 @@ namespace art {
             inline ValueItem makeCall(ClassAccess access, const ValueItem& c, const art::ustring& fun_name) {
                 if (c.meta.vtype == VType::struct_) {
                     ValueItem arg(c, as_reference);
-                    ValueItem* res = ((Structure&)c).table_get_dynamic(fun_name, access)(&arg, 1);
+                    ValueItem* res = ((const Structure&)c).table_get_dynamic(fun_name, access)(&arg, 1);
                     if (res == nullptr)
                         return {};
                     ValueItem m(std::move(*res));
@@ -255,7 +255,7 @@ namespace art {
 
             template <class... Types>
             ValueItem makeCall(ClassAccess access, const Structure& c, const art::ustring& fun_name, const Types&... types) {
-                ValueItem args[] = {ValueItem(&c, as_reference), ABI_IMPL::BVcast(types)...};
+                ValueItem args[] = {ValueItem(c, as_reference), ABI_IMPL::BVcast(types)...};
                 ValueItem* res = c.table_get_dynamic(fun_name, access)(args, sizeof...(Types) + 1);
                 if (res == nullptr)
                     return {};
@@ -282,6 +282,68 @@ namespace art {
                 if (c.meta.vtype == VType::struct_) {
                     list_array<ValueItem> args_tmp(args, args + len, len);
                     args_tmp.push_front(ValueItem(c, as_reference));
+                    ValueItem* res = ((const Structure&)c).table_get_dynamic(fun_name, access)(args_tmp.data(), len + 1);
+                    if (res == nullptr)
+                        return {};
+                    ValueItem m(std::move(*res));
+                    delete res;
+                    return m;
+                } else
+                    throw InvalidArguments("Invalid type for call");
+            }
+
+            inline ValueItem makeCall(ClassAccess access, Structure&& c, const art::ustring& fun_name) {
+                ValueItem arg(c, as_reference);
+                ValueItem* res = c.table_get_dynamic(fun_name, access)(&arg, 1);
+                if (res == nullptr)
+                    return {};
+                ValueItem m(std::move(*res));
+                delete res;
+                return m;
+            }
+
+            inline ValueItem makeCall(ClassAccess access, ValueItem&& c, const art::ustring& fun_name) {
+                if (c.meta.vtype == VType::struct_) {
+                    ValueItem arg(c, as_reference);
+                    ValueItem* res = ((Structure&)c).table_get_dynamic(fun_name, access)(&arg, 1);
+                    if (res == nullptr)
+                        return {};
+                    ValueItem m(std::move(*res));
+                    delete res;
+                    return m;
+                } else
+                    throw InvalidArguments("Invalid type for call");
+            }
+
+            template <class... Types>
+            ValueItem makeCall(ClassAccess access, Structure&& c, const art::ustring& fun_name, const Types&... types) {
+                ValueItem args[] = {ValueItem(c, as_reference), ABI_IMPL::BVcast(types)...};
+                ValueItem* res = c.table_get_dynamic(fun_name, access)(args, sizeof...(Types) + 1);
+                if (res == nullptr)
+                    return {};
+                ValueItem m(std::move(*res));
+                delete res;
+                return m;
+            }
+
+            template <class... Types>
+            ValueItem makeCall(ClassAccess access, ValueItem&& c, const art::ustring& fun_name, const Types&... types) {
+                if (c.meta.vtype == VType::struct_) {
+                    ValueItem args[] = {ValueItem(c, as_reference), ABI_IMPL::BVcast(types)...};
+                    ValueItem* res = ((const Structure&)c).table_get_dynamic(fun_name, access)(args, sizeof...(Types) + 1);
+                    if (res == nullptr)
+                        return {};
+                    ValueItem m(std::move(*res));
+                    delete res;
+                    return m;
+                } else
+                    throw InvalidArguments("Invalid type for call");
+            }
+
+            inline ValueItem makeCall(ClassAccess access, ValueItem&& c, const art::ustring& fun_name, ValueItem* args, uint32_t len) {
+                if (c.meta.vtype == VType::struct_) {
+                    list_array<ValueItem> args_tmp(args, args + len, len);
+                    args_tmp.push_front(ValueItem(c, as_reference));
                     ValueItem* res = ((Structure&)c).table_get_dynamic(fun_name, access)(args_tmp.data(), len + 1);
                     if (res == nullptr)
                         return {};
@@ -291,6 +353,7 @@ namespace art {
                 } else
                     throw InvalidArguments("Invalid type for call");
             }
+
 
             inline ValueItem getValue(const Structure& c, const art::ustring& val_name) {
                 return c.dynamic_value_get(val_name, ClassAccess::pub);
@@ -500,7 +563,7 @@ namespace art {
                 inline void tuple_to_ValueMeta(list_array<ValueMeta>& res) {
                     if constexpr (tuple_len > 0) {
                         using type = typename std::tuple_element<i, Tuple>::type;
-                        res.push_back(Type_as_ValueMeta<type>());
+                        res.push_back(ValueMeta::from_type<type>());
                         tuple_to_ValueMeta<Tuple, tuple_len - 1, i + 1>(res);
                     }
                 }
@@ -523,13 +586,14 @@ namespace art {
                             ([&]() {
                                 using method_info = templates::function_info<Methods>;
                                 return std::pair<ValueMeta, list_array<ValueMeta>>{
-                                    Type_as_ValueMeta<method_info::return_type>(),
+                                    ValueMeta::from_type<method_info::return_type>(),
                                     ([&]() -> list_array<ValueMeta> {
                                         list_array<ValueMeta> args;
                                         args.reserve_back(method_info::arguments_count);
                                         tuple_to_ValueMeta<method_info::arguments_type, method_info::arguments_count>(args);
                                         return args;
-                                    }())};
+                                    }())
+                                };
                             }())...};
                     list_array<ValueMeta> return_values = functions_meta.convert<ValueMeta>(
                         [](const std::pair<ValueMeta, list_array<ValueMeta>>& v) { return v.first; }

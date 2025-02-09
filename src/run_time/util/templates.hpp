@@ -14,7 +14,7 @@ namespace art {
         template <typename ReturnTyp, typename... Arguments>
         struct static_function_info {
             using return_type = ReturnTyp;
-            inline static ValueMeta arguments[sizeof...(Arguments) ? sizeof...(Arguments) : 1] = {Type_as_ValueMeta<Arguments>()...};
+            inline static ValueMeta arguments[sizeof...(Arguments) ? sizeof...(Arguments) : 1] = {ValueMeta::from_type<Arguments>()...};
             using arguments_type = std::tuple<Arguments...>;
             constexpr static size_t arguments_count = sizeof...(Arguments);
             constexpr static bool is_static = true;
@@ -25,7 +25,7 @@ namespace art {
         template <typename Class_, typename ReturnTyp, typename... Arguments>
         struct method_function_info {
             using return_type = ReturnTyp;
-            inline static ValueMeta arguments[sizeof...(Arguments) ? sizeof...(Arguments) : 1] = {Type_as_ValueMeta<Arguments>()...};
+            inline static ValueMeta arguments[sizeof...(Arguments) ? sizeof...(Arguments) : 1] = {ValueMeta::from_type<Arguments>()...};
             using arguments_type = std::tuple<Arguments...>;
             using class_type = Class_;
             constexpr static size_t arguments_count = sizeof...(Arguments);

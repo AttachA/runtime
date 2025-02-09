@@ -119,11 +119,11 @@ namespace art {
             write_unlock();
         }
 
-        void shared_lock() {
+        void lock_shared() {
             read_lock();
         }
 
-        void shared_unlock() {
+        void unlock_shared() {
             read_unlock();
         }
 
@@ -248,6 +248,61 @@ namespace art {
         void dummy_wait_until(const art::typed_lgr<Task>& task, art::unique_lock<MutexUnify>& lock, std::chrono::high_resolution_clock::time_point time_point);
 
         bool has_waiters();
+    };
+
+    class read_lock {
+        TaskRWMutex& mutex;
+
+    public:
+        read_lock(TaskRWMutex& mutex)
+            : mutex(mutex) {
+            mutex.read_lock();
+        }
+
+        ~read_lock() {
+            mutex.read_unlock();
+        }
+    };
+
+    class write_lock {
+        TaskRWMutex& mutex;
+
+    public:
+        write_lock(TaskRWMutex& mutex)
+            : mutex(mutex) {
+            mutex.write_lock();
+        }
+
+        ~write_lock() {
+            mutex.write_unlock();
+        }
+    };
+
+    template <class T>
+    class protected_value {
+        T value;
+
+    public:
+        TaskRWMutex mutex;
+
+        template <class... Args>
+        protected_value(Args&&... args)
+            : value(std::forward<Args>(args)...) {}
+
+        protected_value(protected_value&& move)
+            : value(std::move(move.value)) {}
+
+        template <class _Accessor>
+        decltype(auto) get(_Accessor&& accessor) const {
+            read_lock lock(const_cast<TaskRWMutex&>(mutex));
+            return accessor(const_cast<const T&>(value));
+        }
+
+        template <class _Accessor>
+        decltype(auto) set(_Accessor&& accessor) {
+            write_lock lock(mutex);
+            return accessor(value);
+        }
     };
 
     struct TaskResult {
@@ -388,7 +443,7 @@ namespace art {
     class TaskSemaphore {
         std::list<__::resume_task> resume_task;
         art::timed_mutex no_race;
-        art::condition_variable native_notify;
+        art::condition_variable_any native_notify;
         size_t allow_threshold = 0;
         size_t max_threshold = 0;
 

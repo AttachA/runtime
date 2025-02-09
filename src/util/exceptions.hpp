@@ -520,6 +520,32 @@ namespace art {
         }
     };
 
+    class Undefined : public AttachARuntimeException {
+    public:
+        Undefined(const art::ustring& msq)
+            : AttachARuntimeException(msq) {}
+
+        Undefined(const art::ustring& msq, std::exception_ptr inner_exception)
+            : AttachARuntimeException(msq, inner_exception) {}
+
+        const char* name() const override {
+            return "undefined";
+        }
+    };
+
+    class UndefinedValue : public Undefined {
+    public:
+        UndefinedValue(const art::ustring& msq)
+            : Undefined(msq) {}
+
+        UndefinedValue(const art::ustring& msq, std::exception_ptr inner_exception)
+            : Undefined(msq, inner_exception) {}
+
+        const char* name() const override {
+            return "undefined_value";
+        }
+    };
+
     class InternalException : public AttachARuntimeException {
         list_array<void*> stack_trace;
 

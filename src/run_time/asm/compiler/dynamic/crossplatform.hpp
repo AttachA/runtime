@@ -1581,7 +1581,7 @@ namespace art {
             b.lea_valindex({compiler.static_map, compiler.values}, index);
         }
         b.finalize(helper_functions::IndexMapContainsStatic);
-        helper_functions::intrinsics::store_bool_from_resr(compiler.a);
+        intrinsics::store_bool_from_resr(compiler.a);
     }
 
     void Compiler::DynamicCompiler::MapOperation::remove_item(const ValueIndexPos& index) {
@@ -1658,7 +1658,7 @@ namespace art {
             b.lea_valindex({compiler.static_map, compiler.values}, index);
         }
         b.finalize(helper_functions::IndexSetContainsStatic);
-        helper_functions::intrinsics::store_bool_from_resr(compiler.a);
+        intrinsics::store_bool_from_resr(compiler.a);
     }
 
     void Compiler::DynamicCompiler::SetOperation::remove_item(const ValueIndexPos& index) {
@@ -1703,14 +1703,13 @@ namespace art {
         b.finalize(helper_functions::IndexSetSizeStatic);
     }
 
+
     void Compiler::DynamicCompiler::global_get(const ValueIndexPos& from, const ValueIndexPos& location, const ValueIndexPos& separator) {
         if (location.pos == ValuePos::in_constants && separator.pos == ValuePos::in_constants) {
-            BuildCall b(compiler.a, 3);
-            b.addArg(&attacha_environment::get_value_globals());
+            BuildCall b(compiler.a, 2);
             b.addArg(compiler.get_string_constant(location));
             b.addArg(compiler.get_string_constant(separator));
-            b.finalize(values_global::find_value_local_auto_join);
-            b.setArguments(2);
+            b.finalize(attacha_environment::find_global_value_local_auto_join);
             b.lea_valindex({compiler.static_map, compiler.values}, from);
             b.addArg(resr);
             b.finalize(getValueItem);
@@ -1720,12 +1719,10 @@ namespace art {
 
     void Compiler::DynamicCompiler::global_set(const ValueIndexPos& to, const ValueIndexPos& location, const ValueIndexPos& separator) {
         if (location.pos == ValuePos::in_constants && separator.pos == ValuePos::in_constants) {
-            BuildCall b(compiler.a, 3);
-            b.addArg(&attacha_environment::get_value_globals());
+            BuildCall b(compiler.a, 2);
             b.addArg(compiler.get_string_constant(location));
             b.addArg(compiler.get_string_constant(separator));
-            b.finalize(values_global::find_value_local_auto_join);
-            b.setArguments(2);
+            b.finalize(attacha_environment::find_global_value_local_auto_join);
             b.lea_valindex({compiler.static_map, compiler.values}, to);
             b.addArg(resr);
             b.finalize(getValueItem);

@@ -8,6 +8,7 @@
 #include <list>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include <run_time/asm/../attacha_abi_structs.hpp>
@@ -53,14 +54,37 @@ namespace art {
         friend class FuncEnvironment;
     };
 
-    typedef std::list<std::pair<art::ustring, FuncHandle::inner_handle*>> patch_list;
+    struct patch_list_added_items {
+        list_array<art::ustring> functions;
+        list_array<list_array<art::ustring>> types;
+    };
+
+    class patch_list {
+        std::unordered_map<art::ustring, art::FuncHandle::inner_handle*, art::hash<art::ustring>> functions;
+        std::unordered_map<list_array<art::ustring>, VirtualTable, art::hash<list_array<art::ustring>>> types;
+
+    public:
+        void add_patches(patch_list&&);
+
+        void define_function(const art::ustring& symbol, art::FuncHandle::inner_handle*);
+        void undefine_function(const art::ustring& symbol);
+        void remove_function_patch(const art::ustring& symbol);
+
+
+        void define_type(const list_array<art::ustring>& path, VirtualTable&& table);
+        void undefine_type(const list_array<art::ustring>& path);
+        void remove_type_patch(const list_array<art::ustring>& path);
+
+        patch_list_added_items apply(); //also clears
+        void clear();
+    };
 
     class FuncEnvironment {
         class FuncHandle* func_;
         uint8_t can_be_unloaded : 1 = false;
-        FuncEnvironment(FuncHandle::inner_handle* env, bool can_be_unloaded = false);
 
     public:
+        FuncEnvironment(FuncHandle::inner_handle* env, bool can_be_unloaded = false);
         FuncEnvironment(Environment env, bool can_be_unloaded = false, bool is_cheap = false);
         FuncEnvironment(void* func, const DynamicCall::FunctionTemplate& template_func, bool can_be_unloaded = false, bool is_cheap = false);
         FuncEnvironment(void* func, void* clean_up, FuncHandle::ProxyFunction proxy_func, bool can_be_unloaded = false, bool is_cheap = false);
@@ -79,9 +103,10 @@ namespace art {
         static ValueItem* asyncWrapper(art::shared_ptr<FuncEnvironment>* self, ValueItem* arguments, uint32_t arguments_size);
 
         static void fastHotPatch(const art::ustring& func_name, FuncHandle::inner_handle* new_enviro);
-        static void fastHotPatch(const patch_list& patches);
+        static void fastHotPatch(patch_list&& patches);
         static art::shared_ptr<FuncEnvironment> environment(const art::ustring& func_name);
         static ValueItem* callFunc(const art::ustring& func_name, ValueItem* arguments, uint32_t arguments_size, bool run_async);
+        static void enum_functions(std::function<void(const art::ustring&, const art::shared_ptr<FuncEnvironment>& fn)> callback);
 
         static bool Exists(const art::ustring& symbol_name);
         static void Load(art::shared_ptr<FuncEnvironment> fn, const art::ustring& symbol_name);
@@ -119,6 +144,10 @@ namespace art {
         const std::vector<uint8_t>& get_cross_code();
         void forceUnload();
         static void clear_environs();
+
+        operator bool() const {
+            return func_ != nullptr ? func_->handle != nullptr : false;
+        }
     };
 
     struct FuncHandle::inner_handle {

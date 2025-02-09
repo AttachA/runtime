@@ -350,6 +350,7 @@ namespace art {
                 CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->notify(args[0]);
             else
                 CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)->notify(args + 2, len - 2);
+            return nullptr;
         }
 
         AttachAFunc(funs_Chanel_auto_notify, 2) {
@@ -421,6 +422,7 @@ namespace art {
                     art::CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[1], (AttachAVirtualTable*)art::CXX::Interface::typeVTable<EventSystem>()),
                     (AutoEventChanel::NotifyType)(uint8_t)args[2]
                 );
+            return nullptr;
         }
 
         AttachAFunc(funs_Chanel_create_handle, 1) {
@@ -436,21 +438,25 @@ namespace art {
         AttachAFunc(funs_Chanel_remove_handle, 2) {
             art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)
                 ->remove_handle(art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[1], define_ChanelHandler));
+            return nullptr;
         }
 
         AttachAFunc(funs_Chanel_remove_auto_notify, 2) {
             art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)
                 ->remove_auto_notify(art::CXX::Interface::getExtractAs<typed_lgr<AutoNotifyChanel>>(args[1], define_AutoNotifyChanel));
+            return nullptr;
         }
 
         AttachAFunc(funs_Chanel_remove_auto_event, 2) {
             art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)
                 ->remove_auto_event(art::CXX::Interface::getExtractAs<typed_lgr<AutoEventChanel>>(args[1], define_AutoEventChanel));
+            return nullptr;
         }
 
         AttachAFunc(funs_Chanel_add_handle, 2) {
             art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)
                 ->add_handle(art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[1], define_ChanelHandler));
+            return nullptr;
         }
 
         AttachAFunc(funs_ChanelHandler_get, 2) {
@@ -471,6 +477,7 @@ namespace art {
 
         AttachAFunc(funs_ChanelHandler_wait_item, 2) {
             art::CXX::Interface::getExtractAs<typed_lgr<ChanelHandler>>(args[0], define_ChanelHandler)->wait_item();
+            return nullptr;
         }
 
         void init() {
@@ -508,10 +515,10 @@ namespace art {
             art::CXX::Interface::typeVTable<typed_lgr<AutoNotifyChanel>>() = define_AutoNotifyChanel;
             define_Chanel->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_Chanel);
             define_ChanelHandler->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_ChanelHandler);
-            attacha_environment::get_types_global().join_namespace({"chanel", "chanel"})->value = define_Chanel;
-            attacha_environment::get_types_global().join_namespace({"chanel", "chanel_handler"})->value = define_ChanelHandler;
-            attacha_environment::get_types_global().join_namespace({"chanel", "auto_notify_chanel"})->value = define_AutoNotifyChanel;
-            attacha_environment::get_types_global().join_namespace({"chanel", "auto_event_chanel"})->value = define_AutoEventChanel;
+            attacha_environment::get_type({"chanel", "chanel"})->value = define_Chanel;
+            attacha_environment::get_type({"chanel", "chanel_handler"})->value = define_ChanelHandler;
+            attacha_environment::get_type({"chanel", "auto_notify_chanel"})->value = define_AutoNotifyChanel;
+            attacha_environment::get_type({"chanel", "auto_event_chanel"})->value = define_AutoEventChanel;
         }
 
         namespace constructor {

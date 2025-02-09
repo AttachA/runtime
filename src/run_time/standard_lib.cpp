@@ -1123,7 +1123,6 @@ namespace art {
         if (allow_self_build) {
             FuncEnvironment::AddNative(internal::constructor::createProxy_function_builder, "# internal function_builder", false);
             FuncEnvironment::AddNative(internal::constructor::createProxy_index_pos, "# internal index_pos", false);
-            FuncEnvironment::AddNative(internal::constructor::createProxy_line_info, "# internal line_info", false);
         }
         FuncEnvironment::AddNative((Environment)internal::view_structure, "internal view_structure", false);
     }
@@ -1196,8 +1195,8 @@ namespace art {
         FuncEnvironment::AddNative(localization::set_localized_string, "localization set_localized_string", false);
         FuncEnvironment::AddNative(localization::update_localization_strings, "localization update_localization_strings", false);
         FuncEnvironment::AddNative(localization::use_local_language, "localization use_local_language", false);
-        attacha_environment::get_value_globals().join_namespace({"localization", "current_locale_changed"})->value = CXX::cxxCall(localization::get_current_locale_changed);
-        attacha_environment::get_value_globals().join_namespace({"localization", "current_locale_updated"})->value = CXX::cxxCall(localization::get_current_locale_updated);
+        attacha_environment::get_value({"localization", "current_locale_changed"}) = CXX::cxxCall(localization::get_current_locale_changed);
+        attacha_environment::get_value({"localization", "current_locale_updated"}) = CXX::cxxCall(localization::get_current_locale_updated);
     }
 
     void initStandardLib_strings() {

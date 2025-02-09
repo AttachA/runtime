@@ -27,6 +27,9 @@ namespace art {
     struct Task;
     class Generator;
     class FuncEnvironment;
+    class Structure;
+    struct ValueItem;
+    union ValueMeta;
 
     ENUM_t(
         Opcode,
@@ -331,9 +334,9 @@ namespace art {
         undefined_ptr,
         except_value, //default from except call
         faarr,        //fixed any array
-        saarr,        //stack fixed any array //only local, cannot returned, cannot be used with lgr, cannot be passed as arguments
+        saarr,        //stack fixed any array //only local, cannot be returned, cannot be used with lgr, cannot be passed as arguments
 
-        struct_, //like c++ class, but with dynamic abilities
+        struct_, //like c++ class, but with reflection
 
         type_identifier,
         function,
@@ -436,6 +439,124 @@ namespace art {
                                       //10 bits left
     };
 
+    namespace __impl_ {
+        template <class T>
+        class __GetType {
+            static constexpr VType to_type() {
+                if constexpr (std::is_same_v<T, void>)
+                    return VType::noting;
+                else if constexpr (std::is_same_v<T, bool>)
+                    return VType::boolean;
+                else if constexpr (std::is_same_v<T, int8_t>)
+                    return VType::i8;
+                else if constexpr (std::is_same_v<T, int16_t>)
+                    return VType::i16;
+                else if constexpr (std::is_same_v<T, int32_t>)
+                    return VType::i32;
+                else if constexpr (std::is_same_v<T, int64_t>)
+                    return VType::i64;
+                else if constexpr (std::is_same_v<T, uint8_t>)
+                    return VType::ui8;
+                else if constexpr (std::is_same_v<T, uint16_t>)
+                    return VType::ui16;
+                else if constexpr (std::is_same_v<T, uint32_t>)
+                    return VType::ui32;
+                else if constexpr (std::is_same_v<T, uint64_t>)
+                    return VType::ui64;
+                else if constexpr (std::is_same_v<T, float>)
+                    return VType::flo;
+                else if constexpr (std::is_same_v<T, double>)
+                    return VType::doub;
+                else if constexpr (std::is_same_v<T, char32_t>)
+                    return VType::character;
+                else if constexpr (std::is_same_v<T, int8_t*>)
+                    return VType::raw_arr_i8;
+                else if constexpr (std::is_same_v<T, int16_t*>)
+                    return VType::raw_arr_i16;
+                else if constexpr (std::is_same_v<T, int32_t*>)
+                    return VType::raw_arr_i32;
+                else if constexpr (std::is_same_v<T, int64_t*>)
+                    return VType::raw_arr_i64;
+                else if constexpr (std::is_same_v<T, uint8_t*>)
+                    return VType::raw_arr_ui8;
+                else if constexpr (std::is_same_v<T, uint16_t*>)
+                    return VType::raw_arr_ui16;
+                else if constexpr (std::is_same_v<T, uint32_t*>)
+                    return VType::raw_arr_ui32;
+                else if constexpr (std::is_same_v<T, uint64_t*>)
+                    return VType::raw_arr_ui64;
+                else if constexpr (std::is_same_v<T, float*>)
+                    return VType::raw_arr_flo;
+                else if constexpr (std::is_same_v<T, double*>)
+                    return VType::raw_arr_doub;
+                else if constexpr (std::is_same_v<T, list_array<ValueItem>>)
+                    return VType::uarr;
+                else if constexpr (std::is_same_v<T, art::ustring>)
+                    return VType::string;
+                else if constexpr (std::is_same_v<T, art::typed_lgr<Task>>)
+                    return VType::async_res;
+                else if constexpr (std::is_same_v<T, Task>)
+                    return VType::async_res;
+                else if constexpr (std::is_same_v<T, void*>)
+                    return VType::undefined_ptr;
+                else if constexpr (std::is_same_v<T, std::exception_ptr*>)
+                    return VType::except_value;
+                else if constexpr (std::is_same_v<T, ValueItem*>)
+                    return VType::faarr;
+                else if constexpr (std::is_same_v<T, Structure>)
+                    return VType::struct_;
+                else if constexpr (std::is_same_v<T, ValueMeta>)
+                    return VType::type_identifier;
+                else if constexpr (std::is_same_v<T, art::shared_ptr<FuncEnvironment>>)
+                    return VType::function;
+                else if constexpr (std::is_same_v<T, FuncEnvironment>)
+                    return VType::function;
+                else if constexpr (std::is_same_v<T, art::shared_ptr<Generator>>)
+                    return VType::generator;
+                else if constexpr (std::is_same_v<T, Generator>)
+                    return VType::generator;
+                else if constexpr (std::is_same_v<T, std::chrono::high_resolution_clock::time_point>)
+                    return VType::time_point;
+                else if constexpr (std::is_same_v<T, std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>>)
+                    return VType::map;
+                else if constexpr (std::is_same_v<T, std::unordered_set<ValueItem, art::hash<ValueItem>>>)
+                    return VType::set;
+                else if constexpr (std::is_same_v<T, std::exception_ptr>)
+                    return VType::except_value;
+                else
+                    return VType::noting;
+            }
+
+        public:
+            inline static constexpr VType res = to_type();
+            inline static constexpr bool usable = to_type() != VType::noting || std::is_same_v<T, void>;
+        };
+
+        template <>
+        class __GetType<char> {
+        public:
+            inline static constexpr VType res = VType::i8;
+            inline static constexpr bool usable = true;
+        };
+
+        template <typename T>
+        struct is_typed_lgr {
+            static constexpr bool value = false;
+        };
+
+        template <typename T>
+        struct is_typed_lgr<typed_lgr<T>> {
+            static constexpr bool value = true;
+        };
+
+        template <class T>
+        constexpr
+            typename std::enable_if<__GetType<T>::usable, VType>::type
+            __Type_as_VType() {
+            return __GetType<T>::res;
+        }
+    }
+
     union ValueMeta {
         size_t encoded;
 
@@ -447,10 +568,18 @@ namespace art {
             uint32_t val_len;
         };
 
-        ValueMeta() = default;
-        ValueMeta(const ValueMeta& copy) = default;
+        constexpr ValueMeta()
+            : encoded(0) {
+            vtype = VType::noting;
+            use_gc = false;
+            allow_edit = false;
+            as_ref = false;
+            val_len = 0;
+        }
 
-        ValueMeta(VType ty, bool gc = false, bool editable = true, uint32_t length = 0, bool as_ref = false)
+        constexpr ValueMeta(const ValueMeta& copy) = default;
+
+        constexpr ValueMeta(VType ty, bool gc = false, bool editable = true, uint32_t length = 0, bool as_ref = false)
             : encoded(0) {
             vtype = ty;
             use_gc = gc;
@@ -459,7 +588,7 @@ namespace art {
             as_ref = as_ref;
         }
 
-        ValueMeta(size_t enc) {
+        constexpr ValueMeta(size_t enc) {
             encoded = enc;
         }
 
@@ -476,9 +605,49 @@ namespace art {
                 ret += "[" + std::to_string(val_len) + "]";
             return ret;
         }
+
+        template <class T>
+        static constexpr VType to_type() {
+            return __impl_::__GetType<T>::res;
+        }
+
+        template <class T>
+        static constexpr typename std::enable_if<
+            std::is_array_v<T> && std::is_bounded_array_v<T>,
+            ValueMeta>::type
+        from_type() {
+            ValueMeta res(to_type<std::remove_cvref_t<T>>());
+            res.allow_edit = !std::is_const_v<T>;
+            res.val_len = std::extent_v<T>;
+            res.as_ref = std::is_reference_v<T>;
+            res.use_gc = false;
+            return res;
+        }
+
+        template <class T>
+        static constexpr typename std::enable_if<std::is_array_v<T>, ValueMeta>::type
+        from_type() {
+            ValueMeta res(to_type<std::remove_cvref_t<T>>());
+            res.allow_edit = !std::is_const_v<T>;
+            res.as_ref = std::is_reference_v<T>;
+            res.use_gc = false;
+            res.val_len = 0;
+            return res;
+        }
+
+        template <class T>
+        static constexpr typename std::enable_if<
+            !(std::is_array_v<T> && std::is_bounded_array_v<T>),
+            ValueMeta>::type
+        from_type() {
+            ValueMeta res(to_type<std::remove_cvref_t<T>>());
+            res.as_ref = std::is_pointer_v<T> || std::is_reference_v<T>;
+            res.allow_edit = !std::is_const_v<T>;
+            res.use_gc = __impl_::is_typed_lgr<T>::value;
+            res.val_len = 0;
+            return res;
+        }
     };
-    class Structure;
-    struct ValueItem;
 
     class ValueItemIterator {
         ValueItem& item;
@@ -702,7 +871,7 @@ namespace art {
         ValueItem(float& val, as_reference_t);
         ValueItem(double& val, as_reference_t);
         ValueItem(char32_t& ch, as_reference_t);
-        ValueItem(class Structure*, as_reference_t);
+        ValueItem(class Structure&, as_reference_t);
         ValueItem(art::ustring& val, as_reference_t);
         ValueItem(list_array<ValueItem>& val, as_reference_t);
 
@@ -729,7 +898,7 @@ namespace art {
         ValueItem(const float& val, as_reference_t);
         ValueItem(const double& val, as_reference_t);
         ValueItem(const char32_t& ch, as_reference_t);
-        ValueItem(const class Structure*, as_reference_t);
+        ValueItem(const class Structure&, as_reference_t);
         ValueItem(const art::ustring& val, as_reference_t);
         ValueItem(const list_array<ValueItem>& val, as_reference_t);
 
@@ -820,13 +989,14 @@ namespace art {
         ValueItem operator&(const ValueItem& op) const;
         ValueItem operator|(const ValueItem& op) const;
 
+        explicit operator art::ustring&();
+        explicit operator list_array<ValueItem>&();
         explicit operator Structure&();
         explicit operator std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&();
         explicit operator std::unordered_set<ValueItem, art::hash<ValueItem>>&();
         explicit operator art::typed_lgr<Task>&();
         explicit operator art::shared_ptr<Generator>&();
         explicit operator art::shared_ptr<FuncEnvironment>&();
-
 
         explicit operator bool() const;
         explicit operator int8_t() const;
@@ -863,6 +1033,8 @@ namespace art {
         explicit operator ValueMeta() const;
         explicit operator std::exception_ptr() const;
         explicit operator std::chrono::high_resolution_clock::time_point() const;
+        explicit operator const list_array<ValueItem>&() const;
+        explicit operator const art::ustring&() const;
         explicit operator const Structure&() const;
         explicit operator const std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&() const;
         explicit operator const std::unordered_set<ValueItem, art::hash<ValueItem>>&() const;
@@ -916,6 +1088,23 @@ namespace art {
         explicit operator array_ref_t<long>();
     #endif
         explicit operator array_ref_t<ValueItem>();
+
+        template <class T>
+        T& retrieve_ref() {
+            static constexpr auto meta_ = ValueMeta::from_type<T>();
+            if (meta.vtype != meta_.vtype && meta.allow_edit != meta_.allow_edit)
+                throw InvalidCast("Type mismatch excepted " + meta_.to_string() + " but got " + meta.to_string());
+            return *(T*)getSourcePtr();
+        }
+
+        template <class T>
+        const T& retrieve_ref() const {
+            static constexpr auto meta_ = ValueMeta::from_type<T>();
+            if (meta.vtype != meta_.vtype)
+                throw InvalidCast("Type mismatch excepted " + meta_.to_string() + " but got " + meta.to_string());
+            return *(T*)getSourcePtr();
+        }
+
         ValueItem* operator()(ValueItem* arguments, uint32_t arguments_size);
         ValueItem& getAsync();
         void getAsyncResult(ValueItem& res, uint64_t result_id);
@@ -1366,13 +1555,20 @@ namespace art {
         void removeTag(const art::ustring& name);
     };
 
+    enum class VTableMode : uint8_t {
+        AttachAVirtualTable = 0,
+        AttachADynamicVirtualTable = 1, //destructor will delete the vtable
+        ___unused = 2,
+        undefined = 3
+    };
+
     struct VirtualTable {
         union {
             AttachAVirtualTable* regular;
             AttachADynamicVirtualTable* dynamic;
         };
 
-        Structure::VTableMode mode : 2;
+        VTableMode mode : 2;
         bool is_reference : 1;
 
         VirtualTable();
@@ -1391,12 +1587,7 @@ namespace art {
     //static values can be implemented by builder, allocate somewhere in memory and put references to functions, not structure
     class Structure {
     public:
-        enum class VTableMode : uint8_t {
-            AttachAVirtualTable = 0,
-            AttachADynamicVirtualTable = 1, //destructor will delete the vtable
-            ___unused = 2,
-            undefined = 3
-        };
+        using VTableMode = art::VTableMode;
         //return true if allowed
         static bool checkAccess(ClassAccess access, ClassAccess access_to_check);
         static AttachAVirtualTable* createAAVTable(list_array<MethodInfo>& methods, list_array<ValueInfo>& values, art::shared_ptr<FuncEnvironment> destructor, art::shared_ptr<FuncEnvironment> copy, art::shared_ptr<FuncEnvironment> move, art::shared_ptr<FuncEnvironment> compare, const list_array<std::tuple<void*, VTableMode>>& derive_vtables, size_t structure_bytes, bool allow_auto_copy);

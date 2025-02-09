@@ -57,7 +57,7 @@ namespace art {
     class ustring {
         static constexpr size_t short_array_size = []() {
             size_t long_arr = sizeof(list_array<char>) + sizeof(size_t) + sizeof(size_t);
-            size_t dyn_constant_data = sizeof(std::shared_ptr<constant_pool::dyn_pool_item>);
+            size_t dyn_constant_data = sizeof(art::shared_ptr<constant_pool::dyn_pool_item>);
             return long_arr > dyn_constant_data ? long_arr : dyn_constant_data;
         }();
 
@@ -108,7 +108,7 @@ namespace art {
         ustring(const char (&str)[len])
             : ustring() {
             flags.type = Type::constant;
-            _data.constant_data = make_constant_pool(str, len);
+            _data.constant_data = constant_pool::make_constant_pool(str, len);
         }
 
         template <size_t len>
@@ -165,6 +165,7 @@ namespace art {
         ustring(char16_t str, size_t count);
         ustring(char32_t str, size_t count);
 
+        ustring(std::string_view str);
         ustring(const ustring& str);
         ustring(const std::string& str);
         ustring(const std::u16string& str);

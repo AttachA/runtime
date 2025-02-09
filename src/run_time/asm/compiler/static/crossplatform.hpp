@@ -943,7 +943,7 @@ namespace art {
         args_tmp.push_back(ValueItem(*class_ptr, as_reference));
         for (uint32_t i = 0; i < len; i++)
             args_tmp.push_back(ValueItem(args[i], as_reference));
-        FuncEnvironment::async_call(async_call, args_tmp.data(), args_tmp.size());
+        return FuncEnvironment::async_call(async_call, args_tmp.data(), args_tmp.size());
     }
 
     ValueItem* valueItemStaticCall_sync(Environment sync_call, ValueItem* class_ptr, ValueItem* args, uint32_t len) {
@@ -958,7 +958,7 @@ namespace art {
         args_tmp.push_back(ValueItem(*class_ptr, as_reference));
         for (uint32_t i = 0; i < len; i++)
             args_tmp.push_back(ValueItem(args[i], as_reference));
-        sync_call(args_tmp.data(), args_tmp.size());
+        return sync_call(args_tmp.data(), args_tmp.size());
     }
 
     bool Compiler::StaticCompiler::_inline_valueItemCall_id(CallFlags flags, uint64_t id, const ValueIndexPos& structure_, const ValueIndexPos& structure_name, const ValueIndexPos& separator) {
@@ -967,7 +967,7 @@ namespace art {
 
 
         auto structure_name_ = *compiler.get_string_constant(structure_name);
-        auto res = attacha_environment::get_types_global().find_auto_join(structure_name_, *compiler.get_string_constant(separator));
+        auto res = types_global::find_auto_join(attacha_environment::get_types_global(), structure_name_, *compiler.get_string_constant(separator));
         if (flags.always_dynamic) {
             switch (res.mode) {
                 using enum Structure::VTableMode;
@@ -985,7 +985,7 @@ namespace art {
                         b.addArg(arg_ptr);
                         b.addArg(arg_len_32);
                         b.finalize(valueItemStaticCall_sync);
-                        return;
+                        return true;
                     } catch (const InvalidOperation& op) {
                         throw CompileTimeException("Compiler failed to resolve " + std::to_string(id) + " method from " + structure_name_, std::current_exception());
                     }
@@ -1048,7 +1048,7 @@ namespace art {
             throw InvalidArguments("`structure_name` and `separator` must be a constants");
 
         auto structure_name_ = *compiler.get_string_constant(structure_name);
-        auto res = attacha_environment::get_types_global().find_auto_join(structure_name_, *compiler.get_string_constant(separator));
+        auto res = types_global::find_auto_join(attacha_environment::get_types_global(), structure_name_, *compiler.get_string_constant(separator));
         if (fn_symbol.pos == ValuePos::in_constants && flags.always_dynamic) {
             auto& fn = *compiler.get_string_constant(fn_symbol);
             switch (res.mode) {
@@ -1131,7 +1131,7 @@ namespace art {
 
 
         auto structure_name_ = *compiler.get_string_constant(structure_name);
-        auto res = attacha_environment::get_types_global().find_auto_join(structure_name_, *compiler.get_string_constant(separator));
+        auto res = types_global::find_auto_join(attacha_environment::get_types_global(), structure_name_, *compiler.get_string_constant(separator));
         if (flags.always_dynamic) {
             switch (res.mode) {
                 using enum Structure::VTableMode;
@@ -1147,7 +1147,7 @@ namespace art {
                         b.addArg(arg_ptr);
                         b.addArg(arg_len_32);
                         b.finalize(method->get_func_ptr());
-                        return;
+                        return true;
                     } catch (const InvalidOperation& op) {
                         throw CompileTimeException("Compiler failed to resolve " + std::to_string(id) + " method from " + structure_name_, std::current_exception());
                     }
@@ -1206,7 +1206,7 @@ namespace art {
             throw InvalidArguments("`structure_name` and `separator` must be a constants");
 
         auto structure_name_ = *compiler.get_string_constant(structure_name);
-        auto res = attacha_environment::get_types_global().find_auto_join(structure_name_, *compiler.get_string_constant(separator));
+        auto res = types_global::find_auto_join(attacha_environment::get_types_global(), structure_name_, *compiler.get_string_constant(separator));
         if (fn_symbol.pos == ValuePos::in_constants && flags.always_dynamic) {
             auto& fn = *compiler.get_string_constant(fn_symbol);
             switch (res.mode) {
@@ -1464,7 +1464,7 @@ namespace art {
             b.lea_valindex({compiler.static_map, compiler.values}, index);
         }
         b.finalize(helper_functions::IndexMapContainsStatic);
-        helper_functions::intrinsics::store_bool_from_resr(compiler.a);
+        intrinsics::store_bool_from_resr(compiler.a);
     }
 
     void Compiler::StaticCompiler::MapOperation::remove_item(const ValueIndexPos& index) {
@@ -1522,7 +1522,7 @@ namespace art {
             b.lea_valindex({compiler.static_map, compiler.values}, index);
         }
         b.finalize(helper_functions::IndexSetContainsStatic);
-        helper_functions::intrinsics::store_bool_from_resr(compiler.a);
+        intrinsics::store_bool_from_resr(compiler.a);
     }
 
     void Compiler::StaticCompiler::SetOperation::remove_item(const ValueIndexPos& index) {

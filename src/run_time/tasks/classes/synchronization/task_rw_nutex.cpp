@@ -358,7 +358,7 @@ namespace art {
         else
             self_mask = reinterpret_cast<Task*>((size_t)_thread_id() | native_thread_flag);
 
-        if (current_writer_task == self_mask)
+        if (current_writer_task != self_mask)
             throw InvalidOperation("Tried unlock non owned mutex");
         current_writer_task = nullptr;
         while (resume_task.size()) {

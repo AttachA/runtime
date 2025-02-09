@@ -178,7 +178,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<typed_lgr<TaskConditionVariable>>() = define_ConditionVariable;
             define_ConditionVariable->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_ConditionVariable);
-            attacha_environment::get_types_global().join_namespace({"parallel", "condition_variable"})->value = define_ConditionVariable;
+            attacha_environment::get_type({"parallel", "condition_variable"})->value = define_ConditionVariable;
         }
 
 #pragma endregion
@@ -213,11 +213,11 @@ namespace art {
         });
         AttachAFun(funs_Mutex_lifecycle_lock, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
-            class_.lifecycle_lock((art::typed_lgr<Task>)args[1]);
+            class_.lifecycle_lock((art::typed_lgr<Task>&)args[1]);
         });
         AttachAFun(funs_Mutex_sequence_lock, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskMutex>>(args[0], define_Mutex);
-            class_.sequence_lock((art::typed_lgr<Task>)args[1]);
+            class_.sequence_lock((art::typed_lgr<Task>&)args[1]);
         });
 
         void init_Mutex() {
@@ -235,7 +235,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<typed_lgr<TaskMutex>>() = define_Mutex;
             define_Mutex->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_Mutex);
-            attacha_environment::get_types_global().join_namespace({"parallel", "mutex"})->value = define_Mutex;
+            attacha_environment::get_type({"parallel", "mutex"})->value = define_Mutex;
         }
 
 #pragma endregion
@@ -266,11 +266,11 @@ namespace art {
         });
         AttachAFun(funs_RWMutex_lifecycle_read_lock, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
-            class_.lifecycle_read_lock((art::typed_lgr<Task>)args[1]);
+            class_.lifecycle_read_lock((art::typed_lgr<Task>&)args[1]);
         });
         AttachAFun(funs_RWMutex_sequence_read_lock, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
-            class_.sequence_read_lock((art::typed_lgr<Task>)args[1]);
+            class_.sequence_read_lock((art::typed_lgr<Task>&)args[1]);
         });
         AttachAFun(funs_RWMutex_write_lock, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
@@ -299,11 +299,11 @@ namespace art {
         });
         AttachAFun(funs_RWMutex_lifecycle_write_lock, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
-            class_.lifecycle_write_lock((art::typed_lgr<Task>)args[1]);
+            class_.lifecycle_write_lock((art::typed_lgr<Task>&)args[1]);
         });
         AttachAFun(funs_RWMutex_sequence_write_lock, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
-            class_.sequence_write_lock((art::typed_lgr<Task>)args[1]);
+            class_.sequence_write_lock((art::typed_lgr<Task>&)args[1]);
         });
         AttachAFun(funs_RWMutex_is_own, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRWMutex>>(args[0], define_Mutex);
@@ -333,7 +333,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<typed_lgr<TaskRWMutex>>() = define_RWMutex;
             define_RWMutex->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_RWMutex);
-            attacha_environment::get_types_global().join_namespace({"parallel", "rw_mutex"})->value = define_RWMutex;
+            attacha_environment::get_type({"parallel", "rw_mutex"})->value = define_RWMutex;
         }
 
 #pragma endregion
@@ -368,11 +368,11 @@ namespace art {
         });
         AttachAFun(funs_RecursiveMutex_lifecycle_lock, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
-            class_.lifecycle_lock((art::typed_lgr<Task>)args[1]);
+            class_.lifecycle_lock((art::typed_lgr<Task>&)args[1]);
         });
         AttachAFun(funs_RecursiveMutex_sequence_lock, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<TaskRecursiveMutex>>(args[0], define_RecursiveMutex);
-            class_.sequence_lock((art::typed_lgr<Task>)args[1]);
+            class_.sequence_lock((art::typed_lgr<Task>&)args[1]);
         });
 
         void init_RecursiveMutex() {
@@ -390,7 +390,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<typed_lgr<TaskRecursiveMutex>>() = define_RecursiveMutex;
             define_RecursiveMutex->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_RecursiveMutex);
-            attacha_environment::get_types_global().join_namespace({"parallel", "recursive_mutex"})->value = define_RecursiveMutex;
+            attacha_environment::get_type({"parallel", "recursive_mutex"})->value = define_RecursiveMutex;
         }
 #pragma endregion
 #pragma region Semaphore
@@ -436,7 +436,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<typed_lgr<TaskSemaphore>>() = define_Semaphore;
             define_Semaphore->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_Semaphore);
-            attacha_environment::get_types_global().join_namespace({"parallel", "semaphore"})->value = define_Semaphore;
+            attacha_environment::get_type({"parallel", "semaphore"})->value = define_Semaphore;
         }
 
 #pragma endregion
@@ -532,7 +532,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<typed_lgr<EventSystem>>() = define_EventSystem;
             define_EventSystem->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_EventSystem);
-            attacha_environment::get_types_global().join_namespace({"parallel", "event_system"})->value = define_EventSystem;
+            attacha_environment::get_type({"parallel", "event_system"})->value = define_EventSystem;
         }
 
 #pragma endregion
@@ -580,7 +580,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<typed_lgr<TaskLimiter>>() = define_TaskLimiter;
             define_TaskLimiter->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_TaskLimiter);
-            attacha_environment::get_types_global().join_namespace({"parallel", "task_limiter"})->value = define_TaskLimiter;
+            attacha_environment::get_type({"parallel", "task_limiter"})->value = define_TaskLimiter;
         }
 
 #pragma endregion
@@ -631,7 +631,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<typed_lgr<TaskQuery>>() = define_TaskQuery;
             define_TaskQuery->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_TaskQuery);
-            attacha_environment::get_types_global().join_namespace({"parallel", "task_query"})->value = define_TaskQuery;
+            attacha_environment::get_type({"parallel", "task_query"})->value = define_TaskQuery;
         }
 
 #pragma endregion
@@ -717,7 +717,7 @@ namespace art {
                 CXX::Interface::direct_method(symbols::structures::iterable::end, funs_TaskResultIterator_end)
             );
             CXX::Interface::typeVTable<TaskResultIterator>() = define_TaskResultIterator;
-            attacha_environment::get_types_global().join_namespace({"parallel", "task", "task_result_iterator"})->value = define_TaskResultIterator;
+            attacha_environment::get_type({"parallel", "task", "task_result_iterator"})->value = define_TaskResultIterator;
         }
 
 #pragma endregion
@@ -880,7 +880,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<art::typed_lgr<Task>>() = define_Task;
             define_Task->getAfterMethods()->constructor = new FuncEnvironment(constructor::construct_Task);
-            attacha_environment::get_types_global().join_namespace({"parallel", "task"})->value = define_Task;
+            attacha_environment::get_type({"parallel", "task"})->value = define_Task;
         }
 
 #pragma endregion
@@ -1020,7 +1020,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<list_array<art::typed_lgr<Task>>>() = define_TaskGroup;
             define_TaskGroup->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_TaskGroup);
-            attacha_environment::get_types_global().join_namespace({"parallel", "task_group"})->value = define_TaskGroup;
+            attacha_environment::get_type({"parallel", "task_group"})->value = define_TaskGroup;
         }
 
 #pragma endregion
@@ -1096,7 +1096,7 @@ namespace art {
                 CXX::Interface::direct_method(symbols::structures::iterable::end, funs_GeneratorResultIterator_end)
             );
             CXX::Interface::typeVTable<GeneratorResultIterator>() = define_GeneratorResultIterator;
-            attacha_environment::get_types_global().join_namespace({"parallel", "generator", "task_result_iterator"})->value = define_GeneratorResultIterator;
+            attacha_environment::get_type({"parallel", "generator", "task_result_iterator"})->value = define_GeneratorResultIterator;
         }
 
 #pragma endregion
@@ -1223,7 +1223,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<art::shared_ptr<Generator>>() = define_Generator;
             define_Generator->getAfterMethods()->constructor = new FuncEnvironment(constructor::construct_Generator);
-            attacha_environment::get_types_global().join_namespace({"parallel", "generator"})->value = define_Generator;
+            attacha_environment::get_type({"parallel", "generator"})->value = define_Generator;
         }
 
 #pragma endregion
@@ -1647,7 +1647,7 @@ namespace art {
                     );
                 });
                 static AttachAFun(__to_type_identifier, 0, {
-                    return Type_as_ValueMeta<T>();
+                    return ValueMeta::from_type<T>();
                 });
 
                 static AttachAFun(__get, 1, {
@@ -1661,8 +1661,8 @@ namespace art {
                 });
 
                 static void init(art::Environment constructor) {
+                    art::ustring type_name;
                     if constexpr (std::is_integral_v<T> && !std::is_floating_point_v<T> && !std::is_same_v<T, bool>) {
-                        art::ustring type_name;
                         if constexpr (std::is_same_v<T, int8_t>)
                             type_name = "atomic_i8";
                         else if constexpr (std::is_same_v<T, int16_t>)
@@ -1689,7 +1689,7 @@ namespace art {
                     }
                     CXX::Interface::typeVTable<AtomicBasic<T>>() = virtual_table;
                     virtual_table->getAfterMethods()->constructor = new FuncEnvironment(constructor);
-                    attacha_environment::get_types_global().join_namespace({"parallel", "atomic", type_name})->value = virtual_table;
+                    attacha_environment::get_type({"parallel", "atomic", type_name})->value = virtual_table;
                 }
             };
 
@@ -2181,9 +2181,8 @@ namespace art {
                         CXX::Interface::direct_method("get", __get),
                         CXX::Interface::direct_method("set", __set)
                     );
-                    CXX::Interface::typeVTable<art::shared_ptr<art::mutex>>() = define_mutex;
-                    define_mutex->getAfterMethods()->constructor = new FuncEnvironment(atomic::constructor::createProxy_Any);
-                    attacha_environment::get_types_global().join_namespace({"parallel", "atomic", "atomic_any"}) -> value = virtual_table;
+                    virtual_table->getAfterMethods()->constructor = new FuncEnvironment(atomic::constructor::createProxy_Any);
+                    attacha_environment::get_type({"parallel", "atomic", "atomic_any"})->value = virtual_table;
                 }
             };
 
@@ -2655,7 +2654,7 @@ namespace art {
                 );
                 CXX::Interface::typeVTable<art::shared_ptr<art::mutex>>() = define_mutex;
                 define_mutex->getAfterMethods()->constructor = new FuncEnvironment(native::constructor::createProxy_mutex);
-                attacha_environment::get_types_global().join_namespace({"parallel", "native", "mutex"})->value = define_mutex;
+                attacha_environment::get_type({"parallel", "native", "mutex"})->value = define_mutex;
 
 
                 define_rw_mutex = CXX::Interface::createTable<art::shared_ptr<art::rw_mutex>>(
@@ -2669,7 +2668,7 @@ namespace art {
                 );
                 CXX::Interface::typeVTable<art::shared_ptr<art::rw_mutex>>() = define_rw_mutex;
                 define_rw_mutex->getAfterMethods()->constructor = new FuncEnvironment(native::constructor::createProxy_rw_mutex);
-                attacha_environment::get_types_global().join_namespace({"parallel", "native", "rw_mutex"})->value = define_rw_mutex;
+                attacha_environment::get_type({"parallel", "native", "rw_mutex"})->value = define_rw_mutex;
 
                 define_timed_mutex = CXX::Interface::createTable<art::shared_ptr<art::timed_mutex>>(
                     "native_timed_mutex",
@@ -2681,7 +2680,7 @@ namespace art {
                 );
                 CXX::Interface::typeVTable<art::shared_ptr<art::timed_mutex>>() = define_timed_mutex;
                 define_timed_mutex->getAfterMethods()->constructor = new FuncEnvironment(native::constructor::createProxy_timed_mutex);
-                attacha_environment::get_types_global().join_namespace({"parallel", "native", "timed_mutex"})->value = define_timed_mutex;
+                attacha_environment::get_type({"parallel", "native", "timed_mutex"})->value = define_timed_mutex;
 
                 define_recursive_mutex = CXX::Interface::createTable<art::shared_ptr<art::recursive_mutex>>(
                     "native_recursive_mutex",
@@ -2691,7 +2690,7 @@ namespace art {
                 );
                 CXX::Interface::typeVTable<art::shared_ptr<art::recursive_mutex>>() = define_recursive_mutex;
                 define_recursive_mutex->getAfterMethods()->constructor = new FuncEnvironment(native::constructor::createProxy_recursive_mutex);
-                attacha_environment::get_types_global().join_namespace({"parallel", "native", "recursive_mutex"})->value = define_recursive_mutex;
+                attacha_environment::get_type({"parallel", "native", "recursive_mutex"})->value = define_recursive_mutex;
 
 
                 define_condition_variable = CXX::Interface::createTable<art::shared_ptr<art::condition_variable_any>>(
@@ -2703,7 +2702,7 @@ namespace art {
                 );
                 CXX::Interface::typeVTable<art::shared_ptr<art::condition_variable_any>>() = define_condition_variable;
                 define_condition_variable->getAfterMethods()->constructor = new FuncEnvironment(native::constructor::createProxy_condition_variable);
-                attacha_environment::get_types_global().join_namespace({"parallel", "native", "condition_variable"})->value = define_condition_variable;
+                attacha_environment::get_type({"parallel", "native", "condition_variable"})->value = define_condition_variable;
 
 
                 define_thread = CXX::Interface::createTable<art::shared_ptr<Thread>>(
@@ -2718,7 +2717,7 @@ namespace art {
                 );
                 CXX::Interface::typeVTable<art::shared_ptr<art::condition_variable_any>>() = define_thread;
                 define_thread->getAfterMethods()->constructor = new FuncEnvironment(native::constructor::construct_Thread);
-                attacha_environment::get_types_global().join_namespace({"parallel", "native", "thread"})->value = define_thread;
+                attacha_environment::get_type({"parallel", "native", "thread"})->value = define_thread;
             }
         }
 

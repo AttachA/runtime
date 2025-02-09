@@ -2165,7 +2165,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() = define_FolderChangesMonitor;
             define_FolderChangesMonitor->getAfterMethods()->constructor = new FuncEnvironment(art::file::constructor::createProxy_FolderChangesMonitor);
-            attacha_environment::get_types_global().join_namespace({"file", "folder_changes_monitor"})->value = define_FolderChangesMonitor;
+            attacha_environment::get_type({"file", "folder_changes_monitor"})->value = define_FolderChangesMonitor;
         }
 
         ValueItem createFolderChangesMonitor(const char* path, size_t length, bool depth) {
@@ -4175,7 +4175,7 @@ namespace art {
             );
             CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() = define_FolderChangesMonitor;
             define_FolderChangesMonitor->getAfterMethods()->constructor = new FuncEnvironment(art::file::constructor::createProxy_FolderChangesMonitor);
-            attacha_environment::get_types_global().join_namespace({"file", "folder_changes_monitor"})->value = define_FolderChangesMonitor;
+            attacha_environment::get_type({"file", "folder_changes_monitor"})->value = define_FolderChangesMonitor;
         }
 
         ValueItem createFolderChangesMonitor(const char* path, size_t length, bool depth) {

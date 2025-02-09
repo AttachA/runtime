@@ -223,13 +223,6 @@ namespace art {
         namespace constructor {
             ValueItem* createProxy_function_builder(ValueItem*, uint32_t);
             ValueItem* createProxy_index_pos(ValueItem*, uint32_t);
-            ValueItem* createProxy_line_info(ValueItem*, uint32_t);
-
-            //ValueItem* createProxy_art_vtable(ValueItem*, uint32_t);
-            //ValueItem* createProxy_art_vtable_static(ValueItem*, uint32_t);
-            //ValueItem* createProxy_art_vtable_value(ValueItem*, uint32_t);
-            //ValueItem* createProxy_art_vtable_method(ValueItem*, uint32_t);
-            //ValueItem* createProxy_art_vtable_tag(ValueItem*, uint32_t);
         }
 
         vtable_viewer view_structure(Structure& str);

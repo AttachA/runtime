@@ -8,47 +8,10 @@
 
 #include <attacha/configuration/agreement/symbols.hpp>
 #include <run_time/AttachA_CXX.hpp>
+#include <run_time/library/times.hpp>
 #include <util/hash.hpp>
 
 namespace art {
-
-    bool needAlloc(ValueMeta type) {
-        if (type.as_ref)
-            return false;
-        if (type.use_gc)
-            return true;
-        return needAllocType(type.vtype);
-    }
-
-    bool needAllocType(VType type) {
-        switch (type) {
-        case VType::raw_arr_i8:
-        case VType::raw_arr_i16:
-        case VType::raw_arr_i32:
-        case VType::raw_arr_i64:
-        case VType::raw_arr_ui8:
-        case VType::raw_arr_ui16:
-        case VType::raw_arr_ui32:
-        case VType::raw_arr_ui64:
-        case VType::raw_arr_flo:
-        case VType::raw_arr_doub:
-        case VType::uarr:
-        case VType::string:
-        case VType::async_res:
-        case VType::except_value:
-        case VType::faarr:
-        case VType::function:
-        case VType::struct_:
-        case VType::map:
-        case VType::set:
-        case VType::generator:
-
-            return true;
-        default:
-            return false;
-        }
-    }
-
     bool calc_safe_depth_arr(void* ptr) {
         list_array<ValueItem>& items = *(list_array<ValueItem>*)ptr;
         for (ValueItem& it : items)
@@ -1348,8 +1311,20 @@ namespace art {
                 res += ')';
                 return res;
             }
-            case VType::time_point:
-                return "t(" + std::to_string(reinterpret_cast<const std::chrono::high_resolution_clock::time_point*>(val)->time_since_epoch().count()) + ')';
+            case VType::time_point: {
+                ValueItem value = *reinterpret_cast<const std::chrono::high_resolution_clock::time_point*>(val);
+                std::chrono::year_month_day ymd;
+                std::chrono::hh_mm_ss<std::chrono::microseconds> hms;
+                times::_internal_::extract_date_time(value, ymd, hms);
+                auto year = std::to_string((int)ymd.year());
+                auto month = std::to_string((unsigned int)ymd.month());
+                auto day = std::to_string((unsigned int)ymd.day());
+                auto hour = std::to_string(hms.hours().count());
+                auto minute = std::to_string(hms.minutes().count());
+                auto second = std::to_string(hms.seconds().count());
+                auto microsecond = std::to_string(hms.subseconds().count());
+                return "t(year = " + year + ", month = " + month + ", day = " + day + ", hour = " + hour + ", minute = " + minute + ", second = " + second + ", microsecond = " + microsecond + ")";
+            }
             case VType::struct_:
                 return (art::ustring)art::CXX::Interface::makeCall(ClassAccess::pub, *reinterpret_cast<const Structure*>(val), symbols::structures::convert::to_string);
             default:
@@ -2925,8 +2900,8 @@ namespace art {
         meta = VType::type_identifier;
     }
 
-    ValueItem::ValueItem(Structure* str, as_reference_t) {
-        val = str;
+    ValueItem::ValueItem(Structure& str, as_reference_t) {
+        val = &str;
         meta = VType::struct_;
         meta.as_ref = true;
     }
@@ -3165,8 +3140,8 @@ namespace art {
         meta.allow_edit = false;
     }
 
-    ValueItem::ValueItem(const Structure* str, as_reference_t) {
-        val = const_cast<Structure*>(str);
+    ValueItem::ValueItem(const Structure& str, as_reference_t) {
+        val = &const_cast<Structure&>(str);
         meta = VType::struct_;
         meta.as_ref = true;
         meta.allow_edit = false;
@@ -4363,35 +4338,49 @@ namespace art {
 
 #pragma region ValueItem cast operators
 
+    ValueItem::operator art::ustring&() {
+        if (meta.vtype == VType::string & meta.allow_edit)
+            return *(art::ustring*)getSourcePtr();
+        else
+            throw InvalidCast("This type is not string");
+    }
+
+    ValueItem::operator list_array<ValueItem>&() {
+        if (meta.vtype == VType::uarr & meta.allow_edit)
+            return *(list_array<ValueItem>*)getSourcePtr();
+        else
+            throw InvalidCast("This type is not uarr");
+    }
+
     ValueItem::operator Structure&() {
-        if (meta.vtype == VType::struct_)
+        if (meta.vtype == VType::struct_ & meta.allow_edit)
             return *(Structure*)getSourcePtr();
         else
             throw InvalidCast("This type is not structure");
     }
 
     ValueItem::operator std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>&() {
-        if (meta.vtype == VType::map)
+        if (meta.vtype == VType::map & meta.allow_edit)
             return *(std::unordered_map<ValueItem, ValueItem, art::hash<ValueItem>>*)getSourcePtr();
         else
             throw InvalidCast("This type is not map");
     }
 
     ValueItem::operator std::unordered_set<ValueItem, art::hash<ValueItem>>&() {
-        if (meta.vtype == VType::set)
+        if (meta.vtype == VType::set & meta.allow_edit)
             return *(std::unordered_set<ValueItem, art::hash<ValueItem>>*)getSourcePtr();
         else
             throw InvalidCast("This type is not set");
     }
 
     ValueItem::operator art::typed_lgr<Task>&() {
-        if (meta.vtype == VType::async_res)
+        if (meta.vtype == VType::async_res & meta.allow_edit)
             return *(art::typed_lgr<Task>*)getSourcePtr();
         throw InvalidCast("This type is not async_res");
     }
 
     ValueItem::operator art::shared_ptr<Generator>&() {
-        if (meta.vtype == VType::generator)
+        if (meta.vtype == VType::generator & meta.allow_edit)
             return *(art::shared_ptr<Generator>*)getSourcePtr();
         throw InvalidCast("This type is not generator");
     }
@@ -4444,6 +4433,10 @@ namespace art {
         return ABI_IMPL::Vcast<double>(val, meta);
     }
 
+    ValueItem::operator char32_t() const {
+        return ABI_IMPL::Vcast<char32_t>(val, meta);
+    }
+
     ValueItem::operator void*() const {
         return ABI_IMPL::Vcast<void*>(val, meta);
     }
@@ -4485,6 +4478,20 @@ namespace art {
             throw InvalidCast("This type is not time_point");
     }
 
+    ValueItem::operator const art::ustring&() const {
+        if (meta.vtype == VType::string)
+            return *(const art::ustring*)getSourcePtr();
+        else
+            throw InvalidCast("This type is not string");
+    }
+
+    ValueItem::operator const list_array<ValueItem>&() const {
+        if (meta.vtype == VType::uarr)
+            return *(const list_array<ValueItem>*)getSourcePtr();
+        else
+            throw InvalidCast("This type is not uarr");
+    }
+
     ValueItem::operator const Structure&() const {
         if (meta.vtype == VType::struct_)
             return *(const Structure*)getSourcePtr();
@@ -4517,8 +4524,9 @@ namespace art {
             return *(const art::shared_ptr<Generator>*)getSourcePtr();
         throw InvalidCast("This type is not generator");
 
-    } ValueItem::operator const art::shared_ptr<FuncEnvironment>&() const {
+    }
 
+    ValueItem::operator const art::shared_ptr<FuncEnvironment>&() const {
         return *funPtr();
     }
 

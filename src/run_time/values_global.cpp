@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2022-Present
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #include <run_time/values_global.hpp>
 
 namespace art {
@@ -15,12 +21,22 @@ namespace art {
         return it->second;
     }
 
-    typed_lgr<values_global> values_global::join_namespace(const std::initializer_list<art::ustring>& strs) {
-        typed_lgr<values_global> current_namespace(this, true);
+    typed_lgr<values_global> values_global::join_namespace(typed_lgr<values_global> current_namespace, std::initializer_list<art::ustring> strs) {
         for (auto& str : strs) {
             auto it = current_namespace->namespaces.find(str);
             if (it == current_namespace->namespaces.end()) {
-                current_namespace = namespaces[str] = new values_global(this);
+                current_namespace = current_namespace->namespaces[str] = new values_global(*current_namespace);
+            } else
+                current_namespace = it->second;
+        }
+        return current_namespace;
+    }
+
+    typed_lgr<values_global> values_global::join_namespace_strict(typed_lgr<values_global> current_namespace, std::initializer_list<art::ustring> strs) {
+        for (auto& str : strs) {
+            auto it = current_namespace->namespaces.find(str);
+            if (it == current_namespace->namespaces.end()) {
+                throw UndefinedValue("This global variable is not defined: " + str);
             } else
                 current_namespace = it->second;
         }
@@ -31,8 +47,7 @@ namespace art {
         return namespaces.contains(str);
     }
 
-    bool values_global::has_namespace(const std::initializer_list<art::ustring>& strs) {
-        typed_lgr<values_global> current_namespace(this, true);
+    bool values_global::has_namespace(typed_lgr<values_global> current_namespace, std::initializer_list<art::ustring> strs) {
         for (auto& str : strs) {
             auto it = current_namespace->namespaces.find(str);
             if (it == current_namespace->namespaces.end())
@@ -48,9 +63,8 @@ namespace art {
             namespaces.erase(it);
     }
 
-    void values_global::remove_namespace(const std::initializer_list<art::ustring>& strs) {
-        typed_lgr<values_global> prev_namespace(this, true);
-        typed_lgr<values_global> current_namespace(this, true);
+    void values_global::remove_namespace(typed_lgr<values_global> current_namespace, std::initializer_list<art::ustring> strs) {
+        typed_lgr<values_global> prev_namespace = current_namespace;
         decltype(namespaces)::iterator it = current_namespace->namespaces.end();
         for (auto& str : strs) {
             auto it = current_namespace->namespaces.find(str);
@@ -86,19 +100,17 @@ namespace art {
         return &it->second->value;
     }
 
-    ValueItem* values_global::find_auto_join(const art::ustring& str, const art::ustring& separator) {
+    ValueItem* values_global::find_auto_join(typed_lgr<values_global> current_namespace, const art::ustring& str, const art::ustring& separator) {
         list_array<ustring> separated = str.split(separator);
         auto last = separated.take_back();
-        typed_lgr<values_global> current_namespace(this, true);
         for (auto& it : separated)
             current_namespace = current_namespace->join_namespace(it);
         return current_namespace->find_value(last);
     }
 
-    ValueItem* values_global::find_value_local_auto_join(const art::ustring& str, const art::ustring& separator) {
+    ValueItem* values_global::find_value_local_auto_join(typed_lgr<values_global> current_namespace, const art::ustring& str, const art::ustring& separator) {
         list_array<ustring> separated = str.split(separator);
         auto last = separated.take_back();
-        typed_lgr<values_global> current_namespace(this, true);
         for (auto& it : separated)
             current_namespace = current_namespace->join_namespace(it);
         return current_namespace->find_value_local(last);

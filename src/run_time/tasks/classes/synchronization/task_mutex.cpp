@@ -53,7 +53,6 @@ namespace art {
                 resume_task.emplace_back(task, task->awake_check);
                 while (!has_res)
                     cd.wait(ul);
-                ul.unlock();
             task_not_ended:
                 //prevent destruct cd, because it is used in task
                 task->no_race.lock();

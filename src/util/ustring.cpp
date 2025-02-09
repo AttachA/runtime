@@ -384,6 +384,9 @@ namespace art {
     ustring::ustring(const std::u32string& str)
         : ustring(str.c_str(), str.size()) {}
 
+    ustring::ustring(std::string_view str)
+        : ustring(str.data(), str.size()) {}
+
     ustring::ustring(ustring&& str) noexcept {
         *this = std::move(str);
     }

@@ -1,28 +1,18 @@
+// Copyright Danyil Melnytskyi 2025-Present
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #ifndef SRC_BASE_LANGUAGE_C_40
 #define SRC_BASE_LANGUAGE_C_40
-#include <base/language/provider.hpp>
+#include <run_time/library/cxx/language.hpp>
 
 namespace language_parsers {
 
-    class c_async : public language_handler {
-        //{path : { function: hash }}...
-        std::unordered_map<
-            art::ustring,
-            std::unordered_map<
-                art::ustring,
-                uint64_t,
-                art::hash<art::ustring>>,
-            art::hash<art::ustring>>
-            declared_functions;
-        art::TaskMutex mutex;
-
+    class c_async : public art::language::helpers::text_language_handler {
     public:
-        art::patch_list handle_init(art::files::FileHandle& file) override;
-        art::patch_list handle_init_complete() override;
-        art::patch_list handle_create(art::files::FileHandle& file) override;
-        art::patch_list handle_renamed(const art::ustring& old, art::files::FileHandle& file) override;
-        art::patch_list handle_changed(art::files::FileHandle& file) override;
-        art::patch_list handle_removed(const art::ustring& removed) override;
+        c_async();
     };
 }
 

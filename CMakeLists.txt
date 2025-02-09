@@ -65,7 +65,7 @@ FILE(GLOB LIB_SRCFILES
 )
 
 
-find_package(Boost REQUIRED COMPONENTS context)
+find_package(Boost REQUIRED COMPONENTS context program_options)
 find_package(asmjit REQUIRED)
 find_package(utf8cpp CONFIG REQUIRED)
 

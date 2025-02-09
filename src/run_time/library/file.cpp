@@ -1171,10 +1171,10 @@ namespace art {
             define_FolderBrowser->getAfterMethods()->constructor = new FuncEnvironment(constructor::createProxy_FolderBrowser);
 
 
-            attacha_environment::get_types_global().join_namespace({"file", "file_handle"})->value = define_FileHandle;
-            attacha_environment::get_types_global().join_namespace({"file", "blocking_file_handle"})->value = define_BlockingFileHandle;
-            attacha_environment::get_types_global().join_namespace({"file", "text_file"})->value = define_TextFile;
-            attacha_environment::get_types_global().join_namespace({"file", "folder_browser"})->value = define_FolderBrowser;
+            attacha_environment::get_type({"file", "file_handle"})->value = define_FileHandle;
+            attacha_environment::get_type({"file", "blocking_file_handle"})->value = define_BlockingFileHandle;
+            attacha_environment::get_type({"file", "text_file"})->value = define_TextFile;
+            attacha_environment::get_type({"file", "folder_browser"})->value = define_FolderBrowser;
         }
     }
 }

@@ -307,9 +307,9 @@ namespace art {
             define_TcpNetworkServer->getAfterMethods()->constructor = new FuncEnvironment(net::constructor::createProxy_TcpServer);
             define_TcpClientSocket->getAfterMethods()->constructor = new FuncEnvironment(net::tcp_client_connect);
             define_UdpSocket->getAfterMethods()->constructor = new FuncEnvironment(net::constructor::createProxy_UdpSocket);
-            attacha_environment::get_types_global().join_namespace({"nat", "tcp_server"})->value = define_TcpNetworkServer;
-            attacha_environment::get_types_global().join_namespace({"nat", "tcp_client"})->value = define_TcpClientSocket;
-            attacha_environment::get_types_global().join_namespace({"nat", "udp_socket"})->value = define_UdpSocket;
+            attacha_environment::get_type({"nat", "tcp_server"})->value = define_TcpNetworkServer;
+            attacha_environment::get_type({"nat", "tcp_client"})->value = define_TcpClientSocket;
+            attacha_environment::get_type({"nat", "udp_socket"})->value = define_UdpSocket;
         }
     }
 }

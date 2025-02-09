@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2022-Present
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #ifndef SRC_RUN_TIME_ATTACHA_CXX_STRUCT
 #define SRC_RUN_TIME_ATTACHA_CXX_STRUCT
 #include <run_time/attacha_abi_structs.hpp>
@@ -15,6 +21,19 @@ namespace art {
             Class_& getAs(ValueItem& str) {
                 if (str.meta.vtype == VType::struct_) {
                     return *(Class_*)((Structure&)str).self;
+                } else
+                    throw InvalidArguments("getAs: ValueItem is not a struct");
+            }
+
+            template <class Class_>
+            const Class_& getAs(const Structure& str) {
+                return *(const Class_*)str.self;
+            }
+
+            template <class Class_>
+            const Class_& getAs(const ValueItem& str) {
+                if (str.meta.vtype == VType::struct_) {
+                    return *(const Class_*)((const Structure&)str).self;
                 } else
                     throw InvalidArguments("getAs: ValueItem is not a struct");
             }
@@ -56,10 +75,63 @@ namespace art {
                 return art::CXX::Interface::getAs<Class_>(proxy);
             }
 
+
             template <class Class_>
             Class_& getExtractAs(ValueItem& str, AttachAVirtualTable* vtable) {
                 if (str.meta.vtype == VType::struct_) {
                     Structure& proxy = (Structure&)str;
+                    if (proxy.vtable != vtable) {
+                        if (proxy.get_name() != vtable->getName())
+                            throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got " + proxy.get_name());
+                        else
+                            throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got non native" + vtable->getName());
+                    }
+                    return art::CXX::Interface::getAs<Class_>(proxy);
+                } else
+                    throw InvalidArguments(vtable->getName() + ", type mismatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
+            }
+
+            template <class Class_>
+            const Class_& getExtractAs(const Structure& proxy, AttachADynamicVirtualTable* vtable) {
+                if (proxy.vtable != vtable) {
+                    if (proxy.get_name() != vtable->name)
+                        throw InvalidArguments(vtable->name + ", excepted " + vtable->name + ", got " + proxy.get_name());
+                    else
+                        throw InvalidArguments(vtable->name + ", excepted " + vtable->name + ", got non native" + vtable->name);
+                }
+                return art::CXX::Interface::getAs<Class_>(proxy);
+            }
+
+            template <class Class_>
+            const Class_& getExtractAs(const ValueItem& str, AttachADynamicVirtualTable* vtable) {
+                if (str.meta.vtype == VType::struct_) {
+                    const Structure& proxy = (const Structure&)str;
+                    if (proxy.vtable != vtable) {
+                        if (proxy.get_name() != vtable->name)
+                            throw InvalidArguments(vtable->name + ", excepted " + vtable->name + ", got " + proxy.get_name());
+                        else
+                            throw InvalidArguments(vtable->name + ", excepted " + vtable->name + ", got non native" + vtable->name);
+                    }
+                    return art::CXX::Interface::getAs<Class_>(proxy);
+                } else
+                    throw InvalidArguments(vtable->name + ", type mismatch, excepted struct_, got " + enum_to_string(str.meta.vtype));
+            }
+
+            template <class Class_>
+            const Class_& getExtractAs(const Structure& proxy, AttachAVirtualTable* vtable) {
+                if (proxy.vtable != vtable) {
+                    if (proxy.get_name() != vtable->getName())
+                        throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got " + proxy.get_name());
+                    else
+                        throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got non native" + vtable->getName());
+                }
+                return art::CXX::Interface::getAs<Class_>(proxy);
+            }
+
+            template <class Class_>
+            const Class_& getExtractAs(const ValueItem& str, AttachAVirtualTable* vtable) {
+                if (str.meta.vtype == VType::struct_) {
+                    const Structure& proxy = (const Structure&)str;
                     if (proxy.vtable != vtable) {
                         if (proxy.get_name() != vtable->getName())
                             throw InvalidArguments(vtable->getName() + ", excepted " + vtable->getName() + ", got " + proxy.get_name());

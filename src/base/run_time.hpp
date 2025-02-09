@@ -15,6 +15,11 @@
 #include <util/exceptions.hpp>
 #include <util/shared_ptr.hpp>
 #include <util/ustring.hpp>
+#define ART_VERSION_STR "0.1.0"
+#define ART_VERSION 0x00010000
+#define ART_VERSION_MAJOR 0
+#define ART_VERSION_MINOR 1
+#define ART_VERSION_PATCH 0
 
 namespace art {
     typedef void* (*CALL_FUNC)(...);

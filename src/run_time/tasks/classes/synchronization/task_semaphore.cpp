@@ -16,25 +16,19 @@ namespace art {
     }
 
     void TaskSemaphore::lock() {
+        art::unique_lock lock_(no_race);
         loc.curr_task->awaked = false;
         loc.curr_task->time_end_flag = false;
-    re_try:
-        no_race.lock();
-        if (!allow_threshold) {
+        while (!allow_threshold) {
             if (loc.is_task_thread) {
                 art::lock_guard guard(glob.task_thread_safety);
                 resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
                 no_race.unlock();
                 swapCtxRelock(glob.task_thread_safety);
-            } else {
-                art::mutex mtx;
-                art::unique_lock guard(mtx);
-                no_race.unlock();
-                native_notify.wait(guard);
-            }
-            goto re_try;
-        } else
-            --allow_threshold;
+            } else
+                native_notify.wait(lock_);
+        }
+        --allow_threshold;
         no_race.unlock();
         return;
     }
@@ -42,12 +36,10 @@ namespace art {
     bool TaskSemaphore::try_lock() {
         if (!no_race.try_lock())
             return false;
-        if (!allow_threshold) {
-            no_race.unlock();
+        art::unique_lock lock_(no_race, art::adopt_lock);
+        if (!allow_threshold)
             return false;
-        } else
-            --allow_threshold;
-        no_race.unlock();
+        --allow_threshold;
         return true;
     }
 
@@ -56,30 +48,26 @@ namespace art {
     }
 
     bool TaskSemaphore::try_lock_until(std::chrono::high_resolution_clock::time_point time_point) {
-    re_try:
         if (!no_race.try_lock_until(time_point))
             return false;
-        if (!allow_threshold) {
+
+        art::unique_lock lock_(no_race, art::adopt_lock);
+        while (!allow_threshold) {
             if (loc.is_task_thread) {
                 art::lock_guard guard(glob.task_thread_safety);
                 makeTimeWait(time_point);
                 resume_task.emplace_back(loc.curr_task, loc.curr_task->awake_check);
-                no_race.unlock();
+                lock_.unlock();
                 swapCtxRelock(glob.task_thread_safety);
                 if (!loc.curr_task->awaked)
                     return false;
+                lock_.lock();
             } else {
-                no_race.unlock();
-                art::mutex mtx;
-                art::unique_lock guard(mtx);
-                if (native_notify.wait_until(guard, time_point) == art::cv_status::timeout)
+                if (native_notify.wait_until(lock_, time_point) == art::cv_status::timeout)
                     return false;
             }
-            goto re_try;
         }
-        else
-            --allow_threshold;
-        no_race.unlock();
+        --allow_threshold;
         return true;
     }
 

@@ -261,7 +261,7 @@ namespace art {
         );
         CXX::Interface::typeVTable<universal_address>() = define_UniversalAddress;
         define_UniversalAddress->getAfterMethods()->constructor = new FuncEnvironment(net::constructor::createProxy_Address);
-        attacha_environment::get_types_global().join_namespace({"nat", "universal_address"})->value = define_UniversalAddress;
+        attacha_environment::get_type({"nat", "universal_address"})->value = define_UniversalAddress;
     }
 
     void init_define_TcpConfiguration() {
@@ -298,7 +298,7 @@ namespace art {
         );
         CXX::Interface::typeVTable<TcpConfiguration>() = define_TcpConfiguration;
         define_TcpConfiguration->getAfterMethods()->constructor = new FuncEnvironment(net::constructor::createProxy_TcpConfiguration);
-        attacha_environment::get_types_global().join_namespace({"nat", "tcp_configuration"})->value = define_TcpConfiguration;
+        attacha_environment::get_type({"nat", "tcp_configuration"})->value = define_TcpConfiguration;
     }
 
     void internal_makeIP4(universal_address& addr_storage, const char* ip, uint16_t port) {
@@ -1262,7 +1262,7 @@ namespace art {
             CXX::Interface::direct_method("remote_address", funs_TcpNetworkStream_remote_address)
         );
         CXX::Interface::typeVTable<TcpNetworkStream>() = define_TcpNetworkStream;
-        attacha_environment::get_types_global().join_namespace({"nat", "tcp_network_stream"})->value = define_TcpNetworkStream;
+        attacha_environment::get_type({"nat", "tcp_network_stream"})->value = define_TcpNetworkStream;
     }
 
     #pragma endregion
@@ -1508,7 +1508,7 @@ namespace art {
             CXX::Interface::direct_method("remote_address", funs_TcpNetworkBlocking_remote_address)
         );
         CXX::Interface::typeVTable<TcpNetworkBlocking>() = define_TcpNetworkBlocking;
-        attacha_environment::get_types_global().join_namespace({"nat", "tcp_network_blocking"})->value = define_TcpNetworkBlocking;
+        attacha_environment::get_type({"nat", "tcp_network_blocking"})->value = define_TcpNetworkBlocking;
     }
 
     #pragma endregion
@@ -3205,7 +3205,7 @@ namespace art {
             CXX::Interface::direct_method("remote_address", funs_TcpNetworkStream_remote_address)
         );
         CXX::Interface::typeVTable<TcpNetworkStream>() = define_TcpNetworkStream;
-        attacha_environment::get_types_global().join_namespace({"nat", "tcp_network_stream"})->value = define_TcpNetworkStream;
+        attacha_environment::get_type({"nat", "tcp_network_stream"})->value = define_TcpNetworkStream;
     }
 
     #pragma endregion
@@ -3451,7 +3451,7 @@ namespace art {
             CXX::Interface::direct_method("remote_address", funs_TcpNetworkBlocking_remote_address)
         );
         CXX::Interface::typeVTable<TcpNetworkBlocking>() = define_TcpNetworkBlocking;
-        attacha_environment::get_types_global().join_namespace({"nat", "tcp_network_blocking"})->value = define_TcpNetworkBlocking;
+        attacha_environment::get_type({"nat", "tcp_network_blocking"})->value = define_TcpNetworkBlocking;
     }
 
     #pragma endregion

@@ -40,7 +40,13 @@ namespace art {
     };
 
     class attacha_environment {
-        struct function_globals_handle;
+        class function_globals_handle : public protected_value<
+                                            std::unordered_map<
+                                                art::ustring,
+                                                art::shared_ptr<FuncEnvironment>,
+                                                art::hash<art::ustring>>> {
+        };
+
 
         struct code_gen_handle {
             TaskMutex frame_symbols_lock;
@@ -52,24 +58,28 @@ namespace art {
         };
 
         TaskRecursiveMutex mutex;
-        values_global* _value_global;
-        types_global* _types_global;
-        function_globals_handle* function_globals;
-        code_gen_handle* code_gen;
+        typed_lgr<values_global> _value_global;
+        typed_lgr<types_global> _types_global;
+        function_globals_handle function_globals;
+        code_gen_handle code_gen;
         static attacha_environment self;
-        attacha_environment();
-
-        static function_globals_handle* create_function_globals();
-
-        static void remove_function_globals(function_globals_handle*);
-
+        attacha_environment() = default;
 
     public:
-        ~attacha_environment();
         static function_globals_handle& get_function_globals();
-        static values_global& get_value_globals();
-        static types_global& get_types_global();
+        static typed_lgr<values_global> get_value_globals();
+        static typed_lgr<types_global> get_types_global();
         static code_gen_handle& get_code_gen();
+
+
+        static ValueItem* find_global_value(const art::ustring& str);
+        static ValueItem* find_global_value_local(const art::ustring& str);
+        static ValueItem* find_global_value_auto_join(const art::ustring& str, const art::ustring& separator);
+        static ValueItem* find_global_value_local_auto_join(const art::ustring& str, const art::ustring& separator);
+
+        static typed_lgr<types_global> get_type(std::initializer_list<art::ustring> str);
+        static ValueItem& get_value(std::initializer_list<art::ustring> str);
+        static ValueItem& get_value_strict(std::initializer_list<art::ustring> str);
 
         static art::shared_ptr<class FuncEnvironment>& create_fun_env(class FuncEnvironment* ptr);
     };

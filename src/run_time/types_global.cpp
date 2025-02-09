@@ -1,3 +1,9 @@
+// Copyright Danyil Melnytskyi 2024-Present
+//
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
 #include <run_time/types_global.hpp>
 
 namespace art {
@@ -15,12 +21,11 @@ namespace art {
         return it->second;
     }
 
-    typed_lgr<types_global> types_global::join_namespace(const std::initializer_list<art::ustring>& strs) {
-        typed_lgr<types_global> current_namespace(this, true);
+    typed_lgr<types_global> types_global::join_namespace(typed_lgr<types_global> current_namespace, const std::initializer_list<art::ustring>& strs) {
         for (auto& str : strs) {
             auto it = current_namespace->namespaces.find(str);
             if (it == current_namespace->namespaces.end()) {
-                current_namespace = namespaces[str] = new types_global(this);
+                current_namespace = current_namespace->namespaces[str] = new types_global(*current_namespace);
             } else
                 current_namespace = it->second;
         }
@@ -31,8 +36,7 @@ namespace art {
         return namespaces.contains(str);
     }
 
-    bool types_global::has_namespace(const std::initializer_list<art::ustring>& strs) {
-        typed_lgr<types_global> current_namespace(this, true);
+    bool types_global::has_namespace(typed_lgr<types_global> current_namespace, const std::initializer_list<art::ustring>& strs) {
         for (auto& str : strs) {
             auto it = current_namespace->namespaces.find(str);
             if (it == current_namespace->namespaces.end())
@@ -48,9 +52,8 @@ namespace art {
             namespaces.erase(it);
     }
 
-    void types_global::remove_namespace(const std::initializer_list<art::ustring>& strs) {
-        typed_lgr<types_global> prev_namespace(this, true);
-        typed_lgr<types_global> current_namespace(this, true);
+    void types_global::remove_namespace(typed_lgr<types_global> current_namespace, const std::initializer_list<art::ustring>& strs) {
+        typed_lgr<types_global> prev_namespace = current_namespace;
         decltype(namespaces)::iterator it = current_namespace->namespaces.end();
         for (auto& str : strs) {
             auto it = current_namespace->namespaces.find(str);
@@ -67,8 +70,7 @@ namespace art {
         value = nullptr;
     }
 
-    VirtualTable types_global::find_value(const art::ustring& str) {
-        typed_lgr<types_global> current_namespace(this, true);
+    VirtualTable types_global::find_value(typed_lgr<types_global> current_namespace, const art::ustring& str) {
         while (current_namespace) {
             auto it = current_namespace->namespaces.find(str);
             if (it == current_namespace->namespaces.end())
@@ -86,19 +88,17 @@ namespace art {
         return it->second->value;
     }
 
-    VirtualTable types_global::find_auto_join(const art::ustring& str, const art::ustring& separator) {
+    VirtualTable types_global::find_auto_join(typed_lgr<types_global> current_namespace, const art::ustring& str, const art::ustring& separator) {
         list_array<ustring> separated = str.split(separator);
         auto last = separated.take_back();
-        typed_lgr<types_global> current_namespace(this, true);
         for (auto& it : separated)
             current_namespace = current_namespace->join_namespace(it);
-        return current_namespace->find_value(last);
+        return find_value(current_namespace, last);
     }
 
-    VirtualTable types_global::find_value_local_auto_join(const art::ustring& str, const art::ustring& separator) {
+    VirtualTable types_global::find_value_local_auto_join(typed_lgr<types_global> current_namespace, const art::ustring& str, const art::ustring& separator) {
         list_array<ustring> separated = str.split(separator);
         auto last = separated.take_back();
-        typed_lgr<types_global> current_namespace(this, true);
         for (auto& it : separated)
             current_namespace = current_namespace->join_namespace(it);
         return current_namespace->find_value_local(last);
