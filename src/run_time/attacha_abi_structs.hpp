@@ -766,6 +766,8 @@ namespace art {
     #endif
         ValueItem(const art::ustring& val);
         ValueItem(art::ustring&& val);
+        ValueItem(const std::string& val);
+        ValueItem(std::string&& val);
         ValueItem(const char* str);
         ValueItem(const list_array<ValueItem>& val);
         ValueItem(list_array<ValueItem>&& val);

@@ -112,7 +112,8 @@
         "executor": "cpp",
         "io_context": "cpp",
         "socket": "cpp",
-        "stdfloat": "cpp"
+        "stdfloat": "cpp",
+        "barrier": "cpp"
     },
 	"cmake.configureOnOpen": true,
     "C/C++ Include Guard.Auto Update Include Guard": true,

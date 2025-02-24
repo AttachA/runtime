@@ -337,7 +337,7 @@ namespace art {
             if (!VirtualFree(snapshot.guard->base, to_free + guard_page_size, MEM_DECOMMIT))
                 return false;
             if (!VirtualAlloc(snapshot.guard->base + to_free, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD)) {
-                invite_to_debugger("Failed allocate guard page to reduce stack size");
+                invite_to_debugger("Failed to allocate guard page to reduce stack size");
                 throw TaskCancellation();
             }
         } else {
@@ -452,7 +452,7 @@ namespace art {
             BOOST_VERIFY(VirtualAlloc(guard - bytes_to_use, guard_page_size, MEM_COMMIT, PAGE_READWRITE | PAGE_GUARD));
         } else {
             if (!VirtualAlloc(start + free_space, bytes_to_use, MEM_COMMIT, PAGE_READWRITE)) {
-                invite_to_debugger("Failed allocate guard page to reduce stack size");
+                invite_to_debugger("Failed to allocate guard page to reduce stack size");
                 abort();
             }
         }

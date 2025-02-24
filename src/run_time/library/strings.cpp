@@ -420,44 +420,7 @@ namespace art {
             }
         }
 
-        std::unordered_map<art::ustring, art::shared_ptr<FuncEnvironment>, art::hash<art::ustring>> printf_operators = {
-            {"d", new FuncEnvironment(standard_operator::d)},
-            {"i", new FuncEnvironment(standard_operator::d)},
-            {"u", new FuncEnvironment(standard_operator::u)},
-            {"o", new FuncEnvironment(standard_operator::o)},
-            {"x", new FuncEnvironment(standard_operator::x)},
-            {"X", new FuncEnvironment(standard_operator::X)},
-            {"f", new FuncEnvironment(standard_operator::f)},
-            {"F", new FuncEnvironment(standard_operator::F)},
-            {"e", new FuncEnvironment(standard_operator::e)},
-            {"E", new FuncEnvironment(standard_operator::E)},
-            {"g", new FuncEnvironment(standard_operator::g)},
-            {"G", new FuncEnvironment(standard_operator::G)},
-            {"a", new FuncEnvironment(standard_operator::a)},
-            {"A", new FuncEnvironment(standard_operator::A)},
-            {"c", new FuncEnvironment(standard_operator::c)},
-            {"s", new FuncEnvironment(standard_operator::s)},
-            {"p", new FuncEnvironment(standard_operator::p)},
-            {"n", new FuncEnvironment(standard_operator::n)},
-            {"%", new FuncEnvironment(standard_operator::percent)},
-            {"time", new FuncEnvironment(standard_operator::time)},
-            {"date", new FuncEnvironment(standard_operator::date)},
-            {"datetime", new FuncEnvironment(standard_operator::datetime)},
-            {"years", new FuncEnvironment(standard_operator::years)},
-            {"months", new FuncEnvironment(standard_operator::months)},
-            {"weeks", new FuncEnvironment(standard_operator::weeks)},
-            {"days", new FuncEnvironment(standard_operator::days)},
-            {"hours", new FuncEnvironment(standard_operator::hours)},
-            {"minutes", new FuncEnvironment(standard_operator::minutes)},
-            {"seconds", new FuncEnvironment(standard_operator::seconds)},
-            {"milliseconds", new FuncEnvironment(standard_operator::milliseconds)},
-            {"microseconds", new FuncEnvironment(standard_operator::microseconds)},
-            {"upper", new FuncEnvironment(standard_operator::upper)},
-            {"lower", new FuncEnvironment(standard_operator::lower)},
-            {"reverse", new FuncEnvironment(standard_operator::reverse)},
-            {"trace", new FuncEnvironment(standard_operator::trace)},
-            {"inner_format", new FuncEnvironment(standard_operator::inner_format)}};
-
+        std::unordered_map<art::ustring, art::shared_ptr<FuncEnvironment>, art::hash<art::ustring>> printf_operators;
         ValueItem* register_format_operator(ValueItem* args, uint32_t len) {
             if (len >= 2) {
                 art::ustring _operator = (art::ustring)args[0];
@@ -765,6 +728,88 @@ namespace art {
 
         ValueItem* format(ValueItem* args, uint32_t len) {
             return new ValueItem(_format(args, len));
+        }
+
+        void init() {
+            FuncEnvironment::AddNative(standard_operator::d, "strings standard_operator d", false, true);
+            FuncEnvironment::AddNative(standard_operator::d, "strings standard_operator i", false, true);
+            FuncEnvironment::AddNative(standard_operator::u, "strings standard_operator u", false, true);
+            FuncEnvironment::AddNative(standard_operator::o, "strings standard_operator o", false, true);
+            FuncEnvironment::AddNative(standard_operator::x, "strings standard_operator x", false, true);
+            FuncEnvironment::AddNative(standard_operator::X, "strings standard_operator X", false, true);
+            FuncEnvironment::AddNative(standard_operator::f, "strings standard_operator f", false, true);
+            FuncEnvironment::AddNative(standard_operator::F, "strings standard_operator F", false, true);
+            FuncEnvironment::AddNative(standard_operator::e, "strings standard_operator e", false, true);
+            FuncEnvironment::AddNative(standard_operator::E, "strings standard_operator E", false, true);
+            FuncEnvironment::AddNative(standard_operator::g, "strings standard_operator g", false, true);
+            FuncEnvironment::AddNative(standard_operator::G, "strings standard_operator G", false, true);
+            FuncEnvironment::AddNative(standard_operator::a, "strings standard_operator a", false, true);
+            FuncEnvironment::AddNative(standard_operator::A, "strings standard_operator A", false, true);
+            FuncEnvironment::AddNative(standard_operator::c, "strings standard_operator c", false, true);
+            FuncEnvironment::AddNative(standard_operator::s, "strings standard_operator s", false, true);
+            FuncEnvironment::AddNative(standard_operator::p, "strings standard_operator p", false, true);
+            FuncEnvironment::AddNative(standard_operator::n, "strings standard_operator n", false, true);
+            FuncEnvironment::AddNative(standard_operator::percent, "strings standard_operator %", false, true);
+            FuncEnvironment::AddNative(standard_operator::time, "strings standard_operator time", false, true);
+            FuncEnvironment::AddNative(standard_operator::date, "strings standard_operator date", false, true);
+            FuncEnvironment::AddNative(standard_operator::datetime, "strings standard_operator datetime", false, true);
+            FuncEnvironment::AddNative(standard_operator::years, "strings standard_operator years", false, true);
+            FuncEnvironment::AddNative(standard_operator::months, "strings standard_operator months", false, true);
+            FuncEnvironment::AddNative(standard_operator::weeks, "strings standard_operator weeks", false, true);
+            FuncEnvironment::AddNative(standard_operator::days, "strings standard_operator days", false, true);
+            FuncEnvironment::AddNative(standard_operator::hours, "strings standard_operator hours", false, true);
+            FuncEnvironment::AddNative(standard_operator::minutes, "strings standard_operator minutes", false, true);
+            FuncEnvironment::AddNative(standard_operator::seconds, "strings standard_operator seconds", false, true);
+            FuncEnvironment::AddNative(standard_operator::milliseconds, "strings standard_operator milliseconds", false, true);
+            FuncEnvironment::AddNative(standard_operator::microseconds, "strings standard_operator microseconds", false, true);
+            FuncEnvironment::AddNative(standard_operator::upper, "strings standard_operator upper", false, true);
+            FuncEnvironment::AddNative(standard_operator::lower, "strings standard_operator lower", false, true);
+            FuncEnvironment::AddNative(standard_operator::reverse, "strings standard_operator reverse", false, true);
+            FuncEnvironment::AddNative(standard_operator::trace, "strings standard_operator trace", false, true);
+            FuncEnvironment::AddNative(standard_operator::inner_format, "strings standard_operator inner_format", false, true);
+
+            printf_operators = {
+                {"d", FuncEnvironment::environment("strings standard_operator d")},
+                {"i", FuncEnvironment::environment("strings standard_operator d")},
+                {"u", FuncEnvironment::environment("strings standard_operator u")},
+                {"o", FuncEnvironment::environment("strings standard_operator o")},
+                {"x", FuncEnvironment::environment("strings standard_operator x")},
+                {"X", FuncEnvironment::environment("strings standard_operator X")},
+                {"f", FuncEnvironment::environment("strings standard_operator f")},
+                {"F", FuncEnvironment::environment("strings standard_operator F")},
+                {"e", FuncEnvironment::environment("strings standard_operator e")},
+                {"E", FuncEnvironment::environment("strings standard_operator E")},
+                {"g", FuncEnvironment::environment("strings standard_operator g")},
+                {"G", FuncEnvironment::environment("strings standard_operator G")},
+                {"a", FuncEnvironment::environment("strings standard_operator a")},
+                {"A", FuncEnvironment::environment("strings standard_operator A")},
+                {"c", FuncEnvironment::environment("strings standard_operator c")},
+                {"s", FuncEnvironment::environment("strings standard_operator s")},
+                {"p", FuncEnvironment::environment("strings standard_operator p")},
+                {"n", FuncEnvironment::environment("strings standard_operator n")},
+                {"%", FuncEnvironment::environment("strings standard_operator %")},
+                {"time", FuncEnvironment::environment("strings standard_operator time")},
+                {"date", FuncEnvironment::environment("strings standard_operator date")},
+                {"datetime", FuncEnvironment::environment("strings standard_operator datetime")},
+                {"years", FuncEnvironment::environment("strings standard_operator years")},
+                {"months", FuncEnvironment::environment("strings standard_operator months")},
+                {"weeks", FuncEnvironment::environment("strings standard_operator weeks")},
+                {"days", FuncEnvironment::environment("strings standard_operator days")},
+                {"hours", FuncEnvironment::environment("strings standard_operator hours")},
+                {"minutes", FuncEnvironment::environment("strings standard_operator minutes")},
+                {"seconds", FuncEnvironment::environment("strings standard_operator seconds")},
+                {"milliseconds", FuncEnvironment::environment("strings standard_operator milliseconds")},
+                {"microseconds", FuncEnvironment::environment("strings standard_operator microseconds")},
+                {"upper", FuncEnvironment::environment("strings standard_operator upper")},
+                {"lower", FuncEnvironment::environment("strings standard_operator lower")},
+                {"reverse", FuncEnvironment::environment("strings standard_operator reverse")},
+                {"trace", FuncEnvironment::environment("strings standard_operator trace")},
+                {"inner_format", FuncEnvironment::environment("strings standard_operator inner_format")}
+            };
+        }
+
+        void clean_up() {
+            printf_operators.clear();
         }
     }
 }

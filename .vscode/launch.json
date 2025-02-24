@@ -21,7 +21,7 @@
             "logging": {
                 "moduleLoad": false
             },
-            "visualizerFile": "${workspaceFolder}/src/run_time/link_garbage_remover.natvis"
+            "visualizerFile": "${workspaceFolder}/src/util/link_garbage_remover.natvis"
         },
         {
             "name": "Debug-Linux",

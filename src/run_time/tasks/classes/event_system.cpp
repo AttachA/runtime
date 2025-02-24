@@ -24,17 +24,25 @@ namespace art {
     }
 
     void EventSystem::async_call(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args) {
-        art::lock_guard guard(no_race);
-        for (auto& it : list)
+        std::list<art::shared_ptr<FuncEnvironment>> copy;
+        {
+            art::lock_guard guard(no_race);
+            copy = list;
+        }
+        for (auto& it : copy)
             Task::start(new Task(it, args));
     }
 
     bool EventSystem::awaitCall(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args) {
         std::vector<art::typed_lgr<Task>> wait_tasks;
         {
+            std::list<art::shared_ptr<FuncEnvironment>> copy;
+            {
+                art::lock_guard guard(no_race);
+                copy = list;
+            }
             wait_tasks.reserve(list.size());
-            art::lock_guard guard(no_race);
-            for (auto& it : list) {
+            for (auto& it : copy) {
                 art::typed_lgr<Task> tsk(new Task(it, args));
                 wait_tasks.emplace_back(tsk);
                 Task::start(tsk);
@@ -57,15 +65,19 @@ namespace art {
     }
 
     bool EventSystem::sync_call(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args) {
-        art::lock_guard guard(no_race);
+        std::list<art::shared_ptr<FuncEnvironment>> copy;
+        {
+            art::lock_guard guard(no_race);
+            copy = list;
+        }
         if (args.meta.vtype == VType::async_res)
             args.getAsync();
         if (args.meta.vtype == VType::noting) {
-            for (art::shared_ptr<FuncEnvironment>& it : list)
+            for (art::shared_ptr<FuncEnvironment>& it : copy)
                 if ((bool)CXX::cxxCall(it))
                     return true;
         } else
-            for (art::shared_ptr<FuncEnvironment>& it : list)
+            for (art::shared_ptr<FuncEnvironment>& it : copy)
                 if ((bool)CXX::aCall(it, args))
                     return true;
         return false;
@@ -156,7 +168,19 @@ namespace art {
         }
     }
 
-    bool EventSystem::await_notify(ValueItem& it) {
+    bool EventSystem::await_notify(const ValueItem& it) {
+        return await_notify(ValueItem(it));
+    }
+
+    bool EventSystem::notify(const ValueItem& it) {
+        return notify(ValueItem(it));
+    }
+
+    bool EventSystem::sync_notify(const ValueItem& it) {
+        return sync_notify(ValueItem(it));
+    }
+
+    bool EventSystem::await_notify(ValueItem&& it) {
         if (sync_call(heigh_priority, it))
             return true;
         if (sync_call(upper_avg_priority, it))
@@ -181,7 +205,7 @@ namespace art {
         return false;
     }
 
-    bool EventSystem::notify(ValueItem& it) {
+    bool EventSystem::notify(ValueItem&& it) {
         if (sync_call(heigh_priority, it))
             return true;
         if (sync_call(upper_avg_priority, it))
@@ -201,7 +225,7 @@ namespace art {
         return false;
     }
 
-    bool EventSystem::sync_notify(ValueItem& it) {
+    bool EventSystem::sync_notify(ValueItem&& it) {
         if (sync_call(heigh_priority, it))
             return true;
         if (sync_call(upper_avg_priority, it))
@@ -225,8 +249,29 @@ namespace art {
         return false;
     }
 
+    struct event_ref_holder {
+        typed_lgr<EventSystem>* event;
+
+        event_ref_holder(typed_lgr<EventSystem>& ref)
+            : event(new typed_lgr<EventSystem>(ref)) {}
+
+        event_ref_holder(const event_ref_holder& ref)
+            : event(new typed_lgr<EventSystem>(ref.event ? *ref.event : nullptr)) {}
+
+        event_ref_holder(event_ref_holder&& ref)
+            : event(ref.event) {
+            ref.event = nullptr;
+        }
+
+        ~event_ref_holder() {
+            if (event)
+                delete event;
+            event = nullptr;
+        }
+    };
+
     ValueItem* __async_notify(ValueItem* vals, uint32_t) {
-        EventSystem* es = (EventSystem*)vals->val;
+        typed_lgr<EventSystem> es = *CXX::Interface::getExtractAsStatic<event_ref_holder>(*vals).event;
         ValueItem& args = vals[1];
         if (es->sync_call(es->heigh_priority, args))
             return new ValueItem(true);
@@ -253,8 +298,32 @@ namespace art {
 
     art::shared_ptr<FuncEnvironment>& _async_notify = attacha_environment::create_fun_env(new FuncEnvironment(__async_notify, false, false));
 
-    art::typed_lgr<Task> EventSystem::async_notify(ValueItem& args) {
-        art::typed_lgr<Task> res = new Task(_async_notify, ValueItem{ValueItem(this, VType::undefined_ptr), args});
+    void init_event_ref_holder() {
+        static std::atomic_bool inited = false;
+        if (!inited.exchange(true)) {
+            CXX::Interface::typeVTable<event_ref_holder>() = CXX::Interface::createProxyTable<event_ref_holder>("event_ref_holder");
+        }
+    }
+
+    art::typed_lgr<Task> EventSystem::async_notify(typed_lgr<EventSystem>& self, const ValueItem& args) {
+        return async_notify(self, ValueItem(args));
+    }
+
+    art::typed_lgr<Task> EventSystem::async_notify(typed_lgr<EventSystem>& self, ValueItem&& args) {
+        init_event_ref_holder();
+        art::typed_lgr<Task> res = new Task(
+            _async_notify,
+            ValueItem{
+                ValueItem(
+                    CXX::Interface::constructStructure<event_ref_holder>(
+                        (AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<event_ref_holder>(),
+                        self
+                    ),
+                    no_copy
+                ),
+                std::move(args)
+            }
+        );
         Task::start(res);
         return res;
     }

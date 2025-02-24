@@ -293,7 +293,10 @@ namespace language_parsers {
     patch_list precompiled::handle_renamed(const ustring& old, files::FileHandle& file) {
         {
             lock_guard guard(mutex);
-            declared_functions[file.get_path()] = declared_functions[old];
+            declared_functions.insert_or_assign(file.get_path(), std::move(declared_functions.at(file.get_path())));
+            declared_functions.erase(old);
+            declared_types.insert_or_assign(file.get_path(), std::move(declared_types.at(file.get_path())));
+            declared_types.erase(old);
         }
         return handle_init(file);
     }

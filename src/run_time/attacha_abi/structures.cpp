@@ -1358,7 +1358,7 @@ namespace art {
         case VTableMode::AttachAVirtualTable: {
             auto table = (AttachAVirtualTable*)vtable;
             if (table->destructor) {
-                ValueItem item(this, as_reference);
+                ValueItem item(*this, as_reference);
                 item.meta.as_ref = true;
                 table->destructor(&item, 1);
             }
@@ -1371,7 +1371,7 @@ namespace art {
         case VTableMode::AttachADynamicVirtualTable: {
             auto table = (AttachADynamicVirtualTable*)vtable;
             if (table->destructor) {
-                ValueItem item(this, as_reference);
+                ValueItem item(*this, as_reference);
                 item.meta.as_ref = true;
                 art::CXX::cxxCall(table->destructor, item);
             }
@@ -1561,7 +1561,7 @@ namespace art {
         switch (structure->vtable_mode) {
         case VTableMode::AttachAVirtualTable:
             if (((AttachAVirtualTable*)structure->vtable)->destructor) {
-                ValueItem item(structure, as_reference);
+                ValueItem item(*structure, as_reference);
                 ((AttachAVirtualTable*)structure->vtable)->destructor(&item, 1);
                 size_t table_size = 0;
                 ValueInfo* value_table = ((AttachAVirtualTable*)structure->vtable)->getValuesInfo(table_size);
@@ -1571,7 +1571,7 @@ namespace art {
             break;
         case VTableMode::AttachADynamicVirtualTable:
             if (((AttachADynamicVirtualTable*)structure->vtable)->destructor) {
-                ValueItem item(structure, as_reference);
+                ValueItem item(*structure, as_reference);
                 art::CXX::cxxCall(((AttachADynamicVirtualTable*)structure->vtable)->destructor, item);
                 size_t table_size = 0;
                 ValueInfo* value_table = ((AttachADynamicVirtualTable*)structure->vtable)->getValuesInfo(table_size);
@@ -1682,7 +1682,7 @@ namespace art {
         case VTableMode::AttachAVirtualTable: {
             auto* table = reinterpret_cast<AttachAVirtualTable*>(vtable);
             if (table->copy) {
-                art::CXX::cxxCall(table->copy, ValueItem(dst, as_reference), ValueItem(src, as_reference), true);
+                art::CXX::cxxCall(table->copy, ValueItem(*dst, as_reference), ValueItem(*src, as_reference), true);
             } else if (table->allow_auto_copy) {
                 size_t table_size = 0;
                 ValueInfo* value_table = table->getValuesInfo(table_size);
@@ -1694,7 +1694,7 @@ namespace art {
         case VTableMode::AttachADynamicVirtualTable: {
             auto* table = reinterpret_cast<AttachADynamicVirtualTable*>(vtable);
             if (table->copy) {
-                art::CXX::cxxCall(table->copy, ValueItem(dst, as_reference), ValueItem(src, as_reference), true);
+                art::CXX::cxxCall(table->copy, ValueItem(*dst, as_reference), ValueItem(*src, as_reference), true);
             } else if (table->allow_auto_copy) {
                 size_t table_size = 0;
                 ValueInfo* value_table = table->getValuesInfo(table_size);

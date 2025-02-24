@@ -8,6 +8,7 @@
 #define INCLUDE_ATTACHA_RUN_TIME
 #include <base/run_time.hpp>
 #include <run_time/AttachA_CXX.hpp>
+#include <run_time/asm/attacha_environment.hpp>
 #include <run_time/standard_lib.hpp>
 
 

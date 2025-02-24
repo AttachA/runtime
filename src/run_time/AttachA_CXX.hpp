@@ -35,7 +35,10 @@ namespace art {
                 if (args.meta.vtype != VType::noting)
                     copyArgs = ValueItem(&args, 1, as_reference);
             }
-            return aCall(func, (ValueItem*)copyArgs.val, copyArgs.meta.val_len);
+            if (copyArgs.meta.val_len)
+                return aCall(func, (ValueItem*)copyArgs.val, copyArgs.meta.val_len);
+            else
+                return aCall(func, nullptr, 0);
         }
 
         inline ValueItem aCall(Environment func, ValueItem* args, uint32_t len) {
@@ -58,7 +61,10 @@ namespace art {
                 if (args.meta.vtype != VType::noting)
                     copyArgs = ValueItem(&args, 1, as_reference);
             }
-            return aCall(func, (ValueItem*)copyArgs.val, copyArgs.meta.val_len);
+            if (copyArgs.meta.val_len)
+                return aCall(func, (ValueItem*)copyArgs.val, copyArgs.meta.val_len);
+            else
+                return aCall(func, nullptr, 0);
         }
 
         template <class... Types>
@@ -193,7 +199,7 @@ namespace art {
 
             template <class... Types>
             ValueItem makeCall(ClassAccess access, Structure& c, const art::ustring& fun_name, const Types&... types) {
-                ValueItem args[] = {ValueItem(&c, as_reference), ABI_IMPL::BVcast(types)...};
+                ValueItem args[] = {ValueItem(c, as_reference), ABI_IMPL::BVcast(types)...};
                 ValueItem* res = c.table_get_dynamic(fun_name, access)(args, sizeof...(Types) + 1);
                 if (res == nullptr)
                     return {};
@@ -760,26 +766,22 @@ namespace art {
 
                 template <class Class_>
                 static art::shared_ptr<FuncEnvironment> ref_destructor() {
-                    static art::shared_ptr<FuncEnvironment> ref = _createProxyTable_Impl_::destructor<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::destructor<Class_>, false) : nullptr;
-                    return ref;
+                    return _createProxyTable_Impl_::destructor<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::destructor<Class_>, false) : nullptr;
                 }
 
                 template <class Class_>
                 static art::shared_ptr<FuncEnvironment> ref_copy() {
-                    static art::shared_ptr<FuncEnvironment> ref = _createProxyTable_Impl_::copy<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::copy<Class_>, false) : nullptr;
-                    return ref;
+                    return _createProxyTable_Impl_::copy<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::copy<Class_>, false) : nullptr;
                 }
 
                 template <class Class_>
                 static art::shared_ptr<FuncEnvironment> ref_move() {
-                    static art::shared_ptr<FuncEnvironment> ref = _createProxyTable_Impl_::move<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::move<Class_>, false) : nullptr;
-                    return ref;
+                    return _createProxyTable_Impl_::move<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::move<Class_>, false) : nullptr;
                 }
 
                 template <class Class_>
                 static art::shared_ptr<FuncEnvironment> ref_compare() {
-                    static art::shared_ptr<FuncEnvironment> ref = _createProxyTable_Impl_::compare<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::compare<Class_>, false) : nullptr;
-                    return ref;
+                    return _createProxyTable_Impl_::compare<Class_> ? new FuncEnvironment(_createProxyTable_Impl_::compare<Class_>, false) : nullptr;
                 }
             }
 

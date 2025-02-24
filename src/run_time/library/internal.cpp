@@ -1911,6 +1911,18 @@ namespace art {
                     is_init = true;
                 }
             }
+
+            void must_init() {
+                static bool is_init = false;
+                if (is_init)
+                    return;
+                is_init = true;
+                attacha_environment::get_value({"run_time", "event", "unhandled_exception"}) = ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), new EventSystem()), no_copy);
+                attacha_environment::get_value({"run_time", "event", "ex_fault"}) = ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), new EventSystem()), no_copy);
+                attacha_environment::get_value({"run_time", "event", "error"}) = ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), new EventSystem()), no_copy);
+                attacha_environment::get_value({"run_time", "event", "warning"}) = ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), new EventSystem()), no_copy);
+                attacha_environment::get_value({"run_time", "event", "info"}) = ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), new EventSystem()), no_copy);
+            }
         }
 
         namespace constructor {

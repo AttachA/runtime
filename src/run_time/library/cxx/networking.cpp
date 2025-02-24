@@ -1456,9 +1456,9 @@ namespace art {
         if (arg1.meta.vtype == VType::struct_) {
             auto& proxy = (Structure&)args[1];
             if (proxy.vtable) {
-                if (proxy.vtable == CXX::Interface::typeVTable<typed_lgr<art::files::FileHandle>>())
+                if (proxy.vtable == CXX::Interface::typeVTableReadOnly<typed_lgr<art::files::FileHandle>>())
                     return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
-                else if (proxy.vtable == CXX::Interface::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
+                else if (proxy.vtable == CXX::Interface::typeVTableReadOnly<typed_lgr<art::files::BlockingFileHandle>>())
                     return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
             }
             throw InvalidArguments("The second argument must be a file handle or a file path.");
@@ -1603,9 +1603,15 @@ namespace art {
                     closesocket(data.socket);
     #ifndef DISABLE_RUNTIME_INFO
                     auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
-                    ValueItem notify{"Client: " + (art::ustring)*tmp + " not accepted due filter"};
+                    ValueItem notify{"Client: " + (art::ustring)*tmp + " is not accepted due filter"};
                     delete tmp;
-                    info.async_notify(notify);
+                    CXX::Interface::makeCall(
+                        ClassAccess::pub,
+                        attacha_environment::get_value({"run_time", "event", "info"}),
+                        "async_notify",
+                        "TcpNetworkManager",
+                        std::move(notify)
+                    );
     #endif
                     if (!data.is_bound)
                         delete &data;
@@ -1620,7 +1626,14 @@ namespace art {
                 auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
                 ValueItem notify{"Client connected from: " + (art::ustring)*tmp};
                 delete tmp;
-                info.async_notify(notify);
+
+                CXX::Interface::makeCall(
+                    ClassAccess::pub,
+                    attacha_environment::get_value({"run_time", "event", "info"}),
+                    "async_notify",
+                    "TcpNetworkManager",
+                    std::move(notify)
+                );
             }
     #endif
             setsockopt(data.socket, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, (char*)&main_socket, sizeof(main_socket));
@@ -1630,9 +1643,9 @@ namespace art {
                     closesocket(data.socket);
     #ifndef DISABLE_RUNTIME_INFO
                     auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
-                    ValueItem notify{"Client: " + (art::ustring)*tmp + " not accepted because register handle failed " + std::to_string(data.socket)};
+                    ValueItem notify{"Client: " + (art::ustring)*tmp + " is not accepted because register handle failed " + std::to_string(data.socket)};
                     delete tmp;
-                    info.sync_notify(notify);
+                    CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "info"}))->sync_notify(notify);
     #endif
                     if (!data.is_bound)
                         delete &data;
@@ -1650,109 +1663,115 @@ namespace art {
         }
 
         void make_socket() {
+            auto error_ = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "error"}));
             main_socket = WSASocketW(AF_INET6, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED);
             if (main_socket == INVALID_SOCKET) {
-                ValueItem error = art::ustring("Failed create socket: ") + std::to_string(WSAGetLastError());
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to create socket: ") + std::to_string(WSAGetLastError());
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             DWORD argp = 1; //non blocking
             int result = setsockopt(main_socket, SOL_SOCKET, SO_REUSEADDR, (char*)&argp, sizeof(argp));
             if (result == SOCKET_ERROR) {
-                ValueItem error = art::ustring("Failed set reuse addr: ") + std::to_string(WSAGetLastError());
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set reuse addr: ") + std::to_string(WSAGetLastError());
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             if (ioctlsocket(main_socket, FIONBIO, &argp) == SOCKET_ERROR) {
-                ValueItem error = art::ustring("Failed set no block mode: ") + std::to_string(WSAGetLastError());
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set no block mode: ") + std::to_string(WSAGetLastError());
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             int cfg = !config.allow_ip4;
             if (setsockopt(main_socket, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set dual mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set dual mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = !config.enable_timestamps;
             if (setsockopt(main_socket, IPPROTO_TCP, TCP_TIMESTAMPS, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set timestamps mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set timestamps mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = !config.enable_delay;
             if (setsockopt(main_socket, IPPROTO_TCP, TCP_NODELAY, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set delay mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set delay mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.fast_open_queue;
             if (setsockopt(main_socket, IPPROTO_TCP, TCP_FASTOPEN, (char*)&cfg, sizeof(cfg))) {
-                ValueItem warn = art::ustring("Failed set fast open settings for server (") + std::to_string(errno) + "), continue regular mode";
-                warning.async_notify(warn);
+                CXX::Interface::makeCall(
+                    ClassAccess::pub,
+                    attacha_environment::get_value({"run_time", "event", "warning"}),
+                    "async_notify",
+                    "TcpNetworkManager",
+                    art::ustring("Failed to set fast open settings for server (") + std::to_string(errno) + "), continue in the regular mode"
+                );
             }
             cfg = config.recv_timeout_ms;
             if (setsockopt(main_socket, SOL_SOCKET, SO_RCVTIMEO, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.send_timeout_ms;
             if (setsockopt(main_socket, SOL_SOCKET, SO_SNDTIMEO, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.enable_keep_alive;
             if (setsockopt(main_socket, SOL_SOCKET, SO_KEEPALIVE, (char*)&cfg, sizeof(cfg)) == -1) {
                 ValueItem error = art::ustring("Failed to enable keep alive: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             if (config.enable_keep_alive) {
                 int cfg = config.keep_alive_settings.idle_ms;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_KEEPIDLE, (char*)&cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep idle: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep idle: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.interval_ms;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_KEEPINTVL, (char*)&cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep alive interval: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep alive interval: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.retry_count;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_KEEPCNT, (char*)&cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep alive retry count: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep alive retry count: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
     #ifdef TCP_MAXRTMS
                 cfg = config.keep_alive_settings.user_timeout_ms;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_MAXRTMS, (char*)&cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set user timeout: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
     #else
                 cfg = config.keep_alive_settings.user_timeout_ms / 1000;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_MAXRT, (char*)&cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set user timeout: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
@@ -1761,21 +1780,21 @@ namespace art {
 
             init_win_fns(main_socket);
             if (bind(main_socket, (sockaddr*)&connectionAddress, sizeof(sockaddr_in6)) == SOCKET_ERROR) {
-                ValueItem error = art::ustring("Failed bind: ") + std::to_string(WSAGetLastError());
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to bind: ") + std::to_string(WSAGetLastError());
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             if (!NativeWorkersSingleton::register_handle((HANDLE)main_socket, this)) {
-                ValueItem error = art::ustring("Failed register handle: ") + std::to_string(GetLastError());
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to register handle: ") + std::to_string(GetLastError());
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             if (listen(main_socket, SOMAXCONN) == SOCKET_ERROR) {
                 WSACleanup();
-                ValueItem error = art::ustring("Failed start handle: ") + std::to_string(GetLastError());
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to start handle: ") + std::to_string(GetLastError());
+                error_->sync_notify(error);
                 corrupted = true;
             }
         }
@@ -1799,10 +1818,13 @@ namespace art {
                 data.handle(dwBytesTransferred);
             else {
     #ifndef DISABLE_RUNTIME_INFO
-                {
-                    ValueItem notify{"Client disconnected (client hash: " + std::to_string(art::hash<void*>()(overlapped)) + ')'};
-                    info.async_notify(notify);
-                }
+                CXX::Interface::makeCall(
+                    ClassAccess::pub,
+                    attacha_environment::get_value({"run_time", "event", "info"}),
+                    "async_notify",
+                    "TcpNetworkManager",
+                    "Client disconnected (client hash: " + std::to_string(art::hash<void*>()(overlapped)) + ')'
+                );
     #endif
                 data.connection_reset();
             }
@@ -1954,84 +1976,86 @@ namespace art {
         bool corrupted = false;
 
         void set_configuration(SOCKET sock, const TcpConfiguration& config) {
+            auto error_ = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "error"}));
+
             int cfg = !config.allow_ip4;
 
             if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set timestamps mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set timestamps mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = !config.enable_timestamps;
             if (setsockopt(sock, IPPROTO_TCP, TCP_TIMESTAMPS, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set timestamps mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set timestamps mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = !config.enable_delay;
             if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set delay mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set delay mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.recv_timeout_ms;
             if (setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.send_timeout_ms;
             if (setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.enable_keep_alive;
             if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, (char*)&cfg, sizeof(cfg)) == -1) {
                 ValueItem error = art::ustring("Failed to enable keep alive: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             if (config.enable_keep_alive) {
                 int cfg = config.keep_alive_settings.idle_ms;
                 if (setsockopt(sock, IPPROTO_TCP, TCP_KEEPIDLE, (char*)&cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep idle: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep idle: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.interval_ms;
                 if (setsockopt(sock, IPPROTO_TCP, TCP_KEEPINTVL, (char*)&cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep alive interval: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep alive interval: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.retry_count;
                 if (setsockopt(sock, IPPROTO_TCP, TCP_KEEPCNT, (char*)&cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep alive count: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep alive count: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
     #ifdef TCP_MAXRTMS
                 cfg = config.keep_alive_settings.user_timeout_ms;
                 if (setsockopt(sock, IPPROTO_TCP, TCP_MAXRTMS, (char*)&cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set user timeout: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
     #else
                 cfg = config.keep_alive_settings.user_timeout_ms / 1000;
                 if (setsockopt(sock, IPPROTO_TCP, TCP_MAXRT, (char*)&cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set user timeout: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
@@ -2039,8 +2063,8 @@ namespace art {
             }
             DWORD argp = 1;
             if (ioctlsocket(sock, FIONBIO, &argp) == SOCKET_ERROR) {
-                ValueItem error = art::ustring("Failed set no block mode: ") + std::to_string(WSAGetLastError());
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set no block mode: ") + std::to_string(WSAGetLastError());
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
@@ -2105,8 +2129,9 @@ namespace art {
             }
             int cfg = !config.enable_delay;
             if (setsockopt(clientSocket, IPPROTO_TCP, TCP_FASTOPEN, (char*)&cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set delay mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                auto error_ = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "error"}));
+                ValueItem error = art::ustring("Failed to set delay mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 closesocket(clientSocket);
                 return;
@@ -3399,9 +3424,9 @@ namespace art {
         if (arg1.meta.vtype == VType::struct_) {
             auto& proxy = (Structure&)args[1];
             if (proxy.vtable) {
-                if (proxy.vtable == CXX::Interface::typeVTable<typed_lgr<art::files::FileHandle>>())
+                if (proxy.vtable == CXX::Interface::typeVTableReadOnly<typed_lgr<art::files::FileHandle>>())
                     return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::FileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
-                else if (proxy.vtable == CXX::Interface::typeVTable<typed_lgr<art::files::BlockingFileHandle>>())
+                else if (proxy.vtable == CXX::Interface::typeVTableReadOnly<typed_lgr<art::files::BlockingFileHandle>>())
                     return CXX::Interface::getExtractAs<TcpNetworkBlockingImpl>(args[0], define_TcpNetworkBlocking).write_file((*(typed_lgr<art::files::BlockingFileHandle>*)proxy.self)->internal_get_handle(), data_len, offset, chunks_size);
             }
             throw InvalidArguments("The second argument must be a file handle or a file path.");
@@ -3536,9 +3561,16 @@ namespace art {
                     close(client_socket);
     #ifndef DISABLE_RUNTIME_INFO
                     auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
-                    ValueItem notify{"Client: " + (art::ustring)*tmp + " not accepted due filter"};
+                    ValueItem notify{"Client: " + (art::ustring)*tmp + " is not accepted due filter"};
                     delete tmp;
-                    info.async_notify(notify);
+
+                    CXX::Interface::makeCall(
+                        ClassAccess::pub,
+                        attacha_environment::get_value({"run_time", "event", "info"}),
+                        "async_notify",
+                        "TcpNetworkManager",
+                        std::move(notify)
+                    );
     #endif
                     return;
                 }
@@ -3550,7 +3582,10 @@ namespace art {
                 auto tmp = UniversalAddress::_define_to_string(&clientAddress, 1);
                 ValueItem notify{"Client connected from: " + (art::ustring)*tmp};
                 delete tmp;
-                info.async_notify(notify);
+                EventSystem::async_notify(
+                    CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "info"})),
+                    std::move(notify)
+                );
             }
     #endif
             if (data.is_bound)
@@ -3563,23 +3598,24 @@ namespace art {
         }
 
         void make_socket() {
+            auto error_ = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "error"}));
             main_socket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
             if (main_socket == INVALID_SOCKET) {
-                ValueItem error = art::ustring("Failed create socket: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to create socket: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             int argp = 1;
             if (setsockopt(main_socket, SOL_SOCKET, SO_REUSEADDR, &argp, sizeof(argp)) == -1) {
-                ValueItem error = art::ustring("Failed set reuse addr: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set reuse addr: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             if (setsockopt(main_socket, SOL_SOCKET, SO_REUSEPORT, &argp, sizeof(argp)) == -1) {
-                ValueItem error = art::ustring("Failed set reuse port: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set reuse port: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
@@ -3587,95 +3623,100 @@ namespace art {
 
             int cfg = !config.allow_ip4;
             if (setsockopt(main_socket, IPPROTO_IPV6, IPV6_V6ONLY, &cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set dual mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set dual mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = !config.enable_timestamps;
             if (setsockopt(main_socket, IPPROTO_TCP, TCP_TIMESTAMP, &cfg, sizeof(cfg)) == -1) {
                 if (errno != 1) {
-                    ValueItem error = art::ustring("Failed set timestamps mode: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set timestamps mode: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
             }
             cfg = !config.enable_delay;
             if (setsockopt(main_socket, IPPROTO_TCP, TCP_NODELAY, &cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set delay mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set delay mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.fast_open_queue;
             if (setsockopt(main_socket, IPPROTO_TCP, TCP_FASTOPEN, &cfg, sizeof(cfg))) {
-                ValueItem warn = art::ustring("Failed set fast open settings for server (") + std::to_string(errno) + "), continue regular mode";
-                warning.async_notify(warn);
+                CXX::Interface::makeCall(
+                    ClassAccess::pub,
+                    attacha_environment::get_value({"run_time", "event", "warning"}),
+                    "async_notify",
+                    "TcpNetworkManager",
+                    art::ustring("Failed to set fast open settings for server (") + std::to_string(errno) + "), continue in the regular mode"
+                );
             }
             struct timeval cfgt = {};
             cfgt.tv_sec = config.recv_timeout_ms / 1000;
             cfgt.tv_usec = (config.recv_timeout_ms % 1000) * 1000;
             if (setsockopt(main_socket, SOL_SOCKET, SO_RCVTIMEO, &cfgt, sizeof(cfgt)) == -1) {
-                ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfgt.tv_sec = config.send_timeout_ms / 1000;
             cfgt.tv_usec = (config.send_timeout_ms % 1000) * 1000;
             if (setsockopt(main_socket, SOL_SOCKET, SO_SNDTIMEO, &cfgt, sizeof(cfgt)) == -1) {
-                ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.enable_keep_alive;
             if (setsockopt(main_socket, SOL_SOCKET, SO_KEEPALIVE, &cfg, sizeof(cfg)) == -1) {
                 ValueItem error = art::ustring("Failed to enable keep alive: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             if (config.enable_keep_alive) {
                 int cfg = config.keep_alive_settings.idle_ms;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_KEEPIDLE, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep idle: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep idle: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.interval_ms;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_KEEPINTVL, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep alive interval: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep alive interval: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.retry_count;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_KEEPCNT, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep alive retry count: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep alive retry count: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.user_timeout_ms;
                 if (setsockopt(main_socket, IPPROTO_TCP, TCP_USER_TIMEOUT, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set user timeout: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
             }
             if (bind(main_socket, (sockaddr*)&connectionAddress, sizeof(sockaddr_in6)) == -1) {
-                ValueItem error = art::ustring("Failed bind: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to bind: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             if (listen(main_socket, SOMAXCONN) == -1) {
-                ValueItem error = art::ustring("Failed bind: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to bind: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
@@ -3863,6 +3904,7 @@ namespace art {
 
         TcpClientManager(sockaddr_in6& _connectionAddress, const TcpConfiguration& config)
             : connectionAddress(_connectionAddress) {
+            auto error_ = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "error"}));
             SOCKET clientSocket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
             if (clientSocket == INVALID_SOCKET) {
                 corrupted = true;
@@ -3870,59 +3912,59 @@ namespace art {
             }
             int cfg = config.recv_timeout_ms;
             if (setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, &cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.connection_timeout_ms ? config.connection_timeout_ms : config.recv_timeout_ms;
             if (setsockopt(clientSocket, SOL_SOCKET, SO_SNDTIMEO, &cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.enable_keep_alive;
             if (setsockopt(clientSocket, SOL_SOCKET, SO_KEEPALIVE, &cfg, sizeof(cfg)) == -1) {
                 ValueItem error = art::ustring("Failed to enable keep alive: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             if (config.enable_keep_alive) {
                 int cfg = config.keep_alive_settings.idle_ms;
                 if (setsockopt(clientSocket, IPPROTO_TCP, TCP_KEEPIDLE, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep idle: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep idle: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.interval_ms;
                 if (setsockopt(clientSocket, IPPROTO_TCP, TCP_KEEPINTVL, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep alive interval: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep alive interval: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.retry_count;
                 if (setsockopt(clientSocket, IPPROTO_TCP, TCP_KEEPCNT, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep alive count: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep alive count: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.user_timeout_ms;
                 if (setsockopt(clientSocket, IPPROTO_TCP, TCP_USER_TIMEOUT, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set user timeout: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
             }
             int argp = 1;
             if (ioctl(clientSocket, FIONBIO, &argp) == -1) {
-                ValueItem error = art::ustring("Failed set no block mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set no block mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
@@ -3940,8 +3982,8 @@ namespace art {
                 _handle->cv.wait(lock);
             cfg = config.send_timeout_ms;
             if (setsockopt(clientSocket, IPPROTO_TCP, SO_SNDTIMEO, &cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set user timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
@@ -3949,6 +3991,7 @@ namespace art {
 
         TcpClientManager(sockaddr_in6& _connectionAddress, char* data, uint32_t len, const TcpConfiguration& config)
             : connectionAddress(_connectionAddress), _handle(nullptr) {
+            auto error_ = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "error"}));
             SOCKET clientSocket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
             if (clientSocket == INVALID_SOCKET) {
                 corrupted = true;
@@ -3957,58 +4000,58 @@ namespace art {
             int argp = 1;
             int cfg = config.recv_timeout_ms;
             if (setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, &cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.send_timeout_ms;
             if (setsockopt(clientSocket, SOL_SOCKET, SO_SNDTIMEO, &cfg, sizeof(cfg)) == -1) {
-                ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             cfg = config.enable_keep_alive;
             if (setsockopt(clientSocket, SOL_SOCKET, SO_KEEPALIVE, &cfg, sizeof(cfg)) == -1) {
                 ValueItem error = art::ustring("Failed to enable keep alive: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
             if (config.enable_keep_alive) {
                 int cfg = config.keep_alive_settings.idle_ms;
                 if (setsockopt(clientSocket, IPPROTO_TCP, TCP_KEEPIDLE, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep idle: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep idle: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.interval_ms;
                 if (setsockopt(clientSocket, IPPROTO_TCP, TCP_KEEPINTVL, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep alive interval: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep alive interval: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.retry_count;
                 if (setsockopt(clientSocket, IPPROTO_TCP, TCP_KEEPCNT, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set keep alive count: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set keep alive count: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.keep_alive_settings.user_timeout_ms;
                 if (setsockopt(clientSocket, IPPROTO_TCP, TCP_USER_TIMEOUT, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set user timeout: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
             }
             if (ioctl(clientSocket, FIONBIO, &argp) == -1) {
-                ValueItem error = art::ustring("Failed set no block mode: ") + std::to_string(errno);
-                errors.sync_notify(error);
+                ValueItem error = art::ustring("Failed to set no block mode: ") + std::to_string(errno);
+                error_->sync_notify(error);
                 corrupted = true;
                 return;
             }
@@ -4041,57 +4084,58 @@ namespace art {
         }
 
         void set_configuration(const TcpConfiguration& config) {
+            auto error_ = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "error"}));
             if (corrupted)
                 throw std::runtime_error("TcpClientManager::set_configuration, corrupted");
             if (_handle) {
                 SOCKET clientSocket = _handle->socket;
                 int cfg = config.recv_timeout_ms;
                 if (setsockopt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.send_timeout_ms;
                 if (setsockopt(clientSocket, SOL_SOCKET, SO_SNDTIMEO, &cfg, sizeof(cfg)) == -1) {
-                    ValueItem error = art::ustring("Failed set recv timeout: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    ValueItem error = art::ustring("Failed to set recv timeout: ") + std::to_string(errno);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 cfg = config.enable_keep_alive;
                 if (setsockopt(clientSocket, SOL_SOCKET, SO_KEEPALIVE, &cfg, sizeof(cfg)) == -1) {
                     ValueItem error = art::ustring("Failed to enable keep alive: ") + std::to_string(errno);
-                    errors.sync_notify(error);
+                    error_->sync_notify(error);
                     corrupted = true;
                     return;
                 }
                 if (config.enable_keep_alive) {
                     int cfg = config.keep_alive_settings.idle_ms;
                     if (setsockopt(clientSocket, IPPROTO_TCP, TCP_KEEPIDLE, &cfg, sizeof(cfg)) == -1) {
-                        ValueItem error = art::ustring("Failed set keep idle: ") + std::to_string(errno);
-                        errors.sync_notify(error);
+                        ValueItem error = art::ustring("Failed to set keep idle: ") + std::to_string(errno);
+                        error_->sync_notify(error);
                         corrupted = true;
                         return;
                     }
                     cfg = config.keep_alive_settings.interval_ms;
                     if (setsockopt(clientSocket, IPPROTO_TCP, TCP_KEEPINTVL, &cfg, sizeof(cfg)) == -1) {
-                        ValueItem error = art::ustring("Failed set keep alive interval: ") + std::to_string(errno);
-                        errors.sync_notify(error);
+                        ValueItem error = art::ustring("Failed to set keep alive interval: ") + std::to_string(errno);
+                        error_->sync_notify(error);
                         corrupted = true;
                         return;
                     }
                     cfg = config.keep_alive_settings.retry_count;
                     if (setsockopt(clientSocket, IPPROTO_TCP, TCP_KEEPCNT, &cfg, sizeof(cfg)) == -1) {
-                        ValueItem error = art::ustring("Failed set keep alive count: ") + std::to_string(errno);
-                        errors.sync_notify(error);
+                        ValueItem error = art::ustring("Failed to set keep alive count: ") + std::to_string(errno);
+                        error_->sync_notify(error);
                         corrupted = true;
                         return;
                     }
                     cfg = config.keep_alive_settings.user_timeout_ms;
                     if (setsockopt(clientSocket, IPPROTO_TCP, TCP_USER_TIMEOUT, &cfg, sizeof(cfg)) == -1) {
-                        ValueItem error = art::ustring("Failed set user timeout: ") + std::to_string(errno);
-                        errors.sync_notify(error);
+                        ValueItem error = art::ustring("Failed to set user timeout: ") + std::to_string(errno);
+                        error_->sync_notify(error);
                         corrupted = true;
                         return;
                     }

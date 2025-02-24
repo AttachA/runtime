@@ -4,8 +4,8 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#ifndef SRC_RUN_TIME_EXCEPTIONS
-#define SRC_RUN_TIME_EXCEPTIONS
+#ifndef SRC_UTIL_EXCEPTIONS
+#define SRC_UTIL_EXCEPTIONS
 
 #include <exception>
 #include <string>
@@ -31,8 +31,7 @@ namespace art {
             message = "";
         }
 
-        AttachARuntimeException(const art::ustring& msq)
-            : message(msq) {}
+        AttachARuntimeException(const art::ustring& msq);
 
         AttachARuntimeException(const art::ustring& msq, std::exception_ptr inner_exception)
             : inner_exception(inner_exception), message(msq) {}
@@ -613,6 +612,19 @@ namespace art {
         }
     };
 
+    class InvalidSyntaxException : public InvalidEncodingException {
+    public:
+        InvalidSyntaxException(const art::ustring& msq)
+            : InvalidEncodingException(msq) {}
+
+        InvalidSyntaxException(const art::ustring& msq, std::exception_ptr inner_exception)
+            : InvalidEncodingException(msq, inner_exception) {}
+
+        const char* name() const override {
+            return "invalid_syntax_exception";
+        }
+    };
+
 #pragma endregion
 
 
@@ -729,4 +741,4 @@ namespace art {
 }
 
 
-#endif /* SRC_RUN_TIME_EXCEPTIONS */
+#endif /* SRC_UTIL_EXCEPTIONS */

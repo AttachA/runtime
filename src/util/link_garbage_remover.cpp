@@ -14,12 +14,12 @@ namespace art {
 #if ENABLE_SNAPSHOTS_LGR
     void lgr_join_snapshot(list_array<std::vector<void*>*>* snap_records, std::vector<void*>*& set_current_snap) {
         if (snap_records)
-            snap_records->push_back(set_current_snap = FrameResult::JitCaptureStackChainTrace(8));
+            snap_records->push_back(set_current_snap = new std::vector<void*>(FrameResult::JitCaptureStackChainTrace(5)));
     }
 
     void lgr_exit_snapshot(list_array<std::vector<void*>*>* snap_records, std::vector<void*>*& current_snap) {
         if (snap_records)
-            snap_records->erase(current_snap);
+            snap_records->remove(current_snap);
         if (current_snap) {
             delete current_snap;
             current_snap = nullptr;
@@ -65,7 +65,6 @@ namespace art {
 #endif
 
     void lgr::exit() {
-        lgr_exit_snapshot(snap_records, current_snap);
         if (total == nullptr)
             ;
         else if (!in_safe_depth) {
@@ -92,6 +91,7 @@ namespace art {
         ptr = nullptr;
         total = nullptr;
         weak = nullptr;
+        lgr_exit_snapshot(snap_records, current_snap);
     }
 
     void lgr::join(std::atomic_size_t* p_total_links, std::atomic_size_t* tot_weak snap_rec_lgr_arg) {

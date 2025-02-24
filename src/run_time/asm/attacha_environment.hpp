@@ -10,6 +10,7 @@
 #include <run_time/tasks.hpp>
 #include <run_time/types_global.hpp>
 #include <run_time/values_global.hpp>
+
 namespace art {
 
 
@@ -47,7 +48,6 @@ namespace art {
                                                 art::hash<art::ustring>>> {
         };
 
-
         struct code_gen_handle {
             TaskMutex frame_symbols_lock;
             FrameSymbols frame_symbols;
@@ -60,8 +60,8 @@ namespace art {
         TaskRecursiveMutex mutex;
         typed_lgr<values_global> _value_global;
         typed_lgr<types_global> _types_global;
-        function_globals_handle function_globals;
-        code_gen_handle code_gen;
+        typed_lgr<function_globals_handle> function_globals;
+        typed_lgr<code_gen_handle> code_gen;
         static attacha_environment self;
         attacha_environment() = default;
 
@@ -70,6 +70,7 @@ namespace art {
         static typed_lgr<values_global> get_value_globals();
         static typed_lgr<types_global> get_types_global();
         static code_gen_handle& get_code_gen();
+        static void clean_up();
 
 
         static ValueItem* find_global_value(const art::ustring& str);

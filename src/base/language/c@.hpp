@@ -13,6 +13,7 @@ namespace language_parsers {
     class c_async : public art::language::helpers::text_language_handler {
     public:
         c_async();
+        static void init();
     };
 }
 

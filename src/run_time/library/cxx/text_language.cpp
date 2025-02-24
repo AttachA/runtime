@@ -5,7 +5,9 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <run_time/library/cxx/language.hpp>
+#include <run_time/tasks.hpp>
 #include <sstream>
+#include <utf8.h>
 #include <util/exceptions.hpp>
 
 namespace art {
@@ -76,113 +78,293 @@ namespace art {
                 result.insert('$');
                 return result;
             }();
+
+            std::unordered_set<char> allowed_declaration_symbol_symbols = [] {
+                std::unordered_set<char> result;
+                for (char c = 'a'; c <= 'z'; c++)
+                    result.insert(c);
+                for (char c = 'A'; c <= 'Z'; c++)
+                    result.insert(c);
+                for (char c = '0'; c <= '9'; c++)
+                    result.insert(c);
+                result.insert('_');
+                result.insert('-');
+                result.insert('.');
+                return result;
+            }();
             std::unordered_set<char> disabled_declaration_symbols_in_header = [] {
                 std::unordered_set<char> result;
                 result.insert('@');
-                result.insert('#'); //processed by parser
                 result.insert('^');
                 result.insert('$');
                 return result;
             }();
 
-            std::unordered_set<char> allowed_space_symbols = {' ', '\t'};
+            std::unordered_set<char> allowed_space_symbols = {' ', '\t', '\r'};
+
+            bool get_boolean(std::string_view& token_declaration) {
+                if (token_declaration.starts_with(' '))
+                    token_declaration = token_declaration.substr(1);
+                if (token_declaration == std::string_view("true"))
+                    return true;
+                return false;
+            }
+
+            std::string get_chars_process_slash(char ch) {
+                std::string res;
+                switch (ch) {
+                case '\\':
+                    res += '\\';
+                    break;
+                case 'a':
+                    res += '\a';
+                    break;
+                case 'b':
+                    res += '\b';
+                    break;
+                case 'n':
+                    res += '\n';
+                    break;
+                case 'r':
+                    res += '\r';
+                    break;
+                case 't':
+                    res += '\t';
+                    break;
+                case 'e':
+                    res += char(101);
+                    break;
+                case 'p':
+                    res += char(112);
+                    break;
+                case 'f':
+                    res += '\f';
+                    break;
+                case 'v':
+                    res += '\v';
+                    break;
+                case 'B': {
+                    for (char c = 'A'; c <= 'Z'; c++)
+                        res += c;
+                    break;
+                }
+                case 'L': {
+                    for (char c = 'a'; c <= 'z'; c++)
+                        res += c;
+                    break;
+                }
+                case 'C': {
+                    for (char c = 'a'; c <= 'z'; c++)
+                        res += c;
+                    for (char c = 'A'; c <= 'Z'; c++)
+                        res += c;
+                    break;
+                }
+                case 'N': {
+                    for (char c = '0'; c <= '9'; c++)
+                        res += c;
+                    break;
+                }
+                case 'S': {
+                    for (char c = '0'; c <= '9'; c++)
+                        res += c;
+                    for (char c = 'a'; c <= 'z'; c++)
+                        res += c;
+                    for (char c = 'A'; c <= 'Z'; c++)
+                        res += c;
+                    break;
+                }
+                default:
+                    res += '\\';
+                    res += ch;
+                }
+                return res;
+            }
+
+            std::string get_chars(std::string_view& token_declaration) {
+                bool as_array = false;
+                bool slash = false;
+                bool string_completed = false;
+                std::string res;
+                size_t count = 0;
+                if (token_declaration.starts_with(' '))
+                    token_declaration = token_declaration.substr(1);
+                if (token_declaration.starts_with('[')) {
+                    token_declaration = token_declaration.substr(1);
+                    as_array = true;
+                }
+                if (as_array) {
+                    for (auto ch : token_declaration) {
+                        count++;
+                        if (slash) {
+                            res += get_chars_process_slash(ch);
+                            slash = false;
+                        } else if (ch == '\\')
+                            slash = true;
+                        else if (ch == ']') {
+                            string_completed = true;
+                            break;
+                        } else
+                            res += ch;
+                    }
+                } else {
+                    for (auto ch : token_declaration) {
+                        count++;
+                        if (slash) {
+                            res += get_chars_process_slash(ch);
+                            break;
+                        } else if (ch == '\\')
+                            slash = true;
+                        else {
+                            res += ch;
+                            break;
+                        }
+                    }
+                    string_completed = true;
+                }
+                if (!string_completed)
+                    throw art::InvalidSyntaxException("Invalid string format");
+                if (slash)
+                    res += '\\';
+                token_declaration = token_declaration.substr(count);
+                return res;
+            }
+
+            list_array<std::string> get_array_of_chars(std::string_view& token_declaration) {
+                if (token_declaration.starts_with(' '))
+                    token_declaration = token_declaration.substr(1);
+                if (token_declaration.starts_with('['))
+                    token_declaration = token_declaration.substr(1);
+                list_array<std::string> result;
+                while (token_declaration.starts_with('[')) {
+                    result.push_back(get_chars(token_declaration));
+                }
+                if (!token_declaration.starts_with(']'))
+                    throw art::InvalidSyntaxException("Invalid array of strings format");
+                return result;
+            }
 
             void text_language_handler::intrinsics_from_token(std::string token_name) {
                 if (in_header_part) {
                     if (token_name == "header_end")
                         in_header_part = false;
                     else if (token_name.starts_with("token#")) {
-                        art::shared_ptr<token_data> token;
-                        token->symbol = token_name.substr(6, token_name.size() - 6);
+                        art::shared_ptr<token_data> token = new token_data();
+                        token->symbol = token_name.substr(6);
                         token->token_name = "token_" + token->symbol;
+                        token->entry_token = true;
                         get_token((std::string_view)token->token_name)->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
                     } else if (token_name.starts_with("tokens#")) {
-                        std::string_view tokens_name = std::string_view(token_name).substr(7, token_name.size() - 7);
+                        std::string_view tokens_name = std::string_view(token_name).substr(7);
                         size_t pos = tokens_name.find('#');
                         do {
                             std::string_view token_name = tokens_name.substr(0, pos);
-                            art::shared_ptr<token_data> token;
+                            art::shared_ptr<token_data> token = new token_data();
                             token->symbol = token_name;
                             token->token_name = "token_" + token->symbol;
+                            token->entry_token = true;
                             get_token((std::string_view)token->token_name)->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
-                            tokens_name = tokens_name.substr(pos + 1, tokens_name.size() - pos - 1);
+                            tokens_name = tokens_name.substr(pos + 1);
                             pos = tokens_name.find('#');
                         } while (pos != std::string::npos);
+                    } else if (token_name.starts_with("value_processing#")) {
+                        auto config = token_name.substr(17);
+                        if (config == "string_escape") {
+                            configure_value_processing(config, "@[\\]");
+                        } else if (config == "decimal_dot") {
+                            configure_value_processing(config, "@[.]");
+                        } else if (config == "string_scope") {
+                            configure_value_processing(config, "@[\"\"\"] $[..] @[\"\"\"]");
+                        } else if (config == "string_line") {
+                            configure_value_processing(config, "@[\"] $[..] @[\"]");
+                        } else if (config == "char") {
+                            configure_value_processing(config, "@['] $[..] @[']");
+                        } else if (config == "hex_number_enable") {
+                            configure_value_processing(config, "");
+                        } else if (config == "octal_number_enable") {
+                            configure_value_processing(config, "");
+                        } else if (config == "binary_number_enable") {
+                            configure_value_processing(config, "");
+                        } else
+                            throw art::InvalidSyntaxException("Invalid value_processing intrinsics: " + config);
                     } else
-                        throw art::InvalidEncodingException("Invalid intrinsics: " + token_name);
+                        throw art::InvalidSyntaxException("Invalid intrinsics: " + token_name);
                 } else
-                    throw art::InvalidEncodingException("Intrinsics is available only in header part, got: " + token_name);
+                    throw art::InvalidSyntaxException("Intrinsics is available only in header part, got: " + token_name);
             }
 
             auto text_language_handler::process_part_item(std::vector<art::shared_ptr<token_data::token_chain>>& selected_tokens, std::string_view& token_declaration) -> art::shared_ptr<token_data::token_chain> {
-                if (auto it = token_declaration.find_first_not_of(' '); it != std::string_view::npos)
-                    token_declaration = token_declaration.substr(it, token_declaration.size() - it);
-
-                if (token_declaration.starts_with('[')) {
-                    token_declaration = token_declaration.substr(1, token_declaration.size() - 1);
-                    return process_part_optional(selected_tokens, token_declaration);
-                } else if (token_declaration.starts_with('{')) {
-                    token_declaration = token_declaration.substr(1, token_declaration.size() - 1);
-                    return process_part_component_or_variants(selected_tokens, token_declaration);
-                } else if (token_declaration.starts_with("$[..]")) {
-                    token_declaration = token_declaration.substr(6, token_declaration.size() - 6);
-                    return new token_data::token_chain(token_data::token_chain::inline_ref(new token_data::token_chain::sequence(std::move(selected_tokens))));
-                } else
-                    return nullptr;
+                while (token_declaration.starts_with(' ') || token_declaration.starts_with('\t') || token_declaration.starts_with('\r'))
+                    token_declaration = token_declaration.substr(1);
+                auto res = [&]() -> art::shared_ptr<token_data::token_chain> {
+                    if (token_declaration.starts_with('[') || token_declaration.starts_with('{')) {
+                        return process_part_component(selected_tokens, token_declaration);
+                    } else if (token_declaration.starts_with("$[..]")) {
+                        token_declaration = token_declaration.substr(5);
+                        return new token_data::token_chain(token_data::token_chain::inline_ref(new token_data::token_chain::sequence(selected_tokens)));
+                    } else if (token_declaration.starts_with("@[")) {
+                        token_declaration = token_declaration.substr(1);
+                        return new token_data::token_chain(token_data::token_chain::inline_decl(get_chars(token_declaration)));
+                    } else
+                        return nullptr;
+                }();
+                while (token_declaration.starts_with(' ') || token_declaration.starts_with('\t') || token_declaration.starts_with('\r'))
+                    token_declaration = token_declaration.substr(1);
+                return res;
             }
 
             auto text_language_handler::process_part(std::vector<art::shared_ptr<token_data::token_chain>>& selected_tokens, std::string_view token_declaration) -> token_data::token_chain::inline_ref {
                 std::vector<art::shared_ptr<token_data::token_chain>> tokens;
                 while (!token_declaration.empty() && token_declaration[0] != '\n') {
-                    if (auto res = process_part_item(selected_tokens, token_declaration)) {
+                    if (auto res = process_part_item(selected_tokens, token_declaration))
                         tokens.push_back(res);
-                    } else
+                    else
                         return {};
                 }
                 return token_data::token_chain::inline_ref(new token_data::token_chain::sequence(std::move(tokens)));
             }
 
-            auto text_language_handler::process_part_optional(std::vector<art::shared_ptr<token_data::token_chain>>& selected_tokens, std::string_view& token_declaration) -> art::shared_ptr<token_data::token_chain> {
+            auto text_language_handler::process_part_component(std::vector<art::shared_ptr<token_data::token_chain>>& selected_tokens, std::string_view& token_declaration) -> art::shared_ptr<token_data::token_chain> {
+                std::vector<art::shared_ptr<token_data::token_chain>> variants;
                 std::vector<art::shared_ptr<token_data::token_chain>> tokens;
-                while (!token_declaration.empty() && token_declaration[0] != ']' && token_declaration[0] != '\n') {
-                    if (auto res = process_part_item(selected_tokens, token_declaration)) {
-                        tokens.push_back(res);
-                    } else
-                        return nullptr;
-                }
-                return new token_data::token_chain(token_data::token_chain::option(tokens));
-            }
-
-            auto text_language_handler::process_part_component_or_variants(std::vector<art::shared_ptr<token_data::token_chain>>& selected_tokens, std::string_view& token_declaration) -> art::shared_ptr<token_data::token_chain> {
-                std::vector<art::shared_ptr<token_data::token_chain>> tokens;
-                while (!token_declaration.empty() && token_declaration[0] != '}' && token_declaration[0] != '\n') {
-                    if (!allowed_declaration_symbols.contains(token_declaration[0])) {
-                        std::vector<art::shared_ptr<token_data::token_chain>> inner_component;
-                        while (!token_declaration.empty() && token_declaration[0] != '}' && token_declaration[0] != '\n') {
+                bool loop = false;
+                do {
+                    if (loop)
+                        token_declaration = token_declaration.substr(1);
+                    if (token_declaration.starts_with('{')) {
+                        token_declaration = token_declaration.substr(1);
+                        if (!allowed_declaration_symbol_symbols.contains(token_declaration[0])) {
+                            while (!token_declaration.empty() && token_declaration[0] != '}' && token_declaration[0] != '\n') {
+                                if (auto res = process_part_item(selected_tokens, token_declaration)) {
+                                    tokens.push_back(res);
+                                } else
+                                    return nullptr;
+                            }
+                            variants.push_back(new token_data::token_chain(token_data::token_chain::sequence(std::move(tokens))));
+                        } else {
+                            auto close = token_declaration.find('}');
+                            auto token_name = token_declaration.substr(0, close);
+                            if (close != std::string_view::npos)
+                                token_declaration = token_declaration.substr(close);
+                            else
+                                token_declaration = {};
+                            variants.push_back(get_token(token_name));
+                        }
+                    } else if (token_declaration.starts_with('[')) {
+                        token_declaration = token_declaration.substr(1);
+                        while (!token_declaration.empty() && token_declaration[0] != ']' && token_declaration[0] != '\n') {
                             if (auto res = process_part_item(selected_tokens, token_declaration)) {
-                                inner_component.push_back(res);
+                                tokens.push_back(res);
                             } else
                                 return nullptr;
                         }
-                        tokens.push_back(new token_data::token_chain(token_data::token_chain::sequence(inner_component)));
-                    } else {
-                        auto close = token_declaration.find('}');
-                        auto token_name = token_declaration.substr(0, close);
-                        if (close != std::string_view::npos)
-                            token_declaration = token_declaration.substr(close + 1, token_declaration.size() - close - 1);
-                        else
-                            token_declaration = {};
-                        tokens.push_back(get_token(token_name));
-                        if (!token_declaration.starts_with('|'))
-                            break;
-                        else {
-                            token_declaration = token_declaration.substr(1, token_declaration.size() - 1);
-                        }
+                        variants.push_back(new token_data::token_chain(token_data::token_chain::option(std::move(tokens))));
                     }
-                }
-                if (tokens.size() == 1)
-                    return tokens[0];
-                return new token_data::token_chain(token_data::token_chain::variants(tokens));
+                    token_declaration = token_declaration.substr(1);
+                } while (loop = token_declaration.starts_with('|'));
+                if (variants.size() == 1)
+                    return variants[0];
+                return new token_data::token_chain(token_data::token_chain::variants(std::move(variants)));
             }
 
             void text_language_handler::process_token_declaration(std::vector<art::shared_ptr<token_data::token_chain>>& selected_tokens, art::shared_ptr<token_data::token_chain>& token_dec, const std::string& token_name, const std::string& token_declaration, const list_array<std::string>& tags) {
@@ -191,131 +373,31 @@ namespace art {
                 token->declaration = process_part(selected_tokens, token_declaration);
                 token->tags = tags;
                 if (token->declaration->empty())
-                    throw art::InvalidEncodingException("Invalid token declaration: " + token_name);
+                    throw art::InvalidSyntaxException("Invalid token declaration: " + token_name);
                 token_dec->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
             }
 
-            bool get_boolean(std::string_view token_declaration) {
-                if (token_declaration.starts_with(' '))
-                    token_declaration = token_declaration.substr(1, token_declaration.size() - 1);
-                if (token_declaration == std::string_view("true"))
-                    return true;
-                return false;
-            }
-
-            std::string get_chars(std::string_view token_declaration) {
-                if (token_declaration.starts_with(' '))
-                    token_declaration = token_declaration.substr(1, token_declaration.size() - 1);
-                if (token_declaration.starts_with('[') && token_declaration.ends_with(']'))
-                    token_declaration = token_declaration.substr(1, token_declaration.size() - 2);
-                bool slash = false;
-                std::string res;
-                for (auto ch : token_declaration) {
-                    if (slash) {
-                        switch (ch) {
-                        case '\\':
-                            res += '\\';
-                            break;
-                        case 'a':
-                            res += '\a';
-                            break;
-                        case 'b':
-                            res += '\b';
-                            break;
-                        case 'n':
-                            res += '\n';
-                            break;
-                        case 'r':
-                            res += '\r';
-                            break;
-                        case 't':
-                            res += '\t';
-                            break;
-                        case 'e':
-                            res += char(101);
-                            break;
-                        case 'p':
-                            res += char(112);
-                            break;
-                        case 'f':
-                            res += '\f';
-                            break;
-                        case 'v':
-                            res += '\v';
-                            break;
-                        case 'B': {
-                            for (char c = 'A'; c <= 'Z'; c++)
-                                res += c;
-                            break;
-                        }
-                        case 'L': {
-                            for (char c = 'a'; c <= 'z'; c++)
-                                res += c;
-                            break;
-                        }
-                        case 'C': {
-                            for (char c = 'a'; c <= 'z'; c++)
-                                res += c;
-                            for (char c = 'A'; c <= 'Z'; c++)
-                                res += c;
-                            break;
-                        }
-                        case 'N': {
-                            for (char c = '0'; c <= '9'; c++)
-                                res += c;
-                            break;
-                        }
-                        case 'S': {
-                            for (char c = '0'; c <= '9'; c++)
-                                res += c;
-                            for (char c = 'a'; c <= 'z'; c++)
-                                res += c;
-                            for (char c = 'A'; c <= 'Z'; c++)
-                                res += c;
-                            break;
-                        }
-                        default:
-                            res += '\\';
-                            res += ch;
-                        }
-                        slash = false;
-                    } else if (ch == '\\')
-                        slash = true;
-                    else
-                        res += ch;
-                }
-                if (slash)
-                    res += '\\';
-                return res;
-            }
-
-            list_array<std::string> get_array_of_chars(std::string_view token_declaration) {
-                if (token_declaration.starts_with(' '))
-                    token_declaration = token_declaration.substr(1, token_declaration.size() - 1);
-                if (token_declaration.starts_with('[') && token_declaration.ends_with(']'))
-                    token_declaration = token_declaration.substr(1, token_declaration.size() - 2);
-                else
-                    throw art::InvalidEncodingException("Invalid array of chars format");
-
-                list_array<std::string> result;
-                while (token_declaration.starts_with('[')) {
-                    auto end = token_declaration.find_first_of(']');
-                    if (end == std::string::npos)
-                        throw art::InvalidEncodingException("Invalid array of chars format");
-                    result.push_back(get_chars(token_declaration.substr(1, end - 1)));
-                    token_declaration = token_declaration.substr(end + 1, token_declaration.size() - end - 1);
-                }
-                return result;
-            }
-
             auto text_language_handler::get_token(std::string_view name) -> art::shared_ptr<token_data::token_chain>& {
-                return tokens[name];
+                if (name.contains('#'))
+                    throw art::InvalidSyntaxException("Invalid token name: " + std::string(name));
+                auto it = tokens.find(name);
+                if (it != tokens.end())
+                    return it->second;
+                else
+                    return tokens[name] = new token_data::token_chain(token_data::token_chain::variants());
             }
 
-            void text_language_handler::address_token(std::string_view raw_name_with_addressing, std::function<void(std::tuple<std::vector<art::shared_ptr<token_data::token_chain>>, art::shared_ptr<token_data::token_chain>, list_array<std::string>>&)>&& callback) {
+            void text_language_handler::address_token(std::string_view raw_name_with_addressing, std::function<void(std::tuple<std::vector<art::shared_ptr<token_data::token_chain>>, art::shared_ptr<token_data::token_chain>, const list_array<std::string>&, const std::string&>&)>&& callback) {
                 list_array<std::string> tags;
                 art::shared_ptr<token_data::token_chain> set_to;
-                list_array<std::pair<art::shared_ptr<token_data::token_chain>, list_array<art::shared_ptr<token_data::token_chain>>>> process_from;
+
+                struct processor {
+                    std::string name;
+                    art::shared_ptr<token_data::token_chain> set_to; //duplicate
+                    list_array<art::shared_ptr<token_data::token_chain>> selected_childs;
+                };
+
+                list_array<processor> process_from;
                 enum class mode_t {
                     init,
                     multi_addressing,  //#
@@ -402,7 +484,7 @@ namespace art {
                     auto pos = raw_name_with_addressing.find_first_of("@#^$");
                     token_name = raw_name_with_addressing.substr(0, pos);
                     if (pos != std::string::npos)
-                        raw_name_with_addressing = raw_name_with_addressing.substr(pos + 1, raw_name_with_addressing.size() - pos - 1);
+                        raw_name_with_addressing = raw_name_with_addressing.substr(pos + 1);
                     else
                         raw_name_with_addressing = "";
                     switch (current_mode) {
@@ -415,14 +497,14 @@ namespace art {
                             if (process_from.empty()) {
                                 if (!set_to) {
                                     set_to = get_token(token_name);
-                                    process_from.push_back({set_to, filter_childs_by_name(set_to, token_name)});
+                                    process_from.push_back({token_name, set_to, filter_childs_by_name(set_to, token_name)});
                                 } else
                                     for (auto& it : set_to->get_variants())
-                                        process_from.push_back({it, filter_childs_by_name(it, token_name)});
+                                        process_from.push_back({token_name, it, filter_childs_by_name(it, token_name)});
                             } else {
-                                for (auto& [ignored, inner_arr] : process_from.take()) {
+                                for (auto& [name, ignored, inner_arr] : process_from.take()) {
                                     for (auto& it : inner_arr)
-                                        process_from.push_back({it, filter_childs_by_name(it, token_name)});
+                                        process_from.push_back({token_name, it, filter_childs_by_name(it, token_name)});
                                 }
                             }
                         }
@@ -431,14 +513,14 @@ namespace art {
                     case mode_t::tag_filter: {
                         if (!token_name.empty())
                             if (!process_from.empty())
-                                for (auto& [ignored, inner_arr] : process_from)
+                                for (auto& [name, ignored, inner_arr] : process_from)
                                     inner_arr = inner_arr.where(filter_by_tag);
                         break;
                     }
                     case mode_t::negate_tag_filter: {
                         if (!token_name.empty())
                             if (!process_from.empty())
-                                for (auto& [ignored, inner_arr] : process_from)
+                                for (auto& [name, ignored, inner_arr] : process_from)
                                     inner_arr = inner_arr.where([&](auto& it) { return !filter_by_tag(it); });
                         break;
                     }
@@ -456,49 +538,53 @@ namespace art {
                     switch (raw_name_with_addressing[0]) {
                     case '#':
                         current_mode = mode_t::multi_addressing;
-                        raw_name_with_addressing = raw_name_with_addressing.substr(1, raw_name_with_addressing.size() - 1);
+                        raw_name_with_addressing = raw_name_with_addressing.substr(1);
                         break;
                     case '@':
                         current_mode = mode_t::tag_filter;
-                        raw_name_with_addressing = raw_name_with_addressing.substr(1, raw_name_with_addressing.size() - 1);
+                        raw_name_with_addressing = raw_name_with_addressing.substr(1);
                         break;
                     case '^':
                         if (raw_name_with_addressing.size() > 1)
                             if (raw_name_with_addressing[1] == '@') {
                                 current_mode = mode_t::negate_tag_filter;
-                                raw_name_with_addressing = raw_name_with_addressing.substr(2, raw_name_with_addressing.size() - 2);
+                                raw_name_with_addressing = raw_name_with_addressing.substr(2);
                                 break;
                             }
-                        throw art::InvalidEncodingException("Invalid token addressing");
+                        throw art::InvalidSyntaxException("Invalid token addressing");
                     case '$':
                         current_mode = mode_t::define_tag;
-                        raw_name_with_addressing = raw_name_with_addressing.substr(1, raw_name_with_addressing.size() - 1);
+                        raw_name_with_addressing = raw_name_with_addressing.substr(1);
                         if (raw_name_with_addressing.find_first_of("@#^") != std::string::npos)
-                            throw art::InvalidEncodingException("Tag must declared after addressing");
+                            throw art::InvalidSyntaxException("Tag must declared after addressing");
                         break;
                     };
                 }
 
+
                 if (!process_from.empty()) {
-                    for (auto& [check, inner_arr] : process_from) {
-                        std::tuple<std::vector<art::shared_ptr<token_data::token_chain>>, art::shared_ptr<token_data::token_chain>, list_array<std::string>> tuple_res = {
+                    for (auto& [name, check, inner_arr] : process_from) {
+                        std::tuple<std::vector<art::shared_ptr<token_data::token_chain>>, art::shared_ptr<token_data::token_chain>, const list_array<std::string>&, const std::string&> tuple_res = {
                             inner_arr.take().to_container<std::vector<art::shared_ptr<token_data::token_chain>>>(),
                             check,
-                            tags
+                            tags,
+                            name
                         };
                         callback(tuple_res);
                     }
                 } else if (set_to) {
-                    std::tuple<std::vector<art::shared_ptr<token_data::token_chain>>, art::shared_ptr<token_data::token_chain>, list_array<std::string>> tuple_res = {
+                    std::tuple<std::vector<art::shared_ptr<token_data::token_chain>>, art::shared_ptr<token_data::token_chain>, const list_array<std::string>&, const std::string&> tuple_res = {
                         {},
                         set_to,
-                        tags
+                        tags,
+                        token_name
                     };
                     callback(tuple_res);
                 }
             }
 
-            void text_language_handler::declare_token(art::shared_ptr<token_data::token_chain>& token, const std::string& token_name, const std::string& token_declaration) {
+            void text_language_handler::declare_token(const std::string& token_name, const std::string& token_declaration_) {
+                std::string_view token_declaration = token_declaration_;
                 if (in_header_part) {
                     if (token_name == "ignored_chars") {
                         for (auto ch : get_chars(token_declaration))
@@ -516,8 +602,7 @@ namespace art {
                             allowed_symbol_chars.insert(ch);
                     } else if (token_name == "namespace_symbol_sequence") {
                         namespace_symbol_sequence = get_chars(token_declaration);
-                    } else if (token_name == "enable_namespace") {
-                        namespace_enabled = get_boolean(token_declaration);
+                        namespace_enabled = true;
                     } else if (token_name == "language_name") {
                         language_name = token_declaration;
                     } else if (token_name == "language_full_name") {
@@ -527,71 +612,175 @@ namespace art {
                     } else if (token_name == "dynamic_patching") {
                         enable_dynamic_patching = get_boolean(token_declaration);
                     } else if (token_name == "token") {
-                        art::shared_ptr<token_data> token;
+                        art::shared_ptr<token_data> token = new token_data();
                         std::string set_token_name = get_chars(token_declaration);
                         token->token_name = "token_" + set_token_name;
                         token->symbol = set_token_name;
+                        token->entry_token = true;
                         get_token("token_" + set_token_name)->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
                     } else if (token_name == "tokens") {
                         for (auto& token_name : get_array_of_chars(token_declaration)) {
-                            art::shared_ptr<token_data> token;
+                            art::shared_ptr<token_data> token = new token_data();
                             token->token_name = "token_" + token_name;
                             token->symbol = token_name;
+                            token->entry_token = true;
                             get_token("token_" + token_name)->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
                         }
                     } else if (token_name.starts_with("token#")) {
-                        art::shared_ptr<token_data> token;
-                        std::string set_token_name = get_chars(token_declaration);
-                        token->token_name = "token_" + token_name.substr(6, token_name.size() - 6);
-                        if (token_name.empty())
-                            token->token_name = set_token_name;
-                        token->symbol = set_token_name;
-                        get_token("token_" + set_token_name)->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
-                    }
+                        std::string set_token_name = "token_" + token_name.substr(6);
+                        art::shared_ptr<token_data> token = new token_data();
+                        token->token_name = set_token_name;
+                        token->symbol = get_chars(token_declaration);
+                        token->entry_token = true;
+                        if (token->symbol.empty())
+                            token->symbol = token_name.substr(6);
+                        get_token(set_token_name)->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
+                    } else if (token_name.starts_with("value_processing#")) {
+                        configure_value_processing(token_name.substr(17), token_declaration_);
+                    } else
+                        art::InvalidSyntaxException("Declaring components is not allowed in header part.");
                 } else {
                     if (token_name.find_first_of("@#^$") == std::string::npos) {
                         std::vector<art::shared_ptr<token_data::token_chain>> selected_tokens;
-                        process_token_declaration(selected_tokens, token, token_name, token_declaration);
+                        process_token_declaration(selected_tokens, get_token(token_name), token_name, token_declaration_);
                     } else {
-                        address_token(token_name, [&](std::tuple<std::vector<art::shared_ptr<token_data::token_chain>>, art::shared_ptr<token_data::token_chain>, list_array<std::string>>& result) {
-                            auto& [selected_tokens, parent, tags] = result;
-                            process_token_declaration(selected_tokens, parent, token_name, token_declaration, tags);
+                        address_token(token_name, [&](std::tuple<std::vector<art::shared_ptr<token_data::token_chain>>, art::shared_ptr<token_data::token_chain>, const list_array<std::string>&, const std::string&>& result) {
+                            auto& [selected_tokens, parent, tags, token_name] = result;
+                            process_token_declaration(selected_tokens, parent, token_name, token_declaration_, tags);
                         });
                     }
                 }
             }
 
-            void text_language_handler::declare_conditional_token(art::shared_ptr<token_data::token_chain>& token, const std::string& token_name, const std::string& token_declaration) {
+            void text_language_handler::declare_compound_token(const std::string& token_name, const std::string& token_declaration) {
                 if (in_header_part) {
                     std::vector<art::shared_ptr<token_data::token_chain>> selected_tokens;
-                    process_token_declaration(selected_tokens, token, token_name, token_declaration);
+                    process_token_declaration(selected_tokens, get_token(token_name), token_name, token_declaration);
                 }
             }
 
+            void text_language_handler::configure_value_processing(const std::string& config_name, const std::string& token_declaration) {
+                if (config_name == "string_escape") {
+                    std::string_view vv(token_declaration);
+                    string_escape = get_chars(vv)[0];
+                } else if (config_name == "string_scope") {
+                    std::vector<art::shared_ptr<token_data::token_chain>> selected_tokens{
+                        new token_data::token_chain{
+                            token_data::token_chain::process_string_scope()
+                        }
+                    };
+                    process_token_declaration(selected_tokens, get_token("value_string"), "value_string", token_declaration);
+                } else if (config_name == "decimal_dot") {
+                    art::shared_ptr<token_data> token = new token_data();
+                    token->token_name = "value_double";
+                    std::vector<art::shared_ptr<token_data::token_chain>> selected_tokens;
+                    token->declaration = process_part(selected_tokens, token_declaration);
+                    token->declaration->insert(token->declaration->begin(), get_token("value_long"));
+                    token->declaration->push_back(get_token("value_long"));
+                    get_token("value_double")->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
+
+                    register_processing_handler("value_double", [](component_data& data) {
+                        auto& arr = std::get<list_array<art::shared_ptr<component_data>>>(data.args);
+                        data.value = std::stod((art::ustring)arr[0]->value + '.' + (art::ustring)arr[1]->value);
+                    });
+                } else if (config_name == "string_line") {
+                    std::vector<art::shared_ptr<token_data::token_chain>> selected_tokens{
+                        new token_data::token_chain{
+                            token_data::token_chain::process_string_line()
+                        }
+                    };
+                    process_token_declaration(selected_tokens, get_token("value_string"), "value_string", token_declaration);
+                } else if (config_name == "char") {
+                    std::vector<art::shared_ptr<token_data::token_chain>> selected_tokens{
+                        new token_data::token_chain{
+                            token_data::token_chain::process_char()
+                        }
+                    };
+                    process_token_declaration(selected_tokens, get_token("value_char"), "value_char", token_declaration);
+                    register_processing_handler("value_char", [](component_data& data) {
+                        data.value = std::visit(
+                            [](auto& v) -> char32_t {
+                                using T = std::decay_t<decltype(v)>;
+                                if constexpr (std::is_same_v<T, art::ustring>) {
+                                    auto vv = v.begin();
+                                    return utf8::next(vv, v.end());
+                                } else if constexpr (std::is_same_v<T, art::shared_ptr<component_data>>) {
+                                    switch (v->value.meta.vtype) {
+                                    case VType::character:
+                                        return (char32_t)v->value;
+                                    case VType::string:
+                                        return v->value.retrieve_ref<art::ustring>().get(0);
+                                    default:
+                                        throw art::InvalidSyntaxException("Invalid component result type: " + enum_to_string(v->value.meta.vtype) + " for char processing");
+                                    }
+                                } else if constexpr (std::is_same_v<T, list_array<art::shared_ptr<component_data>>>) {
+                                    for (auto& it : v) {
+                                        if (it->value.meta.vtype == VType::character)
+                                            return (char32_t)it->value;
+                                        else if (it->value.meta.vtype == VType::string)
+                                            return it->value.retrieve_ref<art::ustring>().get(0);
+                                    }
+                                    throw art::InvalidSyntaxException("Invalid component declaration for char processing");
+                                }
+                            },
+                            data.args
+                        );
+                    });
+                } else if (config_name == "hex_number_enable") {
+                    art::shared_ptr<token_data> token = new token_data();
+                    token->token_name = "value_long";
+                    token->declaration = make_sequence_chain_ref(token_data::token_chain::process_hex_num());
+                    get_token("value_long")->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
+                } else if (config_name == "octal_number_enable") {
+                    art::shared_ptr<token_data> token = new token_data();
+                    token->token_name = "value_long";
+                    token->declaration = make_sequence_chain_ref(token_data::token_chain::process_octal_num());
+                    get_token("value_long")->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
+                } else if (config_name == "binary_number_enable") {
+                    art::shared_ptr<token_data> token = new token_data();
+                    token->token_name = "value_long";
+                    token->declaration = make_sequence_chain_ref(token_data::token_chain::process_binary_num());
+                    get_token("value_long")->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
+                } else
+                    throw art::InvalidSyntaxException("Invalid value_processing intrinsics: " + config_name);
+            }
+
             text_language_handler::text_language_handler(std::string_view language_declaration) {
+                {
+                    art::shared_ptr<token_data> token = new token_data();
+                    token->token_name = "symbol";
+                    token->declaration = make_sequence_chain_ref(token_data::token_chain::inline_symbol());
+                    get_token("symbol")->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
+                }
                 bool name_declaration_part = true;
                 bool token_declaration_part = false;
-                bool conditional_token_part = false;
+                bool compound_token_part = false;
                 std::string token_name;
                 std::string token_declaration;
                 for (const auto& token : language_declaration) {
                     if (token_declaration_part) {
                         if (token == '\n') {
-                            if (conditional_token_part) {
-                                token_name = "ctoken_" + token_name;
-                                declare_conditional_token(tokens[token_name], token_name, token_declaration);
-                            } else
-                                declare_token(tokens[token_name], token_name, token_declaration);
+                            if (compound_token_part)
+                                declare_compound_token("ctoken_" + token_name, token_declaration);
+                            else
+                                declare_token(token_name, token_declaration);
                             token_name = "";
                             token_declaration = "";
                             token_declaration_part = false;
-                            conditional_token_part = false;
+                            compound_token_part = false;
                             name_declaration_part = true;
                             continue;
                         }
                         token_declaration += token;
                         continue;
                     } else if (name_declaration_part) {
+                        if (in_header_part && !compound_token_part && token == '#') {
+                            if (token_name == "compound_token") {
+                                compound_token_part = true;
+                                token_name = "";
+                                continue;
+                            }
+                        }
                         if (allowed_declaration_symbols.contains(token)) {
                             if (!in_header_part) {
                                 token_name += token;
@@ -600,30 +789,183 @@ namespace art {
                                 token_name += token;
                                 continue;
                             }
-                        }
-                        if (in_header_part && !conditional_token_part && token == '#') {
-                            if (token_name == "decl_cond_token") {
-                                conditional_token_part = true;
-                                token_name = "";
-                                continue;
-                            }
+                        } else if (allowed_space_symbols.contains(token))
+                            continue;
+                        else if (token == '\n') {
+                            intrinsics_from_token(token_name);
+                            token_name = "";
+                            token_declaration_part = false;
+                            compound_token_part = false;
+                            name_declaration_part = true;
+                            continue;
+                        } else if (token == '=') {
+                            token_declaration_part = true;
+                            name_declaration_part = false;
+                            continue;
                         } else
                             name_declaration_part = false;
-                    } else if (allowed_space_symbols.contains(token))
-                        continue;
-                    else if (token == '=') {
-                        token_declaration_part = true;
-                        continue;
-                    } else if (token == '\n') {
-                        intrinsics_from_token(token_name);
-                        token_name = "";
-                        continue;
                     } else
-                        throw art::InvalidEncodingException("Invalid symbol in declaration");
+                        throw art::InvalidSyntaxException("Invalid symbol in declaration");
+                }
+                declaration_complete();
+            }
+
+            text_language_handler::ast_data::proc_rul::proc_rul(const std::vector<ast_data*>& __vars) {
+                v = var::var_vars;
+                arr_siz = __vars.size();
+                vars = new ast_data*[arr_siz];
+                for (size_t i = 0; i < arr_siz; i++)
+                    vars[i] = __vars[i];
+            }
+
+            text_language_handler::ast_data::proc_rul::~proc_rul() {
+                switch (v) {
+                case var::var_c:
+                    break;
+                case var::var_s:
+                    delete s;
+                    break;
+                case var::var_ps:
+                case var::var_pl:
+                case var::var_pc:
+                case var::var_ph:
+                case var::var_po:
+                case var::var_pb:
+                    break;
+                case var::var_vars:
+                    delete[] vars;
                 }
             }
 
-            void text_language_handler::register_processing_handler(std::string_view token_name, std::function<art::shared_ptr<component_data>(list_array<art::shared_ptr<component_data>>&)> handler) {
+            void text_language_handler::declaration_complete() {
+                {
+                    register_processing_handler("symbol", [](component_data& data) {
+                        data.value = std::get<art::ustring>(data.args);
+                    });
+                }
+                if (tokens.contains("value_string")) {
+                    register_processing_handler("value_string", [](component_data& data) {
+                        data.value = std::get<art::ustring>(data.args);
+                    });
+                }
+                if (tokens.contains("value_long")) {
+                    register_processing_handler("value_long", [](component_data& data) {
+                        data.value = std::stoll((std::string)std::get<art::ustring>(data.args));
+                    });
+                }
+                std::unordered_map<void*, ast_data*> visited;
+                ast.reserve(tokens.size());
+                for (auto it : tokens) {
+                    for (auto& handle : it.second->get_variants())
+                        if (visited.find(&handle) == visited.end()) {
+                            auto& comp = *handle->get_component();
+                            if (comp.entry_token)
+                                if (!comp.symbol.empty()) {
+                                    auto it = &ast.emplace_back(ast_data({}, comp.symbol));
+                                    entry_ast.push_back(it);
+                                    comp.assigned_ast = it;
+                                    visited.insert_or_assign(&handle, it);
+                                }
+                        }
+                }
+                for (auto it : tokens) {
+                    for (auto& handle : it.second->get_variants()) {
+                        if (!handle->get_component()->entry_token)
+                            recursive_declaration_complete(visited, handle);
+                    }
+                }
+                //end
+                tokens.clear();
+                entry_ast.shrink_to_fit();
+            }
+
+            auto text_language_handler::recursive_declaration_complete(std::unordered_map<void*, ast_data*>& visited, art::shared_ptr<token_data::token_chain>& token) -> ast_data* {
+                if (visited.find(&token) == visited.end()) {
+                    auto it = visited.insert_or_assign(&token, nullptr);
+                    auto res = std::visit(
+                        [&](auto& handle) {
+                            using T = std::decay_t<decltype(handle)>;
+                            if constexpr (std::is_same_v<T, token_data::token_chain::component>) {
+                                auto& comp = *handle;
+                                if (!comp.symbol.empty()) {
+                                    auto& it = ast.emplace_back(ast_data((std::string)comp.token_name, comp.symbol));
+                                    comp.assigned_ast = &it;
+                                    return &it;
+                                } else {
+                                    std::vector<ast_data*> v;
+                                    v.reserve(comp.declaration->size());
+                                    for (auto& decl : *comp.declaration)
+                                        v.push_back(recursive_declaration_complete(visited, decl));
+
+                                    auto& it = ast.emplace_back(ast_data((std::string)comp.token_name, v));
+                                    comp.assigned_ast = &it;
+                                    it.cmd.is_sequence = true;
+                                    return &it;
+                                }
+                            } else if constexpr (std::is_same_v<T, token_data::token_chain::inline_decl>) {
+                                return &ast.emplace_back(ast_data({}, handle.symbol));
+                            } else if constexpr (std::is_same_v<T, token_data::token_chain::option>) {
+                                if (handle.size() == 1) {
+                                    auto it = recursive_declaration_complete(visited, handle[0]);
+                                    it->cmd.is_optional = true;
+                                    return it;
+                                }
+                                std::vector<ast_data*> v;
+                                v.reserve(handle.size());
+                                for (auto& decl : handle)
+                                    v.push_back(recursive_declaration_complete(visited, decl));
+
+                                auto& it = ast.emplace_back(ast_data({}, v));
+                                it.cmd.is_sequence = true;
+                                it.cmd.is_optional = true;
+                                return &it;
+                            } else if constexpr (std::is_same_v<T, token_data::token_chain::inline_ref>) {
+                                std::vector<ast_data*> v;
+                                v.reserve(handle->size());
+                                for (auto& decl : *handle)
+                                    v.push_back(recursive_declaration_complete(visited, decl));
+                                auto& it = ast.emplace_back(ast_data({}, v));
+                                it.cmd.is_sequence = true;
+                                return &it;
+                            } else if constexpr (std::is_same_v<T, token_data::token_chain::sequence>) {
+                                std::vector<ast_data*> v;
+                                v.reserve(handle.size());
+                                for (auto& decl : handle)
+                                    v.push_back(recursive_declaration_complete(visited, decl));
+                                auto& it = ast.emplace_back(ast_data({}, v));
+                                it.cmd.is_sequence = true;
+                                return &it;
+                            } else if constexpr (std::is_same_v<T, token_data::token_chain::variants>) {
+                                std::vector<ast_data*> v;
+                                v.reserve(handle.size());
+                                for (auto& decl : handle)
+                                    v.push_back(recursive_declaration_complete(visited, decl));
+                                auto& it = ast.emplace_back(ast_data({}, v));
+                                return &it;
+                            } else if constexpr (std::is_same_v<T, token_data::token_chain::process_binary_num>)
+                                return &ast.emplace_back(ast_data({}, ast_data::process_binary_num{}));
+                            else if constexpr (std::is_same_v<T, token_data::token_chain::process_char>)
+                                return &ast.emplace_back(ast_data({}, ast_data::process_char{}));
+                            else if constexpr (std::is_same_v<T, token_data::token_chain::process_hex_num>)
+                                return &ast.emplace_back(ast_data({}, ast_data::process_hex_num{}));
+                            else if constexpr (std::is_same_v<T, token_data::token_chain::process_octal_num>)
+                                return &ast.emplace_back(ast_data({}, ast_data::process_octal_num{}));
+                            else if constexpr (std::is_same_v<T, token_data::token_chain::process_string_line>)
+                                return &ast.emplace_back(ast_data({}, ast_data::process_string_line{}));
+                            else if constexpr (std::is_same_v<T, token_data::token_chain::process_string_scope>)
+                                return &ast.emplace_back(ast_data({}, ast_data::process_string_scope{}));
+                            else if constexpr (std::is_same_v<T, token_data::token_chain::inline_symbol>)
+                                return &ast.emplace_back(ast_data({}, ast_data::inline_symbol{}));
+                        },
+                        token->value
+                    );
+                    it.first->second = res;
+                    return res;
+                } else
+                    return visited.at(&token);
+            }
+
+            void text_language_handler::register_processing_handler(std::string_view token_name, std::function<void(component_data&)> handler) {
                 art::ustring token_name_u(token_name);
                 art::unique_lock unify(rw_mutex);
                 if (handlers.find(token_name_u) == handlers.end())
@@ -632,7 +974,7 @@ namespace art {
                     throw art::AlreadyDefinedException("Token handler already defined for " + token_name);
             }
 
-            void text_language_handler::register_end_handler(std::string_view token_name, std::function<art::patch_list(art::shared_ptr<component_data>&)> handler) {
+            void text_language_handler::register_end_handler(std::string_view token_name, std::function<art::patch_list(component_data&)> handler) {
                 art::ustring token_name_u(token_name);
                 art::unique_lock unify(rw_mutex);
                 if (handlers_end.find(token_name_u) == handlers_end.end())
@@ -641,8 +983,77 @@ namespace art {
                     throw art::AlreadyDefinedException("Token handler already defined for " + token_name);
             }
 
+            art::patch_list text_language_handler::parse_file(art::files::FileHandle& file) {
+                shared_lock guard(rw_mutex);
+                auto& declared_functions = this->declared_functions[file.get_path()];
+                auto& declared_types = this->declared_types[file.get_path()];
+
+                component_data components;
+                auto process_component = [this](this auto& process_component, component_data& component) -> void {
+                    std::visit(
+                        [&](auto& v) -> void {
+                            using T = std::decay_t<decltype(v)>;
+                            if constexpr (std::is_same_v<T, art::shared_ptr<component_data>>) {
+                                component_data& c = *v;
+                                process_component(c); //there i got IntelliSense error when i used `self(*v)`
+                            } else if constexpr (std::is_same_v<T, list_array<art::shared_ptr<component_data>>>) {
+                                for (auto& it : v)
+                                    process_component(*it);
+                            }
+                        },
+                        component.args
+                    );
+                    handlers.at(component.token_name)(component);
+                };
+                auto process_component_start = [this, &process_component](component_data& component) {
+                    std::visit(
+                        [&](auto& v) -> void {
+                            using T = std::decay_t<decltype(v)>;
+                            if constexpr (std::is_same_v<T, art::shared_ptr<component_data>>) {
+                                component_data& c = *v;
+                                process_component(c); //there i got IntelliSense error when i used `self(*v)`
+                            } else if constexpr (std::is_same_v<T, list_array<art::shared_ptr<component_data>>>) {
+                                for (auto& it : v)
+                                    process_component(*it);
+                            }
+                        },
+                        component.args
+                    );
+
+                    return handlers_end.at(component.token_name)(component);
+                };
+
+
+                list_array<std::pair<std::string_view, ast_data*>> variants;
+                uint8_t c;
+                std::string closing_token;
+                enum class states {
+                    global_processing,
+                    string_processing,
+                } current_state;
+
+                art::patch_list patches;
+
+                auto reset_variants = [&]() {
+                    variants.clear();
+                    for (auto& it : entry_ast)
+                        variants.push_back({(std::string_view)*it->cmd.s, it});
+                };
+
+                auto reached_end = [&]() {
+                    if (current_state == states::string_processing)
+                        throw art::InvalidSyntaxException("Unterminated string");
+                    patches.add_patches(process_component_start(components));
+                    components = {};
+                };
+                while (file.read(&c, 1) == 1) {
+                }
+
+                return patches;
+            }
+
             art::patch_list text_language_handler::handle_init(art::files::FileHandle& file) {
-                return art::patch_list();
+                return parse_file(file);
             }
 
             art::patch_list text_language_handler::handle_init_complete() {
@@ -654,15 +1065,39 @@ namespace art {
             }
 
             art::patch_list text_language_handler::handle_renamed(const art::ustring& old, art::files::FileHandle& file) {
-                return art::patch_list();
+                if (enable_dynamic_patching) {
+                    {
+                        lock_guard guard(rw_mutex);
+                        declared_functions.insert_or_assign(file.get_path(), std::move(declared_functions.at(file.get_path())));
+                        declared_functions.erase(old);
+                        declared_types.insert_or_assign(file.get_path(), std::move(declared_types.at(file.get_path())));
+                        declared_types.erase(old);
+                    }
+                    return parse_file(file);
+                } else
+                    return art::patch_list();
             }
 
             art::patch_list text_language_handler::handle_changed(art::files::FileHandle& file) {
-                return art::patch_list();
+                return parse_file(file);
             }
 
             art::patch_list text_language_handler::handle_removed(const art::ustring& removed) {
-                return art::patch_list();
+                if (enable_dynamic_patching) {
+                    art::patch_list res;
+                    unique_lock guard(rw_mutex);
+                    auto declared_functions_file = std::move(declared_functions.at(removed));
+                    auto declared_types_file = std::move(declared_types.at(removed));
+                    declared_functions.erase(removed);
+                    declared_types.erase(removed);
+                    guard.unlock();
+                    for (auto& func : declared_functions_file)
+                        res.undefine_function(func.first);
+                    for (auto& type : declared_types_file)
+                        res.undefine_type(type.first);
+                    return res;
+                } else
+                    return art::patch_list();
             }
         }
     }

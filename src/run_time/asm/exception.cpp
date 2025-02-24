@@ -116,10 +116,8 @@ namespace art {
                         case asmjit::x86::Gp::kIdR15:
                             destruct(*(void**)ContextRecord->R15);
                             break;
-                        default: {
-                            ValueItem it{"Invalid register id"};
-                            errors.async_notify(it);
-                        }
+                        default:
+                            CXX::Interface::makeCall(ClassAccess::pub, attacha_environment::get_value({"run_time", "event", "error"}), "async_notify", "Invalid register id");
                             return ExceptionContinueSearch;
                         }
                         break;
@@ -388,6 +386,17 @@ namespace art {
                         return {ty.ty_info->name()};
                 });
             }
+        }
+
+        int _assign_cpp_state(CXXExInfo& ex) {
+            if (current_ex_info.meta.ex_ptr == ex.ex_ptr)
+                return -1;
+
+            if (current_ex_info.ptr)
+                return 0;
+
+            current_ex_info.meta = ex;
+            return 1;
         }
 
         bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro, uint8_t* image_base) {

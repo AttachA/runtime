@@ -9,6 +9,7 @@
 #include <base/run_time.hpp>
 #include <run_time/AttachA_CXX.hpp>
 #include <run_time/asm/attacha_environment.hpp>
+#include <run_time/asm/exception.hpp>
 #include <run_time/library/cxx/language.hpp>
 #include <run_time/library/cxx_binds/console.hpp>
 #include <run_time/standard_lib.hpp>
@@ -22,6 +23,18 @@ ValueItem* logger(ValueItem* args, uint32_t argc) {
     art::ustring output(prefix);
     switch (argc) {
     case 0:
+        if (exception::has_exception()) {
+            std::unique_ptr<ValueItem> full_desc;
+            full_desc.reset(exception::get_current_exception_full_description());
+            if (full_desc) {
+                output += "caught_exception " + (art::ustring)*full_desc;
+            } else {
+                std::unique_ptr<ValueItem> name;
+                name.reset(exception::get_current_exception_name());
+                if (name)
+                    output += "caught_exception " + (art::ustring)*full_desc;
+            }
+        }
         break;
     case 1:
         output += (art::ustring)args[0];
@@ -39,19 +52,18 @@ ValueItem* logger(ValueItem* args, uint32_t argc) {
     return nullptr;
 }
 
-const char _FATAL[] = "FATAL";
-const char _ERROR[] = "ERROR";
-const char _WARN[] = "WARN";
-const char _INFO[] = "INFO";
-
+const char _FATAL[] = "ERROR ";
+const char _ERROR[] = "ERROR ";
+const char _WARN[] = "WARN ";
+const char _INFO[] = "INFO ";
 struct runtime_state {
-    std::vector<std::string> args;
+    list_array<ValueItem> args;
     std::string executing_path;
     std::string input_path;
     std::string main_function;
     bool recursive = false;
     bool safelib = false;
-    bool cmath = false;
+    bool disable_cmath = false;
 };
 
 namespace po = boost::program_options;
@@ -82,13 +94,13 @@ runtime_state process_options(const char** argv, int argc) {
         ("executing-path,E", po::value<std::string>(), "executing path")
         ("version,v", "print version")
         ("safelib,s", "disables functions from standard library marked as unsafe")
-        ("cmath", "enables CMath library")
+        ("no-cmath", "disables CMath library")
         ("recursive,r", "process input path recursively")
     ;
 
     po::options_description hidden;
     hidden.add_options()
-        ("args,", po::value<std::vector<std::string>>()->multitoken(), "pass args to program")
+        ("args", po::value<std::vector<std::string>>()->multitoken(), "pass args to program")
     ;
 
     po::options_description all_options;
@@ -107,7 +119,9 @@ runtime_state process_options(const char** argv, int argc) {
 
     if (vm.count("help")) {
         std::stringstream ss;
-        desc.print(ss);
+        po::options_description help("Art options");
+        help.add(desc).add_options()("--", "end of options, pass args to program");
+        help.print(ss);
         art_lib::console::printLine(ss.str());
         exit(0);
     }
@@ -122,8 +136,8 @@ runtime_state process_options(const char** argv, int argc) {
         state.recursive = true;
     if (vm.count("safelib"))
         state.safelib = true;
-    if (vm.count("cmath"))
-        state.cmath = true;
+    if (vm.count("no-cmath"))
+        state.disable_cmath = true;
     if (vm.contains("args"))
         state.args = vm.at("args").as<std::vector<std::string>>();
     if (vm.contains("executing-path"))
@@ -137,23 +151,12 @@ runtime_state process_options(const char** argv, int argc) {
     return state;
 }
 
-int main(int argc, const char** argv) {
-    atexit([]() {
-        Task::shutDown();
-        Task::clean_up();
-    });
+template <class T>
+auto tttt(T&& typ) {
+    return art::shared_ptr<T>();
+}
 
-    auto state = process_options(argv, argc);
-    if (state.executing_path.size() != 0)
-        std::filesystem::current_path(state.executing_path);
-    if (state.safelib)
-        initStandardLib_safe();
-    else
-        initStandardLib();
-
-    if (state.cmath)
-        initCMathLib();
-
+bool process_state(runtime_state& state) {
     language::language_provider provider(state.input_path, state.recursive);
     {
         art::shared_ptr<art::language::language_handler> precompiled(new language_parsers::precompiled());
@@ -162,30 +165,70 @@ int main(int argc, const char** argv) {
         provider.register_language("precart", precompiled);
     }
     {
+        language_parsers::c_async::init();
         art::shared_ptr<art::language::language_handler> c_async(new language_parsers::c_async());
         provider.register_language("c@", c_async);
         provider.register_language("c_async", c_async);
     }
-    unhandled_exception.join(new FuncEnvironment(logger<_FATAL>, false, false));
-    errors.join(new FuncEnvironment(logger<_ERROR>, false, false));
-    warning.join(new FuncEnvironment(logger<_WARN>, false, false));
-    info.join(new FuncEnvironment(logger<_INFO>, false, false));
-    Task::create_executor();
 
-    provider.start();
 
+    provider.run_once();
+    bool faulty_start = false;
     art::shared_ptr<FuncEnvironment> start_function;
-    if (state.main_function.empty())
+    if (state.main_function.empty()) {
+        art::ustring set_name;
         FuncEnvironment::enum_functions([&](const art::ustring& name, const art::shared_ptr<FuncEnvironment>& fn) {
-
+            if (name.starts_with('>')) {
+                if (!start_function) {
+                    start_function = fn;
+                    set_name = name;
+                } else if (faulty_start)
+                    CXX::cxxCall(logger<_FATAL>, art::ustring("Found multiple default main functions : ") + name);
+                else {
+                    CXX::cxxCall(logger<_FATAL>, art::ustring("Found multiple default main functions : ") + set_name);
+                    CXX::cxxCall(logger<_FATAL>, art::ustring("Found multiple default main functions : ") + name);
+                    faulty_start = false;
+                }
+            }
         });
-    else
+    } else
         start_function = FuncEnvironment::environment(state.main_function);
     if (!start_function) {
-        ValueItem text(art::ustring("no such function: ") + state.main_function);
-        errors.await_notify(text);
-        exit(1);
+        if (state.main_function.empty())
+            CXX::cxxCall(logger<_FATAL>, "failed to find default entry point.");
+        else
+            CXX::cxxCall(logger<_FATAL>, "no such function: " + state.main_function + ".");
+        faulty_start = true;
     }
-    Task::start(new Task(start_function, {}));
-    Task::become_executor_count_manager(true);
+
+    if (!faulty_start) {
+        Task::start(new Task(start_function, {state.args}));
+        provider.start();
+        Task::become_executor_count_manager(true);
+        provider.stop();
+    }
+    return faulty_start;
+}
+
+int main(int argc, const char** argv) {
+    Task::create_executor();
+    initRuntime();
+    CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "unhandled_exception"}))->join(new FuncEnvironment(logger<_ERROR>, false, false));
+    CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "error"}))->join(new FuncEnvironment(logger<_ERROR>, false, false));
+    CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "warning"}))->join(new FuncEnvironment(logger<_WARN>, false, false));
+    CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "info"}))->join(new FuncEnvironment(logger<_INFO>, false, false));
+
+    auto state = process_options(argv, argc);
+    if (state.executing_path.size() != 0)
+        std::filesystem::current_path(state.executing_path);
+    if (!state.disable_cmath)
+        initCMathLib();
+
+    if (state.safelib)
+        initStandardLib_safe();
+    else
+        initStandardLib();
+    bool faulty_start = process_state(state);
+    deinitRuntime();
+    return faulty_start;
 }

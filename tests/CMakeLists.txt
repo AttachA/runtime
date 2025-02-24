@@ -9,7 +9,7 @@ add_executable(AttachATests ${SRCFILES_TESTS})
 set_property(TARGET AttachATests PROPERTY
   MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-target_link_libraries(AttachATests PRIVATE GTest::gtest GTest::gtest_main)
+target_link_libraries(AttachATests PRIVATE GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main)
 target_link_libraries(AttachATests PUBLIC AttachA_lib)
 
 

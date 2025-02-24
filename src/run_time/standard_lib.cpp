@@ -949,6 +949,13 @@ namespace art {
         FuncEnvironment::AddNative(bytes::hash, "bytes hash", false);
     }
 
+    void initStandardLib_strings() {
+        INIT_CHECK
+        FuncEnvironment::AddNative(strings::register_format_operator, "strings register_format_operator", false);
+        FuncEnvironment::AddNative(strings::format, "strings format", false);
+        strings::init();
+    }
+
     void initStandardLib_console() {
         INIT_CHECK
         FuncEnvironment::AddNative(console::printLine, "console print_line", false);
@@ -982,6 +989,7 @@ namespace art {
         FuncEnvironment::AddNative(console::readInput, "console read_input", false);
         FuncEnvironment::AddNative(console::readValue, "console read_value", false);
         FuncEnvironment::AddNative(console::readInt, "console read_int", false);
+        initStandardLib_strings(); //console is dependent on strings
     }
 
     void initStandardLib_math() {
@@ -1181,9 +1189,8 @@ namespace art {
 
     void initStandardLib_localization() {
         INIT_CHECK
+        localization::init();
         FuncEnvironment::AddNative(localization::force_set_language, "localization force_set_language", false);
-        FuncEnvironment::AddNative(localization::get_current_locale_changed, "localization get_current_locale_changed", false);
-        FuncEnvironment::AddNative(localization::get_current_locale_updated, "localization get_current_locale_updated", false);
         FuncEnvironment::AddNative(localization::get_default_language, "localization get_default_language", false);
         FuncEnvironment::AddNative(localization::get_language, "localization get_language", false);
         FuncEnvironment::AddNative(localization::get_languages_list, "localization get_languages_list", false);
@@ -1195,15 +1202,8 @@ namespace art {
         FuncEnvironment::AddNative(localization::set_localized_string, "localization set_localized_string", false);
         FuncEnvironment::AddNative(localization::update_localization_strings, "localization update_localization_strings", false);
         FuncEnvironment::AddNative(localization::use_local_language, "localization use_local_language", false);
-        attacha_environment::get_value({"localization", "current_locale_changed"}) = CXX::cxxCall(localization::get_current_locale_changed);
-        attacha_environment::get_value({"localization", "current_locale_updated"}) = CXX::cxxCall(localization::get_current_locale_updated);
     }
 
-    void initStandardLib_strings() {
-        INIT_CHECK
-        FuncEnvironment::AddNative(strings::register_format_operator, "strings register_format_operator", false);
-        FuncEnvironment::AddNative(strings::format, "strings format", false);
-    }
 
     void initStandardLib_times() {
         INIT_CHECK
@@ -1359,6 +1359,21 @@ namespace art {
     void initStandardLib_start_debug() {
         INIT_CHECK
         FuncEnvironment::AddNative(start_debug, "debug start", true);
+    }
+
+    void initRuntime() {
+        initStandardLib_parallel();
+        internal::run_time::must_init();
+    }
+
+    void deinitRuntime() {
+        Task::await_end_tasks(false);
+        strings::clean_up();
+        attacha_environment::clean_up();
+        CXX::Interface::clear_vtable_memory();
+        Task::await_end_tasks(false);
+        Task::shutDown();
+        Task::clean_up();
     }
 
     void initStandardLib() {

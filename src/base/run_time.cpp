@@ -20,7 +20,9 @@
 
     #include <base/run_time.hpp>
     #include <run_time/asm/FuncEnvironment.hpp>
+    #include <run_time/asm/attacha_environment.hpp>
     #include <run_time/asm/dynamic_call.hpp>
+    #include <run_time/asm/exception.hpp>
     #include <run_time/tasks.hpp>
     #include <run_time/tasks/util/light_stack.hpp>
     #include <util/hash.hpp>
@@ -79,12 +81,6 @@ namespace art {
     unsigned long _thread_id() {
         return GetCurrentThreadId();
     }
-
-    EventSystem unhandled_exception;
-    EventSystem ex_fault;
-    EventSystem errors;
-    EventSystem warning;
-    EventSystem info;
 
     LONG NTAPI win_exception_handler(LPEXCEPTION_POINTERS e) {
         if (e->ExceptionRecord->ExceptionFlags == EXCEPTION_NONCONTINUABLE)
@@ -263,9 +259,12 @@ namespace art {
         if (e->ExceptionRecord->ExceptionCode == 0xe06d7363) {
             CXXExInfo cxx;
             getCxxExInfoFromNative(cxx, e);
-            {
-                ValueItem val(&cxx, ValueMeta(VType::undefined_ptr, false, false));
-                unhandled_exception.sync_notify(val);
+            if (int res = exception::_assign_cpp_state(cxx); res) {
+                ValueItem noting;
+                auto event = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "unhandled_exception"}));
+                event->sync_notify(noting);
+                if (res != -1)
+                    exception::current_exception_catched();
             }
             switch (default_fault_action) {
             case FaultAction::show_error:
@@ -288,7 +287,7 @@ namespace art {
             }
         } else {
             ValueItem noting;
-            ex_fault.sync_notify(noting);
+            CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "ex_fault"}))->sync_notify(noting);
             switch (default_fault_action) {
             case FaultAction::show_error:
                 show_err(e);
@@ -420,12 +419,6 @@ namespace art {
 
 namespace art {
     thread_local bool ex_proxy_enabled;
-
-    EventSystem unhandled_exception;
-    EventSystem ex_fault;
-    EventSystem errors;
-    EventSystem warning;
-    EventSystem info;
 
     size_t page_size = sysconf(_SC_PAGESIZE);
     unsigned long fault_reserved_stack_size = 0;

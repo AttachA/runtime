@@ -124,7 +124,7 @@ namespace art {
 
             FILE_HANDLE internal_get_handle() const noexcept;
 
-            //extract full path from handle, can not be same as path in constructor
+            //extract full path from handle, could be not same as path in constructor
             art::ustring get_path() const;
         };
 
@@ -158,7 +158,7 @@ namespace art {
             // can cause desync, ie thread unsafe
 
 
-            //extract full path from handle, can not be same as path in constructor
+            //extract full path from handle, could be not same as path in constructor
             art::ustring get_path() const;
         };
 

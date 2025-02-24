@@ -478,7 +478,6 @@ namespace art {
         static bool removeOne(std::list<art::shared_ptr<FuncEnvironment>>& list, const art::shared_ptr<FuncEnvironment>& func);
         void async_call(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args);
         bool awaitCall(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args);
-
         bool sync_call(std::list<art::shared_ptr<FuncEnvironment>>& list, ValueItem& args);
 
     public:
@@ -493,10 +492,14 @@ namespace art {
         void join(const art::shared_ptr<FuncEnvironment>& func, bool async_mode = false, Priority priority = Priority::avg);
         bool leave(const art::shared_ptr<FuncEnvironment>& func, bool async_mode = false, Priority priority = Priority::avg);
 
-        bool await_notify(ValueItem& args);
-        bool notify(ValueItem& args);
-        bool sync_notify(ValueItem& args);
-        art::typed_lgr<Task> async_notify(ValueItem& args);
+        bool await_notify(const ValueItem& args);
+        bool notify(const ValueItem& args);
+        bool sync_notify(const ValueItem& args);
+        bool await_notify(ValueItem&& args);
+        bool notify(ValueItem&& args);
+        bool sync_notify(ValueItem&& args);
+        static art::typed_lgr<Task> async_notify(typed_lgr<EventSystem>& self, const ValueItem& args);
+        static art::typed_lgr<Task> async_notify(typed_lgr<EventSystem>& self, ValueItem&& args);
 
         void clear() {
             heigh_priority.clear();

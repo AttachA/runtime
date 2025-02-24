@@ -294,7 +294,7 @@ namespace art {
     }
 
     ustring::ustring(const char* str)
-        : ustring(str, strlen(str)) {}
+        : ustring(str, str ? strlen(str) : 0) {}
 
     ustring::ustring(const char* str, size_t size)
         : ustring() {

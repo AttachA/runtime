@@ -12,6 +12,7 @@ namespace language_parsers {
 
     class precompiled : public art::language::language_handler {
         //{path : { function: hash }}...
+
         std::unordered_map<
             art::ustring,
             std::unordered_map<
@@ -31,6 +32,10 @@ namespace language_parsers {
         art::TaskMutex mutex;
 
     public:
+        std::string_view get_language_extension() const override {
+            return "art";
+        }
+
         art::patch_list handle_init(art::files::FileHandle& file) override;
         art::patch_list handle_init_complete() override;
         art::patch_list handle_create(art::files::FileHandle& file) override;

@@ -4,6 +4,7 @@
 // (See accompanying file LICENSE or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <base/run_time.hpp>
 #include <run_time/asm/CASM.hpp>
 #include <run_time/asm/attacha_environment.hpp>
 #include <util/platform.hpp>

@@ -218,6 +218,8 @@ namespace art {
 
                 void init();
             }
+
+            void must_init();
         }
 
         namespace constructor {

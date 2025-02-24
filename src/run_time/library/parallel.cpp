@@ -481,37 +481,30 @@ namespace art {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
             if (len == 2)
                 return class_.notify(args[1]);
-            else {
-                ValueItem values = __funs_EventSystem_get_values0(args, len);
-                return class_.notify(values);
-            }
+            else
+                return class_.notify(__funs_EventSystem_get_values0(args, len));
         });
         AttachAFun(funs_EventSystem_sync_notify, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
             if (len == 2)
                 return class_.sync_notify(args[1]);
-            else {
-                ValueItem values = __funs_EventSystem_get_values0(args, len);
-                return class_.sync_notify(values);
-            }
+            else
+                return class_.sync_notify(__funs_EventSystem_get_values0(args, len));
         });
         AttachAFun(funs_EventSystem_await_notify, 2, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
             if (len == 2)
                 return class_.await_notify(args[1]);
-            else {
-                ValueItem values = __funs_EventSystem_get_values0(args, len);
-                return class_.await_notify(values);
-            }
+            else
+                return class_.await_notify(__funs_EventSystem_get_values0(args, len));
+            
         });
         AttachAFun(funs_EventSystem_async_notify, 2, {
-            auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
+            auto& class_ = CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
             if (len == 2)
-                return class_.async_notify(args[1]);
-            else {
-                ValueItem values = __funs_EventSystem_get_values0(args, len);
-                return class_.async_notify(values);
-            }
+                return EventSystem::async_notify(class_, args[1]);
+            else
+                return EventSystem::async_notify(class_, __funs_EventSystem_get_values0(args, len));
         });
         AttachAFun(funs_EventSystem_clear, 1, {
             auto& class_ = *CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[0], define_EventSystem);
@@ -1370,7 +1363,7 @@ namespace art {
             return CXX::Interface::makeCall(ClassAccess::pub, *args, "wait");
         });
 
-        art::shared_ptr<FuncEnvironment> __createAsyncThread__Awaiter = new FuncEnvironment(_createAsyncThread__Awaiter, false);
+        art::shared_ptr<FuncEnvironment>& __createAsyncThread__Awaiter = attacha_environment::create_fun_env(new FuncEnvironment(_createAsyncThread__Awaiter, false));
 
         ValueItem* createAsyncThread(ValueItem* args, uint32_t len) {
             ValueItem awaiter_args = CXX::aCall(native::constructor::construct_Thread, args, len);

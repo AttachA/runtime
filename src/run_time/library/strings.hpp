@@ -16,6 +16,9 @@ namespace art {
         art::ustring _format(ValueItem* args, uint32_t len);
         ValueItem* format(ValueItem* args, uint32_t len);
         ValueItem* register_format_operator(ValueItem* args, uint32_t len);
+
+        void init();
+        void clean_up();
     }
 }
 #endif /* SRC_RUN_TIME_LIBRARY_STRINGS */

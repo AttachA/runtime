@@ -385,30 +385,40 @@ namespace art {
 
 
     void*& getValue(void*& value, ValueMeta& meta) {
-        if (meta.vtype == VType::async_res)
-            getAsyncResult(value, meta);
-        if (meta.use_gc) {
-            if (!value) {
-                meta = ValueMeta(0);
-                return value;
+        if (!meta.as_ref) {
+            if (meta.vtype == VType::async_res)
+                getAsyncResult(value, meta);
+            if (meta.use_gc) {
+                if (!value) {
+                    meta = ValueMeta(0);
+                    return value;
+                }
+                if (((lgr*)value)->is_deleted()) {
+                    universalRemove(&value);
+                    meta = ValueMeta(0);
+                }
             }
-            if (((lgr*)value)->is_deleted()) {
-                universalRemove(&value);
-                meta = ValueMeta(0);
-            }
+            return meta.use_gc ? (**(lgr*)value) : value;
+        } else {
+            auto val = *(void**)&value;
+            if (meta.use_gc) 
+                if (!val)
+                    return val;
+            return meta.use_gc ? (**(lgr*)val) : val;
         }
-        return meta.use_gc ? (**(lgr*)value) : value;
     }
 
     const void* const& getValue(const void* const& value, const ValueMeta& meta) {
+        auto val = &value;
+        if (meta.as_ref)
+            val = (void**)*val;
         if (meta.use_gc) {
-            if (!value) {
-                return value;
-            }
-            if (((lgr*)value)->is_deleted())
-                universalRemove((void**)&value);
+            if (!*val) 
+                return *val;
+            if (((lgr*)*val)->is_deleted() && !meta.as_ref)
+                universalRemove((void**)val);
         }
-        return meta.use_gc ? (**(const lgr*)value) : value;
+        return meta.use_gc ? (**(const lgr*)*val) : *val;
     }
 
     void*& getValue(void** value) {
@@ -418,7 +428,7 @@ namespace art {
 
     void* getSpecificValue(void** value, VType typ) {
         ValueMeta& meta = *(ValueMeta*)(value + 1);
-        if (meta.vtype == VType::async_res)
+        if (meta.vtype == VType::async_res && !meta.as_ref)
             getAsyncResult(*value, meta);
         if (meta.vtype != typ)
             throw InvalidType("Requested specifed type but received another");
@@ -432,7 +442,7 @@ namespace art {
 
     void** getSpecificValueLink(void** value, VType typ) {
         ValueMeta& meta = *(ValueMeta*)(value + 1);
-        if (meta.vtype == VType::async_res)
+        if (meta.vtype == VType::async_res && !meta.as_ref)
             getAsyncResult(*value, meta);
         if (meta.vtype != typ)
             throw InvalidType("Requested specifed type but received another");
@@ -2666,6 +2676,12 @@ namespace art {
 
     ValueItem::ValueItem(art::ustring&& set)
         : val(new art::ustring(std::move(set))), meta(VType::string) {}
+
+    ValueItem::ValueItem(const std::string& val)
+        : val(new art::ustring(val)), meta(VType::string) {}
+
+    ValueItem::ValueItem(std::string&& val)
+        : val(new art::ustring(std::move(val))), meta(VType::string) {}
 
     ValueItem::ValueItem(const char* str)
         : val(new art::ustring(str)), meta(VType::string) {}

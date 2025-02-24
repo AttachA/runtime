@@ -10,6 +10,8 @@
 #include <list>
 
 #include <base/run_time.hpp>
+#include <run_time/AttachA_CXX.hpp>
+#include <run_time/asm/attacha_environment.hpp>
 #include <run_time/tasks/util/hill_climbing.hpp>
 #include <util/threading.hpp>
 
@@ -128,14 +130,12 @@ namespace art {
                 auto status = GetQueuedCompletionStatus(m_hCompletionPort.get(), &dwBytesTransferred, &data, (OVERLAPPED**)&lpOverlapped, INFINITE);
 
                 if (NULL == data) {
-                    ValueItem notify{"GetQueuedCompletionStatus data is null"};
-                    errors.async_notify(notify);
+                    CXX::Interface::makeCall(ClassAccess::pub, attacha_environment::get_value({"run_time", "event", "error"}), "sync_notify", "GetQueuedCompletionStatus data is null");
                     continue;
                 }
 
                 if (!lpOverlapped) {
-                    ValueItem notify{"GetQueuedCompletionStatus overlapped result is null"};
-                    errors.async_notify(notify);
+                    CXX::Interface::makeCall(ClassAccess::pub, attacha_environment::get_value({"run_time", "event", "error"}), "sync_notify", "GetQueuedCompletionStatus overlapped result is null");
                     continue;
                 }
                 try {
@@ -151,8 +151,7 @@ namespace art {
 
         bool _register_handle(HANDLE hFile, void* data) {
             if (!CreateIoCompletionPort(hFile, m_hCompletionPort.get(), (ULONG_PTR)data, 0)) {
-                ValueItem notify{"CreateIoCompletionPort failed with error ", (uint32_t)GetLastError()};
-                errors.sync_notify(notify);
+                CXX::Interface::makeCall(ClassAccess::pub, attacha_environment::get_value({"run_time", "event", "error"}), "sync_notify", "CreateIoCompletionPort failed with the error", (uint32_t)GetLastError());
                 return false;
             }
             return true;
@@ -231,8 +230,7 @@ namespace art {
             memset(&params, 0, sizeof(params));
 
             if (int res = io_uring_queue_init_params(1024, &m_ring, &params); res < 0) {
-                ValueItem notify{"io_uring_queue_init failed with error ", res};
-                errors.sync_notify(notify);
+                CXX::Interface::makeCall(ClassAccess::pub, attacha_environment::get_value({"run_time", "event", "error"}), "sync_notify", "io_uring_queue_init failed with the error", res);
                 return;
             }
             auto* probe = io_uring_get_probe_ring(&m_ring);
@@ -262,13 +260,11 @@ namespace art {
                     ++cqe_count;
                     auto handle = static_cast<NativeWorkerHandle*>(io_uring_cqe_get_data(cqe));
                     if (!handle) {
-                        ValueItem notify{"io_uring_wait_cqe returned undefined completion, skip"};
-                        warning.async_notify(notify);
+                        CXX::Interface::makeCall(ClassAccess::pub, attacha_environment::get_value({"run_time", "event", "warning"}), "sync_notify", "io_uring_wait_cqe returned undefined completion, skipping");
                         continue;
                     }
                     if (!handle->manager) {
-                        ValueItem notify{"io_uring_wait_cqe returned completion with undefined manager, skip", handle};
-                        warning.async_notify(notify);
+                        CXX::Interface::makeCall(ClassAccess::pub, attacha_environment::get_value({"run_time", "event", "warning"}), "sync_notify", "io_uring_wait_cqe returned undefined undefined manager, skipping", handle);
                         continue;
                     }
                     handle->manager->handle(handle, cqe);
@@ -308,8 +304,7 @@ namespace art {
 
         static void sumbmit(NativeWorkersSingleton& instance) {
             if (int res = io_uring_submit(&instance.m_ring); res < 0) {
-                ValueItem notify{"io_uring_submit failed with error ", res};
-                errors.sync_notify(notify);
+                CXX::Interface::makeCall(ClassAccess::pub, attacha_environment::get_value({"run_time", "event", "error"}), "sync_notify", "io_uring_submit failed with the error", res);
             }
         }
 

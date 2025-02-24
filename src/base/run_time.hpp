@@ -27,15 +27,8 @@ namespace art {
     thread_local extern bool ex_proxy_enabled;
     extern size_t page_size;
 
-    extern EventSystem unhandled_exception;
-    extern EventSystem ex_fault;
-    extern EventSystem errors;
-
 #define DISABLE_RUNTIME_WARNING
-    extern EventSystem warning;
-
 #define DISABLE_RUNTIME_INFO
-    extern EventSystem info;
 
     ENUM_ta(
         FaultAction,

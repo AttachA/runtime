@@ -6,6 +6,8 @@
 
 #include <run_time/asm/CASM.hpp>
 #include <run_time/asm/exception.hpp>
+#include <run_time/library/cxx_binds/console.hpp>
+#include <run_time/library/internal.hpp>
 #include <util/cxxException.hpp>
 #include <util/enum_class.hpp>
 #include <util/ustring.hpp>
@@ -63,6 +65,11 @@ namespace art {
             else
                 return result;
         }
+    }
+
+    AttachARuntimeException::AttachARuntimeException(const art::ustring& msq)
+        : message(msq) {
+        invite_to_debugger(msq);
     }
 
     art::ustring AttachARuntimeException::full_info() const {

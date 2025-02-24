@@ -25,11 +25,11 @@ namespace art {
     art::shared_ptr<FuncEnvironment>& attacha_environment::create_fun_env(class FuncEnvironment* ptr) {
         art::ustring path = "\1. " + std::to_string((size_t)ptr);
         return attacha_environment::get_function_globals()
-            .set([&path](auto& fn_glob) -> auto& {
+            .set([&path, ptr](auto& fn_glob) -> auto& {
                 auto& tmp = fn_glob[path];
                 if (tmp)
                     throw SymbolException("Fail allocate symbol: \"" + path + "\" because its already exists");
-                return tmp;
+                return tmp = ptr;
             });
     }
 
@@ -214,10 +214,8 @@ namespace art {
 
     FuncHandle::inner_handle::~inner_handle() {
         if (frame != nullptr && _type == FuncType::own) {
-            if (!FrameResult::deinit(frame, (void*)env)) {
-                ValueItem result{"Failed unload function:", frame};
-                errors.async_notify(result);
-            }
+            if (!FrameResult::deinit(frame, (void*)env))
+                CXX::Interface::makeCall(ClassAccess::pub, attacha_environment::get_value({"run_time", "event", "errors"}), "async_notify", "Failed to unload function:", frame);
         }
         if (_type == FuncType::native_c) {
             delete (DynamicCall::FunctionTemplate*)(void*)values[0];

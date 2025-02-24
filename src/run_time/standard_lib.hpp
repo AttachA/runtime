@@ -6,6 +6,7 @@
 
 namespace art {
     //functions starting with symbol '#' is constructors
+    //functions starting with symbol '>' default main function(name does not matter, but should be unique)
     //functions starting with symbol '\1' is special functions that used by compilers for special needs and should not called by user
     //L> full name recommended to be in this format: "\1 <language name> <version> <compiler> ..."
     //functions starting with symbol '\2' is special functions that used by compilers to initialize types and should not be initialized to runtime but called by compilers
@@ -13,6 +14,10 @@ namespace art {
     //functions starting with symbol '\3' is same special function which starts with '\2' but must be called once when readed and must be not called if appeared again
     //symbol '#' in names represent multiple constructors ex '# net ip#v6' is constructor for
     //L>   '# net ip' that receive only ip6 address in string, btw what contains after '#' is not important, that can be just numbers
+
+    void initRuntime();
+    void deinitRuntime();
+
 
     void initStandardLib();      //init all,except CMath and debug
     void initStandardLib_safe(); //init all,except CMath, internal(partially), debug and start_debug.  In internal will be initialized only limited vtable view without write access

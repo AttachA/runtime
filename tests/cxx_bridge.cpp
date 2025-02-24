@@ -9,11 +9,11 @@ const constexpr int C_THREE = 3;
 const constexpr double C_FOUR = 4.4;
 
 
-void test_arguments_passing(int one, int two, int three, double five) {
+void test_arguments_passing(int one, int two, int three, double four) {
     ASSERT_EQ(one, C_ONE);
     ASSERT_EQ(two, C_TWO);
     ASSERT_EQ(three, C_THREE);
-    ASSERT_EQ(five, C_FOUR);
+    ASSERT_EQ(four, C_FOUR);
 }
 
 TEST(CXX_BRIDGE, native_call) {
@@ -31,11 +31,11 @@ TEST(CXX_BRIDGE, self_bridge_call_simple_lambda) {
             int one = (int)args[0];
             int two = (int)args[1];
             int three = (int)args[2];
-            double five = (double)args[3];
+            double four = (double)args[3];
             ASSERT_EQ(one, C_ONE);
             ASSERT_EQ(two, C_TWO);
             ASSERT_EQ(three, C_THREE);
-            ASSERT_EQ(five, C_FOUR);
+            ASSERT_EQ(four, C_FOUR);
         },
         false,
         false
@@ -57,11 +57,11 @@ TEST(CXX_BRIDGE, self_bridge_call_capturing_lambda) {
             int one = (int)args[0];
             int two = (int)args[1];
             int three = (int)args[2];
-            double five = (double)args[3];
+            double four = (double)args[3];
             ASSERT_EQ(one, C_ONE);
             ASSERT_EQ(two, C_TWO);
             ASSERT_EQ(three, C_THREE);
-            ASSERT_EQ(five, C_FOUR);
+            ASSERT_EQ(four, C_FOUR);
 
             ASSERT_EQ(capture_one, C_ONE);
         },
@@ -75,7 +75,7 @@ AttachAFunc(native_test_arguments_passing, 4) {
     int one = (int)args[0];
     int two = (int)args[1];
     int three = (int)args[2];
-    double five = (double)args[3];
+    double four = (double)args[3];
     [&]() {
         ASSERT_EQ(len, 4u);
         ASSERT_EQ(args[0].meta.vtype, VType::i32);
@@ -87,7 +87,7 @@ AttachAFunc(native_test_arguments_passing, 4) {
         ASSERT_EQ(one, C_ONE);
         ASSERT_EQ(two, C_TWO);
         ASSERT_EQ(three, C_THREE);
-        ASSERT_EQ(five, C_FOUR);
+        ASSERT_EQ(four, C_FOUR);
     }();
     return nullptr;
 }

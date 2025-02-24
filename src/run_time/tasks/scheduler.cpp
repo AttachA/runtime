@@ -518,6 +518,7 @@ namespace art {
                 if (taskExecutor_check_next(guard, end_in_task_out)) {
                     termination_state = true;
                     guard.unlock();
+                    continue;
                 } else {
                     if (loadTask())
                         continue;

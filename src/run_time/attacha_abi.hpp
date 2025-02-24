@@ -122,7 +122,7 @@ namespace art {
             if constexpr (val_meta_.vtype == VType::noting && !std::is_same_v<std::remove_cvref_t<T>, void>) {
                 if constexpr (std::is_same_v<std::remove_cvref_t<T>, std::nullptr_t>) {
                     return ValueItem();
-                } else if constexpr (std::is_same_v<T, const char*> || std::is_same_v<std::remove_cvref_t<T>, std::string> || std::is_same_v<std::remove_cvref_t<T>, std::string_view>) {
+                } else if constexpr (std::is_convertible_v<T, std::string_view>) {
                     return ValueItem(new art::ustring(val), VType::string, no_copy);
                 } else if constexpr (std::is_same_v<std::remove_cvref_t<T>, Environment>) {
                     return ValueItem(new art::shared_ptr<FuncEnvironment>(new FuncEnvironment(val, false)), VType::function, no_copy);
@@ -135,11 +135,11 @@ namespace art {
                     return (size_t)val;
                 } else if constexpr (std::is_aggregate_v<std::remove_cvref_t<T>> || std::is_class_v<std::remove_cvref_t<T>>) {
                     using un_ref_ = std::remove_const_t<std::remove_reference_t<T>>;
-                    if (CXX::Interface::typeVTable<un_ref_>() != nullptr) {
+                    if (CXX::Interface::typeVTableReadOnly<un_ref_>() != nullptr) {
                         if constexpr (std::is_copy_constructible_v<T> && !std::is_reference_v<T>)
-                            return ValueItem(new Structure(new T(val), CXX::Interface::typeVTable<un_ref_>().vtable, CXX::Interface::typeVTable<un_ref_>().mode, defaultDestructor<un_ref_>), no_copy);
+                            return ValueItem(new Structure(new T(val), CXX::Interface::typeVTableReadOnly<un_ref_>().vtable, CXX::Interface::typeVTableReadOnly<un_ref_>().mode, defaultDestructor<un_ref_>), no_copy);
                         else
-                            return ValueItem(new Structure(&val, CXX::Interface::typeVTable<un_ref_>().vtable, CXX::Interface::typeVTable<un_ref_>().mode, nullptr), no_copy);
+                            return ValueItem(new Structure(&val, CXX::Interface::typeVTableReadOnly<un_ref_>().vtable, CXX::Interface::typeVTableReadOnly<un_ref_>().mode, nullptr), no_copy);
                     } else
                         throw InvalidArguments("This type is not has been registered");
                     throw NotImplementedException();
@@ -187,14 +187,9 @@ namespace art {
                     if constexpr (needAlloc(val_meta_))
                         return ValueItem(new T(std::forward<T>(val)), val_meta_, art::no_copy);
                     else
-                        return ValueItem((void*)&val, val_meta_, art::no_copy);
+                        return ValueItem(*(void**)&val, val_meta_, art::no_copy);
                 }
             }
-        }
-
-        template <size_t N>
-        ValueItem BVcast(const char (&str)[N]) {
-            return art::ustring(str);
         }
 
         template <class T>
@@ -352,30 +347,32 @@ namespace art {
                 return ValueItem(ref_val, meta);
             } else if constexpr (std::is_arithmetic_v<T> || std::is_same_v<T, bool> || std::is_same_v<T, char32_t> || std::is_same_v<T, std::chrono::high_resolution_clock::time_point>) {
                 switch (meta.vtype) {
+                case VType::noting:
+                    return 0;
                 case VType::boolean:
-                    return (T) * reinterpret_cast<const bool*>(&val);
+                    return *(bool*)&val;
                 case VType::i8:
-                    return (T) * reinterpret_cast<const int8_t*>(&val);
+                    return *(int8_t*)&val;
                 case VType::i16:
-                    return (T) * reinterpret_cast<const int16_t*>(&val);
+                    return *(int16_t*)&val;
                 case VType::i32:
-                    return (T) * reinterpret_cast<const int32_t*>(&val);
+                    return *(int32_t*)&val;
                 case VType::i64:
-                    return (T) * reinterpret_cast<const int64_t*>(&val);
+                    return *(int64_t*)&val;
                 case VType::ui8:
-                    return (T) * reinterpret_cast<const uint8_t*>(&val);
+                    return *(uint8_t*)&val;
                 case VType::ui16:
-                    return (T) * reinterpret_cast<const uint16_t*>(&val);
+                    return *(uint16_t*)&val;
                 case VType::ui32:
-                    return (T) * reinterpret_cast<const uint32_t*>(&val);
+                    return *(uint32_t*)&val;
                 case VType::ui64:
-                    return (T) * reinterpret_cast<const uint64_t*>(&val);
+                    return *(uint64_t*)&val;
                 case VType::flo:
-                    return (T) * reinterpret_cast<const float*>(&val);
+                    return *(float*)&val;
                 case VType::doub:
-                    return (T) * reinterpret_cast<const double*>(&val);
+                    return *(double*)&val;
                 case VType::character:
-                    return (T) * reinterpret_cast<const char32_t*>(&val);
+                    return *(char32_t*)&val;
                 case VType::time_point:
                     return (T) reinterpret_cast<const std::chrono::high_resolution_clock::time_point*>(&val)->time_since_epoch().count();
                 default:

@@ -5,6 +5,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <run_time/AttachA_CXX.hpp>
+#include <run_time/asm/attacha_environment.hpp>
 #include <run_time/library/localization.hpp>
 
 #if PLATFORM_WINDOWS
@@ -84,13 +85,10 @@ namespace art {
             _internal_::remove_localization_strings((art::ustring)args[0], localization_keys);
         });
 
-        AttachAFun(get_current_locale_changed, 0, {
-            return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _internal_::current_locale_changed), no_copy);
-        });
-
-        AttachAFun(get_current_locale_updated, 0, {
-            return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _internal_::current_locale_updated), no_copy);
-        });
+        void init() {
+            attacha_environment::get_value({"localization", "event", "current_locale_changed"}) = CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), new EventSystem());
+            attacha_environment::get_value({"localization", "event", "current_locale_updated"}) = CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), new EventSystem());
+        }
 
         namespace _internal_ {
             art::ustring default_language = "en";
@@ -108,19 +106,20 @@ namespace art {
                 art::ustring old = current_language;
                 current_language = language;
                 ValueItem args = language;
-                if (!current_locale_changed->await_notify(args)) {
+                auto event = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"localization", "event", "current_locale_changed"}));
+
+                if (!event->await_notify(args)) {
                     current_language = old;
-                    args = old;
-                    current_locale_changed->async_notify(args);
+                    EventSystem::async_notify(event, std::move(args));
                     return false;
                 }
                 return true;
             }
 
             void force_set_language(const art::ustring& language) {
+                auto event = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"localization", "event", "current_locale_changed"}));
                 current_language = language;
-                ValueItem args = language;
-                current_locale_changed->async_notify(args);
+                EventSystem::async_notify(event, language);
             }
 
             art::ustring get_default_language() {
@@ -174,8 +173,8 @@ namespace art {
             void set_localized_string(const art::ustring& localization_language, const art::ustring& localization_key, const art::ustring& localization_value) {
                 localization_strings[localization_language][localization_key] = localization_value;
                 if (localization_language == current_language) {
-                    ValueItem args = localization_key;
-                    current_locale_updated->async_notify(args);
+                    auto event = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"localization", "event", "current_locale_updated"}));
+                    EventSystem::async_notify(event, localization_key);
                 }
             }
 
@@ -187,8 +186,8 @@ namespace art {
             void remove_localized_string(const art::ustring& localization_language, const art::ustring& localization_key) {
                 localization_strings[localization_language].erase(localization_key);
                 if (localization_language == current_language) {
-                    ValueItem args = localization_key;
-                    current_locale_updated->async_notify(args);
+                    auto event = CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"localization", "event", "current_locale_updated"}));
+                    EventSystem::async_notify(event, localization_key);
                 }
             }
 
@@ -196,9 +195,6 @@ namespace art {
                 for (auto& localization_key : localization_keys)
                     remove_localized_string(localization_language, localization_key);
             }
-
-            typed_lgr<EventSystem> current_locale_changed = new EventSystem();
-            typed_lgr<EventSystem> current_locale_updated = new EventSystem();
         }
     }
 }

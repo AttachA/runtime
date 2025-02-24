@@ -112,7 +112,7 @@ namespace art {
                 case NotifyType::sync:
                     return notifier_event->sync_notify(const_cast<ValueItem&>(val));
                 case NotifyType::async:
-                    return Task::get_result(notifier_event->async_notify(const_cast<ValueItem&>(val)));
+                    return Task::get_result(EventSystem::async_notify(notifier_event, const_cast<ValueItem&>(val)));
                 case NotifyType::await:
                     return notifier_event->await_notify(const_cast<ValueItem&>(val));
                 default:
@@ -240,7 +240,7 @@ namespace art {
             return nullptr;
         }
 
-        art::shared_ptr<FuncEnvironment> auto_notify_task = new FuncEnvironment(_auto_notify_task, false);
+        art::shared_ptr<FuncEnvironment>& auto_notify_task = attacha_environment::create_fun_env(new FuncEnvironment(_auto_notify_task, false));
 
         typed_lgr<AutoNotifyChanel> Chanel::auto_notify(art::typed_lgr<Task>& val) {
             AutoNotifyChanel* res = new AutoNotifyChanel();
@@ -419,7 +419,7 @@ namespace art {
         AttachAFunc(funs_Chanel_auto_event, 3) {
             art::CXX::Interface::getExtractAs<typed_lgr<Chanel>>(args[0], define_Chanel)
                 ->auto_event(
-                    art::CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[1], (AttachAVirtualTable*)art::CXX::Interface::typeVTable<EventSystem>()),
+                    art::CXX::Interface::getExtractAs<typed_lgr<EventSystem>>(args[1], (AttachAVirtualTable*)art::CXX::Interface::typeVTableReadOnly<EventSystem>()),
                     (AutoEventChanel::NotifyType)(uint8_t)args[2]
                 );
             return nullptr;

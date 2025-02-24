@@ -28,8 +28,7 @@ namespace art {
         ValueItem* remove_localized_string(ValueItem*, uint32_t);
         ValueItem* remove_localization_strings(ValueItem*, uint32_t);
 
-        ValueItem* get_current_locale_changed(ValueItem*, uint32_t);
-        ValueItem* get_current_locale_updated(ValueItem*, uint32_t);
+        void init();
 
         namespace _internal_ {
             struct localization_pair {
@@ -52,9 +51,6 @@ namespace art {
             void update_localization_strings(const art::ustring& localization_language, const list_array<localization_pair>& localization_strings);
             void remove_localized_string(const art::ustring& localization_language, const art::ustring& localization_key);
             void remove_localization_strings(const art::ustring& localization_language, const list_array<art::ustring>& localization_keys);
-
-            extern typed_lgr<EventSystem> current_locale_changed;
-            extern typed_lgr<EventSystem> current_locale_updated;
         }
     }
 }

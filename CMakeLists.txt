@@ -62,6 +62,7 @@ FILE(GLOB LIB_SRCFILES
         src/util/*.cpp
         src/library/*.cpp
         src/base/run_time.cpp
+        src/base/language/*.cpp
 )
 
 

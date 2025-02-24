@@ -53,7 +53,7 @@ namespace art {
         pool_item* make_constant_pool(const char32_t* string, size_t size);
     };
 
-    //ustring internally uses utf8, but dances as utf32
+    //ustring internally uses utf8, but pretends as utf32
     class ustring {
         static constexpr size_t short_array_size = []() {
             size_t long_arr = sizeof(list_array<char>) + sizeof(size_t) + sizeof(size_t);
@@ -317,7 +317,7 @@ namespace art {
         return ustring(s) + str;
     }
 
-    inline ustring operator+(const std::string& s, const ustring& str) {
+    inline ustring operator+(const std::string_view& s, const ustring& str) {
         return ustring(s) + str;
     }
 
@@ -337,7 +337,7 @@ namespace art {
         return ustring(s) - str;
     }
 
-    inline ustring operator-(const std::string& s, const ustring& str) {
+    inline ustring operator-(const std::string_view& s, const ustring& str) {
         return ustring(s) - str;
     }
 
@@ -389,7 +389,7 @@ namespace art {
         return ustring(s) == str;
     }
 
-    inline bool operator==(const std::string& s, const ustring& str) {
+    inline bool operator==(const std::string_view& s, const ustring& str) {
         return ustring(s) == str;
     }
 
@@ -425,7 +425,7 @@ namespace art {
         return ustring(s) != str;
     }
 
-    inline bool operator!=(const std::string& s, const ustring& str) {
+    inline bool operator!=(const std::string_view& s, const ustring& str) {
         return ustring(s) != str;
     }
 
@@ -461,7 +461,7 @@ namespace art {
         return ustring(s) < str;
     }
 
-    inline bool operator<(const std::string& s, const ustring& str) {
+    inline bool operator<(const std::string_view& s, const ustring& str) {
         return ustring(s) < str;
     }
 
@@ -497,7 +497,7 @@ namespace art {
         return ustring(s) > str;
     }
 
-    inline bool operator>(const std::string& s, const ustring& str) {
+    inline bool operator>(const std::string_view& s, const ustring& str) {
         return ustring(s) > str;
     }
 
@@ -533,7 +533,7 @@ namespace art {
         return ustring(s) <= str;
     }
 
-    inline bool operator<=(const std::string& s, const ustring& str) {
+    inline bool operator<=(const std::string_view& s, const ustring& str) {
         return ustring(s) <= str;
     }
 
@@ -569,7 +569,7 @@ namespace art {
         return ustring(s) >= str;
     }
 
-    inline bool operator>=(const std::string& s, const ustring& str) {
+    inline bool operator>=(const std::string_view& s, const ustring& str) {
         return ustring(s) >= str;
     }
 

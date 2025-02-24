@@ -19,10 +19,13 @@
 
 namespace art {
     class IFolderChangesMonitor {
+    public:
+        virtual ~IFolderChangesMonitor() noexcept(false) {}
         virtual void start() noexcept(false) = 0;      //start async scan
         virtual void lazy_start() noexcept(false) = 0; //start async scan
         virtual void once_scan() noexcept(false) = 0;  //manual scan, blocking, return immediately if already scanning
         virtual void stop() noexcept(false) = 0;
+        virtual void reset() noexcept(false) = 0;
         virtual ValueItem get_event_folder_name_change() const = 0;
         virtual ValueItem get_event_file_name_change() const = 0;
 
@@ -1478,7 +1481,7 @@ namespace art {
             ValueItem file_extension() {
                 size_t pos = _path.find_last_of('/');
                 if (pos == art::ustring::npos)
-                    return nullptr;
+                    return ValueItem("");
                 art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
                 pos = wpath.find_first_of('.');
 
@@ -1488,7 +1491,7 @@ namespace art {
             ValueItem file_name() {
                 size_t pos = _path.find_last_of('/');
                 if (pos == art::ustring::npos)
-                    return nullptr;
+                    return ValueItem("");
                 art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
                 pos = wpath.find_first_of('.');
                 if (pos == art::ustring::npos)
@@ -1499,7 +1502,7 @@ namespace art {
             ValueItem file_name_without_extension() {
                 size_t pos = _path.find_last_of('/');
                 if (pos == art::ustring::npos)
-                    return nullptr;
+                    return ValueItem("");
                 art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
                 pos = wpath.find_first_of('.');
                 if (pos == art::ustring::npos)
@@ -1510,7 +1513,7 @@ namespace art {
             ValueItem file_path() {
                 size_t pos = _path.find_last_of('/');
                 if (pos == art::ustring::npos)
-                    return nullptr;
+                    return ValueItem("");
                 art::ustring wpath = _path.substr(0, pos);
                 return ValueItem(wpath);
             }
@@ -1637,63 +1640,62 @@ namespace art {
                                 if (it == states.end()) {
                                     states[id.QuadPart] = {};
                                     it = states.find(id.QuadPart);
-                                    ValueItem args{name};
                                     if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                        _folder_creation->async_notify(args);
+                                        EventSystem::async_notify(_folder_creation, name);
                                     else
-                                        _file_creation->async_notify(args);
+                                        EventSystem::async_notify(_file_creation, name);
                                     action = FILE_ACTION_ADDED;
                                 } else if ((it->second.current->FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
                                     {
                                         ValueItem args{name, (uint32_t)info.dwFileAttributes};
                                         if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                            _folder_removed->async_notify(args);
+                                            EventSystem::async_notify(_folder_removed, std::move(args));
                                         else
-                                            _file_removed->async_notify(args);
+                                            EventSystem::async_notify(_file_removed, std::move(args));
                                     }
                                     {
                                         ValueItem args{name, (uint32_t)it->second.current->FileAttributes};
                                         if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                            _folder_creation->async_notify(args);
+                                            EventSystem::async_notify(_folder_creation, std::move(args));
                                         else
-                                            _file_creation->async_notify(args);
+                                            EventSystem::async_notify(_file_creation, std::move(args));
                                     }
                                     action = FILE_ACTION_RENAMED_NEW_NAME;
                                 } else {
                                     if (it->second.current->FileAttributes != info.dwFileAttributes) {
                                         ValueItem args{name, (uint32_t)info.dwFileAttributes};
                                         if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                            _folder_attributes->async_notify(args);
+                                            EventSystem::async_notify(_folder_attributes, std::move(args));
                                         else
-                                            _file_attributes->async_notify(args);
+                                            EventSystem::async_notify(_file_attributes, std::move(args));
                                         action = FILE_ACTION_MODIFIED;
                                     }
                                     if (it->second.current->FileSize.QuadPart != file_size.QuadPart) {
                                         ValueItem args{name, (long long)file_size.QuadPart};
                                         if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                            _folder_size_change->async_notify(args);
+                                            EventSystem::async_notify(_folder_size_change, std::move(args));
                                         else
-                                            _file_size_change->async_notify(args);
+                                            EventSystem::async_notify(_file_size_change, std::move(args));
                                         action = FILE_ACTION_MODIFIED;
                                     }
                                     if (it->second.current->LastAccessTime.QuadPart != last_access.QuadPart) {
                                         ValueItem args{name, (long long)last_access.QuadPart};
                                         if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                            _folder_last_access->async_notify(args);
+                                            EventSystem::async_notify(_folder_last_access, std::move(args));
                                         else
-                                            _file_last_access->async_notify(args);
+                                            EventSystem::async_notify(_file_last_access, std::move(args));
                                         action = FILE_ACTION_MODIFIED;
                                     }
                                     if (it->second.current->LastChangeTime.QuadPart != last_write.QuadPart) {
                                         ValueItem args{name, (long long)last_write.QuadPart};
                                         if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                            _folder_creation->async_notify(args);
+                                            EventSystem::async_notify(_folder_creation, std::move(args));
                                         else
-                                            _file_creation->async_notify(args);
+                                            EventSystem::async_notify(_file_creation, std::move(args));
                                         action = FILE_ACTION_MODIFIED;
                                     }
                                     bool name_change = false;
-                                    size_t wname_len = wcslen(it->second.current->FileName);
+                                    size_t wname_len = wcslen(fd.cFileName);
                                     if (it->second.current->FileNameLength / sizeof(wchar_t) != wname_len) {
                                         name_change = true;
                                     } else {
@@ -1705,11 +1707,11 @@ namespace art {
                                         }
                                     }
                                     if (name_change) {
-                                        ValueItem args{name, fd.cFileName};
+                                        ValueItem args{name, ustring(fd.cFileName)};
                                         if (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                            _folder_name_change->async_notify(args);
+                                            EventSystem::async_notify(_folder_name_change, std::move(args));
                                         else
-                                            _file_name_change->async_notify(args);
+                                            EventSystem::async_notify(_file_name_change, std::move(args));
                                         action = FILE_ACTION_RENAMED_NEW_NAME;
                                     }
                                 }
@@ -1759,9 +1761,9 @@ namespace art {
                     if (!_ids.contains(it.first)) {
                         ValueItem args{it.second.full_path, (uint32_t)it.second.current->FileAttributes};
                         if (it.second.current->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                            _folder_removed->async_notify(args);
+                            EventSystem::async_notify(_folder_removed, std::move(args));
                         else
-                            _file_removed->async_notify(args);
+                            EventSystem::async_notify(_file_removed, std::move(args));
                         if (it.second.current)
                             free(it.second.current);
                         ids.push_back(it.first);
@@ -1793,7 +1795,7 @@ namespace art {
                 initialize();
             }
 
-            ~FolderChangesMonitorImpl() {
+            virtual ~FolderChangesMonitorImpl() {
                 FolderChangesMonitorImpl::stop();
                 if (_directory != INVALID_HANDLE_VALUE)
                     CloseHandle(_directory);
@@ -1813,7 +1815,6 @@ namespace art {
                     bool is_folder = info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY;
                     switch (info->Action) {
                     case FILE_ACTION_ADDED: {
-                        ValueItem args{name};
                         auto it = states.find(info->FileId.QuadPart);
                         FILE_NOTIFY_EXTENDED_INFORMATION* allocated_info = (FILE_NOTIFY_EXTENDED_INFORMATION*)malloc(sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength * sizeof(wchar_t));
                         if (!allocated_info)
@@ -1823,29 +1824,28 @@ namespace art {
                             states[info->FileId.QuadPart].current = allocated_info;
                             states[info->FileId.QuadPart].full_path = name;
                             if (is_folder)
-                                _folder_creation->async_notify(args);
+                                EventSystem::async_notify(_folder_creation, name);
                             else
-                                _file_creation->async_notify(args);
+                                EventSystem::async_notify(_file_creation, name);
                         } else {
                             auto old = states[info->FileId.QuadPart].full_path;
                             states[info->FileId.QuadPart].current = allocated_info;
                             states[info->FileId.QuadPart].full_path = name;
-                            args = {old, name};
+                            ValueItem args{old, name};
                             if (is_folder)
-                                _folder_name_change->async_notify(args);
+                                EventSystem::async_notify(_folder_name_change, std::move(args));
                             else
-                                _file_name_change->async_notify(args);
+                                EventSystem::async_notify(_file_name_change, std::move(args));
                         }
                         break;
                     }
                     case FILE_ACTION_REMOVED: {
                         auto it = states.find(info->FileId.QuadPart);
                         if (it != states.end()) {
-                            ValueItem args{name};
                             if (is_folder)
-                                _folder_removed->async_notify(args);
+                                EventSystem::async_notify(_folder_removed, name);
                             else
-                                _file_removed->async_notify(args);
+                                EventSystem::async_notify(_file_removed, name);
                             free(it->second.current);
                             states.erase(it);
                         }
@@ -1858,30 +1858,30 @@ namespace art {
                             if (old_info.current->LastAccessTime.QuadPart != info->LastAccessTime.QuadPart) {
                                 ValueItem args{name, (long long)info->LastAccessTime.QuadPart};
                                 if (is_folder)
-                                    _folder_last_access->async_notify(args);
+                                    EventSystem::async_notify(_folder_last_access, std::move(args));
                                 else
-                                    _file_last_access->async_notify(args);
+                                    EventSystem::async_notify(_file_last_access, std::move(args));
                             }
                             if (old_info.current->LastModificationTime.QuadPart != info->LastModificationTime.QuadPart) {
                                 ValueItem args{name, (long long)info->LastModificationTime.QuadPart};
                                 if (is_folder)
-                                    _folder_last_write->async_notify(args);
+                                    EventSystem::async_notify(_folder_last_write, std::move(args));
                                 else
-                                    _file_last_write->async_notify(args);
+                                    EventSystem::async_notify(_file_last_write, std::move(args));
                             }
                             if (old_info.current->FileAttributes != info->FileAttributes) {
                                 ValueItem args{name, (uint32_t)info->FileAttributes};
                                 if (is_folder)
-                                    _folder_attributes->async_notify(args);
+                                    EventSystem::async_notify(_folder_attributes, std::move(args));
                                 else
-                                    _file_attributes->async_notify(args);
+                                    EventSystem::async_notify(_file_attributes, std::move(args));
                             }
                             if (old_info.current->FileSize.QuadPart != info->FileSize.QuadPart) {
                                 ValueItem args{name, (long long)info->FileSize.QuadPart};
                                 if (is_folder)
-                                    _folder_size_change->async_notify(args);
+                                    EventSystem::async_notify(_folder_size_change, std::move(args));
                                 else
-                                    _file_size_change->async_notify(args);
+                                    EventSystem::async_notify(_file_size_change, std::move(args));
                             }
 
                         } else {
@@ -1912,9 +1912,9 @@ namespace art {
                         if (old_info.current != nullptr) {
                             ValueItem args{old_info.full_path, name};
                             if (info->FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-                                _folder_name_change->async_notify(args);
+                                EventSystem::async_notify(_folder_name_change, std::move(args));
                             else
-                                _file_name_change->async_notify(args);
+                                EventSystem::async_notify(_file_name_change, std::move(args));
                             FILE_NOTIFY_EXTENDED_INFORMATION* allocated_info = (FILE_NOTIFY_EXTENDED_INFORMATION*)malloc(sizeof(FILE_NOTIFY_EXTENDED_INFORMATION) + info->FileNameLength);
                             if (!allocated_info)
                                 break;
@@ -1925,8 +1925,7 @@ namespace art {
                         break;
                     }
                     default: {
-                        ValueItem args{"FolderChangesMonitor", "Unknown action"};
-                        warning.async_notify(args);
+                        CXX::Interface::makeCall(ClassAccess::pub, attacha_environment::get_value({"run_time", "event", "warning"}), "async_notify", "FolderChangesMonitor", "Unknown action: " + std::to_string(info->Action));
                         break;
                     }
                     }
@@ -1940,8 +1939,7 @@ namespace art {
                     }
                     _is_running = false;
                     delete handle;
-                    ValueItem noting;
-                    watcher_shutdown->async_notify(noting);
+                    watcher_shutdown->await_notify({});
                 }
             }
 
@@ -1984,68 +1982,89 @@ namespace art {
                 if (_directory != INVALID_HANDLE_VALUE)
                     CancelIoEx(_directory, nullptr);
                 _is_running = false;
-                ValueItem noting;
-                watcher_shutdown->async_notify(noting);
+                watcher_shutdown->await_notify({});
+            }
+
+            void reset() noexcept(false) override {
+                stop();
+                _folder_name_change->clear();
+                _folder_creation->clear();
+                _folder_removed->clear();
+                _folder_last_access->clear();
+                _folder_last_write->clear();
+                _folder_security_change->clear();
+                _folder_size_change->clear();
+                _folder_attributes->clear();
+                _file_name_change->clear();
+                _file_creation->clear();
+                _file_removed->clear();
+                _file_last_write->clear();
+                _file_last_access->clear();
+                _file_security_change->clear();
+                _file_size_change->clear();
+                _file_attributes->clear();
+                watcher_shutdown->clear();
+                states.clear();
             }
 
             ValueItem get_event_folder_name_change() const override {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_name_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_name_change), no_copy);
             }
 
             ValueItem get_event_file_name_change() const override {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_name_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_name_change), no_copy);
             }
 
             ValueItem get_event_folder_size_change() const override {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_size_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_size_change), no_copy);
             }
 
             ValueItem get_event_file_size_change() const override {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_size_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_size_change), no_copy);
             }
 
             ValueItem get_event_folder_creation() const override {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_creation), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_creation), no_copy);
             }
 
             ValueItem get_event_file_creation() const override {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_creation), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_creation), no_copy);
             }
 
             ValueItem get_event_folder_removed() const override {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_removed), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_removed), no_copy);
             }
 
             ValueItem get_event_file_removed() const override {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_removed), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_removed), no_copy);
             }
 
             ValueItem get_event_watcher_shutdown() const override {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), watcher_shutdown), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), watcher_shutdown), no_copy);
             }
 
             ValueItem get_event_folder_last_access() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_last_access), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_last_access), no_copy);
             }
 
             ValueItem get_event_file_last_access() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_last_access), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_last_access), no_copy);
             }
 
             ValueItem get_event_folder_last_write() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_last_write), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_last_write), no_copy);
             }
 
             ValueItem get_event_file_last_write() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_last_write), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_last_write), no_copy);
             }
 
             ValueItem get_event_folder_security_change() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_security_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_security_change), no_copy);
             }
 
             ValueItem get_event_file_security_change() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_security_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_security_change), no_copy);
             }
         };
 
@@ -2069,6 +2088,11 @@ namespace art {
         AttachAFun(funs_FolderChangesMonitorImpl_stop, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             self->stop();
+        });
+
+        AttachAFun(funs_FolderChangesMonitorImpl_reset, 1, {
+            auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+            self->reset();
         });
 
         AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_name_change, 1, {
@@ -2139,7 +2163,7 @@ namespace art {
         void init() {
             static art::mutex m;
             art::lock_guard l(m);
-            if (CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
+            if (CXX::Interface::typeVTableReadOnly<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
                 return;
             define_FolderChangesMonitor = CXX::Interface::createTable<typed_lgr<FolderChangesMonitorImpl>>(
                 "folder_changes_monitor",
@@ -2147,6 +2171,7 @@ namespace art {
                 CXX::Interface::direct_method("lazy_start", funs_FolderChangesMonitorImpl_lazy_start),
                 CXX::Interface::direct_method("once_scan", funs_FolderChangesMonitorImpl_once_scan),
                 CXX::Interface::direct_method("stop", funs_FolderChangesMonitorImpl_stop),
+                CXX::Interface::direct_method("reset", funs_FolderChangesMonitorImpl_reset),
                 CXX::Interface::direct_method("get_event_folder_name_change", funs_FolderChangesMonitorImpl_get_event_folder_name_change),
                 CXX::Interface::direct_method("get_event_file_name_change", funs_FolderChangesMonitorImpl_get_event_file_name_change),
                 CXX::Interface::direct_method("get_event_folder_size_change", funs_FolderChangesMonitorImpl_get_event_folder_size_change),
@@ -2169,9 +2194,9 @@ namespace art {
         }
 
         ValueItem createFolderChangesMonitor(const char* path, size_t length, bool depth) {
-            if (CXX::Interface::typeVTable<typed_lgr<EventSystem>>() == nullptr)
+            if (CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>() == nullptr)
                 throw MissingDependencyException("Parallel library with event_system is not loaded, required for folder_changes_monitor");
-            if (CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() == nullptr)
+            if (CXX::Interface::typeVTableReadOnly<typed_lgr<FolderChangesMonitorImpl>>() == nullptr)
                 init();
             std::wstring wpath;
             utf8::utf8to16(path, path + length, std::back_inserter(wpath));
@@ -3628,7 +3653,7 @@ namespace art {
             ValueItem file_extension() {
                 size_t pos = _path.find_last_of('/');
                 if (pos == art::ustring::npos)
-                    return nullptr;
+                    return ValueItem("");
                 art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
                 pos = wpath.find_first_of('.');
 
@@ -3638,7 +3663,7 @@ namespace art {
             ValueItem file_name() {
                 size_t pos = _path.find_last_of('/');
                 if (pos == art::ustring::npos)
-                    return nullptr;
+                    return ValueItem("");
                 art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
                 pos = wpath.find_first_of('.');
                 if (pos == art::ustring::npos)
@@ -3649,7 +3674,7 @@ namespace art {
             ValueItem file_name_without_extension() {
                 size_t pos = _path.find_last_of('/');
                 if (pos == art::ustring::npos)
-                    return nullptr;
+                    return ValueItem("");
                 art::ustring wpath = _path.substr(pos + 1, _path.size() - pos - 1);
                 pos = wpath.find_first_of('.');
                 if (pos == art::ustring::npos)
@@ -3660,7 +3685,7 @@ namespace art {
             ValueItem file_path() {
                 size_t pos = _path.find_last_of('/');
                 if (pos == art::ustring::npos)
-                    return nullptr;
+                    return ValueItem("");
                 art::ustring wpath = _path.substr(0, pos);
                 return ValueItem(wpath);
             }
@@ -3792,33 +3817,33 @@ namespace art {
                         state.full_path = file_name;
                         *state.current = current;
                         if (S_ISDIR(current.st_mode))
-                            _folder_creation->async_notify(args);
+                            EventSystem::async_notify(_folder_creation, std::move(args));
                         else
-                            _file_creation->async_notify(args);
+                            EventSystem::async_notify(_file_creation, std::move(args));
                     } else {
                         if (S_ISDIR(current.st_mode)) {
                             if (state.current->st_mtime != current.st_mtime)
-                                _folder_last_write->async_notify(args);
+                                EventSystem::async_notify(_folder_last_write, std::move(args));
                             if (state.current->st_atime != current.st_atime)
-                                _folder_last_access->async_notify(args);
+                                EventSystem::async_notify(_folder_last_access, std::move(args));
                             if (state.current->st_ctime != current.st_ctime)
-                                _folder_attributes->async_notify(args);
+                                EventSystem::async_notify(_folder_attributes, std::move(args));
                             if (state.current->st_size != current.st_size)
-                                _folder_size_change->async_notify(args);
+                                EventSystem::async_notify(_folder_size_change, std::move(args));
                             if (state.current->st_gid != current.st_gid || state.current->st_uid != current.st_uid)
-                                _folder_security_change->async_notify(args);
+                                EventSystem::async_notify(_folder_security_change, std::move(args));
                             manually_iterate(file_name, ids);
                         } else {
                             if (state.current->st_mtime != current.st_mtime)
-                                _file_last_write->async_notify(args);
+                                EventSystem::async_notify(_file_last_write, std::move(args));
                             if (state.current->st_atime != current.st_atime)
-                                _file_last_access->async_notify(args);
+                                EventSystem::async_notify(_file_last_access, std::move(args));
                             if (state.current->st_ctime != current.st_ctime)
-                                _file_attributes->async_notify(args);
+                                EventSystem::async_notify(_file_attributes, std::move(args));
                             if (state.current->st_size != current.st_size)
-                                _file_size_change->async_notify(args);
+                                EventSystem::async_notify(_file_size_change, std::move(args));
                             if (state.current->st_gid != current.st_gid || state.current->st_uid != current.st_uid)
-                                _file_security_change->async_notify(args);
+                                EventSystem::async_notify(_file_security_change, std::move(args));
                         }
                         *state.current = current;
                     }
@@ -3839,9 +3864,9 @@ namespace art {
                     if (!_ids.contains(it.first)) {
                         ValueItem args{it.second.full_path};
                         if (S_ISDIR(it.second.current->st_mode))
-                            _folder_removed->async_notify(args);
+                            EventSystem::async_notify(_folder_removed, std::move(args));
                         else
-                            _file_removed->async_notify(args);
+                            EventSystem::async_notify(_file_removed, std::move(args));
                         ids.push_back(it.first);
                     }
                 }
@@ -3873,7 +3898,7 @@ namespace art {
                 initialize();
             }
 
-            ~FolderChangesMonitorImpl() {
+            virtual ~FolderChangesMonitorImpl() {
                 inotify_rm_watch(_directory.watcher, _directory.folder_watch);
                 close(_directory.watcher);
             }
@@ -3898,63 +3923,62 @@ namespace art {
                             *state.current = stat;
                             state.full_path = name;
                             if (event->mask & IN_ISDIR)
-                                _folder_creation->async_notify(args);
+                                EventSystem::async_notify(_folder_creation, args);
                             else
-                                _file_creation->async_notify(args);
+                                EventSystem::async_notify(_file_creation, args);
                         } else {
                             if (state.current->st_gid != stat.st_gid || state.current->st_uid != stat.st_uid) {
                                 state.current->st_gid = stat.st_gid;
                                 state.current->st_uid = stat.st_uid;
                                 if (event->mask & IN_ISDIR)
-                                    _folder_security_change->async_notify(args);
+                                    EventSystem::async_notify(_folder_security_change, args);
                                 else
-                                    _file_security_change->async_notify(args);
+                                    EventSystem::async_notify(_file_security_change, args);
                             }
                         }
                         if (event->mask & IN_CREATE) {
                             if (event->mask & IN_ISDIR)
-                                _folder_creation->async_notify(args);
+                                EventSystem::async_notify(_folder_creation, args);
                             else
-                                _file_creation->async_notify(args);
+                                EventSystem::async_notify(_file_creation, args);
                         }
                         if (event->mask & IN_DELETE) {
                             if (event->mask & IN_ISDIR)
-                                _folder_removed->async_notify(args);
+                                EventSystem::async_notify(_folder_removed, args);
                             else
-                                _file_removed->async_notify(args);
+                                EventSystem::async_notify(_file_removed, args);
                             states.erase(stat.st_ino);
                         }
                         if (event->mask & IN_ATTRIB) {
                             if (event->mask & IN_ISDIR)
-                                _folder_attributes->async_notify(args);
+                                EventSystem::async_notify(_folder_attributes, args);
                             else
-                                _file_attributes->async_notify(args);
+                                EventSystem::async_notify(_file_attributes, args);
                         }
                         if (event->mask & IN_MODIFY) {
                             if (event->mask & IN_ISDIR)
-                                _folder_size_change->async_notify(args);
+                                EventSystem::async_notify(_folder_size_change, args);
                             else
-                                _file_size_change->async_notify(args);
+                                EventSystem::async_notify(_file_size_change, args);
                         }
                         if (event->mask & IN_MOVED_FROM) {
                             if (event->mask & IN_ISDIR)
-                                _folder_removed->async_notify(args);
+                                EventSystem::async_notify(_folder_removed, args);
                             else
-                                _file_removed->async_notify(args);
+                                EventSystem::async_notify(_file_removed, args);
                         }
                         if (event->mask & IN_MOVED_TO) {
                             if (event->mask & IN_ISDIR)
-                                _folder_creation->async_notify(args);
+                                EventSystem::async_notify(_folder_creation, args);
                             else
-                                _file_creation->async_notify(args);
+                                EventSystem::async_notify(_file_creation, args);
                         }
                         buffer += sizeof(inotify_event) + event->len;
                         readed -= sizeof(inotify_event) + event->len;
                     }
                     createHandle(handle);
                 } else {
-                    ValueItem noting;
-                    watcher_shutdown->async_notify(noting);
+                    EventSystem::async_notify(watcher_shutdown, {});
                     delete handle;
                 }
             }
@@ -3989,67 +4013,102 @@ namespace art {
             void stop() noexcept(false) {
                 if (!_is_running)
                     return;
+                bool completed = false;
+                TaskConditionVariable cv;
+                TaskMutex mt;
+                *watcher_shutdown += CXX::MakeNative([&] {
+                    art::unique_lock lock(mt);
+                    completed = true;
+                    cv.notify_all();
+                });
                 _is_running = false;
+                MutexUnify un(mt);
+                art::unique_lock lock(un);
+                while (!completed)
+                    cv.wait(lock);
             }
 
+            void reset() noexcept(false) override {
+                stop();
+                _folder_name_change->clear();
+                _folder_creation->clear();
+                _folder_removed->clear();
+                _folder_last_access->clear();
+                _folder_last_write->clear();
+                _folder_security_change->clear();
+                _folder_size_change->clear();
+                _folder_attributes->clear();
+                _file_name_change->clear();
+                _file_creation->clear();
+                _file_removed->clear();
+                _file_last_write->clear();
+                _file_last_access->clear();
+                _file_security_change->clear();
+                _file_size_change->clear();
+                _file_attributes->clear();
+                watcher_shutdown->clear();
+                states.clear();
+            }
+
+
             ValueItem get_event_folder_name_change() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_name_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_name_change), no_copy);
             }
 
             ValueItem get_event_file_name_change() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_name_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_name_change), no_copy);
             }
 
             ValueItem get_event_folder_size_change() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_size_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_size_change), no_copy);
             }
 
             ValueItem get_event_file_size_change() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_size_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_size_change), no_copy);
             }
 
             ValueItem get_event_folder_creation() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_creation), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_creation), no_copy);
             }
 
             ValueItem get_event_file_creation() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_creation), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_creation), no_copy);
             }
 
             ValueItem get_event_folder_removed() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_removed), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_removed), no_copy);
             }
 
             ValueItem get_event_file_removed() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_removed), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_removed), no_copy);
             }
 
             ValueItem get_event_watcher_shutdown() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), watcher_shutdown), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), watcher_shutdown), no_copy);
             }
 
             ValueItem get_event_folder_last_access() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_last_access), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_last_access), no_copy);
             }
 
             ValueItem get_event_file_last_access() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_last_access), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_last_access), no_copy);
             }
 
             ValueItem get_event_folder_last_write() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_last_write), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_last_write), no_copy);
             }
 
             ValueItem get_event_file_last_write() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_last_write), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_last_write), no_copy);
             }
 
             ValueItem get_event_folder_security_change() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _folder_security_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _folder_security_change), no_copy);
             }
 
             ValueItem get_event_file_security_change() const {
-                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTable<typed_lgr<EventSystem>>(), _file_security_change), no_copy);
+                return ValueItem(CXX::Interface::constructStructure<typed_lgr<EventSystem>>((AttachAVirtualTable*)CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>(), _file_security_change), no_copy);
             }
         };
 
@@ -4070,6 +4129,10 @@ namespace art {
         AttachAFun(funs_FolderChangesMonitorImpl_stop, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
             self->stop();
+        });
+        AttachAFun(funs_FolderChangesMonitorImpl_reset, 1, {
+            auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
+            self->reset();
         });
         AttachAFun(funs_FolderChangesMonitorImpl_get_event_folder_name_change, 1, {
             auto self = CXX::Interface::getExtractAs<typed_lgr<FolderChangesMonitorImpl>>(args[0], define_FolderChangesMonitor);
@@ -4149,7 +4212,7 @@ namespace art {
         void init() {
             static art::mutex m;
             art::lock_guard l(m);
-            if (CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
+            if (CXX::Interface::typeVTableReadOnly<typed_lgr<FolderChangesMonitorImpl>>() != nullptr)
                 return;
             define_FolderChangesMonitor = CXX::Interface::createTable<typed_lgr<FolderChangesMonitorImpl>>(
                 "folder_changes_monitor",
@@ -4157,6 +4220,7 @@ namespace art {
                 CXX::Interface::direct_method("lazy_start", funs_FolderChangesMonitorImpl_lazy_start),
                 CXX::Interface::direct_method("once_scan", funs_FolderChangesMonitorImpl_once_scan),
                 CXX::Interface::direct_method("stop", funs_FolderChangesMonitorImpl_stop),
+                CXX::Interface::direct_method("reset", funs_FolderChangesMonitorImpl_reset),
                 CXX::Interface::direct_method("get_event_folder_name_change", funs_FolderChangesMonitorImpl_get_event_folder_name_change),
                 CXX::Interface::direct_method("get_event_file_name_change", funs_FolderChangesMonitorImpl_get_event_file_name_change),
                 CXX::Interface::direct_method("get_event_folder_size_change", funs_FolderChangesMonitorImpl_get_event_folder_size_change),
@@ -4179,9 +4243,9 @@ namespace art {
         }
 
         ValueItem createFolderChangesMonitor(const char* path, size_t length, bool depth) {
-            if (CXX::Interface::typeVTable<typed_lgr<EventSystem>>() == nullptr)
+            if (CXX::Interface::typeVTableReadOnly<typed_lgr<EventSystem>>() == nullptr)
                 throw MissingDependencyException("Parallel library with event_system is not loaded, required for folder_changes_monitor");
-            if (CXX::Interface::typeVTable<typed_lgr<FolderChangesMonitorImpl>>() == nullptr)
+            if (CXX::Interface::typeVTableReadOnly<typed_lgr<FolderChangesMonitorImpl>>() == nullptr)
                 init();
             return ValueItem(CXX::Interface::constructStructure<typed_lgr<FolderChangesMonitorImpl>>(define_FolderChangesMonitor, new FolderChangesMonitorImpl(path, depth)), no_copy);
         }

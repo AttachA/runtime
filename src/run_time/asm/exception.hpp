@@ -26,6 +26,9 @@ namespace art {
         bool has_exception();
         list_array<art::ustring> map_native_exception_names(CXXExInfo& cxx);
 
+        //used by runtime to pass decode and process exception by jitted code, returns 1 when info successfully set. -1 if same info already set. 0 - fail, runtime held another exception which can not be overriden.
+        int _assign_cpp_state(CXXExInfo& ex);
+
         bool _attacha_filter(CXXExInfo& info, void** continue_from, void* data, size_t size, void* enviro, uint8_t* image_base);
         void _attacha_finally(void* data, size_t size, void* enviro);
     }
