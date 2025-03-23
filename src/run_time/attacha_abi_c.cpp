@@ -400,7 +400,9 @@ namespace art {
             }
             return meta.use_gc ? (**(lgr*)value) : value;
         } else {
-            auto val = *(void**)&value;
+            auto& val = value;
+            if (!needAllocType(meta.vtype) || meta.use_gc)
+                val = *(void**)val;
             if (meta.use_gc) 
                 if (!val)
                     return val;
@@ -410,8 +412,10 @@ namespace art {
 
     const void* const& getValue(const void* const& value, const ValueMeta& meta) {
         auto val = &value;
-        if (meta.as_ref)
-            val = (void**)*val;
+        if (meta.as_ref) {
+            if (!needAllocType(meta.vtype) || meta.use_gc)
+                val = (void**)*val;
+        }
         if (meta.use_gc) {
             if (!*val) 
                 return *val;

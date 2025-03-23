@@ -86,7 +86,8 @@ namespace art {
         }
 
         void language_provider::register_language(art::shared_ptr<language_handler> decoder) {
-            register_language(decoder->get_language_extension(), decoder);
+            for (auto& extension : decoder->get_language_extensions())
+                register_language((std::string_view)extension, decoder);
         }
 
         void language_provider::register_language(std::string_view name, art::shared_ptr<language_handler> decoder) {

@@ -11,8 +11,13 @@
 namespace language_parsers {
 
     class c_async : public art::language::helpers::text_language_handler {
+        //TODO store processing results during handle_init()s and compile in handle_init_complete
+        //needed for class inheritance support
     public:
         c_async();
+        art::patch_list handle_init_complete() override;
+
+
         static void init();
     };
 }

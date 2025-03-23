@@ -708,8 +708,8 @@ namespace art {
                 template <class Class_>
                     requires std::equality_comparable<Class_> && std::totally_ordered<Class_>
                 ValueItem* _compare(ValueItem* args, uint32_t) {
-                    auto& dest = (Structure&)*args;
-                    auto& src = (Structure&)*(args + 1);
+                    auto& dest = (Structure&)args[0];
+                    auto& src = (Structure&)args[1];
                     __is_same_compare(dest, src, _compare<Class_>);
 
                     if (*(Class_*)dest.self == *(Class_*)src.self)
@@ -723,8 +723,8 @@ namespace art {
                 template <class Class_>
                     requires std::equality_comparable<Class_> && (!std::totally_ordered<Class_>)
                 ValueItem* _compare(ValueItem* args, uint32_t) {
-                    auto& dest = (Structure&)*args;
-                    auto& src = (Structure&)*(args + 1);
+                    auto& dest = (Structure&)args[0];
+                    auto& src = (Structure&)args[1];
                     __is_same_compare(dest, src, _compare<Class_>);
 
                     if (*(Class_*)dest.self == *(Class_*)src.self)
@@ -736,7 +736,7 @@ namespace art {
                 template <class Class_>
                     requires(!std::equality_comparable<Class_> && !std::totally_ordered<Class_>)
                 ValueItem* _compare(ValueItem* args, uint32_t) {
-                    auto& dest = (Structure&)*args;
+                    auto& dest = (Structure&)args[0];
                     auto& src = (Structure&)args[1];
                     __is_same_compare(dest, src, _compare<Class_>);
 

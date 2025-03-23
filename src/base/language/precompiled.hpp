@@ -32,8 +32,8 @@ namespace language_parsers {
         art::TaskMutex mutex;
 
     public:
-        std::string_view get_language_extension() const override {
-            return "art";
+        list_array<art::ustring> get_language_extensions() const override {
+            return {"art", "pcart", "precart"};
         }
 
         art::patch_list handle_init(art::files::FileHandle& file) override;

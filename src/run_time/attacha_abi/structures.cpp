@@ -1592,12 +1592,8 @@ namespace art {
         case VTableMode::AttachAVirtualTable: {
             auto table_dst = reinterpret_cast<AttachAVirtualTable*>(vtable);
             if (table_dst->copy) {
-                ValueItem _dst(dst, no_copy);
-                _dst.meta.as_ref = true;
-                ValueItem _src(src, no_copy);
-                _src.meta.as_ref = true;
-                ValueItem args = {_dst, _src, at_construct};
-                table_dst->copy(&args, 3);
+                ValueItem args[] = {{*dst, as_reference}, {*src, as_reference}, at_construct};
+                art::CXX::aCall(reinterpret_cast<AttachAVirtualTable*>(table_dst)->copy, args, 3);
             } else if (table_dst->allow_auto_copy) {
                 size_t dst_table_size = 0;
                 ValueInfo* dst_value_table = table_dst->getValuesInfo(dst_table_size);
@@ -1714,24 +1710,15 @@ namespace art {
         switch (dst->vtable_mode) {
         case VTableMode::AttachAVirtualTable:
             if (reinterpret_cast<AttachAVirtualTable*>(vtable)->move) {
-                ValueItem _dst(dst, no_copy);
-                _dst.meta.as_ref = true;
-                ValueItem _src(src, no_copy);
-                _src.meta.as_ref = true;
-                ValueItem args = {_dst, _src, at_construct};
-                auto res = reinterpret_cast<AttachAVirtualTable*>(vtable)->move((ValueItem*)args.getSourcePtr(), 3);
-                if (res)
-                    delete res;
+                ValueItem args[] = {{*dst, as_reference}, {*src, as_reference}, at_construct};
+                art::CXX::aCall(reinterpret_cast<AttachAVirtualTable*>(vtable)->move, args, 3);
             } else
                 throw NotImplementedException();
             break;
         case VTableMode::AttachADynamicVirtualTable:
             if (reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->move) {
-                ValueItem _dst(dst, no_copy);
-                _dst.meta.as_ref = true;
-                ValueItem _src(src, no_copy);
-                _src.meta.as_ref = true;
-                art::CXX::cxxCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->move, _dst, _src, at_construct);
+                ValueItem args[] = {{*dst, as_reference}, {*src, as_reference}, at_construct};
+                art::CXX::aCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->move, args, 3);
             } else
                 throw NotImplementedException();
             break;
@@ -1747,12 +1734,8 @@ namespace art {
         switch (a->vtable_mode) {
         case VTableMode::AttachAVirtualTable:
             if (reinterpret_cast<AttachAVirtualTable*>(vtable)->compare) {
-                ValueItem _a(a, no_copy);
-                _a.meta.as_ref = true;
-                ValueItem _b(b, no_copy);
-                _b.meta.as_ref = true;
-                ValueItem args = {_a, _b};
-                ValueItem* res = reinterpret_cast<AttachAVirtualTable*>(vtable)->compare((ValueItem*)args.getSourcePtr(), 2);
+                ValueItem args[] = {{*a, as_reference}, {*b, as_reference}};
+                ValueItem* res = reinterpret_cast<AttachAVirtualTable*>(vtable)->compare(args, 2);
                 if (res) {
                     int8_t ret = (int8_t)*res;
                     delete res;
@@ -1763,11 +1746,8 @@ namespace art {
                 throw NotImplementedException();
         case VTableMode::AttachADynamicVirtualTable:
             if (reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->compare) {
-                ValueItem _a(a, no_copy);
-                _a.meta.as_ref = true;
-                ValueItem _b(b, no_copy);
-                _b.meta.as_ref = true;
-                return (int8_t)art::CXX::cxxCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->compare, _a, _b);
+                ValueItem args[] = {{*a, as_reference}, {*b, as_reference}};
+                return (int8_t)art::CXX::aCall(reinterpret_cast<AttachADynamicVirtualTable*>(vtable)->compare, args, 2);
             } else
                 throw NotImplementedException();
         default:

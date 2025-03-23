@@ -158,21 +158,11 @@ auto tttt(T&& typ) {
 
 bool process_state(runtime_state& state) {
     language::language_provider provider(state.input_path, state.recursive);
-    {
-        art::shared_ptr<art::language::language_handler> precompiled(new language_parsers::precompiled());
-        provider.register_language("art", precompiled);
-        provider.register_language("pcart", precompiled);
-        provider.register_language("precart", precompiled);
-    }
-    {
-        language_parsers::c_async::init();
-        art::shared_ptr<art::language::language_handler> c_async(new language_parsers::c_async());
-        provider.register_language("c@", c_async);
-        provider.register_language("c_async", c_async);
-    }
-
-
+    provider.register_language<language_parsers::precompiled>();
+    provider.register_language<language_parsers::c_async>();
     provider.run_once();
+
+
     bool faulty_start = false;
     art::shared_ptr<FuncEnvironment> start_function;
     if (state.main_function.empty()) {
@@ -203,9 +193,7 @@ bool process_state(runtime_state& state) {
 
     if (!faulty_start) {
         Task::start(new Task(start_function, {state.args}));
-        provider.start();
         Task::become_executor_count_manager(true);
-        provider.stop();
     }
     return faulty_start;
 }
@@ -213,22 +201,31 @@ bool process_state(runtime_state& state) {
 int main(int argc, const char** argv) {
     Task::create_executor();
     initRuntime();
-    CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "unhandled_exception"}))->join(new FuncEnvironment(logger<_ERROR>, false, false));
-    CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "error"}))->join(new FuncEnvironment(logger<_ERROR>, false, false));
-    CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "warning"}))->join(new FuncEnvironment(logger<_WARN>, false, false));
-    CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "info"}))->join(new FuncEnvironment(logger<_INFO>, false, false));
+    try {
+        CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "unhandled_exception"}))->join(new FuncEnvironment(logger<_ERROR>, false, false));
+        CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "error"}))->join(new FuncEnvironment(logger<_ERROR>, false, false));
+        CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "warning"}))->join(new FuncEnvironment(logger<_WARN>, false, false));
+        CXX::Interface::getExtractAsStatic<typed_lgr<EventSystem>>(attacha_environment::get_value({"run_time", "event", "info"}))->join(new FuncEnvironment(logger<_INFO>, false, false));
 
-    auto state = process_options(argv, argc);
-    if (state.executing_path.size() != 0)
-        std::filesystem::current_path(state.executing_path);
-    if (!state.disable_cmath)
-        initCMathLib();
+        auto state = process_options(argv, argc);
+        if (state.executing_path.size() != 0)
+            std::filesystem::current_path(state.executing_path);
+        if (!state.disable_cmath)
+            initCMathLib();
 
-    if (state.safelib)
-        initStandardLib_safe();
-    else
-        initStandardLib();
-    bool faulty_start = process_state(state);
-    deinitRuntime();
-    return faulty_start;
+        if (state.safelib)
+            initStandardLib_safe();
+        else
+            initStandardLib();
+        bool faulty_start = process_state(state);
+        deinitRuntime();
+        return faulty_start;
+    } catch (const std::exception& e) {
+        CXX::cxxCall(logger<_FATAL>, e.what());
+    } catch (const AttachARuntimeException& e) {
+        CXX::cxxCall(logger<_FATAL>, e.full_info());
+    } catch (...) {
+        CXX::cxxCall(logger<_FATAL>, "unknown exception");
+    }
+    return -1;
 }

@@ -17,7 +17,7 @@ namespace art {
         //but handler intended to compile sources with art::FuncEnviroBuilder and return patch list, to be handled by runtime
         class language_handler {
         public:
-            virtual std::string_view get_language_extension() const = 0; //returns default file extension
+            virtual list_array<art::ustring> get_language_extensions() const = 0; //returns default file extension
             virtual art::patch_list handle_init(art::files::FileHandle& file) = 0;
             virtual art::patch_list handle_init_complete() = 0;
             virtual art::patch_list handle_create(art::files::FileHandle& file) = 0;
@@ -37,9 +37,34 @@ namespace art {
 
             art::shared_ptr<handle__> h = new handle__();
 
+            template <typename T>
+            struct has_init {
+            private:
+                template <typename U>
+                static constexpr auto check(int) -> decltype(U::init(), std::true_type{}) {
+                    return std::true_type{};
+                }
+
+                template <typename>
+                static constexpr std::false_type check(...) {
+                    return std::false_type{};
+                }
+
+            public:
+                static constexpr bool value = decltype(check<T>(0))::value;
+            };
+
         public:
             language_provider(std::string_view path, bool include_sub_directories);
             ~language_provider();
+
+            template <class T>
+            void register_language() {
+                if constexpr (has_init<T>::value)
+                    T::init();
+                register_language(art::shared_ptr<language_handler>(new T()));
+            }
+
             void register_language(art::shared_ptr<language_handler> decoder);
             void register_language(std::string_view name, art::shared_ptr<language_handler> decoder);
             void unregister_language(std::string_view name);
@@ -52,17 +77,17 @@ namespace art {
 
         namespace helpers {
             struct component_data;
-            using component = std::variant<art::shared_ptr<component_data>, list_array<art::shared_ptr<component_data>>, art::ustring>;
 
             struct component_data {
                 std::string_view token_name;
+                std::string_view raw_token;
                 art::ValueItem value; // processing result
-                component args;
+                list_array<art::shared_ptr<component_data>> args;
                 size_t line, column;
                 size_t line_end, column_end;
             };
 
-            //symbol is instritic created after header_end
+            //symbol and namespaced_symbol is instritic created after header_end
             //value_double, value_long, value_string, value_char is instritic from parser and created only after configuring by `value_processing#***the name***`
             //  list of supported value_processing configs
             //      *string_escape = **token**"
@@ -111,7 +136,7 @@ namespace art {
             //       #struct@with_body = {token_sealed} $[..]
             //to use selected component from inner components use $[1..]
             //       const_type#type$constable = {token_const} $[..]
-            //use @[...] if needed to use keywords that could be processed ony in this token, works only in handler part
+            //use @[...] if needed to use keywords that could be processed ony in this component
             //   it may be used to create keywords that in other cases could be decoded to symbol like @[file]
             //processing handlers accepts list of components to create functions/classes or variables, each component has assigned data (if applicable)
             //end handlers accepts myself and returns completed code
@@ -119,7 +144,7 @@ namespace art {
             //
             //there two modes of loading parser, the header and the body, header is processed first and the body processed only after 'header_end'
             //the header processed a little differently than body
-            //  on header there special 'intrinsics' like ignored_chars, delimiting_chars, token, tokens, keep_delimiting_chars, allowed_symbol_chars, namespace_symbol_sequence, enable_namespace, language_name, language_full_name, language_version and dynamic_patching
+            //  on header there special 'intrinsics' like ignored_chars, delimiting_chars, token, tokens, keep_delimiting_chars, allowed_symbol_chars, namespace_symbol_sequence, language_name, language_full_name, language_version, language_extensions and dynamic_patching
             //      the ignored_chars, delimiting_chars, allowed_symbol_chars, namespace_symbol_sequence, language_name, token, language_full_name and language_version ones accepts string that processed differently
             //          the first space is ignored and can be omitted
             //          also checked if the string begins with the [ and ends with ], then those braces ignored and string processed as normally
@@ -130,15 +155,13 @@ namespace art {
             //              \C adds symbols in range from A to Z and a to z
             //              \N adds symbols in range from 0 to 9
             //              \S adds symbols in range from 0 to 9, a to z and A to Z
-            //      the enable_namespace and dynamic_patching only accepts any 'true'(case sensitive) and anything else is processed as 'false'
-            //      the keep_delimiting_chars processed as array of strings and must use [] as array and strings must be in scopes []
-            //      the tokens processed as array of strings and must use [] as array and strings must be in scopes []
+            //      the keep_delimiting_chars and language_extensions processed as array of strings
+            //          the tokens processed as array of strings and must use [] as array and strings must be in scope []
             //      ignored_chars used to ignore symbols during parsing sources
             //      delimiting_chars used to specify delimiting symbols during parsing sources
             //      keep_delimiting_chars used to specify delimiting symbols that will be contentted during parsing sources( like if declared +=, then symbols + and = will be contentted to '+=' but if in source = + then they will not be contentted)
             //      allowed_symbol_chars used to specify allowed symbols in {symbol} component during parsing sources
-            //      namespace_symbol_sequence used to specify namespace symbols sequence during parsing sources( if set as :: then symbols will be divided by '::')
-            //      enable_namespace used to enable namespace support(if disabled namespace_symbol_sequence will be ignored but {symbol} component will be still declared)
+            //      namespace_symbol_sequence used to specify to enable namespace_symbol intrinsics
             //      token used to specify token it accepts the string and declares component as token with token_ prefix,
             //              token also supports custom naming and variants for tokens using # 'token#class = [Class]'
             //              adding variant for token by again declaring token with # 'token#class = [struct]'
@@ -148,10 +171,11 @@ namespace art {
             //              tokens also supports inlined token declaration using # 'tokens#class#struct#enum#union' which is same as 'tokens = [[class][struct][enum][union]]'
             //      language_name used to specify language name
             //      language_full_name used to specify language full name
+            //      language_extensions used to specify file extensions for this language
             //      language_version used to specify language version
             //      dynamic_patching used to enable dynamic patching to patch functions and types when sources changed, moved, or removed
             //      after header_end starts language declaration and processed as usual
-            //          when header_end used will be declared tokens: symbol and 'ctoken_.....' ones(declared by compound_token#*)
+            //          when header_end used will be declared tokens: symbol, namespaced_symbol and 'ctoken_.....' ones(declared by compound_token#*)
             //              there also enabled tags feature
             class text_language_handler : public language_handler {
 
@@ -337,11 +361,12 @@ namespace art {
 
                 std::unordered_map<art::ustring, art::shared_ptr<token_data::token_chain>, art::hash<art::ustring>> tokens;
                 std::unordered_map<art::ustring, std::function<void(component_data&)>, art::hash<art::ustring>> handlers;
-                std::unordered_map<art::ustring, std::function<art::patch_list(component_data&)>, art::hash<art::ustring>> handlers_end;
+                std::unordered_map<art::ustring, std::function<art::patch_list(component_data&, text_language_handler&)>, art::hash<art::ustring>> handlers_end;
 
 
                 list_array<ast_data> ast;
                 std::vector<ast_data*> entry_ast;
+                list_array<art::ustring> language_extensions;
                 art::ustring language_name;
                 art::ustring language_full_name;
                 art::ustring language_version;
@@ -350,6 +375,7 @@ namespace art {
                 std::unordered_set<char> delimiting_chars;
                 std::unordered_map<char, list_array<std::string>> keep_delimiting_chars;
                 std::string namespace_symbol_sequence; // like c++ '::' or c# ':' or java '.'
+                list_array<std::string> entry_points;
                 art::TaskRWMutex rw_mutex;
                 char string_escape = '\\';
                 bool in_header_part = true;
@@ -394,13 +420,13 @@ namespace art {
 
             protected:
                 void register_processing_handler(std::string_view token_name, std::function<void(component_data&)> handler);
-                void register_end_handler(std::string_view token_name, std::function<art::patch_list(component_data&)> handler);
+                void register_end_handler(std::string_view token_name, std::function<art::patch_list(component_data&, text_language_handler&)> handler);
 
             public:
                 text_language_handler(std::string_view language_declaration);
 
-                std::string_view get_language_extension() const override {
-                    return (std::string_view)language_name;
+                list_array<art::ustring> get_language_extensions() const override {
+                    return language_extensions;
                 }
 
                 std::string_view get_language_name() const {

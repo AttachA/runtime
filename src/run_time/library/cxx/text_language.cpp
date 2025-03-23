@@ -12,6 +12,10 @@
 
 namespace art {
     namespace language {
+        template <size_t N>
+        static constexpr inline bool operator==(std::string_view view, const char (&str)[N]) {
+            return view == std::string_view(str);
+        }
         namespace helpers {
             auto text_language_handler::token_data::token_chain::get_component() -> component& {
                 return std::get<component>(value);
@@ -350,6 +354,7 @@ namespace art {
                                 token_declaration = {};
                             variants.push_back(get_token(token_name));
                         }
+                        token_declaration = token_declaration.substr(1);
                     } else if (token_declaration.starts_with('[')) {
                         token_declaration = token_declaration.substr(1);
                         while (!token_declaration.empty() && token_declaration[0] != ']' && token_declaration[0] != '\n') {
@@ -359,8 +364,14 @@ namespace art {
                                 return nullptr;
                         }
                         variants.push_back(new token_data::token_chain(token_data::token_chain::option(std::move(tokens))));
+                        token_declaration = token_declaration.substr(1);
+                    } else if (token_declaration.starts_with("$[..]")) {
+                        token_declaration = token_declaration.substr(5);
+                        variants.push_back(new token_data::token_chain(token_data::token_chain::inline_ref(new token_data::token_chain::sequence(selected_tokens))));
+                    } else if (token_declaration.starts_with("@[")) {
+                        token_declaration = token_declaration.substr(1);
+                        variants.push_back(new token_data::token_chain(token_data::token_chain::inline_decl(get_chars(token_declaration))));
                     }
-                    token_declaration = token_declaration.substr(1);
                 } while (loop = token_declaration.starts_with('|'));
                 if (variants.size() == 1)
                     return variants[0];
@@ -607,6 +618,8 @@ namespace art {
                         language_name = token_declaration;
                     } else if (token_name == "language_full_name") {
                         language_full_name = token_declaration;
+                    } else if (token_name == "language_extensions") {
+                        language_extensions = get_array_of_chars(token_declaration);
                     } else if (token_name == "language_version") {
                         language_version = token_declaration;
                     } else if (token_name == "dynamic_patching") {
@@ -637,6 +650,8 @@ namespace art {
                         get_token(set_token_name)->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
                     } else if (token_name.starts_with("value_processing#")) {
                         configure_value_processing(token_name.substr(17), token_declaration_);
+                    } else if (token_name == "entry_components") {
+                        entry_points += get_array_of_chars(token_declaration);
                     } else
                         art::InvalidSyntaxException("Declaring components is not allowed in header part.");
                 } else {
@@ -680,8 +695,7 @@ namespace art {
                     get_token("value_double")->get_variants().emplace_back(new token_data::token_chain(token_data::token_chain::component(token)));
 
                     register_processing_handler("value_double", [](component_data& data) {
-                        auto& arr = std::get<list_array<art::shared_ptr<component_data>>>(data.args);
-                        data.value = std::stod((art::ustring)arr[0]->value + '.' + (art::ustring)arr[1]->value);
+                        data.value = std::stod((art::ustring)data.args[0]->value + '.' + (art::ustring)data.args[1]->value);
                     });
                 } else if (config_name == "string_line") {
                     std::vector<art::shared_ptr<token_data::token_chain>> selected_tokens{
@@ -698,33 +712,13 @@ namespace art {
                     };
                     process_token_declaration(selected_tokens, get_token("value_char"), "value_char", token_declaration);
                     register_processing_handler("value_char", [](component_data& data) {
-                        data.value = std::visit(
-                            [](auto& v) -> char32_t {
-                                using T = std::decay_t<decltype(v)>;
-                                if constexpr (std::is_same_v<T, art::ustring>) {
-                                    auto vv = v.begin();
-                                    return utf8::next(vv, v.end());
-                                } else if constexpr (std::is_same_v<T, art::shared_ptr<component_data>>) {
-                                    switch (v->value.meta.vtype) {
-                                    case VType::character:
-                                        return (char32_t)v->value;
-                                    case VType::string:
-                                        return v->value.retrieve_ref<art::ustring>().get(0);
-                                    default:
-                                        throw art::InvalidSyntaxException("Invalid component result type: " + enum_to_string(v->value.meta.vtype) + " for char processing");
-                                    }
-                                } else if constexpr (std::is_same_v<T, list_array<art::shared_ptr<component_data>>>) {
-                                    for (auto& it : v) {
-                                        if (it->value.meta.vtype == VType::character)
-                                            return (char32_t)it->value;
-                                        else if (it->value.meta.vtype == VType::string)
-                                            return it->value.retrieve_ref<art::ustring>().get(0);
-                                    }
-                                    throw art::InvalidSyntaxException("Invalid component declaration for char processing");
-                                }
-                            },
-                            data.args
-                        );
+                        for (auto& it : data.args) {
+                            if (it->value.meta.vtype == VType::character)
+                                return (char32_t)it->value;
+                            else if (it->value.meta.vtype == VType::string)
+                                return it->value.retrieve_ref<art::ustring>().get(0);
+                        }
+                        throw art::InvalidSyntaxException("Invalid value_char intrinsics declaration");
                     });
                 } else if (config_name == "hex_number_enable") {
                     art::shared_ptr<token_data> token = new token_data();
@@ -840,17 +834,40 @@ namespace art {
             void text_language_handler::declaration_complete() {
                 {
                     register_processing_handler("symbol", [](component_data& data) {
-                        data.value = std::get<art::ustring>(data.args);
+                        data.value = (art::ustring)data.raw_token;
                     });
+                    if (namespace_enabled) {
+                        register_processing_handler("namespaced_symbol", [](component_data& data) {
+                            bool acquire = true;
+                            list_array<ValueItem> nms_s;
+                            for (auto& it : data.args) {
+                                if (acquire) {
+                                    nms_s.emplace_back((art::ustring)it->raw_token);
+                                    acquire = false;
+                                } else {
+                                    acquire = true;
+                                }
+                            }
+                            data.value = std::move(nms_s);
+                        });
+                    }
                 }
                 if (tokens.contains("value_string")) {
                     register_processing_handler("value_string", [](component_data& data) {
-                        data.value = std::get<art::ustring>(data.args);
+                        for (auto& it : data.args) {
+                            if (it->token_name == "process_string_scope") {
+                                data.value = (art::ustring)it->raw_token;
+                                break;
+                            } else if (it->token_name == "process_string_line") {
+                                data.value = (art::ustring)it->raw_token;
+                                break;
+                            }
+                        }
                     });
                 }
                 if (tokens.contains("value_long")) {
                     register_processing_handler("value_long", [](component_data& data) {
-                        data.value = std::stoll((std::string)std::get<art::ustring>(data.args));
+                        data.value = std::stoll((std::string)data.raw_token);
                     });
                 }
                 std::unordered_map<void*, ast_data*> visited;
@@ -974,7 +991,7 @@ namespace art {
                     throw art::AlreadyDefinedException("Token handler already defined for " + token_name);
             }
 
-            void text_language_handler::register_end_handler(std::string_view token_name, std::function<art::patch_list(component_data&)> handler) {
+            void text_language_handler::register_end_handler(std::string_view token_name, std::function<art::patch_list(component_data&, text_language_handler&)> handler) {
                 art::ustring token_name_u(token_name);
                 art::unique_lock unify(rw_mutex);
                 if (handlers_end.find(token_name_u) == handlers_end.end())
@@ -990,37 +1007,15 @@ namespace art {
 
                 component_data components;
                 auto process_component = [this](this auto& process_component, component_data& component) -> void {
-                    std::visit(
-                        [&](auto& v) -> void {
-                            using T = std::decay_t<decltype(v)>;
-                            if constexpr (std::is_same_v<T, art::shared_ptr<component_data>>) {
-                                component_data& c = *v;
-                                process_component(c); //there i got IntelliSense error when i used `self(*v)`
-                            } else if constexpr (std::is_same_v<T, list_array<art::shared_ptr<component_data>>>) {
-                                for (auto& it : v)
-                                    process_component(*it);
-                            }
-                        },
-                        component.args
-                    );
+                    for (auto& it : component.args)
+                        process_component(*it);
                     handlers.at(component.token_name)(component);
                 };
                 auto process_component_start = [this, &process_component](component_data& component) {
-                    std::visit(
-                        [&](auto& v) -> void {
-                            using T = std::decay_t<decltype(v)>;
-                            if constexpr (std::is_same_v<T, art::shared_ptr<component_data>>) {
-                                component_data& c = *v;
-                                process_component(c); //there i got IntelliSense error when i used `self(*v)`
-                            } else if constexpr (std::is_same_v<T, list_array<art::shared_ptr<component_data>>>) {
-                                for (auto& it : v)
-                                    process_component(*it);
-                            }
-                        },
-                        component.args
-                    );
+                    for (auto& it : component.args)
+                        process_component(*it);
 
-                    return handlers_end.at(component.token_name)(component);
+                    return handlers_end.at(component.token_name)(component, *this);
                 };
 
 
